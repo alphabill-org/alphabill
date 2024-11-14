@@ -145,7 +145,7 @@ func rootGenesisRunFunc(config *rootGenesisConfig) error {
 func loadPartitionNodeGenesisFiles(paths []string) ([]*genesis.PartitionNode, error) {
 	var pns []*genesis.PartitionNode
 	for _, p := range paths {
-		pr, err := util.ReadJsonFile(p, &genesis.PartitionNode{})
+		pr, err := util.ReadJsonFile(p, &genesis.PartitionNode{Version: 1})
 		if err != nil {
 			return nil, fmt.Errorf("read partition genesis file '%s' failed: %w", p, err)
 		}
@@ -163,14 +163,14 @@ func savePartitionGenesisFiles(pgs []*genesis.PartitionGenesis, outputDir string
 	for _, pg := range pgs {
 		err := savePartitionGenesisFile(pg, outputDir)
 		if err != nil {
-			return fmt.Errorf("save partition %X genesis failed: %w", pg.PartitionDescription.SystemIdentifier, err)
+			return fmt.Errorf("save partition %X genesis failed: %w", pg.PartitionDescription.PartitionIdentifier, err)
 		}
 	}
 	return nil
 }
 
 func savePartitionGenesisFile(pg *genesis.PartitionGenesis, outputDir string) error {
-	filename := fmt.Sprintf("partition-genesis-%d.json", pg.PartitionDescription.SystemIdentifier)
+	filename := fmt.Sprintf("partition-genesis-%d.json", pg.PartitionDescription.PartitionIdentifier)
 	outputFile := filepath.Join(outputDir, filename)
 	return util.WriteJsonFile(outputFile, pg)
 }

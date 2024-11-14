@@ -34,7 +34,7 @@ func (x *Store) LoadTrustBase(epochNumber uint64) (types.RootTrustBase, error) {
 	version := x.GetVersionNumber(epochNumber)
 	trustBaseKey := getTrustBaseStoreKey(version, epochNumber)
 	if version == 0 {
-		var tb *types.RootTrustBaseV0
+		var tb *types.RootTrustBaseV1
 		ok, err := x.storage.Read(trustBaseKey, &tb)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load trust base for version %d and epoch %d: %w", version, epochNumber, err)

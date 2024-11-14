@@ -70,7 +70,7 @@ type (
 	TxReceiver func() peer.ID
 
 	node interface {
-		SystemID() types.SystemID
+		PartitionID() types.PartitionID
 		Peer() *Peer
 		IsValidatorNode() bool
 	}
@@ -108,7 +108,7 @@ func NewLibP2PValidatorNetwork(ctx context.Context, node node, opts ValidatorNet
 		node:          node,
 	}
 
-	if err := n.initGossipSub(ctx, node.SystemID()); err != nil {
+	if err := n.initGossipSub(ctx, node.PartitionID()); err != nil {
 		return nil, fmt.Errorf("initializing gossip protocol: %w", err)
 	}
 
@@ -183,13 +183,13 @@ func NewLibP2PValidatorNetwork(ctx context.Context, node node, opts ValidatorNet
 	return n, nil
 }
 
-func (n *validatorNetwork) initGossipSub(ctx context.Context, systemID types.SystemID) error {
+func (n *validatorNetwork) initGossipSub(ctx context.Context, partitionID types.PartitionID) error {
 	gs, err := pubsub.NewGossipSub(ctx, n.self.host)
 	if err != nil {
 		return err
 	}
 
-	topic := TopicPrefixBlock + systemID.String()
+	topic := TopicPrefixBlock + partitionID.String()
 	n.log.InfoContext(ctx, fmt.Sprintf("Joining gossipsub topic %s", topic))
 
 	// Both validators and non-validators join the topic mesh. It should be possible though
@@ -350,7 +350,7 @@ func (n *validatorNetwork) handleTransactions(stream libp2pNetwork.Stream) {
 	}()
 
 	for {
-		tx := &types.TransactionOrder{}
+		tx := &types.TransactionOrder{Version: 1}
 		if err := deserializeMsg(stream, tx); err != nil {
 			if !errors.Is(err, io.EOF) {
 				n.log.WarnContext(ctx, fmt.Sprintf("reading %q message", stream.Protocol()), logger.Error(err))

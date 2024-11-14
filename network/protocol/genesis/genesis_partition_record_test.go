@@ -23,11 +23,12 @@ func TestGenesisPartitionRecord_IsValid(t *testing.T) {
 	_, encryptionKey1 := testsig.CreateSignerAndVerifier(t)
 	_, encryptionKey2 := testsig.CreateSignerAndVerifier(t)
 	validPDR := &types.PartitionDescriptionRecord{
-		NetworkIdentifier: 5,
-		SystemIdentifier:  1,
-		TypeIdLen:         8,
-		UnitIdLen:         256,
-		T2Timeout:         1 * time.Second,
+		Version:             1,
+		NetworkIdentifier:   5,
+		PartitionIdentifier: 1,
+		TypeIdLen:           8,
+		UnitIdLen:           256,
+		T2Timeout:           1 * time.Second,
 	}
 
 	type fields struct {
@@ -111,7 +112,7 @@ func TestGenesisPartitionRecord_IsValid(t *testing.T) {
 				},
 				PartitionDescription: validPDR,
 			},
-			wantErrStr: "invalid unicity certificate: unicity certificate validation failed: unicity certificate is nil",
+			wantErrStr: "invalid unicity certificate: invalid unicity certificate: unicity certificate is nil",
 		},
 	}
 	for _, tt := range tests {
@@ -152,22 +153,25 @@ func createPartitionNode(t *testing.T, nodeID string, signingKey abcrypto.Signer
 	request := &certification.BlockCertificationRequest{
 		Partition:      1,
 		NodeIdentifier: nodeID,
-		InputRecord: &types.InputRecord{Version: 1,
+		InputRecord: &types.InputRecord{
+			Version:      1,
 			PreviousHash: make([]byte, 32),
 			Hash:         make([]byte, 32),
 			BlockHash:    make([]byte, 32),
 			SummaryValue: make([]byte, 32),
 			RoundNumber:  1,
+			Timestamp:    types.NewTimestamp(),
 		},
 		RootRoundNumber: 1,
 	}
 	require.NoError(t, request.Sign(signingKey))
 	pr := &PartitionNode{
-		Version:                   1,
-		NodeIdentifier:            nodeID,
-		SigningPublicKey:          node1VerifierPubKey,
-		EncryptionPublicKey:       encryptionPubKeyBytes,
-		BlockCertificationRequest: request,
+		Version:                    1,
+		NodeIdentifier:             nodeID,
+		SigningPublicKey:           node1VerifierPubKey,
+		EncryptionPublicKey:        encryptionPubKeyBytes,
+		BlockCertificationRequest:  request,
+		PartitionDescriptionRecord: types.PartitionDescriptionRecord{Version: 1},
 	}
 	return pr
 }

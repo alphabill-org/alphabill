@@ -7,26 +7,27 @@ import (
 
 	"github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	"github.com/alphabill-org/alphabill-go-base/util"
 )
 
 var (
 	ErrBlockCertificationRequestIsNil = errors.New("block certification request is nil")
-	errInvalidSystemIdentifier        = errors.New("invalid system identifier")
+	errInvalidPartitionIdentifier     = errors.New("invalid partition identifier")
 	errVerifierIsNil                  = errors.New("verifier is nil")
 	errEmptyNodeIdentifier            = errors.New("node identifier is empty")
 )
 
 type BlockCertificationRequest struct {
 	_               struct{}           `cbor:",toarray"`
-	Partition       types.SystemID     `json:"system_identifier"`
-	Shard           types.ShardID      `json:"shard_identifier"`
-	NodeIdentifier  string             `json:"node_identifier"`
-	InputRecord     *types.InputRecord `json:"input_record"`
-	RootRoundNumber uint64             `json:"root_round_number"` // latest known RC's round number (AB-1155)
-	BlockSize       uint64             `json:"block_size"`
-	StateSize       uint64             `json:"state_size"`
-	Signature       []byte             `json:"signature"`
+	Partition       types.PartitionID  `json:"partitionIdentifier"`
+	Shard           types.ShardID      `json:"shardIdentifier"`
+	NodeIdentifier  string             `json:"nodeIdentifier"`
+	InputRecord     *types.InputRecord `json:"inputRecord"`
+	RootRoundNumber uint64             `json:"rootRoundNumber"` // latest known RC's round number (AB-1155)
+	BlockSize       uint64             `json:"blockSize"`
+	StateSize       uint64             `json:"stateSize"`
+	Signature       hex.Bytes          `json:"signature"`
 }
 
 func (x *BlockCertificationRequest) IRRound() uint64 {
@@ -58,16 +59,16 @@ func (x *BlockCertificationRequest) IsValid(v crypto.Verifier) error {
 		return errVerifierIsNil
 	}
 	if x.Partition == 0 {
-		return errInvalidSystemIdentifier
+		return errInvalidPartitionIdentifier
 	}
 	if x.NodeIdentifier == "" {
 		return errEmptyNodeIdentifier
 	}
 	if err := x.InputRecord.IsValid(); err != nil {
-		return fmt.Errorf("input record error: %w", err)
+		return fmt.Errorf("invalid input record: %w", err)
 	}
 	if err := v.VerifyBytes(x.Signature, x.Bytes()); err != nil {
-		return fmt.Errorf("signature verification failed")
+		return fmt.Errorf("signature verification: %w", err)
 	}
 	return nil
 }

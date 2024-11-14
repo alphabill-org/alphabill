@@ -20,9 +20,9 @@ func Test_RootGenesis_New(t *testing.T) {
 	// create partition genesis to be used with the tests
 	homeDir := t.TempDir()
 	nodeGenesisFileLocation := filepath.Join(homeDir, moneyPartitionDir, moneyGenesisFileName)
-	sdrFilename, err := createPDRFile(homeDir, defaultMoneyPDR)
+	pdrFilename, err := createPDRFile(homeDir, defaultMoneyPDR)
 	require.NoError(t, err)
-	args := "money-genesis --home " + homeDir + " -o " + nodeGenesisFileLocation + " -g --partition-description " + sdrFilename
+	args := "money-genesis --home " + homeDir + " -o " + nodeGenesisFileLocation + " -g --partition-description " + pdrFilename
 	cmd := New(testobserve.NewFactory(t))
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	require.NoError(t, cmd.Execute(context.Background()))
@@ -39,7 +39,7 @@ func Test_RootGenesis_New(t *testing.T) {
 		cmd.baseCmd.SetArgs(strings.Split(args, " "))
 		require.NoError(t, cmd.Execute(context.Background()))
 		// read resulting file
-		rootGenesis, err := util.ReadJsonFile(filepath.Join(rootDir, rootGenesisFileName), &genesis.RootGenesis{})
+		rootGenesis, err := util.ReadJsonFile(filepath.Join(rootDir, rootGenesisFileName), &genesis.RootGenesis{Version: 1})
 		require.NoError(t, err)
 		require.Len(t, rootGenesis.Root.RootValidators, 1)
 		require.NoError(t, rootGenesis.Verify())
@@ -56,7 +56,7 @@ func Test_RootGenesis_New(t *testing.T) {
 		require.Len(t, rootGenesis.Partitions, 1)
 		// verify, content
 		require.Len(t, rootGenesis.Partitions[0].Nodes, 1)
-		require.EqualValues(t, rootGenesis.Partitions[0].PartitionDescription.SystemIdentifier, money.DefaultSystemID)
+		require.EqualValues(t, rootGenesis.Partitions[0].PartitionDescription.PartitionIdentifier, money.DefaultPartitionID)
 	})
 
 	t.Run("KeyFileNotFound", func(t *testing.T) {
@@ -87,7 +87,7 @@ func Test_RootGenesis_New(t *testing.T) {
 	t.Run("InvalidPartitionSignature", func(t *testing.T) {
 		homeDir := t.TempDir()
 		// create partition node genesis file with invalid signature
-		moneyGenesis, err := util.ReadJsonFile(nodeGenesisFileLocation, &genesis.PartitionNode{})
+		moneyGenesis, err := util.ReadJsonFile(nodeGenesisFileLocation, &genesis.PartitionNode{Version: 1})
 		require.NoError(t, err)
 		copy(moneyGenesis.BlockCertificationRequest.Signature[:], []byte{'F', 'O', 'O', 'B', 'A', 'R'})
 		invalidPGFile := filepath.Join(homeDir, "invalid-pg.json")
@@ -99,7 +99,7 @@ func Test_RootGenesis_New(t *testing.T) {
 			" --partition-node-genesis-file=" + invalidPGFile +
 			" -g"
 		cmd.baseCmd.SetArgs(strings.Split(args, " "))
-		require.ErrorContains(t, cmd.Execute(context.Background()), "signature verification failed")
+		require.ErrorContains(t, cmd.Execute(context.Background()), "signature verification: verification failed")
 	})
 
 	t.Run("ErrBlockRateInvalid", func(t *testing.T) {

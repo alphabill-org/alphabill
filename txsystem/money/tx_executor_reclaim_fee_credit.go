@@ -42,7 +42,7 @@ func (m *Module) executeReclaimFCTx(tx *types.TransactionOrder, attr *fc.Reclaim
 	if err := m.state.Apply(updateAction); err != nil {
 		return nil, fmt.Errorf("reclaimFC: failed to update state: %w", err)
 	}
-	m.feeCreditTxRecorder.recordReclaimFC(
+	if err := m.feeCreditTxRecorder.recordReclaimFC(
 		&reclaimFeeCreditTx{
 			tx:            tx,
 			attr:          attr,
@@ -50,7 +50,9 @@ func (m *Module) executeReclaimFCTx(tx *types.TransactionOrder, attr *fc.Reclaim
 			reclaimFee:    fee,
 			closeFee:      attr.CloseFeeCreditProof.ActualFee(),
 		},
-	)
+	); err != nil {
+		return nil, fmt.Errorf("failed to record reclaim fee credit transaction: %w", err)
+	}
 	return &types.ServerMetadata{ActualFee: fee, TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
 }
 
@@ -74,12 +76,16 @@ func (m *Module) validateReclaimFCTx(tx *types.TransactionOrder, attr *fc.Reclai
 	if err = closeFcProof.IsValid(); err != nil {
 		return fmt.Errorf("close fee credit proof is invalid: %w", err)
 	}
+	txo, err := closeFcProof.GetTransactionOrderV1()
+	if err != nil {
+		return fmt.Errorf("get transaction order error: %w", err)
+	}
 	closeFCAttr := &fc.CloseFeeCreditAttributes{}
-	if err = closeFcProof.TransactionOrder().UnmarshalAttributes(closeFCAttr); err != nil {
+	if err = txo.UnmarshalAttributes(closeFCAttr); err != nil {
 		return fmt.Errorf("invalid close fee credit attributes: %w", err)
 	}
-	if m.networkID != closeFcProof.NetworkID() {
-		return fmt.Errorf("invalid network id: %d (expected %d)", closeFcProof.NetworkID(), m.networkID)
+	if m.networkID != txo.NetworkID {
+		return fmt.Errorf("invalid network id: %d (expected %d)", txo.NetworkID, m.networkID)
 	}
 	if !bytes.Equal(tx.UnitID, closeFCAttr.TargetUnitID) {
 		return ErrReclaimFCInvalidTargetUnit

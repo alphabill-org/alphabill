@@ -12,13 +12,13 @@ import (
 
 // feeCreditTxRecorder container struct for recording fee credit transactions
 type feeCreditTxRecorder struct {
-	sdrs  map[types.SystemID]*types.PartitionDescriptionRecord
+	sdrs  map[types.PartitionID]*types.PartitionDescriptionRecord
 	state *state.State
-	// recorded fee credit transfers indexed by system_identifier
-	transferFeeCredits map[types.SystemID][]*transferFeeCreditTx
-	// recorded reclaim fee credit transfers indexed by system_identifier
-	reclaimFeeCredits map[types.SystemID][]*reclaimFeeCreditTx
-	systemIdentifier  types.SystemID
+	// recorded fee credit transfers indexed by partition_identifier
+	transferFeeCredits map[types.PartitionID][]*transferFeeCreditTx
+	// recorded reclaim fee credit transfers indexed by partition_identifier
+	reclaimFeeCredits   map[types.PartitionID][]*reclaimFeeCreditTx
+	partitionIdentifier types.PartitionID
 }
 
 type transferFeeCreditTx struct {
@@ -35,31 +35,36 @@ type reclaimFeeCreditTx struct {
 	closeFee      uint64
 }
 
-func newFeeCreditTxRecorder(s *state.State, systemIdentifier types.SystemID, records []*types.PartitionDescriptionRecord) *feeCreditTxRecorder {
-	sdrs := make(map[types.SystemID]*types.PartitionDescriptionRecord)
+func newFeeCreditTxRecorder(s *state.State, partitionIdentifier types.PartitionID, records []*types.PartitionDescriptionRecord) *feeCreditTxRecorder {
+	sdrs := make(map[types.PartitionID]*types.PartitionDescriptionRecord)
 	for _, record := range records {
-		sdrs[record.SystemIdentifier] = record
+		sdrs[record.PartitionIdentifier] = record
 	}
 	return &feeCreditTxRecorder{
-		sdrs:               sdrs,
-		state:              s,
-		systemIdentifier:   systemIdentifier,
-		transferFeeCredits: make(map[types.SystemID][]*transferFeeCreditTx),
-		reclaimFeeCredits:  make(map[types.SystemID][]*reclaimFeeCreditTx),
+		sdrs:                sdrs,
+		state:               s,
+		partitionIdentifier: partitionIdentifier,
+		transferFeeCredits:  make(map[types.PartitionID][]*transferFeeCreditTx),
+		reclaimFeeCredits:   make(map[types.PartitionID][]*reclaimFeeCreditTx),
 	}
 }
 
 func (f *feeCreditTxRecorder) recordTransferFC(tx *transferFeeCreditTx) {
-	sid := tx.attr.TargetSystemIdentifier
+	sid := tx.attr.TargetPartitionID
 	f.transferFeeCredits[sid] = append(f.transferFeeCredits[sid], tx)
 }
 
-func (f *feeCreditTxRecorder) recordReclaimFC(tx *reclaimFeeCreditTx) {
-	sid := tx.attr.CloseFeeCreditProof.TxRecord.TransactionOrder.SystemID
+func (f *feeCreditTxRecorder) recordReclaimFC(tx *reclaimFeeCreditTx) error {
+	txo, err := tx.attr.CloseFeeCreditProof.TxRecord.GetTransactionOrderV1()
+	if err != nil {
+		return fmt.Errorf("failed to get transaction order: %w", err)
+	}
+	sid := txo.PartitionID
 	f.reclaimFeeCredits[sid] = append(f.reclaimFeeCredits[sid], tx)
+	return nil
 }
 
-func (f *feeCreditTxRecorder) getAddedCredit(sid types.SystemID) uint64 {
+func (f *feeCreditTxRecorder) getAddedCredit(sid types.PartitionID) uint64 {
 	var sum uint64
 	for _, transferFC := range f.transferFeeCredits[sid] {
 		sum += transferFC.attr.Amount - transferFC.fee
@@ -67,7 +72,7 @@ func (f *feeCreditTxRecorder) getAddedCredit(sid types.SystemID) uint64 {
 	return sum
 }
 
-func (f *feeCreditTxRecorder) getReclaimedCredit(sid types.SystemID) uint64 {
+func (f *feeCreditTxRecorder) getReclaimedCredit(sid types.PartitionID) uint64 {
 	var sum uint64
 	for _, reclaimFC := range f.reclaimFeeCredits[sid] {
 		sum += reclaimFC.reclaimAmount
@@ -97,13 +102,13 @@ func (f *feeCreditTxRecorder) reset() {
 
 func (f *feeCreditTxRecorder) consolidateFees() error {
 	// update fee credit bills for all known partitions with added and removed credits
-	for sid, sdr := range f.sdrs {
+	for sid, pdr := range f.sdrs {
 		addedCredit := f.getAddedCredit(sid)
 		reclaimedCredit := f.getReclaimedCredit(sid)
 		if addedCredit == reclaimedCredit {
 			continue // no update if bill value doesn't change
 		}
-		fcUnitID := types.UnitID(sdr.FeeCreditBill.UnitID)
+		fcUnitID := pdr.FeeCreditBill.UnitID
 		_, err := f.state.GetUnit(fcUnitID, false)
 		if err != nil {
 			return err
@@ -119,19 +124,19 @@ func (f *feeCreditTxRecorder) consolidateFees() error {
 			})
 		err = f.state.Apply(updateData)
 		if err != nil {
-			return fmt.Errorf("failed to update [%x] partition's fee credit bill: %w", sdr.SystemIdentifier, err)
+			return fmt.Errorf("failed to update [%x] partition's fee credit bill: %w", pdr.PartitionIdentifier, err)
 		}
 
 		err = f.state.AddUnitLog(fcUnitID, make([]byte, f.state.HashAlgorithm().Size()))
 		if err != nil {
-			return fmt.Errorf("failed to update [%x] partition's fee credit bill state log: %w", sdr.SystemIdentifier, err)
+			return fmt.Errorf("failed to update [%x] partition's fee credit bill state log: %w", pdr.PartitionIdentifier, err)
 		}
 	}
 
 	// increment money fee credit bill with spent fees
 	spentFeeSum := f.getSpentFeeSum()
 	if spentFeeSum > 0 {
-		moneyFCUnitID := f.sdrs[f.systemIdentifier].FeeCreditBill.UnitID
+		moneyFCUnitID := f.sdrs[f.partitionIdentifier].FeeCreditBill.UnitID
 		_, err := f.state.GetUnit(moneyFCUnitID, false)
 		if err != nil {
 			return fmt.Errorf("could not find money fee credit bill: %w", err)

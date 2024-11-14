@@ -18,7 +18,7 @@ var _ txtypes.FeeCreditModule = (*FeeCreditModule)(nil)
 
 var (
 	ErrMissingNetworkIdentifier       = errors.New("network identifier is missing")
-	ErrMissingSystemIdentifier        = errors.New("system identifier is missing")
+	ErrMissingPartitionIdentifier     = errors.New("partition identifier is missing")
 	ErrStateIsNil                     = errors.New("state is nil")
 	ErrMissingFeeCreditRecordUnitType = errors.New("fee credit record unit type is missing")
 	ErrMissingAdminOwnerPredicate     = errors.New("admin owner predicate is missing")
@@ -40,7 +40,7 @@ In feeless mode the non-fee transactions are "free" i.e. no actual fees are char
 */
 type FeeCreditModule struct {
 	networkID               types.NetworkID
-	systemIdentifier        types.SystemID
+	partitionIdentifier     types.PartitionID
 	state                   *state.State
 	hashAlgorithm           crypto.Hash
 	execPredicate           predicates.PredicateRunner
@@ -50,12 +50,12 @@ type FeeCreditModule struct {
 	feelessMode             bool
 }
 
-func NewFeeCreditModule(networkID types.NetworkID, systemID types.SystemID, state *state.State, feeCreditRecordUnitType []byte, adminOwnerPredicate []byte, opts ...Option) (*FeeCreditModule, error) {
+func NewFeeCreditModule(networkID types.NetworkID, partitionID types.PartitionID, state *state.State, feeCreditRecordUnitType []byte, adminOwnerPredicate []byte, opts ...Option) (*FeeCreditModule, error) {
 	if networkID == 0 {
-		return nil, ErrMissingSystemIdentifier
+		return nil, ErrMissingPartitionIdentifier
 	}
-	if systemID == 0 {
-		return nil, ErrMissingSystemIdentifier
+	if partitionID == 0 {
+		return nil, ErrMissingPartitionIdentifier
 	}
 	if state == nil {
 		return nil, ErrStateIsNil
@@ -67,7 +67,7 @@ func NewFeeCreditModule(networkID types.NetworkID, systemID types.SystemID, stat
 		return nil, ErrMissingAdminOwnerPredicate
 	}
 	m := &FeeCreditModule{
-		systemIdentifier:        systemID,
+		partitionIdentifier:     partitionID,
 		state:                   state,
 		feeCreditRecordUnitType: feeCreditRecordUnitType,
 		adminOwnerPredicate:     adminOwnerPredicate,

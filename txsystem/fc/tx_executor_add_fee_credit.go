@@ -97,15 +97,19 @@ func (f *FeeCreditModule) checkTransferFC(tx *types.TransactionOrder, attr *fc.A
 		return nil, fmt.Errorf("transfer transaction attributes error: %w", err)
 	}
 	// bill was transferred to fee credits in this network
-	if transProof.NetworkID() != f.networkID {
-		return nil, fmt.Errorf("invalid transferFC network identifier %d (expected %d)", transProof.NetworkID(), f.networkID)
+	txo, err := transProof.GetTransactionOrderV1()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get transaction order: %w", err)
+	}
+	if txo.NetworkID != f.networkID {
+		return nil, fmt.Errorf("invalid transferFC network identifier %d (expected %d)", txo.NetworkID, f.networkID)
 	}
 	// bill was transferred in correct partition
-	if transProof.SystemID() != f.moneySystemID {
-		return nil, fmt.Errorf("invalid transferFC money system identifier %d (expected %d)", transProof.SystemID(), f.moneySystemID)
+	if txo.PartitionID != f.moneyPartitionID {
+		return nil, fmt.Errorf("invalid transferFC money partition identifier %d (expected %d)", txo.PartitionID, f.moneyPartitionID)
 	}
-	if transAttr.TargetSystemIdentifier != f.systemID {
-		return nil, fmt.Errorf("invalid transferFC target system identifier %d (expected %d)", transAttr.TargetSystemIdentifier, f.systemID)
+	if transAttr.TargetPartitionID != f.partitionID {
+		return nil, fmt.Errorf("invalid transferFC target partition identifier %d (expected %d)", transAttr.TargetPartitionID, f.partitionID)
 	}
 	// bill was transferred to correct target record
 	if !bytes.Equal(transAttr.TargetRecordID, tx.UnitID) {
@@ -135,7 +139,10 @@ func (f *FeeCreditModule) checkTransferFC(tx *types.TransactionOrder, attr *fc.A
 }
 
 func getTransferFC(addFeeCreditProof *types.TxRecordProof) (*fc.TransferFeeCreditAttributes, error) {
-	txo := addFeeCreditProof.TransactionOrder()
+	txo, err := addFeeCreditProof.GetTransactionOrderV1()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get transaction order: %w", err)
+	}
 	txType := txo.Type
 	if txType != fc.TransactionTypeTransferFeeCredit {
 		return nil, fmt.Errorf("invalid transfer fee credit transaction transaction type: %d", txType)

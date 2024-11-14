@@ -21,19 +21,19 @@ const (
 var _ txtypes.FeeCreditModule = (*FeeCreditModule)(nil)
 
 var (
-	ErrNetworkIdentifierMissing     = errors.New("network identifier is missing")
-	ErrSystemIdentifierMissing      = errors.New("system identifier is missing")
-	ErrMoneySystemIdentifierMissing = errors.New("money transaction system identifier is missing")
-	ErrStateIsNil                   = errors.New("state is nil")
-	ErrTrustBaseIsNil               = errors.New("trust base is nil")
+	ErrNetworkIdentifierMissing        = errors.New("network identifier is missing")
+	ErrPartitionIdentifierMissing      = errors.New("partition identifier is missing")
+	ErrMoneyPartitionIdentifierMissing = errors.New("money transaction partition identifier is missing")
+	ErrStateIsNil                      = errors.New("state is nil")
+	ErrTrustBaseIsNil                  = errors.New("trust base is nil")
 )
 
 type (
 	// FeeCreditModule contains fee credit related functionality.
 	FeeCreditModule struct {
 		networkID               types.NetworkID
-		systemID                types.SystemID
-		moneySystemID           types.SystemID
+		partitionID             types.PartitionID
+		moneyPartitionID        types.PartitionID
 		state                   *state.State
 		hashAlgorithm           crypto.Hash
 		trustBase               types.RootTrustBase
@@ -43,14 +43,14 @@ type (
 	}
 )
 
-func NewFeeCreditModule(networkID types.NetworkID, systemID types.SystemID, moneySystemID types.SystemID, state *state.State, trustBase types.RootTrustBase, opts ...Option) (*FeeCreditModule, error) {
+func NewFeeCreditModule(networkID types.NetworkID, partitionID types.PartitionID, moneyPartitionID types.PartitionID, state *state.State, trustBase types.RootTrustBase, opts ...Option) (*FeeCreditModule, error) {
 	m := &FeeCreditModule{
-		networkID:     networkID,
-		systemID:      systemID,
-		moneySystemID: moneySystemID,
-		state:         state,
-		trustBase:     trustBase,
-		hashAlgorithm: crypto.SHA256,
+		networkID:        networkID,
+		partitionID:      partitionID,
+		moneyPartitionID: moneyPartitionID,
+		state:            state,
+		trustBase:        trustBase,
+		hashAlgorithm:    crypto.SHA256,
 	}
 	for _, o := range opts {
 		o(m)
@@ -101,11 +101,11 @@ func (f *FeeCreditModule) IsValid() error {
 	if f.networkID == 0 {
 		return ErrNetworkIdentifierMissing
 	}
-	if f.systemID == 0 {
-		return ErrSystemIdentifierMissing
+	if f.partitionID == 0 {
+		return ErrPartitionIdentifierMissing
 	}
-	if f.moneySystemID == 0 {
-		return ErrMoneySystemIdentifierMissing
+	if f.moneyPartitionID == 0 {
+		return ErrMoneyPartitionIdentifierMissing
 	}
 	if f.state == nil {
 		return ErrStateIsNil

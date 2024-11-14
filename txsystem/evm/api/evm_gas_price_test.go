@@ -15,10 +15,10 @@ import (
 
 func TestAPI_GasPrice(t *testing.T) {
 	a := &API{
-		state:            nil,
-		systemIdentifier: 1,
-		gasUnitPrice:     big.NewInt(evm.DefaultGasPrice),
-		blockGasLimit:    10000,
+		state:               nil,
+		partitionIdentifier: 1,
+		gasUnitPrice:        big.NewInt(evm.DefaultGasPrice),
+		blockGasLimit:       10000,
 	}
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/evm/gasPrice", nil)

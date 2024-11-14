@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	ethrpc "github.com/ethereum/go-ethereum/rpc"
 	"github.com/libp2p/go-libp2p/core/crypto"
@@ -38,11 +39,12 @@ func TestRunTokensNode(t *testing.T) {
 	partitionGenesisFileLocation := filepath.Join(homeDir, "partition-genesis.json")
 	trustBaseFileLocation := filepath.Join(homeDir, rootTrustBaseFileName)
 	pdr := types.PartitionDescriptionRecord{
-		NetworkIdentifier: 5,
-		SystemIdentifier:  tokens.DefaultSystemID,
-		TypeIdLen:         8,
-		UnitIdLen:         256,
-		T2Timeout:         2500 * time.Millisecond,
+		Version:             1,
+		NetworkIdentifier:   5,
+		PartitionIdentifier: tokens.DefaultPartitionID,
+		TypeIdLen:           8,
+		UnitIdLen:           256,
+		T2Timeout:           2500 * time.Millisecond,
 	}
 	pdrFilename := filepath.Join(homeDir, "pdr.json")
 	require.NoError(t, util.WriteJsonFile(pdrFilename, &pdr))
@@ -65,7 +67,7 @@ func TestRunTokensNode(t *testing.T) {
 		cmd.baseCmd.SetArgs(strings.Split(args, " "))
 		require.NoError(t, cmd.Execute(ctx))
 
-		pn, err := util.ReadJsonFile(nodeGenesisFileLocation, &genesis.PartitionNode{})
+		pn, err := util.ReadJsonFile(nodeGenesisFileLocation, &genesis.PartitionNode{Version: 1})
 		require.NoError(t, err)
 
 		// use same keys for signing and communication encryption.
@@ -131,8 +133,9 @@ func TestRunTokensNode(t *testing.T) {
 		attrBytes, err := types.Cbor.Marshal(attr)
 		require.NoError(t, err)
 		tx := &types.TransactionOrder{
+			Version: 1,
 			Payload: types.Payload{
-				SystemID:       tokens.DefaultSystemID,
+				PartitionID:    tokens.DefaultPartitionID,
 				Type:           tokens.TransactionTypeDefineNFT,
 				UnitID:         id[:],
 				Attributes:     attrBytes,
@@ -141,18 +144,18 @@ func TestRunTokensNode(t *testing.T) {
 		}
 		txBytes, err := types.Cbor.Marshal(tx)
 		require.NoError(t, err)
-		var res types.Bytes
+		var res hex.Bytes
 		err = rpcClient.CallContext(ctx, &res, "state_sendTransaction", hexutil.Encode(txBytes))
 		require.NoError(t, err)
 		require.NotNil(t, res)
 
 		// failing case
-		var res2 types.Bytes
-		tx.SystemID = 0x01000000 // incorrect system id
+		var res2 hex.Bytes
+		tx.PartitionID = 0x01000000 // incorrect partition id
 		txBytes, err = types.Cbor.Marshal(tx)
 		require.NoError(t, err)
 		err = rpcClient.CallContext(ctx, &res2, "state_sendTransaction", hexutil.Encode(txBytes))
-		require.ErrorContains(t, err, "invalid transaction system identifier")
+		require.ErrorContains(t, err, "invalid transaction partition identifier")
 		require.Nil(t, res2)
 	})
 }

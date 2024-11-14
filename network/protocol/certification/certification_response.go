@@ -13,7 +13,7 @@ as a response to a certification request message.
 */
 type CertificationResponse struct {
 	_         struct{} `cbor:",toarray"`
-	Partition types.SystemID
+	Partition types.PartitionID
 	Shard     types.ShardID
 	Technical TechnicalRecord
 	UC        types.UnicityCertificate
@@ -29,7 +29,7 @@ func (cr *CertificationResponse) IsValid() error {
 	if cr.UC.UnicityTreeCertificate == nil {
 		return errors.New("UnicityTreeCertificate is unassigned")
 	}
-	if utcP := cr.UC.UnicityTreeCertificate.SystemIdentifier; utcP != cr.Partition {
+	if utcP := cr.UC.UnicityTreeCertificate.Partition; utcP != cr.Partition {
 		return fmt.Errorf("partition %s doesn't match UnicityTreeCertificate partition %s", cr.Partition, utcP)
 	}
 

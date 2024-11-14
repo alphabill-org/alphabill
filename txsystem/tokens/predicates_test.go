@@ -16,7 +16,7 @@ import (
 func Test_runChainedPredicates(t *testing.T) {
 	// the tx order is only used as argument of the "exec" callback
 	// so it is ok to share it
-	txo := &types.TransactionOrder{}
+	txo := &types.TransactionOrder{Version: 1}
 	ucErr := errors.New("unexpected call")
 
 	// coverage: 69.3% of statements

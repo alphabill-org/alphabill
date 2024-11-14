@@ -17,14 +17,14 @@ const DefaultGasPrice = 210000000
 
 type (
 	Options struct {
-		moneyTXSystemIdentifier types.SystemID
-		state                   *state.State
-		hashAlgorithm           gocrypto.Hash
-		trustBase               types.RootTrustBase
-		blockGasLimit           uint64
-		gasUnitPrice            *big.Int
-		blockDB                 keyvaluedb.KeyValueDB
-		execPredicate           predicates.PredicateExecutor
+		moneyPartitionID types.PartitionID
+		state            *state.State
+		hashAlgorithm    gocrypto.Hash
+		trustBase        types.RootTrustBase
+		blockGasLimit    uint64
+		gasUnitPrice     *big.Int
+		blockDB          keyvaluedb.KeyValueDB
+		execPredicate    predicates.PredicateExecutor
 	}
 
 	Option func(*Options)
@@ -37,12 +37,12 @@ func defaultOptions() (*Options, error) {
 	}
 
 	return &Options{
-		moneyTXSystemIdentifier: 1,
-		hashAlgorithm:           gocrypto.SHA256,
-		trustBase:               nil,
-		blockGasLimit:           DefaultBlockGasLimit,
-		gasUnitPrice:            big.NewInt(DefaultGasPrice),
-		execPredicate:           predEng.Execute,
+		moneyPartitionID: 1,
+		hashAlgorithm:    gocrypto.SHA256,
+		trustBase:        nil,
+		blockGasLimit:    DefaultBlockGasLimit,
+		gasUnitPrice:     big.NewInt(DefaultGasPrice),
+		execPredicate:    predEng.Execute,
 	}, nil
 }
 
@@ -70,9 +70,9 @@ func WithTrustBase(tb types.RootTrustBase) Option {
 	}
 }
 
-func WithMoneyTXSystemIdentifier(moneyTxSystemID types.SystemID) Option {
+func WithMoneyPartitionID(moneyPartitionID types.PartitionID) Option {
 	return func(o *Options) {
-		o.moneyTXSystemIdentifier = moneyTxSystemID
+		o.moneyPartitionID = moneyPartitionID
 	}
 }
 

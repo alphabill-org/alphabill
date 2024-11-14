@@ -129,7 +129,7 @@ func TestAddVar_NOK(t *testing.T) {
 	// execute addVar tx with empty owner proof to simulate error
 	txo := testtransaction.NewTransactionOrder(t,
 		testtransaction.WithUnitID(orchestration.NewVarID(nil, test.RandomBytes(32))),
-		testtransaction.WithSystemID(orchestration.DefaultSystemID),
+		testtransaction.WithPartitionID(orchestration.DefaultPartitionID),
 		testtransaction.WithTransactionType(orchestration.TransactionTypeAddVAR),
 		testtransaction.WithAttributes(orchestration.AddVarAttributes{}),
 		testtransaction.WithAuthProof(&orchestration.AddVarAuthProof{OwnerProof: nil}),
@@ -191,7 +191,7 @@ func TestAddVar_Validation(t *testing.T) {
 		authProof := &orchestration.AddVarAuthProof{OwnerProof: []byte{1}}
 		tx := testtransaction.NewTransactionOrder(t,
 			testtransaction.WithUnitID(unitID),
-			testtransaction.WithSystemID(orchestration.DefaultSystemID),
+			testtransaction.WithPartitionID(orchestration.DefaultPartitionID),
 			testtransaction.WithTransactionType(orchestration.TransactionTypeAddVAR),
 			testtransaction.WithAttributes(attr),
 			testtransaction.WithAuthProof(authProof),
@@ -206,7 +206,7 @@ func TestAddVar_Validation(t *testing.T) {
 func createAddVarTx(t *testing.T, signer crypto.Signer, attr *orchestration.AddVarAttributes, options ...testtransaction.Option) (*types.TransactionOrder, *orchestration.AddVarAuthProof) {
 	t.Helper()
 	txo := testtransaction.NewTransactionOrder(t,
-		testtransaction.WithSystemID(orchestration.DefaultSystemID),
+		testtransaction.WithPartitionID(orchestration.DefaultPartitionID),
 		testtransaction.WithTransactionType(orchestration.TransactionTypeAddVAR),
 		testtransaction.WithAttributes(attr),
 	)

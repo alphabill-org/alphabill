@@ -371,7 +371,7 @@ func cfgHandler(addConfiguration func(round uint64, cfg *genesis.RootGenesis) er
 
 func parseRootGenesis(r io.ReadCloser) (*genesis.RootGenesis, error) {
 	defer r.Close()
-	rg := &genesis.RootGenesis{}
+	rg := &genesis.RootGenesis{Version: 1}
 	if err := json.NewDecoder(r).Decode(&rg); err != nil {
 		return nil, fmt.Errorf("decoding root genesis: %w", err)
 	}

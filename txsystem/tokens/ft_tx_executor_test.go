@@ -52,6 +52,7 @@ func TestCreateFungibleTokenType_NotOk(t *testing.T) {
 	require.NoError(t, err)
 
 	validTxOrder := &types.TransactionOrder{
+		Version: 1,
 		Payload: types.Payload{
 			Type:   tokens.TransactionTypeDefineFT,
 			UnitID: unitID,
@@ -68,6 +69,7 @@ func TestCreateFungibleTokenType_NotOk(t *testing.T) {
 		{
 			name: "nil unitID",
 			tx: &types.TransactionOrder{
+				Version: 1,
 				Payload: types.Payload{
 					Type:   tokens.TransactionTypeDefineFT,
 					UnitID: nil,
@@ -81,6 +83,7 @@ func TestCreateFungibleTokenType_NotOk(t *testing.T) {
 		{
 			name: "unitID has wrong type",
 			tx: &types.TransactionOrder{
+				Version: 1,
 				Payload: types.Payload{
 					Type:   tokens.TransactionTypeDefineFT,
 					UnitID: existingTokenID,
@@ -94,6 +97,7 @@ func TestCreateFungibleTokenType_NotOk(t *testing.T) {
 		{
 			name: "parentTypeID has wrong type",
 			tx: &types.TransactionOrder{
+				Version: 1,
 				Payload: types.Payload{
 					Type:   tokens.TransactionTypeDefineFT,
 					UnitID: existingTokenTypeID,
@@ -154,6 +158,7 @@ func TestCreateFungibleTokenType_NotOk(t *testing.T) {
 		{
 			name: "unit with given ID exists",
 			tx: &types.TransactionOrder{
+				Version: 1,
 				Payload: types.Payload{
 					Type:   tokens.TransactionTypeDefineFT,
 					UnitID: existingTokenTypeID,
@@ -230,9 +235,9 @@ func TestCreateFungibleTokenType_CreateSingleType_Ok(t *testing.T) {
 	require.Equal(t, attributes.Icon.Type, d.Icon.Type)
 	require.Equal(t, attributes.Icon.Data, d.Icon.Data)
 	require.Equal(t, attributes.DecimalPlaces, d.DecimalPlaces)
-	require.Equal(t, attributes.SubTypeCreationPredicate, d.SubTypeCreationPredicate)
-	require.Equal(t, attributes.TokenMintingPredicate, d.TokenMintingPredicate)
-	require.Equal(t, attributes.TokenTypeOwnerPredicate, d.TokenTypeOwnerPredicate)
+	require.EqualValues(t, attributes.SubTypeCreationPredicate, d.SubTypeCreationPredicate)
+	require.EqualValues(t, attributes.TokenMintingPredicate, d.TokenMintingPredicate)
+	require.EqualValues(t, attributes.TokenTypeOwnerPredicate, d.TokenTypeOwnerPredicate)
 	require.Nil(t, d.ParentTypeID)
 }
 
@@ -288,9 +293,9 @@ func TestCreateFungibleTokenType_CreateTokenTypeChain_Ok(t *testing.T) {
 	require.Equal(t, childAttributes.Icon.Type, d.Icon.Type)
 	require.Equal(t, childAttributes.Icon.Data, d.Icon.Data)
 	require.Equal(t, childAttributes.DecimalPlaces, d.DecimalPlaces)
-	require.Equal(t, childAttributes.SubTypeCreationPredicate, d.SubTypeCreationPredicate)
-	require.Equal(t, childAttributes.TokenMintingPredicate, d.TokenMintingPredicate)
-	require.Equal(t, childAttributes.TokenTypeOwnerPredicate, d.TokenTypeOwnerPredicate)
+	require.EqualValues(t, childAttributes.SubTypeCreationPredicate, d.SubTypeCreationPredicate)
+	require.EqualValues(t, childAttributes.TokenMintingPredicate, d.TokenMintingPredicate)
+	require.EqualValues(t, childAttributes.TokenTypeOwnerPredicate, d.TokenTypeOwnerPredicate)
 	require.Equal(t, parentID, d.ParentTypeID)
 }
 
@@ -343,6 +348,7 @@ func TestMintFungibleToken_NotOk(t *testing.T) {
 		{
 			name: "unit ID is nil",
 			tx: &types.TransactionOrder{
+				Version: 1,
 				Payload: types.Payload{
 					Type:   tokens.TransactionTypeMintFT,
 					UnitID: nil,
@@ -355,6 +361,7 @@ func TestMintFungibleToken_NotOk(t *testing.T) {
 		{
 			name: "unit ID has wrong type",
 			tx: &types.TransactionOrder{
+				Version: 1,
 				Payload: types.Payload{
 					Type:   tokens.TransactionTypeMintFT,
 					UnitID: invalidFungibleTokenID,
@@ -367,6 +374,7 @@ func TestMintFungibleToken_NotOk(t *testing.T) {
 		{
 			name: "type ID has wrong type",
 			tx: &types.TransactionOrder{
+				Version: 1,
 				Payload: types.Payload{
 					Type:   tokens.TransactionTypeMintFT,
 					UnitID: existingTokenID,
@@ -379,6 +387,7 @@ func TestMintFungibleToken_NotOk(t *testing.T) {
 		{
 			name: "unit type with given ID does not exist",
 			tx: &types.TransactionOrder{
+				Version: 1,
 				Payload: types.Payload{
 					Type:   tokens.TransactionTypeMintFT,
 					UnitID: nonExistingTokenID,
@@ -391,6 +400,7 @@ func TestMintFungibleToken_NotOk(t *testing.T) {
 		{
 			name: "token type does not exist",
 			tx: &types.TransactionOrder{
+				Version: 1,
 				Payload: types.Payload{
 					Type:   tokens.TransactionTypeMintFT,
 					UnitID: nonExistingTokenID,
@@ -407,6 +417,7 @@ func TestMintFungibleToken_NotOk(t *testing.T) {
 		{
 			name: "invalid value - zero",
 			tx: &types.TransactionOrder{
+				Version: 1,
 				Payload: types.Payload{
 					Type:   tokens.TransactionTypeMintFT,
 					UnitID: nonExistingTokenID,
@@ -911,11 +922,11 @@ func TestJoinFungibleToken_Ok(t *testing.T) {
 	authProof := &tokens.BurnFungibleTokenAuthProof{TokenTypeOwnerProofs: [][]byte{templates.EmptyArgument()}}
 	burnTxRecord := createTxRecord(t, existingTokenID, tokens.TransactionTypeBurnFT, burnAttributes, testtransaction.WithAuthProof(authProof))
 	roundNo := uint64(10)
-	sm, err := txExecutors.ValidateAndExecute(burnTxRecord.TransactionOrder, testctx.NewMockExecutionContext(testctx.WithCurrentRound(roundNo)))
+	sm, err := txExecutors.ValidateAndExecute(testtransaction.FetchTxoV1(t, burnTxRecord), testctx.NewMockExecutionContext(testctx.WithCurrentRound(roundNo)))
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 
-	burnTxRecordProof := testblock.CreateTxRecordProof(t, burnTxRecord, signer, testblock.WithSystemIdentifier(tokens.DefaultSystemID))
+	burnTxRecordProof := testblock.CreateTxRecordProof(t, burnTxRecord, signer, testblock.WithPartitionIdentifier(tokens.DefaultPartitionID))
 	joinAttr := &tokens.JoinFungibleTokenAttributes{
 		BurnTokenProofs: []*types.TxRecordProof{burnTxRecordProof},
 	}
@@ -980,13 +991,13 @@ func TestJoinFungibleToken_NotOk(t *testing.T) {
 		TargetTokenCounter: 0,
 		Counter:            0,
 	}, testtransaction.WithNetworkID(10))
-	invalidSystemID := createTxRecord(t, existingTokenID, tokens.TransactionTypeBurnFT, &tokens.BurnFungibleTokenAttributes{
+	invalidPartitionID := createTxRecord(t, existingTokenID, tokens.TransactionTypeBurnFT, &tokens.BurnFungibleTokenAttributes{
 		TypeID:             existingTokenTypeID,
 		Value:              existingTokenValue,
 		TargetTokenID:      test.RandomBytes(32),
 		TargetTokenCounter: 0,
 		Counter:            0,
-	}, testtransaction.WithSystemID(10))
+	}, testtransaction.WithPartitionID(10))
 	proofInvalidTargetTokenID := testblock.CreateTxRecordProof(t, burnTxInvalidTargetTokenID, signer)
 	proofInvalidTargetTokenCounter := testblock.CreateTxRecordProof(t, burnTxInvalidTargetTokenCounter, signer)
 	proofBurnTx2 := testblock.CreateTxRecordProof(t, burnTx2, signer)
@@ -1008,7 +1019,7 @@ func TestJoinFungibleToken_NotOk(t *testing.T) {
 			},
 			testtransaction.WithAuthProof(burnAuthProof),
 		)
-		burnTxRecordProof := testblock.CreateTxRecordProof(t, burnTxRecord, signer, testblock.WithSystemIdentifier(tokens.DefaultSystemID))
+		burnTxRecordProof := testblock.CreateTxRecordProof(t, burnTxRecord, signer, testblock.WithPartitionIdentifier(tokens.DefaultPartitionID))
 		burnTxRecordProofs = append(burnTxRecordProofs, burnTxRecordProof)
 	}
 
@@ -1049,13 +1060,13 @@ func TestJoinFungibleToken_NotOk(t *testing.T) {
 			wantErrStr: "burn transaction network id does not match with join transaction network id",
 		},
 		{
-			name: "source not burned - invalid target token system id",
+			name: "source not burned - invalid target token partition id",
 			tx: createTxOrder(t, existingTokenID, tokens.TransactionTypeJoinFT, &tokens.JoinFungibleTokenAttributes{
 				BurnTokenProofs: []*types.TxRecordProof{
-					{TxRecord: invalidSystemID, TxProof: proofInvalidTargetTokenID.TxProof},
+					{TxRecord: invalidPartitionID, TxProof: proofInvalidTargetTokenID.TxProof},
 				},
 			}, testtransaction.WithAuthProof(tokens.JoinFungibleTokenAuthProof{TokenTypeOwnerProofs: [][]byte{templates.AlwaysFalseBytes()}})),
-			wantErrStr: "burn transaction system id does not match with join transaction system id",
+			wantErrStr: "burn transaction partition id does not match with join transaction partition id",
 		},
 		{
 			name: "source not burned - invalid target token id",
@@ -1181,7 +1192,8 @@ func initState(t *testing.T) *state.State {
 func createTxRecord(t *testing.T, unitID types.UnitID, transactionType uint16, attr any, opts ...testtransaction.Option) *types.TransactionRecord {
 	txo := createTxOrder(t, unitID, transactionType, attr, opts...)
 	return &types.TransactionRecord{
-		TransactionOrder: txo,
+		Version:          1,
+		TransactionOrder: testtransaction.TxoToBytes(t, txo),
 		ServerMetadata: &types.ServerMetadata{
 			ActualFee:        1,
 			TargetUnits:      []types.UnitID{txo.UnitID},
@@ -1196,7 +1208,7 @@ func createTxOrder(t *testing.T, unitID types.UnitID, transactionType uint16, at
 		testtransaction.WithUnitID(unitID),
 		testtransaction.WithTransactionType(transactionType),
 		testtransaction.WithAttributes(attr),
-		testtransaction.WithSystemID(tokens.DefaultSystemID),
+		testtransaction.WithPartitionID(tokens.DefaultPartitionID),
 		testtransaction.WithFeeProof(nil),
 		testtransaction.WithClientMetadata(&types.ClientMetadata{
 			Timeout:           1000,

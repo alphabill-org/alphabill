@@ -42,7 +42,7 @@ func Test_NewGenesisStore(t *testing.T) {
 	})
 
 	t.Run("seed is saved", func(t *testing.T) {
-		rgA, rgB := &genesis.RootGenesis{}, &genesis.RootGenesis{}
+		rgA, rgB := &genesis.RootGenesis{Version: 1}, &genesis.RootGenesis{Version: 1}
 		f, err := genesisFiles.Open("testdata/root-genesis-A.json")
 		require.NoError(t, err)
 		require.NoError(t, json.NewDecoder(f).Decode(rgA))

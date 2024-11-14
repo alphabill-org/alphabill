@@ -15,20 +15,20 @@ type Orchestration struct {
 	seed *genesis.RootGenesis
 }
 
-func (o Orchestration) ShardEpoch(partition types.SystemID, shard types.ShardID, round uint64) (uint64, error) {
+func (o Orchestration) ShardEpoch(partition types.PartitionID, shard types.ShardID, round uint64) (uint64, error) {
 	for _, pg := range o.seed.Partitions {
 		// TODO: support multi-shard partitions
-		if pg.PartitionDescription.SystemIdentifier == partition {
+		if pg.PartitionDescription.PartitionIdentifier == partition {
 			return pg.Certificate.InputRecord.Epoch, nil
 		}
 	}
 	return 0, fmt.Errorf("no configuration for %s - %s round %d", partition, shard, round)
 }
 
-func (o Orchestration) ShardConfig(partition types.SystemID, shard types.ShardID, epoch uint64) (*genesis.GenesisPartitionRecord, error) {
+func (o Orchestration) ShardConfig(partition types.PartitionID, shard types.ShardID, epoch uint64) (*genesis.GenesisPartitionRecord, error) {
 	for _, pg := range o.seed.Partitions {
 		// TODO: support multi-shard partitions
-		if pg.PartitionDescription.SystemIdentifier == partition {
+		if pg.PartitionDescription.PartitionIdentifier == partition {
 			return pg, nil
 		}
 	}

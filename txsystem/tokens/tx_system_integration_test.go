@@ -33,11 +33,12 @@ var (
 
 func TestInitPartitionAndDefineNFT_Ok(t *testing.T) {
 	pdr := types.PartitionDescriptionRecord{
-		NetworkIdentifier: 5,
-		SystemIdentifier:  tokens.DefaultSystemID,
-		TypeIdLen:         8,
-		UnitIdLen:         256,
-		T2Timeout:         2000 * time.Millisecond,
+		Version:             1,
+		NetworkIdentifier:   5,
+		PartitionIdentifier: tokens.DefaultPartitionID,
+		TypeIdLen:           8,
+		UnitIdLen:           256,
+		T2Timeout:           2000 * time.Millisecond,
 	}
 	genesisState := newStateWithFeeCredit(t, feeCreditID)
 	tokenPrt, err := testpartition.NewPartition(t, 3, func(trustBase types.RootTrustBase) txsystem.TransactionSystem {
@@ -53,7 +54,7 @@ func TestInitPartitionAndDefineNFT_Ok(t *testing.T) {
 
 	tx := testtransaction.NewTransactionOrder(t,
 		testtransaction.WithTransactionType(tokens.TransactionTypeDefineNFT),
-		testtransaction.WithSystemID(pdr.SystemIdentifier),
+		testtransaction.WithPartitionID(pdr.PartitionIdentifier),
 		testtransaction.WithUnitID(tokens.NewNonFungibleTokenTypeID(nil, []byte{1})),
 		testtransaction.WithAuthProof(&tokens.DefineNonFungibleTokenAuthProof{}),
 		testtransaction.WithAttributes(&tokens.DefineNonFungibleTokenAttributes{
@@ -84,11 +85,12 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		trustBase           types.RootTrustBase
 	)
 	pdr := types.PartitionDescriptionRecord{
-		NetworkIdentifier: 5,
-		SystemIdentifier:  tokens.DefaultSystemID,
-		TypeIdLen:         8,
-		UnitIdLen:         256,
-		T2Timeout:         2000 * time.Millisecond,
+		Version:             1,
+		NetworkIdentifier:   5,
+		PartitionIdentifier: tokens.DefaultPartitionID,
+		TypeIdLen:           8,
+		UnitIdLen:           256,
+		T2Timeout:           2000 * time.Millisecond,
 	}
 
 	// setup network
@@ -114,7 +116,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 
 	// create fungible token type
 	createTypeTx := testtransaction.NewTransactionOrder(t,
-		testtransaction.WithSystemID(tokens.DefaultSystemID),
+		testtransaction.WithPartitionID(tokens.DefaultPartitionID),
 		testtransaction.WithUnitID(fungibleTokenTypeID),
 		testtransaction.WithTransactionType(tokens.TransactionTypeDefineFT),
 		testtransaction.WithAttributes(
@@ -150,7 +152,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 
 	// mint token
 	mintTx := testtransaction.NewTransactionOrder(t,
-		testtransaction.WithSystemID(tokens.DefaultSystemID),
+		testtransaction.WithPartitionID(tokens.DefaultPartitionID),
 		testtransaction.WithTransactionType(tokens.TransactionTypeMintFT),
 		testtransaction.WithAttributes(
 			&tokens.MintFungibleTokenAttributes{
@@ -179,7 +181,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 
 	// split token
 	splitTx1 := testtransaction.NewTransactionOrder(t,
-		testtransaction.WithSystemID(tokens.DefaultSystemID),
+		testtransaction.WithPartitionID(tokens.DefaultPartitionID),
 		testtransaction.WithUnitID(mintedTokenID),
 		testtransaction.WithTransactionType(tokens.TransactionTypeSplitFT),
 		testtransaction.WithAttributes(
@@ -218,7 +220,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	})
 
 	splitTx2 := testtransaction.NewTransactionOrder(t,
-		testtransaction.WithSystemID(tokens.DefaultSystemID),
+		testtransaction.WithPartitionID(tokens.DefaultPartitionID),
 		testtransaction.WithUnitID(mintedTokenID),
 		testtransaction.WithAuthProof(&tokens.SplitFungibleTokenAuthProof{}),
 		testtransaction.WithTransactionType(tokens.TransactionTypeSplitFT),
@@ -259,7 +261,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 
 	// Transfer token
 	transferTx := testtransaction.NewTransactionOrder(t,
-		testtransaction.WithSystemID(tokens.DefaultSystemID),
+		testtransaction.WithPartitionID(tokens.DefaultPartitionID),
 		testtransaction.WithUnitID(mintedTokenID),
 		testtransaction.WithTransactionType(tokens.TransactionTypeTransferFT),
 		testtransaction.WithAttributes(
@@ -289,7 +291,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	// burn token x 2
 	burnTx := testtransaction.NewTransactionOrder(t,
 		testtransaction.WithUnitID(sUnitID1),
-		testtransaction.WithSystemID(tokens.DefaultSystemID),
+		testtransaction.WithPartitionID(tokens.DefaultPartitionID),
 		testtransaction.WithTransactionType(tokens.TransactionTypeBurnFT),
 		testtransaction.WithAttributes(
 			&tokens.BurnFungibleTokenAttributes{
@@ -311,7 +313,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 
 	burnTx2 := testtransaction.NewTransactionOrder(t,
 		testtransaction.WithUnitID(sUnitID2),
-		testtransaction.WithSystemID(tokens.DefaultSystemID),
+		testtransaction.WithPartitionID(tokens.DefaultPartitionID),
 		testtransaction.WithTransactionType(tokens.TransactionTypeBurnFT),
 		testtransaction.WithAttributes(
 			&tokens.BurnFungibleTokenAttributes{
@@ -333,7 +335,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 
 	txProofs := []*types.TxRecordProof{burnTxProof, burn2TxProof}
 	sort.Slice(txProofs, func(i, j int) bool {
-		return txProofs[i].UnitID().Compare(txProofs[j].UnitID()) < 0
+		return testtransaction.FetchTxoV1(t, txProofs[i]).UnitID.Compare(testtransaction.FetchTxoV1(t, txProofs[j]).UnitID) < 0
 	})
 	//var burnTxs []*types.TransactionRecord
 	//var burnTxProofs []*types.TxProof
@@ -344,7 +346,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 
 	// join token
 	joinTx := testtransaction.NewTransactionOrder(t,
-		testtransaction.WithSystemID(tokens.DefaultSystemID),
+		testtransaction.WithPartitionID(tokens.DefaultPartitionID),
 		testtransaction.WithUnitID(mintedTokenID),
 		testtransaction.WithTransactionType(tokens.TransactionTypeJoinFT),
 		testtransaction.WithAttributes(&tokens.JoinFungibleTokenAttributes{BurnTokenProofs: txProofs}),
@@ -401,9 +403,9 @@ func RequireFungibleTokenTypeState(t *testing.T, s *state.State, e fungibleToken
 	require.IsType(t, &tokens.FungibleTokenTypeData{}, u.Data())
 	d := u.Data().(*tokens.FungibleTokenTypeData)
 	require.Nil(t, d.Owner())
-	require.Equal(t, e.tokenMintingPredicate, d.TokenMintingPredicate)
-	require.Equal(t, e.subTypeCreationPredicate, d.SubTypeCreationPredicate)
-	require.Equal(t, e.tokenTypeOwnerPredicate, d.TokenTypeOwnerPredicate)
+	require.EqualValues(t, e.tokenMintingPredicate, d.TokenMintingPredicate)
+	require.EqualValues(t, e.subTypeCreationPredicate, d.SubTypeCreationPredicate)
+	require.EqualValues(t, e.tokenTypeOwnerPredicate, d.TokenTypeOwnerPredicate)
 	require.Equal(t, e.symbol, d.Symbol)
 	require.Equal(t, e.name, d.Name)
 	require.Equal(t, e.icon.Type, d.Icon.Type)

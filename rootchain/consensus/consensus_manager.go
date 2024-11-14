@@ -10,6 +10,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -61,8 +62,8 @@ type (
 	}
 
 	Orchestration interface {
-		ShardEpoch(partition types.SystemID, shard types.ShardID, round uint64) (uint64, error)
-		ShardConfig(partition types.SystemID, shard types.ShardID, epoch uint64) (*genesis.GenesisPartitionRecord, error)
+		ShardEpoch(partition types.PartitionID, shard types.ShardID, round uint64) (uint64, error)
+		ShardConfig(partition types.PartitionID, shard types.ShardID, epoch uint64) (*genesis.GenesisPartitionRecord, error)
 		RoundPartitions(rootRound uint64) ([]*genesis.GenesisPartitionRecord, error)
 	}
 
@@ -770,7 +771,7 @@ func (x *ConsensusManager) processTC(ctx context.Context, tc *drctypes.TimeoutCe
 }
 
 type partitionShard struct {
-	partition types.SystemID
+	partition types.PartitionID
 	shard     string // types.ShardID is not comparable
 }
 
@@ -1050,7 +1051,7 @@ func (x *ConsensusManager) sendRecoveryRequests(ctx context.Context, triggerMsg 
 	return nil
 }
 
-func msgToRecoveryInfo(msg any) (info *recoveryInfo, signatures map[string][]byte, err error) {
+func msgToRecoveryInfo(msg any) (info *recoveryInfo, signatures map[string]hex.Bytes, err error) {
 	info = &recoveryInfo{triggerMsg: msg, sent: time.Now()}
 
 	switch mt := msg.(type) {
@@ -1081,7 +1082,7 @@ The key of the "m" must be of type peer.ID encoded as string (if it's not it is 
 When "m" has fewer items than "count" then len(m) items is returned (iow all map keys),
 when "m" is empty then empty/nil slice is returned.
 */
-func selectRandomNodeIdsFromSignatureMap(m map[string][]byte, count int) (nodes []peer.ID) {
+func selectRandomNodeIdsFromSignatureMap(m map[string]hex.Bytes, count int) (nodes []peer.ID) {
 	for k := range m {
 		id, err := peer.Decode(k)
 		if err != nil {
@@ -1098,7 +1099,7 @@ func selectRandomNodeIdsFromSignatureMap(m map[string][]byte, count int) (nodes 
 	return nodes
 }
 
-func (x *ConsensusManager) ShardInfo(partition types.SystemID, shard types.ShardID) (*drctypes.ShardInfo, error) {
+func (x *ConsensusManager) ShardInfo(partition types.PartitionID, shard types.ShardID) (*storage.ShardInfo, error) {
 	return x.blockStore.ShardInfo(partition, shard)
 }
 

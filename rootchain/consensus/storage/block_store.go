@@ -2,11 +2,9 @@ package storage
 
 import (
 	"bytes"
-	"cmp"
 	"crypto"
 	"errors"
 	"fmt"
-	"slices"
 	"sync"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
@@ -22,69 +20,30 @@ type (
 		hash          crypto.Hash // hash algorithm
 		blockTree     *BlockTree
 		storage       keyvaluedb.KeyValueDB
-		shardInfo     map[partitionShard]*drctypes.ShardInfo
 		orchestration Orchestration
 		lock          sync.RWMutex
 	}
 
 	partitionShard struct {
-		partition types.SystemID
+		partition types.PartitionID
 		shard     string // types.ShardID is not comparable
 	}
 
 	Orchestration interface {
-		ShardEpoch(partition types.SystemID, shard types.ShardID, round uint64) (uint64, error)
-		ShardConfig(partition types.SystemID, shard types.ShardID, epoch uint64) (*genesis.GenesisPartitionRecord, error)
+		ShardEpoch(partition types.PartitionID, shard types.ShardID, round uint64) (uint64, error)
+		ShardConfig(partition types.PartitionID, shard types.ShardID, epoch uint64) (*genesis.GenesisPartitionRecord, error)
 	}
 )
 
-func storeGenesisInit(hash crypto.Hash, pg []*genesis.GenesisPartitionRecord, db keyvaluedb.KeyValueDB) error {
-	for _, genRec := range pg {
-		partition := genRec.PartitionDescription.SystemIdentifier
-		for shard := range genRec.PartitionDescription.Shards.All() {
-			si, err := drctypes.NewShardInfoFromGenesis(genRec)
-			if err != nil {
-				return fmt.Errorf("initializing shard info from genesis: %w", err)
-			}
-			// init round leader to first node in the shard genesis so that we
-			// do not have to special case bootstrap round. When we get CertReq
-			// for the "first real round" we assign fees (which is zero) of the
-			// previous (nonexisting) round to this node...
-			// This func is called only to store initial genesis so should be OK.
-			si.Leader = pg[0].Nodes[0].NodeIdentifier
-
-			if err := db.Write(certKey(partition, shard), si); err != nil {
-				return fmt.Errorf("storing shard info: %w", err)
-			}
-		}
+func storeGenesisInit(hash crypto.Hash, pg []*genesis.GenesisPartitionRecord, db keyvaluedb.KeyValueDB, orchestration Orchestration) error {
+	genesisBlock, err := NewGenesisBlock(hash, pg, orchestration)
+	if err != nil {
+		return fmt.Errorf("creating genesis block: %w", err)
 	}
-	genesisBlock := NewGenesisBlock(hash, pg)
-	if err := blockStoreGenesisInit(genesisBlock, db); err != nil {
-		return fmt.Errorf("storing genesis block: %w", err)
+	if err := db.Write(blockKey(genesisBlock.GetRound()), genesisBlock); err != nil {
+		return fmt.Errorf("persist genesis block: %w", err)
 	}
 	return nil
-}
-
-func readCertificates(db keyvaluedb.KeyValueDB, pg []*genesis.GenesisPartitionRecord) (map[partitionShard]*drctypes.ShardInfo, error) {
-	ucs := make(map[partitionShard]*drctypes.ShardInfo)
-	for _, genRec := range pg {
-		partition := genRec.PartitionDescription.SystemIdentifier
-		for shard := range genRec.PartitionDescription.Shards.All() {
-			var si drctypes.ShardInfo
-			ok, err := db.Read(certKey(partition, shard), &si)
-			if err != nil {
-				return nil, fmt.Errorf("reading ShardInfo from storage: %w", err)
-			}
-			if !ok {
-				return nil, fmt.Errorf("shard info {%s - %s} not found", partition, shard)
-			}
-			if err = si.Init(genRec); err != nil {
-				return nil, fmt.Errorf("init shard info {%s - %s}: %w", partition, shard, err)
-			}
-			ucs[partitionShard{partition: partition, shard: shard.Key()}] = &si
-		}
-	}
-	return ucs, nil
 }
 
 func New(hash crypto.Hash, pg []*genesis.GenesisPartitionRecord, db keyvaluedb.KeyValueDB, orchestration Orchestration) (block *BlockStore, err error) {
@@ -101,68 +60,29 @@ func New(hash crypto.Hash, pg []*genesis.GenesisPartitionRecord, db keyvaluedb.K
 		return nil, fmt.Errorf("failed to read block store: %w", err)
 	}
 	if empty {
-		if err = storeGenesisInit(hash, pg, db); err != nil {
+		if err = storeGenesisInit(hash, pg, db, orchestration); err != nil {
 			return nil, fmt.Errorf("initializing block store: %w", err)
 		}
 	}
-	// read certificates from storage
-	ucs, err := readCertificates(db, pg)
-	if err != nil {
-		return nil, fmt.Errorf("reading shard states from storage: %w", err)
-	}
-	blTree, err := NewBlockTree(db)
+
+	blTree, err := NewBlockTree(db, orchestration)
 	if err != nil {
 		return nil, fmt.Errorf("initializing block tree: %w", err)
 	}
 	return &BlockStore{
 		hash:          hash,
 		blockTree:     blTree,
-		shardInfo:     ucs,
 		storage:       db,
 		orchestration: orchestration,
 	}, nil
 }
 
 func NewFromState(hash crypto.Hash, stateMsg *abdrc.StateMsg, db keyvaluedb.KeyValueDB, orchestration Orchestration) (*BlockStore, error) {
-	// Initiate store
 	if db == nil {
 		return nil, errors.New("storage is nil")
 	}
-	certificates := make(map[partitionShard]*drctypes.ShardInfo)
-	for _, siState := range stateMsg.ShardInfo {
-		si := &drctypes.ShardInfo{
-			Round:         siState.Round,
-			Epoch:         siState.Epoch,
-			RootHash:      siState.RootHash,
-			PrevEpochStat: siState.PrevEpochStat,
-			Stat:          siState.Stat,
-			PrevEpochFees: siState.PrevEpochFees,
-			Fees:          siState.Fees,
-			Leader:        siState.Leader,
-			LastCR: &certification.CertificationResponse{
-				Partition: siState.Partition,
-				Shard:     siState.Shard,
-				Technical: siState.TR,
-				UC:        siState.UC,
-			},
-		}
-		pg, err := orchestration.ShardConfig(siState.Partition, siState.Shard, si.Epoch)
-		if err != nil {
-			return nil, fmt.Errorf("acquiring shard configuration: %w", err)
-		}
-		if err = si.Init(pg); err != nil {
-			return nil, fmt.Errorf("init shard info (%d): %w", siState.Partition, err)
-		}
-		// persist changes
-		if err := db.Write(certKey(siState.Partition, siState.Shard), si); err != nil {
-			return nil, fmt.Errorf("failed to write shard info of partition %s into storage: %w", siState.Partition, err)
-		}
-		// update cache
-		certificates[partitionShard{partition: siState.Partition, shard: siState.Shard.Key()}] = si
-	}
 
-	// create new root node
-	rootNode, err := NewRootBlock(hash, stateMsg.CommittedHead)
+	rootNode, err := NewRootBlock(hash, stateMsg.CommittedHead, orchestration)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create new root node: %w", err)
 	}
@@ -174,7 +94,6 @@ func NewFromState(hash crypto.Hash, stateMsg *abdrc.StateMsg, db keyvaluedb.KeyV
 	return &BlockStore{
 		hash:          hash,
 		blockTree:     blTree,
-		shardInfo:     certificates,
 		storage:       db,
 		orchestration: orchestration,
 	}, nil
@@ -200,12 +119,11 @@ func (x *BlockStore) ProcessTc(tc *drctypes.TimeoutCert) (rErr error) {
 
 // IsChangeInProgress - return input record if sysID has a pending IR change in the pipeline or nil if no change is
 // currently in the pipeline.
-func (x *BlockStore) IsChangeInProgress(sysId types.SystemID) *types.InputRecord {
-	blocks := x.blockTree.GetAllUncommittedNodes()
-	// go through the block we have and make sure that there is no change in progress for this system id
-	for _, b := range blocks {
-		if slices.Contains(b.Changed, sysId) {
-			return b.CurrentIR.Find(sysId).IR
+func (x *BlockStore) IsChangeInProgress(partition types.PartitionID, shard types.ShardID) *types.InputRecord {
+	// go through the block we have and make sure that there is no change in progress for this partition id
+	for _, b := range x.blockTree.GetAllUncommittedNodes() {
+		if _, ok := b.Changed[partitionShard{partition, shard.Key()}]; ok {
+			return b.CurrentIR.Find(partition).IR
 		}
 	}
 	return nil
@@ -225,8 +143,7 @@ func (x *BlockStore) ProcessQc(qc *drctypes.QuorumCert) ([]*certification.Certif
 		return nil, nil
 	}
 	// add Qc to block tree
-	err := x.blockTree.InsertQc(qc)
-	if err != nil {
+	if err := x.blockTree.InsertQc(qc); err != nil {
 		return nil, fmt.Errorf("failed to insert QC into block tree: %w", err)
 	}
 	// This QC does not serve as commit QC, then we are done
@@ -245,11 +162,6 @@ func (x *BlockStore) ProcessQc(qc *drctypes.QuorumCert) ([]*certification.Certif
 	if err != nil {
 		return nil, fmt.Errorf("commit block failed to generate certificates for round %v: %w", committedBlock.GetRound(), err)
 	}
-	// update current certificates
-	if err := x.updateCertificateCache(ucs); err != nil {
-		return nil, fmt.Errorf("failed to update certificate cache: %w", err)
-	}
-	// commit blocks, the newly committed block becomes the new root in chain
 	return ucs, nil
 }
 
@@ -272,7 +184,7 @@ func (x *BlockStore) Add(block *drctypes.BlockData, verifier IRChangeReqVerifier
 		return nil, fmt.Errorf("add block failed: parent round %v not found, recover", block.Qc.VoteInfo.RoundNumber)
 	}
 	// Extend state from parent block
-	exeBlock, err := NewExecutedBlock(x.hash, block, parentBlock, verifier, x.getTR)
+	exeBlock, err := parentBlock.Extend(x.hash, block, verifier, x.orchestration)
 	if err != nil {
 		return nil, fmt.Errorf("error processing block round %v, %w", block.Round, err)
 	}
@@ -283,14 +195,6 @@ func (x *BlockStore) Add(block *drctypes.BlockData, verifier IRChangeReqVerifier
 	return exeBlock.RootHash, nil
 }
 
-func (x *BlockStore) getTR(partition types.SystemID, shard types.ShardID, req *certification.BlockCertificationRequest) (certification.TechnicalRecord, error) {
-	si, ok := x.shardInfo[partitionShard{partition: partition, shard: shard.Key()}]
-	if !ok {
-		return certification.TechnicalRecord{}, fmt.Errorf("no shard info %s - %s", partition, shard)
-	}
-	return si.TechnicalRecord(req, x.orchestration)
-}
-
 func (x *BlockStore) GetHighQc() *drctypes.QuorumCert {
 	return x.blockTree.HighQc()
 }
@@ -299,86 +203,55 @@ func (x *BlockStore) GetLastTC() (*drctypes.TimeoutCert, error) {
 	return ReadLastTC(x.storage)
 }
 
-func (x *BlockStore) updateCertificateCache(certs []*certification.CertificationResponse) error {
-	x.lock.Lock()
-	defer x.lock.Unlock()
-	for _, cr := range certs {
-		siKey := partitionShard{partition: cr.Partition, shard: cr.Shard.Key()}
-		si, ok := x.shardInfo[siKey]
-		if !ok {
-			return fmt.Errorf("shard info not found %v", siKey)
-		}
-		if err := si.SetLatestCert(cr); err != nil {
-			return fmt.Errorf("updating certificate in ShardInfo(%v): %w", siKey, err)
-		}
-		if si.Epoch != cr.Technical.Epoch {
-			partGene, err := x.orchestration.ShardConfig(cr.Partition, cr.Shard, cr.Technical.Epoch)
-			if err != nil {
-				return fmt.Errorf("reading config of the next epoch: %w", err)
-			}
-			si, err = si.NextEpoch(partGene)
-			if err != nil {
-				return fmt.Errorf("creating ShardInfo for the next epoch %v: %w", siKey, err)
-			}
-			x.shardInfo[siKey] = si
-		}
-		// persist changes
-		if err := x.storage.Write(certKey(cr.Partition, cr.Shard), si); err != nil {
-			// non-functional requirements? what should the root node do if it fails to persist state?
-			// todo: AB-795 persistent storage failure?
-			return fmt.Errorf("failed to persist shard info: %w", err)
-		}
-	}
-	return nil
-}
-
-func (x *BlockStore) GetCertificate(id types.SystemID, shard types.ShardID) (*certification.CertificationResponse, error) {
+func (x *BlockStore) GetCertificate(id types.PartitionID, shard types.ShardID) (*certification.CertificationResponse, error) {
 	x.lock.RLock()
 	defer x.lock.RUnlock()
-	si, f := x.shardInfo[partitionShard{partition: id, shard: shard.Key()}]
-	if !f {
-		return nil, fmt.Errorf("no certificate found for system id %s", id)
+
+	committedBlock := x.blockTree.Root()
+	if si, ok := committedBlock.ShardInfo[partitionShard{partition: id, shard: shard.Key()}]; ok {
+		return si.LastCR, nil
 	}
-	return si.LastCR, nil
+	return nil, fmt.Errorf("no certificate found for shard %s - %s", id, shard)
 }
 
 func (x *BlockStore) GetCertificates() []*types.UnicityCertificate {
 	x.lock.RLock()
 	defer x.lock.RUnlock()
 
-	ucs := make([]*types.UnicityCertificate, 0, len(x.shardInfo))
-	for _, v := range x.shardInfo {
+	committedBlock := x.blockTree.Root()
+	ucs := make([]*types.UnicityCertificate, 0, len(committedBlock.ShardInfo))
+	for _, v := range committedBlock.ShardInfo {
 		ucs = append(ucs, &v.LastCR.UC)
 	}
 	return ucs
 }
 
-func (x *BlockStore) ShardInfo(partition types.SystemID, shard types.ShardID) (*drctypes.ShardInfo, error) {
-	if si, ok := x.shardInfo[partitionShard{partition: partition, shard: shard.Key()}]; ok {
+func (x *BlockStore) ShardInfo(partition types.PartitionID, shard types.ShardID) (*ShardInfo, error) {
+	x.lock.RLock()
+	defer x.lock.RUnlock()
+
+	committedBlock := x.blockTree.Root()
+	if si, ok := committedBlock.ShardInfo[partitionShard{partition, shard.Key()}]; ok {
 		return si, nil
 	}
 	return nil, fmt.Errorf("no shard info found for {%s : %s}", partition, shard)
 }
 
 func (x *BlockStore) GetState() *abdrc.StateMsg {
-	committedBlock := x.blockTree.Root()
 	pendingBlocks := x.blockTree.GetAllUncommittedNodes()
 	pending := make([]*drctypes.BlockData, len(pendingBlocks))
 	for i, b := range pendingBlocks {
 		pending[i] = b.BlockData
 	}
-	// sort blocks by round before sending
-	slices.SortFunc(pending, func(a, b *drctypes.BlockData) int {
-		return cmp.Compare(a.GetRound(), b.GetRound())
-	})
+
+	committedBlock := x.blockTree.Root()
 
 	return &abdrc.StateMsg{
-		ShardInfo: toRecoveryShardInfo(x.shardInfo),
 		CommittedHead: &abdrc.CommittedBlock{
-			Block:    committedBlock.BlockData,
-			Ir:       ToRecoveryInputData(committedBlock.CurrentIR),
-			Qc:       committedBlock.Qc,
-			CommitQc: committedBlock.CommitQc,
+			ShardInfo: toRecoveryShardInfo(committedBlock),
+			Block:     committedBlock.BlockData,
+			Qc:        committedBlock.Qc,
+			CommitQc:  committedBlock.CommitQc,
 		},
 		BlockData: pending,
 	}
@@ -402,10 +275,10 @@ func (x *BlockStore) ReadLastVote() (any, error) {
 	return ReadVote(x.storage)
 }
 
-func toRecoveryShardInfo(data map[partitionShard]*drctypes.ShardInfo) []abdrc.ShardInfo {
-	si := make([]abdrc.ShardInfo, len(data))
+func toRecoveryShardInfo(data *ExecutedBlock) []abdrc.ShardInfo {
+	si := make([]abdrc.ShardInfo, len(data.ShardInfo))
 	idx := 0
-	for k, v := range data {
+	for k, v := range data.ShardInfo {
 		si[idx].Partition = k.partition
 		si[idx].Shard = v.LastCR.Shard
 		si[idx].Round = v.Round
@@ -418,22 +291,12 @@ func toRecoveryShardInfo(data map[partitionShard]*drctypes.ShardInfo) []abdrc.Sh
 		si[idx].Leader = v.Leader
 		si[idx].UC = v.LastCR.UC
 		si[idx].TR = v.LastCR.Technical
+		if ir := data.CurrentIR.Find(k.partition); ir != nil {
+			si[idx].IR = ir.IR
+			si[idx].IRTR = ir.Technical
+			si[idx].PDRHash = ir.PDRHash
+		}
 		idx++
 	}
 	return si
-}
-
-// ToRecoveryInputData function for type conversion
-func ToRecoveryInputData(data []*InputData) []*abdrc.InputData {
-	inputData := make([]*abdrc.InputData, len(data))
-	for i, d := range data {
-		inputData[i] = &abdrc.InputData{
-			Partition: d.Partition,
-			Shard:     d.Shard,
-			Ir:        d.IR,
-			Technical: d.Technical,
-			PDRHash:   d.PDRHash,
-		}
-	}
-	return inputData
 }

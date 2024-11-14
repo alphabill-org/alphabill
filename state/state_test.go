@@ -817,7 +817,8 @@ func createUC(s *State, summaryValue uint64, summaryHash []byte) *types.UnicityC
 	if s.IsCommitted() {
 		roundNumber = s.CommittedUC().GetRoundNumber() + 1
 	}
-	return &types.UnicityCertificate{Version: 1, InputRecord: &types.InputRecord{Version: 1,
+	return &types.UnicityCertificate{Version: 1, InputRecord: &types.InputRecord{
+		Version:      1,
 		RoundNumber:  roundNumber,
 		Hash:         summaryHash,
 		SummaryValue: util.Uint64ToBytes(summaryValue),

@@ -9,6 +9,7 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/hash"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/evm"
 	"github.com/alphabill-org/alphabill-go-base/types"
+	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
 	"github.com/ethereum/go-ethereum/core/tracing"
 
 	test "github.com/alphabill-org/alphabill/internal/testutils"
@@ -49,15 +50,16 @@ const counterContractCode = "60806040526000805534801561001457600080fd5b506101b18
 const counterABI = "[\n\t{\n\t\t\"anonymous\": false,\n\t\t\"inputs\": [\n\t\t\t{\n\t\t\t\t\"indexed\": true,\n\t\t\t\t\"internalType\": \"uint256\",\n\t\t\t\t\"name\": \"newValue\",\n\t\t\t\t\"type\": \"uint256\"\n\t\t\t}\n\t\t],\n\t\t\"name\": \"Increment\",\n\t\t\"type\": \"event\"\n\t},\n\t{\n\t\t\"inputs\": [],\n\t\t\"name\": \"get\",\n\t\t\"outputs\": [\n\t\t\t{\n\t\t\t\t\"internalType\": \"uint256\",\n\t\t\t\t\"name\": \"\",\n\t\t\t\t\"type\": \"uint256\"\n\t\t\t}\n\t\t],\n\t\t\"stateMutability\": \"view\",\n\t\t\"type\": \"function\"\n\t},\n\t{\n\t\t\"inputs\": [],\n\t\t\"name\": \"increment\",\n\t\t\"outputs\": [\n\t\t\t{\n\t\t\t\t\"internalType\": \"uint256\",\n\t\t\t\t\"name\": \"\",\n\t\t\t\t\"type\": \"uint256\"\n\t\t\t}\n\t\t],\n\t\t\"stateMutability\": \"nonpayable\",\n\t\t\"type\": \"function\"\n\t}\n]"
 
 const networkIdentifier types.NetworkID = 5
-const systemIdentifier types.SystemID = 0x00000402
+const partitionIdentifier types.PartitionID = 0x00000402
 
 func TestEVMPartition_DeployAndCallContract(t *testing.T) {
 	pdr := types.PartitionDescriptionRecord{
-		NetworkIdentifier: networkIdentifier,
-		SystemIdentifier:  0x00000402,
-		TypeIdLen:         8,
-		UnitIdLen:         256,
-		T2Timeout:         2000 * time.Millisecond,
+		Version:             1,
+		NetworkIdentifier:   networkIdentifier,
+		PartitionIdentifier: 0x00000402,
+		TypeIdLen:           8,
+		UnitIdLen:           256,
+		T2Timeout:           2000 * time.Millisecond,
 	}
 	from := test.RandomBytes(20)
 	genesisState := newGenesisState(t, from, big.NewInt(oneEth))
@@ -67,7 +69,7 @@ func TestEVMPartition_DeployAndCallContract(t *testing.T) {
 		genesisState = genesisState.Clone()
 		system, err := NewEVMTxSystem(
 			pdr.NetworkIdentifier,
-			pdr.SystemIdentifier,
+			pdr.PartitionIdentifier,
 			logger.New(t),
 			WithBlockDB(blockDB),
 			WithState(genesisState),
@@ -88,13 +90,13 @@ func TestEVMPartition_DeployAndCallContract(t *testing.T) {
 	require.NoError(t, evmPartition.SubmitTx(transferTx))
 	txProof, err := testpartition.WaitTxProof(t, evmPartition, transferTx)
 	require.NoError(t, err, "evm transfer transaction failed")
-	require.EqualValues(t, transferTx, txProof.TransactionOrder())
+	require.EqualValues(t, transferTx, testtransaction.FetchTxoV1(t, txProof))
 	// deploy contract
 	deployContractTx := createDeployContractTx(t, from)
 	require.NoError(t, evmPartition.SubmitTx(deployContractTx))
 	txProof, err = testpartition.WaitTxProof(t, evmPartition, deployContractTx)
 	require.NoError(t, err, "evm deploy transaction failed")
-	require.EqualValues(t, deployContractTx, txProof.TransactionOrder())
+	require.EqualValues(t, deployContractTx, testtransaction.FetchTxoV1(t, txProof))
 	require.Equal(t, types.TxStatusSuccessful, txProof.TxRecord.ServerMetadata.SuccessIndicator)
 	var details evm.ProcessingDetails
 	require.NoError(t, txProof.TxRecord.UnmarshalProcessingDetails(&details))
@@ -113,7 +115,7 @@ func TestEVMPartition_DeployAndCallContract(t *testing.T) {
 	require.NoError(t, evmPartition.SubmitTx(callContractTx))
 	txProof, err = testpartition.WaitTxProof(t, evmPartition, callContractTx)
 	require.NoError(t, err, "evm call transaction failed")
-	require.EqualValues(t, callContractTx, txProof.TransactionOrder())
+	require.EqualValues(t, callContractTx, testtransaction.FetchTxoV1(t, txProof))
 	require.Equal(t, types.TxStatusSuccessful, txProof.TxRecord.ServerMetadata.SuccessIndicator)
 	require.NotNil(t, txProof.TxRecord.ServerMetadata.ProcessingDetails)
 	require.NoError(t, txProof.TxRecord.UnmarshalProcessingDetails(&details))
@@ -140,7 +142,7 @@ func TestEVMPartition_Revert_test(t *testing.T) {
 	blockDB, err := memorydb.New()
 	require.NoError(t, err)
 	genesisState := newGenesisState(t, from, big.NewInt(oneEth))
-	system, err := NewEVMTxSystem(networkIdentifier, systemIdentifier, logger.New(t), WithBlockDB(blockDB), WithState(genesisState)) // 1 ETH
+	system, err := NewEVMTxSystem(networkIdentifier, partitionIdentifier, logger.New(t), WithBlockDB(blockDB), WithState(genesisState)) // 1 ETH
 	require.NoError(t, err)
 
 	// Simulate round 1
@@ -148,28 +150,28 @@ func TestEVMPartition_Revert_test(t *testing.T) {
 	// transfer
 	to := test.RandomBytes(20)
 	transferTx := createTransferTx(t, from, to)
-	meta, err := system.Execute(transferTx)
+	txr, err := system.Execute(transferTx)
 	require.NoError(t, err)
-	require.NotNil(t, meta)
+	require.NotNil(t, txr)
 	// deploy contract
 	deployContractTx := createDeployContractTx(t, from)
-	meta, err = system.Execute(deployContractTx)
+	txr, err = system.Execute(deployContractTx)
 	require.NoError(t, err)
-	require.NotNil(t, meta)
-	require.Equal(t, types.TxStatusSuccessful, meta.SuccessIndicator)
+	require.NotNil(t, txr)
+	require.Equal(t, types.TxStatusSuccessful, txr.ServerMetadata.SuccessIndicator)
 	var details evm.ProcessingDetails
-	require.NoError(t, types.Cbor.Unmarshal(meta.ProcessingDetails, &details))
+	require.NoError(t, types.Cbor.Unmarshal(txr.ServerMetadata.ProcessingDetails, &details))
 	require.Equal(t, details.ErrorDetails, "")
 	contractAddr := evmcrypto.CreateAddress(common.BytesToAddress(from), 1)
 	require.Equal(t, details.ContractAddr, contractAddr)
 	require.NotEmpty(t, details.ReturnData) // increment does not return anything
 	// call contract - increment
 	callContractTx := createCallContractTx(from, contractAddr, cABI.Methods["increment"].ID, 2, t)
-	meta, err = system.Execute(callContractTx)
+	txr, err = system.Execute(callContractTx)
 	require.NoError(t, err)
-	require.NotNil(t, meta)
-	require.Equal(t, types.TxStatusSuccessful, meta.SuccessIndicator)
-	require.NoError(t, types.Cbor.Unmarshal(meta.ProcessingDetails, &details))
+	require.NotNil(t, txr)
+	require.Equal(t, types.TxStatusSuccessful, txr.ServerMetadata.SuccessIndicator)
+	require.NoError(t, types.Cbor.Unmarshal(txr.ServerMetadata.ProcessingDetails, &details))
 	require.Equal(t, details.ErrorDetails, "")
 	require.Equal(t, details.ContractAddr, common.Address{})
 	// expect count uint256 = 1
@@ -185,7 +187,8 @@ func TestEVMPartition_Revert_test(t *testing.T) {
 	round1EndState, err := system.EndBlock()
 	require.NoError(t, err)
 	require.NotNil(t, round1EndState)
-	require.NoError(t, system.Commit(&types.UnicityCertificate{Version: 1, InputRecord: &types.InputRecord{Version: 1,
+	require.NoError(t, system.Commit(&types.UnicityCertificate{Version: 1, InputRecord: &types.InputRecord{
+		Version:      1,
 		RoundNumber:  1,
 		Hash:         round1EndState.Root(),
 		SummaryValue: round1EndState.Summary(),
@@ -193,11 +196,11 @@ func TestEVMPartition_Revert_test(t *testing.T) {
 	// Round 2, but this gets reverted
 	require.NoError(t, system.BeginBlock(2))
 	callContractTx = createCallContractTx(from, contractAddr, cABI.Methods["increment"].ID, 3, t)
-	meta, err = system.Execute(callContractTx)
+	txr, err = system.Execute(callContractTx)
 	require.NoError(t, err)
-	require.NotNil(t, meta)
-	require.Equal(t, types.TxStatusSuccessful, meta.SuccessIndicator)
-	require.NoError(t, types.Cbor.Unmarshal(meta.ProcessingDetails, &details))
+	require.NotNil(t, txr)
+	require.Equal(t, types.TxStatusSuccessful, txr.ServerMetadata.SuccessIndicator)
+	require.NoError(t, types.Cbor.Unmarshal(txr.ServerMetadata.ProcessingDetails, &details))
 	require.Equal(t, details.ErrorDetails, "")
 	require.Equal(t, details.ContractAddr, common.Address{})
 	count = uint256.NewInt(2)
@@ -245,9 +248,10 @@ func createTransferTx(t *testing.T, from []byte, to []byte) *types.TransactionOr
 	attrBytes, err := types.Cbor.Marshal(evmAttr)
 	require.NoError(t, err)
 	txo := &types.TransactionOrder{
+		Version: 1,
 		Payload: types.Payload{
 			NetworkID:      networkIdentifier,
-			SystemID:       systemIdentifier,
+			PartitionID:    partitionIdentifier,
 			UnitID:         hash.Sum256(test.RandomBytes(32)),
 			Type:           evm.TransactionTypeEVMCall,
 			Attributes:     attrBytes,
@@ -271,9 +275,10 @@ func createCallContractTx(from []byte, addr common.Address, methodID []byte, non
 	attrBytes, err := types.Cbor.Marshal(evmAttr)
 	require.NoError(t, err)
 	txo := &types.TransactionOrder{
+		Version: 1,
 		Payload: types.Payload{
 			NetworkID:      networkIdentifier,
-			SystemID:       systemIdentifier,
+			PartitionID:    partitionIdentifier,
 			UnitID:         hash.Sum256(test.RandomBytes(32)),
 			Type:           evm.TransactionTypeEVMCall,
 			Attributes:     attrBytes,
@@ -296,9 +301,10 @@ func createDeployContractTx(t *testing.T, from []byte) *types.TransactionOrder {
 	attrBytes, err := types.Cbor.Marshal(evmAttr)
 	require.NoError(t, err)
 	txo := &types.TransactionOrder{
+		Version: 1,
 		Payload: types.Payload{
 			NetworkID:      networkIdentifier,
-			SystemID:       systemIdentifier,
+			PartitionID:    partitionIdentifier,
 			UnitID:         hash.Sum256(test.RandomBytes(32)),
 			Type:           evm.TransactionTypeEVMCall,
 			Attributes:     attrBytes,

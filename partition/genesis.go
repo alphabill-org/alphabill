@@ -104,14 +104,17 @@ func NewNodeGenesis(state *state.State, pdr types.PartitionDescriptionRecord, op
 		hash = zeroHash
 	}
 	// calculate block hash
-	gIR := &types.InputRecord{Version: 1,
+	gIR := &types.InputRecord{
+		Version:      1,
 		PreviousHash: zeroHash, // extend zero hash
 		Hash:         hash,
 		RoundNumber:  pg.PartitionRoundNumber,
 		SummaryValue: util.Uint64ToBytes(summaryValue),
+		Timestamp:    types.NewTimestamp(),
 	}
 	// create genesis block
-	ucBytes, err := types.Cbor.Marshal(&types.UnicityCertificate{Version: 1,
+	ucBytes, err := types.Cbor.Marshal(&types.UnicityCertificate{
+		Version:     1,
 		InputRecord: gIR,
 	})
 	if err != nil {
@@ -119,7 +122,8 @@ func NewNodeGenesis(state *state.State, pdr types.PartitionDescriptionRecord, op
 	}
 	gBlock := &types.Block{
 		Header: &types.Header{
-			SystemID:          pdr.SystemIdentifier,
+			Version:           1,
+			PartitionID:       pdr.PartitionIdentifier,
 			ProposerID:        "genesis",
 			PreviousBlockHash: zeroHash,
 		},
@@ -134,7 +138,7 @@ func NewNodeGenesis(state *state.State, pdr types.PartitionDescriptionRecord, op
 	id := c.peerID.String()
 	// Protocol request
 	blockCertificationRequest := &certification.BlockCertificationRequest{
-		Partition:       pdr.SystemIdentifier,
+		Partition:       pdr.PartitionIdentifier,
 		NodeIdentifier:  id,
 		InputRecord:     gIR,
 		RootRoundNumber: pg.RootRoundNumber,
@@ -159,13 +163,13 @@ func NewNodeGenesis(state *state.State, pdr types.PartitionDescriptionRecord, op
 
 	// partition node
 	node := &genesis.PartitionNode{
-		Version:                   1,
-		NodeIdentifier:            id,
-		SigningPublicKey:          signingPubKey,
-		EncryptionPublicKey:       c.encryptionPubKeyBytes,
-		BlockCertificationRequest: blockCertificationRequest,
-		Params:                    c.params,
-		PartitionDescription:      pdr,
+		Version:                    1,
+		NodeIdentifier:             id,
+		SigningPublicKey:           signingPubKey,
+		EncryptionPublicKey:        c.encryptionPubKeyBytes,
+		BlockCertificationRequest:  blockCertificationRequest,
+		Params:                     c.params,
+		PartitionDescriptionRecord: pdr,
 	}
 	if err := node.IsValid(); err != nil {
 		return nil, err

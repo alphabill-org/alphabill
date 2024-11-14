@@ -50,7 +50,9 @@ func TestNewProofIndexer_history_2(t *testing.T) {
 	// verify round number 1 is correctly cleaned up
 	for _, txr := range blockRound1.Block.Transactions {
 		// verify tx index is not deleted
-		txoHash := txr.TransactionOrder.Hash(crypto.SHA256)
+		txo, err := txr.GetTransactionOrderV1()
+		require.NoError(t, err)
+		txoHash := txo.Hash(crypto.SHA256)
 		var index *TxIndex
 		f, err := proofDB.Read(txoHash, &index)
 		require.NoError(t, err)
@@ -117,17 +119,23 @@ func TestNewProofIndexer_IndexBlock(t *testing.T) {
 	require.NotEqual(t, util.Uint64ToBytes(1), dbIt.Key())
 	require.NoError(t, dbIt.Close())
 	// check for tx proofs, tx proofs are not cleaned
-	txHash := blockRound1.Block.Transactions[0].TransactionOrder.Hash(crypto.SHA256)
+	txo, err := blockRound1.Block.Transactions[0].GetTransactionOrderV1()
+	require.NoError(t, err)
+	txHash := txo.Hash(crypto.SHA256)
 	idx, err := ReadTransactionIndex(proofDB, txHash)
 	require.NoError(t, err)
 	require.EqualValues(t, idx.TxOrderIndex, 0)
 	require.EqualValues(t, idx.RoundNumber, 1)
-	txHash = blockRound2.Block.Transactions[0].TransactionOrder.Hash(crypto.SHA256)
+	txo, err = blockRound2.Block.Transactions[0].GetTransactionOrderV1()
+	require.NoError(t, err)
+	txHash = txo.Hash(crypto.SHA256)
 	idx, err = ReadTransactionIndex(proofDB, txHash)
 	require.NoError(t, err)
 	require.EqualValues(t, idx.TxOrderIndex, 0)
 	require.EqualValues(t, idx.RoundNumber, 2)
-	txHash = blockRound3.Block.Transactions[0].TransactionOrder.Hash(crypto.SHA256)
+	txo, err = blockRound3.Block.Transactions[0].GetTransactionOrderV1()
+	require.NoError(t, err)
+	txHash = txo.Hash(crypto.SHA256)
 	idx, err = ReadTransactionIndex(proofDB, txHash)
 	require.NoError(t, err)
 	require.EqualValues(t, idx.TxOrderIndex, 0)
@@ -189,7 +197,9 @@ func TestNewProofIndexer_RunLoop(t *testing.T) {
 		}, test.WaitDuration, test.WaitTick)
 		// verify history for round 1 is cleaned up
 		for _, transaction := range blockRound1.Block.Transactions {
-			oderHash := transaction.TransactionOrder.Hash(crypto.SHA256)
+			tx, err := transaction.GetTransactionOrderV1()
+			require.NoError(t, err)
+			oderHash := tx.Hash(crypto.SHA256)
 			index := &struct {
 				RoundNumber  uint64
 				TxOrderIndex int
@@ -236,7 +246,9 @@ func TestNewProofIndexer_RunLoop(t *testing.T) {
 		// verify history for round 1 is correctly cleaned up
 		for _, transaction := range blockRound1.Block.Transactions {
 			// verify tx index is not deleted
-			txoHash := transaction.TransactionOrder.Hash(crypto.SHA256)
+			tx, err := transaction.GetTransactionOrderV1()
+			require.NoError(t, err)
+			txoHash := tx.Hash(crypto.SHA256)
 			var index *TxIndex
 			f, err := proofDB.Read(txoHash, &index)
 			require.NoError(t, err)
@@ -301,14 +313,16 @@ func (m mockStateStoreOK) Serialize(writer io.Writer, committed bool) error {
 }
 
 func simulateInput(round uint64, unitID []byte) *BlockAndState {
-	uc, _ := (&types.UnicityCertificate{Version: 1,
+	uc, _ := (&types.UnicityCertificate{
+		Version:     1,
 		InputRecord: &types.InputRecord{Version: 1, RoundNumber: round},
 	}).MarshalCBOR()
+	tx, _ := (&types.TransactionOrder{Version: 1, Payload: types.Payload{PartitionID: 1, UnitID: unitID}}).MarshalCBOR()
 	block := &types.Block{
-		Header: &types.Header{SystemID: 1},
+		Header: &types.Header{Version: 1, PartitionID: 1},
 		Transactions: []*types.TransactionRecord{
 			{
-				TransactionOrder: &types.TransactionOrder{Payload: types.Payload{SystemID: types.SystemID(1), UnitID: unitID}},
+				TransactionOrder: tx,
 				ServerMetadata:   &types.ServerMetadata{TargetUnits: []types.UnitID{unitID}},
 			},
 		},
@@ -321,11 +335,12 @@ func simulateInput(round uint64, unitID []byte) *BlockAndState {
 }
 
 func simulateEmptyInput(round uint64) *BlockAndState {
-	uc, _ := (&types.UnicityCertificate{Version: 1,
+	uc, _ := (&types.UnicityCertificate{
+		Version:     1,
 		InputRecord: &types.InputRecord{Version: 1, RoundNumber: round},
 	}).MarshalCBOR()
 	block := &types.Block{
-		Header:             &types.Header{SystemID: 1},
+		Header:             &types.Header{Version: 1, PartitionID: 1},
 		Transactions:       []*types.TransactionRecord{},
 		UnicityCertificate: uc,
 	}

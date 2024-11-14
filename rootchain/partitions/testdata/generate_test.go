@@ -16,14 +16,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const partitionID1 types.SystemID = 1
+const partitionID1 types.PartitionID = 1
 
-var genesisInputRecord = &types.InputRecord{Version: 1,
+var genesisInputRecord = &types.InputRecord{
+	Version:      1,
 	PreviousHash: make([]byte, 32),
 	Hash:         []byte{1, 1, 1, 1},
 	BlockHash:    []byte{0, 0, 1, 2},
 	SummaryValue: []byte{0, 0, 1, 3},
 	RoundNumber:  1,
+	Timestamp:    types.NewTimestamp(),
 }
 
 func Test(t *testing.T) {

@@ -19,11 +19,11 @@ func NewTxSystem(pdr basetypes.PartitionDescriptionRecord, shardID basetypes.Sha
 		option(options)
 	}
 
-	moneyModule, err := NewMoneyModule(pdr.NetworkIdentifier, pdr.SystemIdentifier, options)
+	moneyModule, err := NewMoneyModule(pdr.NetworkIdentifier, pdr.PartitionIdentifier, options)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load money module: %w", err)
 	}
-	feeCreditModule, err := fc.NewFeeCreditModule(pdr.NetworkIdentifier, pdr.SystemIdentifier, pdr.SystemIdentifier, options.state, options.trustBase,
+	feeCreditModule, err := fc.NewFeeCreditModule(pdr.NetworkIdentifier, pdr.PartitionIdentifier, pdr.PartitionIdentifier, options.state, options.trustBase,
 		fc.WithHashAlgorithm(options.hashAlgorithm),
 		fc.WithFeeCreditRecordUnitType(money.FeeCreditRecordUnitType),
 	)

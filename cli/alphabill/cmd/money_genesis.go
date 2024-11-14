@@ -36,11 +36,12 @@ var (
 	defaultInitialBillOwnerPredicate = templates.AlwaysTrueBytes()
 
 	defaultMoneyPDR = &types.PartitionDescriptionRecord{
-		NetworkIdentifier: types.NetworkLocal,
-		SystemIdentifier:  moneysdk.DefaultSystemID,
-		TypeIdLen:         8,
-		UnitIdLen:         256,
-		T2Timeout:         2500 * time.Millisecond,
+		Version:             1,
+		NetworkIdentifier:   types.NetworkLocal,
+		PartitionIdentifier: moneysdk.DefaultPartitionID,
+		TypeIdLen:           8,
+		UnitIdLen:           256,
+		T2Timeout:           2500 * time.Millisecond,
 		FeeCreditBill: &types.FeeCreditBill{
 			UnitID:         moneysdk.NewBillID(nil, []byte{2}),
 			OwnerPredicate: templates.AlwaysTrueBytes(),
@@ -59,7 +60,7 @@ type moneyGenesisConfig struct {
 	InitialBillValue          uint64
 	InitialBillOwnerPredicate []byte
 	DCMoneySupplyValue        uint64
-	SDRFiles                  []string // system description record filenames
+	PDRFiles                  []string // partition description record filenames
 }
 
 // newMoneyGenesisCmd creates a new cobra command for the alphabill money partition genesis.
@@ -84,7 +85,7 @@ func newMoneyGenesisCmd(baseConfig *baseConfiguration) *cobra.Command {
 	cmd.Flags().Uint64Var(&config.InitialBillValue, "initial-bill-value", defaultInitialBillValue, "the initial bill value")
 	cmd.Flags().BytesHexVar(&config.InitialBillOwnerPredicate, "initial-bill-owner-predicate", defaultInitialBillOwnerPredicate, "the initial bill owner predicate")
 	cmd.Flags().Uint64Var(&config.DCMoneySupplyValue, "dc-money-supply-value", defaultDCMoneySupplyValue, "the initial value for Dust Collector money supply. Total money sum is initial bill + DC money supply.")
-	cmd.Flags().StringSliceVarP(&config.SDRFiles, "system-description-record-files", "c", nil, "path to SDR files (one for each partition, including money partition itself; defaults to single money partition only SDR)")
+	cmd.Flags().StringSliceVarP(&config.PDRFiles, "partition-description-record-files", "c", nil, "path to PDR files (one for each partition, including money partition itself; defaults to single money partition only PDR)")
 	config.Keys.addCmdFlags(cmd)
 	_ = cmd.MarkFlagRequired("partition-description")
 	return cmd
@@ -111,7 +112,7 @@ func abMoneyGenesisRunFun(_ context.Context, config *moneyGenesisConfig) error {
 		return fmt.Errorf("node genesis state file %q already exists", nodeGenesisStateFile)
 	}
 
-	pdr, err := util.ReadJsonFile(config.PDRFilename, &types.PartitionDescriptionRecord{})
+	pdr, err := util.ReadJsonFile(config.PDRFilename, &types.PartitionDescriptionRecord{Version: 1})
 	if err != nil {
 		return fmt.Errorf("loading partition description: %w", err)
 	}
@@ -173,12 +174,12 @@ func (c *moneyGenesisConfig) getNodeGenesisStateFileLocation(home string) string
 }
 
 func (c *moneyGenesisConfig) getPartitionParams() ([]byte, error) {
-	sdrs, err := c.getSDRs()
+	pdrs, err := c.getPDRs()
 	if err != nil {
 		return nil, err
 	}
 	src := &genesis.MoneyPartitionParams{
-		Partitions: sdrs,
+		Partitions: pdrs,
 	}
 	res, err := types.Cbor.Marshal(src)
 	if err != nil {
@@ -187,20 +188,20 @@ func (c *moneyGenesisConfig) getPartitionParams() ([]byte, error) {
 	return res, nil
 }
 
-func (c *moneyGenesisConfig) getSDRs() ([]*types.PartitionDescriptionRecord, error) {
-	var sdrs []*types.PartitionDescriptionRecord
-	if len(c.SDRFiles) == 0 {
-		sdrs = append(sdrs, defaultMoneyPDR)
+func (c *moneyGenesisConfig) getPDRs() ([]*types.PartitionDescriptionRecord, error) {
+	var pdrs []*types.PartitionDescriptionRecord
+	if len(c.PDRFiles) == 0 {
+		pdrs = append(pdrs, defaultMoneyPDR)
 	} else {
-		for _, sdrFile := range c.SDRFiles {
-			sdr, err := util.ReadJsonFile(sdrFile, &types.PartitionDescriptionRecord{})
+		for _, pdrFile := range c.PDRFiles {
+			pdr, err := util.ReadJsonFile(pdrFile, &types.PartitionDescriptionRecord{Version: 1})
 			if err != nil {
 				return nil, err
 			}
-			sdrs = append(sdrs, sdr)
+			pdrs = append(pdrs, pdr)
 		}
 	}
-	return sdrs, nil
+	return pdrs, nil
 }
 
 func newGenesisState(config *moneyGenesisConfig) (*state.State, error) {
@@ -240,17 +241,17 @@ func addInitialDustCollectorMoneySupply(s *state.State, config *moneyGenesisConf
 }
 
 func addInitialFeeCreditBills(s *state.State, config *moneyGenesisConfig) error {
-	sdrs, err := config.getSDRs()
+	pdrs, err := config.getPDRs()
 	if err != nil {
 		return err
 	}
 
-	if len(sdrs) == 0 {
+	if len(pdrs) == 0 {
 		return fmt.Errorf("undefined system description records")
 	}
 
-	for _, sdr := range sdrs {
-		fcb := sdr.FeeCreditBill
+	for _, pdr := range pdrs {
+		fcb := pdr.FeeCreditBill
 		if fcb == nil {
 			return fmt.Errorf("fee credit bill is nil in system description record")
 		}

@@ -21,7 +21,7 @@ import (
 	"github.com/alphabill-org/alphabill/network/protocol/handshake"
 	"github.com/alphabill-org/alphabill/observability"
 	"github.com/alphabill-org/alphabill/rootchain/consensus"
-	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
+	"github.com/alphabill-org/alphabill/rootchain/consensus/storage"
 )
 
 type (
@@ -41,7 +41,7 @@ type (
 		RequestCertification(ctx context.Context, cr consensus.IRChangeRequest) error
 		// CertificationResult read the channel to receive certification results
 		CertificationResult() <-chan *certification.CertificationResponse
-		ShardInfo(partition types.SystemID, shard types.ShardID) (*drctypes.ShardInfo, error)
+		ShardInfo(partition types.PartitionID, shard types.ShardID) (*storage.ShardInfo, error)
 		// Run consensus algorithm
 		Run(ctx context.Context) error
 	}
@@ -260,15 +260,15 @@ func (v *Node) handleConsensus(ctx context.Context) error {
 
 func (v *Node) onCertificationResult(ctx context.Context, cr *certification.CertificationResponse) {
 	// remember to clear the incoming buffer to accept new nodeRequest
-	// NB! this will try and reset the store also in the case when system id is unknown, but this is fine
+	// NB! this will try and reset the store also in the case when partition id is unknown, but this is fine
 	defer func() {
 		v.incomingRequests.Clear(cr.Partition, cr.Shard)
 		v.log.LogAttrs(ctx, logger.LevelTrace, fmt.Sprintf("Resetting request store for partition '%s'", cr.Partition))
 	}()
 
 	subscribed := v.subscription.Get(cr.Partition)
-	v.log.DebugContext(ctx, fmt.Sprintf("sending CertificationResponse to partition %s (%d receivers), IR Hash: %X, Block Hash: %X",
-		cr.Partition, len(subscribed), cr.UC.InputRecord.Hash, cr.UC.InputRecord.BlockHash))
+	v.log.DebugContext(ctx, fmt.Sprintf("sending CertificationResponse to partition %s (%d receivers), R_next: %d, IR Hash: %X, Block Hash: %X",
+		cr.Partition, len(subscribed), cr.Technical.Round, cr.UC.InputRecord.Hash, cr.UC.InputRecord.BlockHash))
 	// send response to all registered nodes
 	for _, node := range subscribed {
 		if err := v.sendResponse(ctx, node, cr); err != nil {

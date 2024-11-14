@@ -145,7 +145,7 @@ func (m *GenericTxSystem) snFees(_ *types.TransactionOrder, execCxt txtypes.Exec
 	return execCxt.SpendGas(abfc.GeneralTxCostGasUnits)
 }
 
-func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (*types.ServerMetadata, error) {
+func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (*types.TransactionRecord, error) {
 	// First, check transaction credible and that there are enough fee credits on the FCR?
 	// buy gas according to the maximum tx fee allowed by client -
 	// if fee proof check fails, function will exit tx and tx will not be added to block
@@ -174,23 +174,31 @@ func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (*types.ServerMeta
 		// not credible, means that no fees can be charged, so just exit with error tx will not be added to block
 		return nil, fmt.Errorf("error transaction not credible: %w", err)
 	}
-	sm, err := m.doExecute(tx, exeCtx)
+	tr, err := m.doExecute(tx, exeCtx)
 	if err != nil {
 		return nil, fmt.Errorf("execute error: %w", err)
 	}
-	return sm, nil
+	return tr, nil
 }
 
-func (m *GenericTxSystem) doExecute(tx *types.TransactionOrder, exeCtx *txtypes.TxExecutionContext) (sm *types.ServerMetadata, retErr error) {
+func (m *GenericTxSystem) doExecute(tx *types.TransactionOrder, exeCtx *txtypes.TxExecutionContext) (txr *types.TransactionRecord, retErr error) {
 	var txExecErr error
-	result := &types.ServerMetadata{SuccessIndicator: types.TxStatusSuccessful}
+	txBytes, err := tx.MarshalCBOR()
+	if err != nil {
+		return nil, fmt.Errorf("marshalling transaction: %w", err)
+	}
+	txr = &types.TransactionRecord{
+		Version:          1,
+		TransactionOrder: txBytes,
+		ServerMetadata:   &types.ServerMetadata{SuccessIndicator: types.TxStatusSuccessful},
+	}
 	savepointID := m.state.Savepoint()
 	defer func() {
 		// set the correct success indicator
 		if txExecErr != nil {
 			m.log.Warn("transaction execute failed", logger.Error(txExecErr), logger.UnitID(tx.GetUnitID()), logger.Round(m.currentRoundNumber))
 			// will set correct error status and clean up target units
-			result.SetError(txExecErr)
+			txr.ServerMetadata.SetError(txExecErr)
 			// transaction execution failed. revert every change made by the transaction order
 			m.state.RollbackToSavepoint(savepointID)
 		}
@@ -198,36 +206,33 @@ func (m *GenericTxSystem) doExecute(tx *types.TransactionOrder, exeCtx *txtypes.
 		// and the "lock fee credit", "unlock fee credit", "add fee credit" and "close fee credit" transactions in all
 		// application partitions are special cases: fees are handled intrinsically in those transactions.
 		// charge user according to gas used
-		sm.ActualFee = exeCtx.CalculateCost()
-		if sm.ActualFee > 0 {
+		txr.ServerMetadata.ActualFee = exeCtx.CalculateCost()
+		if txr.ServerMetadata.ActualFee > 0 {
 			// credit the cost from
 			feeCreditRecordID := tx.FeeCreditRecordID()
-			if err := m.state.Apply(unit.DecrCredit(feeCreditRecordID, sm.ActualFee)); err != nil {
+			if err := m.state.Apply(unit.DecrCredit(feeCreditRecordID, txr.ServerMetadata.ActualFee)); err != nil {
 				// Tx must not be added to block - FCR could not be credited.
 				// Otherwise, Tx would be for free, and there are no funds taken to pay validators
 				m.state.RollbackToSavepoint(savepointID)
 				// clear metadata
-				sm = nil
+				txr = nil
 				retErr = fmt.Errorf("handling transaction fee: %w", err)
 				return
 			}
 			// add fee credit record unit log
-			sm.TargetUnits = append(sm.TargetUnits, feeCreditRecordID)
+			txr.ServerMetadata.TargetUnits = append(txr.ServerMetadata.TargetUnits, feeCreditRecordID)
 		}
-		trx := &types.TransactionRecord{
-			TransactionOrder: tx,
-			ServerMetadata:   sm,
-		}
+
 		// update unit log's
-		for _, targetID := range sm.TargetUnits {
+		for _, targetID := range txr.ServerMetadata.TargetUnits {
 			// add log for each target unit
-			if err := m.state.AddUnitLog(targetID, trx.Hash(m.hashAlgorithm)); err != nil {
+			if err := m.state.AddUnitLog(targetID, txr.Hash(m.hashAlgorithm)); err != nil {
 				// If the unit log update fails, the Tx must not be added to block - there is no way to provide full ledger.
 				// The problem is that a lot of work has been done. If this can be triggered externally, it will become
 				// an attack vector.
 				m.state.RollbackToSavepoint(savepointID)
 				// clear metadata
-				sm = nil
+				txr = nil
 				retErr = fmt.Errorf("adding unit log: %w", err)
 				return
 			}
@@ -237,37 +242,37 @@ func (m *GenericTxSystem) doExecute(tx *types.TransactionOrder, exeCtx *txtypes.
 	}()
 	// check conditional state unlock and release it, either roll back or execute the pending Tx
 	unlockSm, err := m.handleUnlockUnitState(tx, exeCtx)
-	result = appendServerMetadata(result, unlockSm)
+	txr.ServerMetadata = appendServerMetadata(txr.ServerMetadata, unlockSm)
 	if err != nil {
 		txExecErr = fmt.Errorf("unit state lock error: %w", err)
-		return result, nil
+		return txr, nil
 	}
 	// perform transaction-system-specific validation and owner predicate check
 	attr, authProof, err := m.handlers.Validate(tx, exeCtx)
 	if err != nil {
 		txExecErr = fmt.Errorf("transaction validation error (type=%d): %w", tx.Type, err)
-		return result, nil
+		return txr, nil
 	}
 	// either state lock or execute Tx
 	if tx.HasStateLock() {
 		// handle conditional lock of units
-		sm, err = m.executeLockUnitState(tx, exeCtx)
-		result = appendServerMetadata(result, sm)
+		sm, err := m.executeLockUnitState(tx, exeCtx)
+		txr.ServerMetadata = appendServerMetadata(txr.ServerMetadata, sm)
 		if err != nil {
 			txExecErr = fmt.Errorf("unit state lock error: %w", err)
 		}
-		return result, nil
+		return txr, nil
 	}
 	// proceed with the transaction execution, if not state lock
-	sm, err = m.handlers.ExecuteWithAttr(tx, attr, authProof, exeCtx)
-	result = appendServerMetadata(result, sm)
+	sm, err := m.handlers.ExecuteWithAttr(tx, attr, authProof, exeCtx)
+	txr.ServerMetadata = appendServerMetadata(txr.ServerMetadata, sm)
 	if err != nil {
 		txExecErr = fmt.Errorf("execute error: %w", err)
 	}
-	return result, nil
+	return txr, nil
 }
 
-func (m *GenericTxSystem) executeFc(tx *types.TransactionOrder, exeCtx *txtypes.TxExecutionContext) (*types.ServerMetadata, error) {
+func (m *GenericTxSystem) executeFc(tx *types.TransactionOrder, exeCtx *txtypes.TxExecutionContext) (*types.TransactionRecord, error) {
 	// 4. If P.C , ⊥ then return ⊥ – discard P if it is conditional
 	if tx.StateLock != nil {
 		return nil, fmt.Errorf("error fc transaction contains state lock")
@@ -292,14 +297,21 @@ func (m *GenericTxSystem) executeFc(tx *types.TransactionOrder, exeCtx *txtypes.
 		m.state.RollbackToSavepoint(savepointID)
 		return nil, fmt.Errorf("execute error: %w", err)
 	}
+	txBytes, err := tx.MarshalCBOR()
+	if err != nil {
+		m.state.RollbackToSavepoint(savepointID)
+		return nil, fmt.Errorf("marshalling transaction: %w", err)
+	}
 	trx := &types.TransactionRecord{
-		TransactionOrder: tx,
+		Version:          1,
+		TransactionOrder: txBytes,
 		ServerMetadata:   sm,
 	}
+	trHash := trx.Hash(m.hashAlgorithm)
 	// update unit log's
 	for _, targetID := range sm.TargetUnits {
 		// add log for each target unit
-		if err = m.state.AddUnitLog(targetID, trx.Hash(m.hashAlgorithm)); err != nil {
+		if err = m.state.AddUnitLog(targetID, trHash); err != nil {
 			// If the unit log update fails, the Tx must not be added to block - there is no way to provide full ledger.
 			// The problem is that a lot of work has been done. If this can be triggered externally, it will become
 			// an attack vector.
@@ -309,7 +321,7 @@ func (m *GenericTxSystem) executeFc(tx *types.TransactionOrder, exeCtx *txtypes.
 	}
 	// transaction execution succeeded
 	m.state.ReleaseToSavepoint(savepointID)
-	return sm, nil
+	return trx, nil
 }
 
 /*
@@ -326,8 +338,8 @@ func (m *GenericTxSystem) validateGenericTransaction(tx *types.TransactionOrder)
 	}
 
 	// T.β = S.β – transaction is sent to this partition
-	if m.pdr.SystemIdentifier != tx.SystemID {
-		return ErrInvalidSystemIdentifier
+	if m.pdr.PartitionIdentifier != tx.PartitionID {
+		return ErrInvalidPartitionIdentifier
 	}
 
 	// fSH(T.ι) = S.σ – target unit is in this shard

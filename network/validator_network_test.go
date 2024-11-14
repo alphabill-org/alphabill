@@ -185,13 +185,13 @@ func TestForwardTransactions_ChangingReceiver(t *testing.T) {
 }
 
 type mockNode struct {
-	systemID       types.SystemID
+	partitionID    types.PartitionID
 	peer           *Peer
 	validatorNodes peer.IDSlice
 }
 
-func (mn *mockNode) SystemID() types.SystemID {
-	return mn.systemID
+func (mn *mockNode) PartitionID() types.PartitionID {
+	return mn.partitionID
 }
 
 func (mn *mockNode) Peer() *Peer {

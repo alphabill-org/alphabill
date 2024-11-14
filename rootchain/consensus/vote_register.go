@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	"github.com/alphabill-org/alphabill/network/protocol/abdrc"
 	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
 )
@@ -20,7 +21,7 @@ type (
 	ConsensusWithSignatures struct {
 		voteInfo   *drctypes.RoundInfo
 		commitInfo *types.UnicitySeal
-		signatures map[string][]byte
+		signatures map[string]hex.Bytes
 	}
 
 	VoteRegister struct {
@@ -30,7 +31,7 @@ type (
 		// if 2f+1 or threshold votes, then TC is formed
 		timeoutCert *drctypes.TimeoutCert
 		// Helper, to avoid duplicate votes
-		authorToVote map[string][]byte
+		authorToVote map[string]hex.Bytes
 	}
 )
 
@@ -40,7 +41,7 @@ func NewVoteRegister() *VoteRegister {
 	return &VoteRegister{
 		hashToSignatures: make(map[string]*ConsensusWithSignatures),
 		timeoutCert:      nil,
-		authorToVote:     make(map[string][]byte),
+		authorToVote:     make(map[string]hex.Bytes),
 	}
 }
 
@@ -69,7 +70,7 @@ func (v *VoteRegister) InsertVote(vote *abdrc.VoteMsg, quorumInfo QuorumInfo) (*
 		v.hashToSignatures[string(commitInfoHash[:])] = &ConsensusWithSignatures{
 			commitInfo: vote.LedgerCommitInfo,
 			voteInfo:   vote.VoteInfo,
-			signatures: make(map[string][]byte),
+			signatures: make(map[string]hex.Bytes),
 		}
 	}
 	// Add signature from vote

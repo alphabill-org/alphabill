@@ -6,6 +6,8 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/alphabill-org/alphabill-go-base/types/hex"
+	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
 	"github.com/stretchr/testify/require"
 	"github.com/tetratelabs/wazero/api"
 
@@ -55,7 +57,7 @@ func Test_txSignedByPKH(t *testing.T) {
 				read: func(offset, byteCount uint32) ([]byte, bool) { return pkh, true },
 			}
 		}
-		txo := &types.TransactionOrder{Payload: types.Payload{Type: tokens.TransactionTypeTransferNFT}}
+		txo := &types.TransactionOrder{Version: 1, Payload: types.Payload{Type: tokens.TransactionTypeTransferNFT}}
 		require.NoError(t, txo.SetAuthProof(&tokens.TransferNonFungibleTokenAuthProof{}))
 		vm.curPrg.vars[handle_current_tx_order] = txo
 		predicateExecuted := false
@@ -79,7 +81,7 @@ func Test_txSignedByPKH(t *testing.T) {
 				read: func(offset, byteCount uint32) ([]byte, bool) { return pkh, true },
 			}
 		}
-		txo := &types.TransactionOrder{Payload: types.Payload{Type: tokens.TransactionTypeTransferNFT}}
+		txo := &types.TransactionOrder{Version: 1, Payload: types.Payload{Type: tokens.TransactionTypeTransferNFT}}
 		require.NoError(t, txo.SetAuthProof(&tokens.TransferNonFungibleTokenAuthProof{}))
 		vm.curPrg.vars[handle_current_tx_order] = txo
 		predicateExecuted := false
@@ -108,9 +110,10 @@ func Test_txSignedByPKH(t *testing.T) {
 			}
 		}
 		txOrder := &types.TransactionOrder{
+			Version: 1,
 			Payload: types.Payload{
-				Type:     tokens.TransactionTypeTransferNFT,
-				SystemID: 5,
+				Type:        tokens.TransactionTypeTransferNFT,
+				PartitionID: 5,
 			},
 		}
 		ownerProof := []byte{9, 8, 0}
@@ -147,7 +150,7 @@ func Test_amountTransferredSum(t *testing.T) {
 	// trustbase which "successfully" verifies all tx proofs (ie says they're valid)
 	trustBaseOK := &mockRootTrustBase{
 		// need VerifyQuorumSignatures for verifying tx proofs
-		verifyQuorumSignatures: func(data []byte, signatures map[string][]byte) (error, []error) { return nil, nil },
+		verifyQuorumSignatures: func(data []byte, signatures map[string]hex.Bytes) (error, []error) { return nil, nil },
 	}
 	tbSigner, err := abcrypto.NewInMemorySecp256K1Signer()
 	require.NoError(t, err)
@@ -159,7 +162,8 @@ func Test_amountTransferredSum(t *testing.T) {
 	proofs := []*types.TxRecordProof{
 		{
 			TxRecord: &types.TransactionRecord{
-				TransactionOrder: &types.TransactionOrder{},
+				Version:          1,
+				TransactionOrder: testtransaction.NewTransactionOrderBytes(t),
 				ServerMetadata:   &types.ServerMetadata{SuccessIndicator: types.TxStatusSuccessful},
 			},
 			TxProof: nil,
@@ -167,9 +171,10 @@ func Test_amountTransferredSum(t *testing.T) {
 	}
 	// valid money transfer
 	txPayment := &types.TransactionOrder{
+		Version: 1,
 		Payload: types.Payload{
-			SystemID: money.DefaultSystemID,
-			Type:     money.TransactionTypeTransfer,
+			PartitionID: money.DefaultPartitionID,
+			Type:        money.TransactionTypeTransfer,
 		},
 	}
 	err = txPayment.SetAttributes(money.TransferAttributes{
@@ -178,15 +183,18 @@ func Test_amountTransferredSum(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	txRec := &types.TransactionRecord{TransactionOrder: txPayment, ServerMetadata: &types.ServerMetadata{ActualFee: 25, SuccessIndicator: types.TxStatusSuccessful}}
-	txRecProof := testblock.CreateTxRecordProof(t, txRec, tbSigner, testblock.WithSystemIdentifier(money.DefaultSystemID))
+	txPaymentBytes, err := txPayment.MarshalCBOR()
+	require.NoError(t, err)
+	txRec := &types.TransactionRecord{Version: 1, TransactionOrder: txPaymentBytes, ServerMetadata: &types.ServerMetadata{ActualFee: 25, SuccessIndicator: types.TxStatusSuccessful}}
+	txRecProof := testblock.CreateTxRecordProof(t, txRec, tbSigner, testblock.WithPartitionIdentifier(money.DefaultPartitionID))
 	proofs = append(proofs, txRecProof)
 
 	// money transfer by split tx
 	txPayment = &types.TransactionOrder{
+		Version: 1,
 		Payload: types.Payload{
-			SystemID: money.DefaultSystemID,
-			Type:     money.TransactionTypeSplit,
+			PartitionID: money.DefaultPartitionID,
+			Type:        money.TransactionTypeSplit,
 		},
 	}
 	err = txPayment.SetAttributes(money.SplitAttributes{
@@ -198,8 +206,10 @@ func Test_amountTransferredSum(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	txRec = &types.TransactionRecord{TransactionOrder: txPayment, ServerMetadata: &types.ServerMetadata{ActualFee: 25, SuccessIndicator: types.TxStatusSuccessful}}
-	txRecProof = testblock.CreateTxRecordProof(t, txRec, tbSigner, testblock.WithSystemIdentifier(money.DefaultSystemID))
+	txPaymentBytes, err = txPayment.MarshalCBOR()
+	require.NoError(t, err)
+	txRec = &types.TransactionRecord{Version: 1, TransactionOrder: txPaymentBytes, ServerMetadata: &types.ServerMetadata{ActualFee: 25, SuccessIndicator: types.TxStatusSuccessful}}
+	txRecProof = testblock.CreateTxRecordProof(t, txRec, tbSigner, testblock.WithPartitionIdentifier(money.DefaultPartitionID))
 	proofs = append(proofs, txRecProof)
 
 	// because of invalid proof record we expect error but pkhA should receive
@@ -221,11 +231,11 @@ func Test_transferredSum(t *testing.T) {
 	// trustbase which "successfully" verifies all tx proofs (ie says they're valid)
 	trustBaseOK := &mockRootTrustBase{
 		// need VerifyQuorumSignatures for verifying tx proofs
-		verifyQuorumSignatures: func(data []byte, signatures map[string][]byte) (error, []error) { return nil, nil },
+		verifyQuorumSignatures: func(data []byte, signatures map[string]hex.Bytes) (error, []error) { return nil, nil },
 	}
 
 	t.Run("invalid input, required argument is nil", func(t *testing.T) {
-		txRec := &types.TransactionRecord{TransactionOrder: &types.TransactionOrder{}, ServerMetadata: &types.ServerMetadata{}}
+		txRec := &types.TransactionRecord{Version: 1, TransactionOrder: testtransaction.NewTransactionOrderBytes(t), ServerMetadata: &types.ServerMetadata{}}
 		txRecProof := &types.TxRecordProof{TxRecord: txRec, TxProof: &types.TxProof{Version: 1}}
 
 		sum, err := transferredSum(nil, txRecProof, nil, nil)
@@ -241,25 +251,27 @@ func Test_transferredSum(t *testing.T) {
 		require.Zero(t, sum)
 		require.EqualError(t, err, `invalid input: transaction record is nil`)
 
-		invalidTxRecProof = &types.TxRecordProof{TxRecord: &types.TransactionRecord{TransactionOrder: nil}, TxProof: &types.TxProof{Version: 1}}
+		invalidTxRecProof = &types.TxRecordProof{TxRecord: &types.TransactionRecord{Version: 1, TransactionOrder: nil}, TxProof: &types.TxProof{Version: 1}}
 		sum, err = transferredSum(trustBaseOK, invalidTxRecProof, nil, nil)
 		require.Zero(t, sum)
 		require.EqualError(t, err, `invalid input: transaction order is nil`)
 
-		invalidTxRecProof = &types.TxRecordProof{TxRecord: &types.TransactionRecord{TransactionOrder: &types.TransactionOrder{}, ServerMetadata: nil}, TxProof: &types.TxProof{Version: 1}}
+		invalidTxRecProof = &types.TxRecordProof{TxRecord: &types.TransactionRecord{Version: 1, TransactionOrder: testtransaction.NewTransactionOrderBytes(t), ServerMetadata: nil}, TxProof: &types.TxProof{Version: 1}}
 		sum, err = transferredSum(trustBaseOK, invalidTxRecProof, nil, nil)
 		require.Zero(t, sum)
 		require.EqualError(t, err, `invalid input: server metadata is nil`)
 
-		invalidTxRecProof = &types.TxRecordProof{TxRecord: &types.TransactionRecord{TransactionOrder: &types.TransactionOrder{}, ServerMetadata: &types.ServerMetadata{}}, TxProof: nil}
+		invalidTxRecProof = &types.TxRecordProof{TxRecord: &types.TransactionRecord{Version: 1, TransactionOrder: testtransaction.NewTransactionOrderBytes(t), ServerMetadata: &types.ServerMetadata{}}, TxProof: nil}
 		sum, err = transferredSum(trustBaseOK, invalidTxRecProof, nil, nil)
 		require.Zero(t, sum)
 		require.EqualError(t, err, `invalid input: transaction proof is nil`)
 	})
 
 	t.Run("tx for non-money txsystem", func(t *testing.T) {
-		// money system ID is 1, create tx for some other txs
-		txRec := &types.TransactionRecord{TransactionOrder: &types.TransactionOrder{Payload: types.Payload{SystemID: 2}}, ServerMetadata: &types.ServerMetadata{}}
+		// money partition ID is 1, create tx for some other txs
+		txPaymentBytes, err := (&types.TransactionOrder{Version: 1, Payload: types.Payload{PartitionID: 2}}).MarshalCBOR()
+		require.NoError(t, err)
+		txRec := &types.TransactionRecord{Version: 1, TransactionOrder: txPaymentBytes, ServerMetadata: &types.ServerMetadata{}}
 		txRecProof := &types.TxRecordProof{TxRecord: txRec, TxProof: &types.TxProof{Version: 1}}
 		sum, err := transferredSum(&mockRootTrustBase{}, txRecProof, nil, nil)
 		require.Zero(t, sum)
@@ -268,17 +280,22 @@ func Test_transferredSum(t *testing.T) {
 
 	t.Run("ref number mismatch", func(t *testing.T) {
 		// if ref-no parameter is provided it must match (nil ref-no means "do not care")
-		txRec := &types.TransactionRecord{
-			TransactionOrder: &types.TransactionOrder{
-				Payload: types.Payload{
-					SystemID: money.DefaultSystemID,
-					Type:     money.TransactionTypeTransfer,
-					ClientMetadata: &types.ClientMetadata{
-						ReferenceNumber: nil,
-					},
+		tx := &types.TransactionOrder{
+			Version: 1,
+			Payload: types.Payload{
+				PartitionID: money.DefaultPartitionID,
+				Type:        money.TransactionTypeTransfer,
+				ClientMetadata: &types.ClientMetadata{
+					ReferenceNumber: nil,
 				},
 			},
-			ServerMetadata: &types.ServerMetadata{},
+		}
+		txBytes, err := (tx).MarshalCBOR()
+		require.NoError(t, err)
+		txRec := &types.TransactionRecord{
+			Version:          1,
+			TransactionOrder: txBytes,
+			ServerMetadata:   &types.ServerMetadata{},
 		}
 		txRecProof := &types.TxRecordProof{TxRecord: txRec, TxProof: &types.TxProof{Version: 1}}
 		refNo := []byte{1, 2, 3, 4, 5}
@@ -288,7 +305,7 @@ func Test_transferredSum(t *testing.T) {
 		require.EqualError(t, err, `reference number mismatch`)
 
 		// txRec.ReferenceNumber != refNo (we add extra zero to the end)
-		txRec.TransactionOrder.ClientMetadata.ReferenceNumber = slices.Concat(refNo, []byte{0})
+		tx.ClientMetadata.ReferenceNumber = slices.Concat(refNo, []byte{0})
 		sum, err = transferredSum(&mockRootTrustBase{}, txRecProof, nil, refNo)
 		require.Zero(t, sum)
 		require.EqualError(t, err, `reference number mismatch`)
@@ -298,15 +315,20 @@ func Test_transferredSum(t *testing.T) {
 		// all money tx types other than TransactionTypeSplit and TransactionTypeTransfer should
 		// be ignored ie cause no error but return zero as sum
 		txTypes := []uint16{money.TransactionTypeLock, money.TransactionTypeSwapDC, money.TransactionTypeTransDC, money.TransactionTypeUnlock}
+		tx := &types.TransactionOrder{Version: 1}
 		txRec := &types.TransactionRecord{
-			TransactionOrder: &types.TransactionOrder{},
+			Version:          1,
+			TransactionOrder: nil,
 			ServerMetadata:   &types.ServerMetadata{},
 		}
 		for _, txt := range txTypes {
-			txRec.TransactionOrder.Payload = types.Payload{
-				SystemID: money.DefaultSystemID,
-				Type:     txt,
+			tx.Payload = types.Payload{
+				PartitionID: money.DefaultPartitionID,
+				Type:        txt,
 			}
+			txBytes, err := tx.MarshalCBOR()
+			require.NoError(t, err)
+			txRec.TransactionOrder = txBytes
 			txRecProof := &types.TxRecordProof{TxRecord: txRec, TxProof: &types.TxProof{Version: 1}}
 			sum, err := transferredSum(&mockRootTrustBase{}, txRecProof, nil, nil)
 			require.NoError(t, err)
@@ -316,9 +338,10 @@ func Test_transferredSum(t *testing.T) {
 
 	t.Run("txType and attributes do not match", func(t *testing.T) {
 		txPayment := &types.TransactionOrder{
+			Version: 1,
 			Payload: types.Payload{
-				SystemID: money.DefaultSystemID,
-				Type:     money.TransactionTypeSplit,
+				PartitionID: money.DefaultPartitionID,
+				Type:        money.TransactionTypeSplit,
 			},
 		}
 		pkHash := []byte{3, 8, 0, 1, 2, 4, 5}
@@ -328,7 +351,9 @@ func Test_transferredSum(t *testing.T) {
 			TargetValue:       100,
 		})
 		require.NoError(t, err)
-		txRec := &types.TransactionRecord{TransactionOrder: txPayment, ServerMetadata: &types.ServerMetadata{ActualFee: 25}}
+		txBytes, err := txPayment.MarshalCBOR()
+		require.NoError(t, err)
+		txRec := &types.TransactionRecord{Version: 1, TransactionOrder: txBytes, ServerMetadata: &types.ServerMetadata{ActualFee: 25}}
 		txRecProof := &types.TxRecordProof{TxRecord: txRec, TxProof: &types.TxProof{Version: 1}}
 
 		sum, err := transferredSum(&mockRootTrustBase{}, txRecProof, nil, nil)
@@ -342,9 +367,10 @@ func Test_transferredSum(t *testing.T) {
 	t.Run("transfer tx", func(t *testing.T) {
 		refNo := []byte("reasons")
 		txPayment := &types.TransactionOrder{
+			Version: 1,
 			Payload: types.Payload{
-				SystemID: money.DefaultSystemID,
-				Type:     money.TransactionTypeTransfer,
+				PartitionID: money.DefaultPartitionID,
+				Type:        money.TransactionTypeTransfer,
 				ClientMetadata: &types.ClientMetadata{
 					ReferenceNumber: slices.Clone(refNo),
 				},
@@ -357,8 +383,10 @@ func Test_transferredSum(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		txRec := &types.TransactionRecord{TransactionOrder: txPayment, ServerMetadata: &types.ServerMetadata{ActualFee: 25, SuccessIndicator: types.TxStatusSuccessful}}
-		txRecProof := testblock.CreateTxRecordProof(t, txRec, tbSigner, testblock.WithSystemIdentifier(money.DefaultSystemID))
+		txBytes, err := txPayment.MarshalCBOR()
+		require.NoError(t, err)
+		txRec := &types.TransactionRecord{Version: 1, TransactionOrder: txBytes, ServerMetadata: &types.ServerMetadata{ActualFee: 25, SuccessIndicator: types.TxStatusSuccessful}}
+		txRecProof := testblock.CreateTxRecordProof(t, txRec, tbSigner, testblock.WithPartitionIdentifier(money.DefaultPartitionID))
 		// match without ref-no
 		sum, err := transferredSum(trustBaseOK, txRecProof, pkHash, nil)
 		require.NoError(t, err)
@@ -379,7 +407,7 @@ func Test_transferredSum(t *testing.T) {
 		errNOK := errors.New("this is bogus")
 		tbNOK := &mockRootTrustBase{
 			// need VerifyQuorumSignatures for verifying tx proofs
-			verifyQuorumSignatures: func(data []byte, signatures map[string][]byte) (error, []error) { return errNOK, nil },
+			verifyQuorumSignatures: func(data []byte, signatures map[string]hex.Bytes) (error, []error) { return errNOK, nil },
 		}
 		sum, err = transferredSum(tbNOK, txRecProof, pkHash, nil)
 		require.ErrorIs(t, err, errNOK)
@@ -389,9 +417,10 @@ func Test_transferredSum(t *testing.T) {
 	t.Run("split tx", func(t *testing.T) {
 		refNo := []byte("reasons")
 		txPayment := &types.TransactionOrder{
+			Version: 1,
 			Payload: types.Payload{
-				SystemID: money.DefaultSystemID,
-				Type:     money.TransactionTypeSplit,
+				PartitionID: money.DefaultPartitionID,
+				Type:        money.TransactionTypeSplit,
 				ClientMetadata: &types.ClientMetadata{
 					ReferenceNumber: slices.Clone(refNo),
 				},
@@ -407,8 +436,10 @@ func Test_transferredSum(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		txRec := &types.TransactionRecord{TransactionOrder: txPayment, ServerMetadata: &types.ServerMetadata{ActualFee: 25, SuccessIndicator: types.TxStatusSuccessful}}
-		txRecProof := testblock.CreateTxRecordProof(t, txRec, tbSigner, testblock.WithSystemIdentifier(money.DefaultSystemID))
+		txBytes, err := txPayment.MarshalCBOR()
+		require.NoError(t, err)
+		txRec := &types.TransactionRecord{Version: 1, TransactionOrder: txBytes, ServerMetadata: &types.ServerMetadata{ActualFee: 25, SuccessIndicator: types.TxStatusSuccessful}}
+		txRecProof := testblock.CreateTxRecordProof(t, txRec, tbSigner, testblock.WithPartitionIdentifier(money.DefaultPartitionID))
 
 		// match without ref-no
 		sum, err := transferredSum(trustBaseOK, txRecProof, pkHash, nil)
@@ -434,7 +465,7 @@ func Test_transferredSum(t *testing.T) {
 		errNOK := errors.New("this is bogus")
 		tbNOK := &mockRootTrustBase{
 			// need VerifyQuorumSignatures for verifying tx proofs
-			verifyQuorumSignatures: func(data []byte, signatures map[string][]byte) (error, []error) { return errNOK, nil },
+			verifyQuorumSignatures: func(data []byte, signatures map[string]hex.Bytes) (error, []error) { return errNOK, nil },
 		}
 		sum, err = transferredSum(tbNOK, txRecProof, pkHash, nil)
 		require.ErrorIs(t, err, errNOK)

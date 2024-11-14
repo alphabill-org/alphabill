@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	"github.com/alphabill-org/alphabill/network/protocol/abdrc"
 	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
 	"github.com/stretchr/testify/require"
@@ -34,7 +35,8 @@ func NewDummyVoteInfo(round uint64, rootHash []byte) *drctypes.RoundInfo {
 }
 
 func NewDummyLedgerCommitInfo(voteInfo *drctypes.RoundInfo) *types.UnicitySeal {
-	return &types.UnicitySeal{Version: 1,
+	return &types.UnicitySeal{
+		Version:      1,
 		PreviousHash: voteInfo.Hash(gocrypto.SHA256),
 		Hash:         nil,
 	}
@@ -189,7 +191,7 @@ func TestVoteRegister_Qc(t *testing.T) {
 	require.Equal(t, qc.VoteInfo.RoundNumber, uint64(2))
 	require.Equal(t, qc.VoteInfo.ParentRoundNumber, uint64(1))
 	require.Equal(t, qc.VoteInfo.Timestamp, uint64(1111))
-	require.Equal(t, qc.VoteInfo.CurrentRootHash, []byte{1, 2, 3})
+	require.Equal(t, qc.VoteInfo.CurrentRootHash, hex.Bytes{1, 2, 3})
 	require.Equal(t, qc.LedgerCommitInfo, vote.LedgerCommitInfo)
 	require.Contains(t, qc.Signatures, "node1")
 	require.Contains(t, qc.Signatures, "node2")
@@ -199,7 +201,7 @@ func TestVoteRegister_Qc(t *testing.T) {
 }
 
 func TestVoteRegister_Tc(t *testing.T) {
-	qcSignatures := map[string][]byte{
+	qcSignatures := map[string]hex.Bytes{
 		"node1": {0, 1, 2, 3},
 		"node2": {0, 1, 2, 3},
 		"node3": {0, 1, 2, 3},
@@ -268,7 +270,7 @@ func TestVoteRegister_ErrEquivocatingVote(t *testing.T) {
 func TestVoteRegister_Reset(t *testing.T) {
 	register := NewVoteRegister()
 	quorumInfo := NewDummyQuorum(3, 0)
-	qcSignatures := map[string][]byte{
+	qcSignatures := map[string]hex.Bytes{
 		"node1": {0, 1, 2, 3},
 		"node2": {0, 1, 2, 3},
 		"node3": {0, 1, 2, 3},

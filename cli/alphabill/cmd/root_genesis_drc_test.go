@@ -36,7 +36,7 @@ func TestGenerateDistributedGenesisFiles(t *testing.T) {
 		" --root-genesis=" + genesisArg
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	require.NoError(t, cmd.Execute(context.Background()))
-	rootGenesis, err := util.ReadJsonFile(filepath.Join(outputDir, rootGenesisFileName), &genesis.RootGenesis{})
+	rootGenesis, err := util.ReadJsonFile(filepath.Join(outputDir, rootGenesisFileName), &genesis.RootGenesis{Version: 1})
 	require.NoError(t, err)
 	require.Len(t, rootGenesis.Root.RootValidators, 4)
 	require.NoError(t, rootGenesis.Verify())
@@ -100,7 +100,7 @@ func TestDistributedGenesisFiles_DuplicateRootNode(t *testing.T) {
 		" --root-genesis=" + genesisArg
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	require.NoError(t, cmd.Execute(context.Background()))
-	rootGenesis, err := util.ReadJsonFile(filepath.Join(outputDir, rootGenesisFileName), &genesis.RootGenesis{})
+	rootGenesis, err := util.ReadJsonFile(filepath.Join(outputDir, rootGenesisFileName), &genesis.RootGenesis{Version: 1})
 	require.NoError(t, err)
 	// duplicate is ignored
 	require.Len(t, rootGenesis.Root.RootValidators, 3)
@@ -113,9 +113,9 @@ func Test_RootGenesis_New_Sign(t *testing.T) {
 	nodeGenesisFileLocation := filepath.Join(homeDir, moneyPartitionDir, moneyGenesisFileName)
 	cmd := New(testobserve.NewFactory(t))
 	// create money node genesis
-	sdrFilename, err := createPDRFile(homeDir, defaultMoneyPDR)
+	pdrFilename, err := createPDRFile(homeDir, defaultMoneyPDR)
 	require.NoError(t, err)
-	args := "money-genesis --home " + homeDir + " -o " + nodeGenesisFileLocation + " -g --partition-description " + sdrFilename
+	args := "money-genesis --home " + homeDir + " -o " + nodeGenesisFileLocation + " -g --partition-description " + pdrFilename
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	require.NoError(t, cmd.Execute(context.Background()))
 
@@ -139,7 +139,7 @@ func Test_RootGenesis_New_Sign(t *testing.T) {
 		cmd.baseCmd.SetArgs(strings.Split(args, " "))
 		require.NoError(t, cmd.Execute(context.Background()))
 		// read genesis file
-		rootGenesis, err := util.ReadJsonFile(filepath.Join(outputDirNode2, rootGenesisFileName), &genesis.RootGenesis{})
+		rootGenesis, err := util.ReadJsonFile(filepath.Join(outputDirNode2, rootGenesisFileName), &genesis.RootGenesis{Version: 1})
 		require.NoError(t, err)
 		require.NoError(t, rootGenesis.Verify())
 	})
@@ -177,11 +177,11 @@ func createRootGenesisFiles(t *testing.T, homeDir string, params consensusParams
 	logF := testobserve.NewFactory(t)
 	cmd := New(logF)
 	// create money node genesis
-	sdrFilename, err := createPDRFile(homeDir, defaultMoneyPDR)
+	pdrFilename, err := createPDRFile(homeDir, defaultMoneyPDR)
 	require.NoError(t, err)
 	nodeGenesisFileLocation := filepath.Join(homeDir, moneyPartitionDir, moneyGenesisFileName)
 	nodeKeysFileLocation := filepath.Join(homeDir, moneyPartitionDir, defaultKeysFileName)
-	args := "money-genesis --home " + homeDir + " -o " + nodeGenesisFileLocation + " -g -k " + nodeKeysFileLocation + " --partition-description " + sdrFilename
+	args := "money-genesis --home " + homeDir + " -o " + nodeGenesisFileLocation + " -g -k " + nodeKeysFileLocation + " --partition-description " + pdrFilename
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	require.NoError(t, cmd.Execute(context.Background()))
 

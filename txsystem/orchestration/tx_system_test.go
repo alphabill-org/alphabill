@@ -25,11 +25,12 @@ func TestNewTxSystem_OK(t *testing.T) {
 	pubKey, err := verifier.MarshalPublicKey()
 	require.NoError(t, err)
 	pdr := types.PartitionDescriptionRecord{
-		NetworkIdentifier: 5,
-		SystemIdentifier:  orchestration.DefaultSystemID,
-		TypeIdLen:         8,
-		UnitIdLen:         256,
-		T2Timeout:         2000 * time.Millisecond,
+		Version:             1,
+		NetworkIdentifier:   5,
+		PartitionIdentifier: orchestration.DefaultPartitionID,
+		TypeIdLen:           8,
+		UnitIdLen:           256,
+		T2Timeout:           2000 * time.Millisecond,
 	}
 	txSystem, err := NewTxSystem(
 		pdr,
@@ -51,21 +52,23 @@ func TestNewTxSystem_OK(t *testing.T) {
 
 	err = txSystem.BeginBlock(roundNumber)
 	require.NoError(t, err)
-	serverMetadata, err := txSystem.Execute(txo)
+	txr, err := txSystem.Execute(txo)
 	require.NoError(t, err)
-	require.Equal(t, types.TxStatusSuccessful, serverMetadata.SuccessIndicator)
-	require.Equal(t, []types.UnitID{txo.UnitID}, serverMetadata.TargetUnits)
-	require.True(t, serverMetadata.ActualFee == 0)
+	require.Equal(t, types.TxStatusSuccessful, txr.ServerMetadata.SuccessIndicator)
+	require.Equal(t, []types.UnitID{txo.UnitID}, txr.TargetUnits())
+	require.True(t, txr.ServerMetadata.ActualFee == 0)
 
 	stateSummary, err := txSystem.EndBlock()
 	require.NoError(t, err)
-	require.NotNil(t, serverMetadata)
+	require.NotNil(t, txr)
 	require.NoError(t, txSystem.Commit(createUC(stateSummary, roundNumber)))
 }
 
 func createUC(s txsystem.StateSummary, roundNumber uint64) *types.UnicityCertificate {
-	return &types.UnicityCertificate{Version: 1,
-		InputRecord: &types.InputRecord{Version: 1,
+	return &types.UnicityCertificate{
+		Version: 1,
+		InputRecord: &types.InputRecord{
+			Version:      1,
 			RoundNumber:  roundNumber,
 			Hash:         s.Root(),
 			SummaryValue: s.Summary(),

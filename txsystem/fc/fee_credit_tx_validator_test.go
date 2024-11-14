@@ -12,11 +12,11 @@ import (
 )
 
 var (
-	moneySystemID           types.SystemID = 0x00000001
-	recordID                               = []byte{0}
-	feeProof                               = []byte{1}
-	ownerPredicate                         = []byte{2}
-	feeCreditRecordUnitType                = []byte{0xff}
+	moneyPartitionID        types.PartitionID = 0x00000001
+	recordID                                  = []byte{0}
+	feeProof                                  = []byte{1}
+	ownerPredicate                            = []byte{2}
+	feeCreditRecordUnitType                   = []byte{0xff}
 )
 
 type testData struct {

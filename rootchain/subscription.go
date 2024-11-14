@@ -14,12 +14,12 @@ const responsesPerSubscription = 2
 
 type Subscriptions struct {
 	mu   sync.RWMutex
-	subs map[types.SystemID]map[string]int
+	subs map[types.PartitionID]map[string]int
 }
 
 func NewSubscriptions(m metric.Meter) *Subscriptions {
 	r := &Subscriptions{
-		subs: map[types.SystemID]map[string]int{},
+		subs: map[types.PartitionID]map[string]int{},
 	}
 
 	_, _ = m.Int64ObservableUpDownCounter("subscriptions",
@@ -43,7 +43,7 @@ func NewSubscriptions(m metric.Meter) *Subscriptions {
 	return r
 }
 
-func (s *Subscriptions) Subscribe(id types.SystemID, nodeId string) {
+func (s *Subscriptions) Subscribe(id types.PartitionID, nodeId string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -53,7 +53,7 @@ func (s *Subscriptions) Subscribe(id types.SystemID, nodeId string) {
 	s.subs[id][nodeId] = responsesPerSubscription
 }
 
-func (s *Subscriptions) ResponseSent(id types.SystemID, nodeId string) {
+func (s *Subscriptions) ResponseSent(id types.PartitionID, nodeId string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	subs, found := s.subs[id]
@@ -66,7 +66,7 @@ func (s *Subscriptions) ResponseSent(id types.SystemID, nodeId string) {
 	}
 }
 
-func (s *Subscriptions) Get(id types.SystemID) []string {
+func (s *Subscriptions) Get(id types.PartitionID) []string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	subs := s.subs[id]

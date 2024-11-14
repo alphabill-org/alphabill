@@ -14,13 +14,13 @@ import (
 )
 
 var (
-	systemID           types.SystemID = 1
-	targetUnitCounter                 = uint64(3)
-	targetCounter                     = uint64(4)
-	counter                           = uint64(4)
-	amount                            = uint64(50)
-	maxFee                            = uint64(2)
-	latestAdditionTime                = uint64(10)
+	partitionID        types.PartitionID = 1
+	targetUnitCounter                    = uint64(3)
+	targetCounter                        = uint64(4)
+	counter                              = uint64(4)
+	amount                               = uint64(50)
+	maxFee                               = uint64(2)
+	latestAdditionTime                   = uint64(10)
 )
 
 func NewAddFC(t *testing.T, signer abcrypto.Signer, attr *fc.AddFeeCreditAttributes, opts ...testtransaction.Option) *types.TransactionOrder {
@@ -56,8 +56,11 @@ func NewAddFCAttr(t *testing.T, signer abcrypto.Signer, opts ...AddFeeCreditOpti
 }
 
 func NewTransferFeeCreditProof(t *testing.T, signer abcrypto.Signer) *types.TxRecordProof {
+	tx, err := (NewTransferFC(t, signer, nil)).MarshalCBOR()
+	require.NoError(t, err)
 	txRecord := &types.TransactionRecord{
-		TransactionOrder: NewTransferFC(t, signer, nil),
+		Version:          1,
+		TransactionOrder: tx,
 		ServerMetadata:   &types.ServerMetadata{SuccessIndicator: types.TxStatusSuccessful},
 	}
 	return testblock.CreateTxRecordProof(t, txRecord, signer)

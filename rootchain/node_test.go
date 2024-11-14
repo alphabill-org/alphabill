@@ -24,46 +24,48 @@ import (
 	"github.com/alphabill-org/alphabill/network/protocol/handshake"
 	"github.com/alphabill-org/alphabill/observability"
 	"github.com/alphabill-org/alphabill/rootchain/consensus"
-	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
+	"github.com/alphabill-org/alphabill/rootchain/consensus/storage"
 	rootgenesis "github.com/alphabill-org/alphabill/rootchain/genesis"
 	"github.com/alphabill-org/alphabill/rootchain/partitions"
 	"github.com/alphabill-org/alphabill/rootchain/testutils"
 )
 
-const partitionID types.SystemID = 0x00FF0001
-const unknownID types.SystemID = 0
+const partitionID types.PartitionID = 0x00FF0001
+const unknownID types.PartitionID = 0
 
-var partitionInputRecord = &types.InputRecord{Version: 1,
+var partitionInputRecord = &types.InputRecord{
+	Version:      1,
 	PreviousHash: make([]byte, 32),
 	Hash:         []byte{0, 0, 0, 1},
 	BlockHash:    []byte{0, 0, 1, 2},
 	SummaryValue: []byte{0, 0, 1, 3},
 	RoundNumber:  1,
+	Timestamp:    types.NewTimestamp(),
 }
 
 type MockConsensusManager struct {
 	certReqCh    chan consensus.IRChangeRequest
 	certResultCh chan *certification.CertificationResponse
-	certs        map[types.SystemID]*certification.CertificationResponse
-	shardInfo    map[types.SystemID]*drctypes.ShardInfo // only single shard partitions
+	certs        map[types.PartitionID]*certification.CertificationResponse
+	shardInfo    map[types.PartitionID]*storage.ShardInfo // only single shard partitions
 }
 
 func NewMockConsensus(rg *genesis.RootGenesis) (*MockConsensusManager, error) {
-	var c = make(map[types.SystemID]*certification.CertificationResponse)
+	var c = make(map[types.PartitionID]*certification.CertificationResponse)
 	for _, partition := range rg.Partitions {
-		c[partition.PartitionDescription.GetSystemIdentifier()] = &certification.CertificationResponse{
-			Partition: partition.PartitionDescription.GetSystemIdentifier(),
+		c[partition.PartitionDescription.GetPartitionIdentifier()] = &certification.CertificationResponse{
+			Partition: partition.PartitionDescription.GetPartitionIdentifier(),
 			UC:        *partition.Certificate,
 		}
 	}
 
-	shardInfo := map[types.SystemID]*drctypes.ShardInfo{}
+	shardInfo := map[types.PartitionID]*storage.ShardInfo{}
 	for _, partition := range rg.Partitions {
-		si, err := drctypes.NewShardInfoFromGenesis(partition)
+		si, err := storage.NewShardInfoFromGenesis(partition)
 		if err != nil {
 			return nil, fmt.Errorf("creating shard info: %w", err)
 		}
-		shardInfo[partition.PartitionDescription.SystemIdentifier] = si
+		shardInfo[partition.PartitionDescription.PartitionIdentifier] = si
 	}
 
 	return &MockConsensusManager{
@@ -93,15 +95,15 @@ func (m *MockConsensusManager) Run(_ context.Context) error {
 	return nil
 }
 
-func (m *MockConsensusManager) GetLatestUnicityCertificate(id types.SystemID, shard types.ShardID) (*certification.CertificationResponse, error) {
+func (m *MockConsensusManager) GetLatestUnicityCertificate(id types.PartitionID, shard types.ShardID) (*certification.CertificationResponse, error) {
 	luc, f := m.certs[id]
 	if !f {
-		return nil, fmt.Errorf("no certificate found for system id %X", id)
+		return nil, fmt.Errorf("no certificate found for partition id %X", id)
 	}
 	return luc, nil
 }
 
-func (m *MockConsensusManager) ShardInfo(partition types.SystemID, shard types.ShardID) (*drctypes.ShardInfo, error) {
+func (m *MockConsensusManager) ShardInfo(partition types.PartitionID, shard types.ShardID) (*storage.ShardInfo, error) {
 	if si, ok := m.shardInfo[partition]; ok {
 		return si, nil
 	}
@@ -187,12 +189,14 @@ func createTrustBaseFromRootGenesis(rootGenesis *genesis.RootGenesis) (types.Roo
 func TestRootValidatorTest_CertificationReqRejected(t *testing.T) {
 	mockNet := testnetwork.NewMockNetwork(t)
 	rootValidator, _, partitionNodes, rg := initRootValidator(t, mockNet)
-	newIR := &types.InputRecord{Version: 1,
+	newIR := &types.InputRecord{
+		Version:      1,
 		PreviousHash: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.Hash,
 		Hash:         test.RandomBytes(32),
 		BlockHash:    test.RandomBytes(32),
 		SummaryValue: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.SummaryValue,
 		RoundNumber:  2,
+		Timestamp:    types.NewTimestamp(),
 	}
 	req := testutils.CreateBlockCertificationRequest(t, newIR, unknownID, partitionNodes[0])
 	require.Error(t, rootValidator.onBlockCertificationRequest(context.Background(), req))
@@ -210,31 +214,35 @@ func TestRootValidatorTest_CertificationReqRejected(t *testing.T) {
 		Verifier: unknownNode.Verifier,
 	}
 	req = testutils.CreateBlockCertificationRequest(t, newIR, partitionID, &invalidNode)
-	require.EqualError(t, rootValidator.onBlockCertificationRequest(context.Background(), req), `invalid block certification request: invalid certification request: signature verification failed`)
+	require.EqualError(t, rootValidator.onBlockCertificationRequest(context.Background(), req), `invalid block certification request: invalid certification request: signature verification: verification failed`)
 	require.NotContains(t, rootValidator.incomingRequests.store, partitionID)
 }
 
 func TestRootValidatorTest_CertificationReqEquivocatingReq(t *testing.T) {
 	mockNet := testnetwork.NewMockNetwork(t)
 	rootValidator, _, partitionNodes, rg := initRootValidator(t, mockNet)
-	newIR := &types.InputRecord{Version: 1,
+	newIR := &types.InputRecord{
+		Version:      1,
 		PreviousHash: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.Hash,
 		Hash:         test.RandomBytes(32),
 		BlockHash:    test.RandomBytes(32),
 		SummaryValue: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.SummaryValue,
 		RoundNumber:  2,
+		Timestamp:    rg.Partitions[0].Certificate.UnicitySeal.Timestamp,
 	}
 	req := testutils.CreateBlockCertificationRequest(t, newIR, partitionID, partitionNodes[0])
 	require.NoError(t, rootValidator.onBlockCertificationRequest(context.Background(), req))
 	// request is accepted
 	key := partitionShard{partition: partitionID, shard: req.Shard.Key()}
 	require.Contains(t, rootValidator.incomingRequests.store, key)
-	equivocatingIR := &types.InputRecord{Version: 1,
+	equivocatingIR := &types.InputRecord{
+		Version:      1,
 		PreviousHash: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.Hash,
 		Hash:         test.RandomBytes(32),
 		BlockHash:    test.RandomBytes(32),
 		SummaryValue: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.SummaryValue,
 		RoundNumber:  2,
+		Timestamp:    rg.Partitions[0].Certificate.UnicitySeal.Timestamp,
 	}
 	eqReq := testutils.CreateBlockCertificationRequest(t, equivocatingIR, partitionID, partitionNodes[0])
 	require.ErrorContains(t, rootValidator.onBlockCertificationRequest(context.Background(), eqReq), "request of the node in this round already stored")
@@ -258,12 +266,14 @@ func TestRootValidatorTest_SimulateNetCommunication(t *testing.T) {
 	require.NotNil(t, rg)
 	require.NotEmpty(t, node.PeerConf.ID.String())
 	// create certification request
-	newIR := &types.InputRecord{Version: 1,
+	newIR := &types.InputRecord{
+		Version:      1,
 		PreviousHash: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.Hash,
 		Hash:         test.RandomBytes(32),
 		BlockHash:    test.RandomBytes(32),
 		SummaryValue: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.SummaryValue,
 		RoundNumber:  2,
+		Timestamp:    rg.Partitions[0].Certificate.UnicitySeal.Timestamp,
 	}
 	req := testutils.CreateBlockCertificationRequest(t, newIR, partitionID, partitionNodes[0])
 	testutils.MockValidatorNetReceives(t, mockNet, partitionNodes[0].PeerConf.ID, network.ProtocolBlockCertification, req)
@@ -286,30 +296,36 @@ func TestRootValidatorTest_SimulateNetCommunicationNoQuorum(t *testing.T) {
 	require.NotNil(t, rg)
 	require.NotEmpty(t, node.PeerConf.ID.String())
 	// create certification request
-	newIR1 := &types.InputRecord{Version: 1,
+	newIR1 := &types.InputRecord{
+		Version:      1,
 		PreviousHash: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.Hash,
 		Hash:         test.RandomBytes(32),
 		BlockHash:    test.RandomBytes(32),
 		SummaryValue: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.SummaryValue,
 		RoundNumber:  2,
+		Timestamp:    rg.Partitions[0].Certificate.UnicitySeal.Timestamp,
 	}
 	req1 := testutils.CreateBlockCertificationRequest(t, newIR1, partitionID, partitionNodes[0])
 	testutils.MockValidatorNetReceives(t, mockNet, partitionNodes[0].PeerConf.ID, network.ProtocolBlockCertification, req1)
-	newIR2 := &types.InputRecord{Version: 1,
+	newIR2 := &types.InputRecord{
+		Version:      1,
 		PreviousHash: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.Hash,
 		Hash:         test.RandomBytes(32),
 		BlockHash:    test.RandomBytes(32),
 		SummaryValue: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.SummaryValue,
 		RoundNumber:  2,
+		Timestamp:    rg.Partitions[0].Certificate.UnicitySeal.Timestamp,
 	}
 	req2 := testutils.CreateBlockCertificationRequest(t, newIR2, partitionID, partitionNodes[1])
 	testutils.MockValidatorNetReceives(t, mockNet, partitionNodes[1].PeerConf.ID, network.ProtocolBlockCertification, req2)
-	newIR3 := &types.InputRecord{Version: 1,
+	newIR3 := &types.InputRecord{
+		Version:      1,
 		PreviousHash: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.Hash,
 		Hash:         test.RandomBytes(32),
 		BlockHash:    test.RandomBytes(32),
 		SummaryValue: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.SummaryValue,
 		RoundNumber:  2,
+		Timestamp:    rg.Partitions[0].Certificate.UnicitySeal.Timestamp,
 	}
 	req3 := testutils.CreateBlockCertificationRequest(t, newIR3, partitionID, partitionNodes[2])
 	testutils.MockValidatorNetReceives(t, mockNet, partitionNodes[2].PeerConf.ID, network.ProtocolBlockCertification, req3)
@@ -341,7 +357,8 @@ func TestRootValidatorTest_SimulateNetCommunicationHandshake(t *testing.T) {
 	subscribed := rootValidator.subscription.Get(partitionID)
 	require.Empty(t, subscribed)
 	// Issue a block certification request -> subscribes
-	newIR := &types.InputRecord{Version: 1,
+	newIR := &types.InputRecord{
+		Version:      1,
 		PreviousHash: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.Hash,
 		Hash:         test.RandomBytes(32),
 		BlockHash:    test.RandomBytes(32),
@@ -361,7 +378,8 @@ func TestRootValidatorTest_SimulateNetCommunicationHandshake(t *testing.T) {
 			Version:     1,
 			InputRecord: newIR,
 			UnicityTreeCertificate: &types.UnicityTreeCertificate{
-				SystemIdentifier: partitionID,
+				Version:   1,
+				Partition: partitionID,
 			},
 			UnicitySeal: &types.UnicitySeal{Version: 1},
 		},
@@ -388,7 +406,8 @@ func TestRootValidatorTest_SimulateNetCommunicationInvalidReqRoundNumber(t *test
 	// create certification request
 	newHash := test.RandomBytes(32)
 	blockHash := test.RandomBytes(32)
-	newIR := &types.InputRecord{Version: 1,
+	newIR := &types.InputRecord{
+		Version:      1,
 		PreviousHash: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.Hash,
 		Hash:         newHash,
 		BlockHash:    blockHash,
@@ -416,7 +435,8 @@ func TestRootValidatorTest_SimulateNetCommunicationInvalidHash(t *testing.T) {
 	// create certification request
 	newHash := test.RandomBytes(32)
 	blockHash := test.RandomBytes(32)
-	newIR := &types.InputRecord{Version: 1,
+	newIR := &types.InputRecord{
+		Version:      1,
 		PreviousHash: test.RandomBytes(32),
 		Hash:         newHash,
 		BlockHash:    blockHash,
@@ -441,7 +461,8 @@ func TestRootValidatorTest_SimulateResponse(t *testing.T) {
 	require.NotNil(t, rg)
 	require.NotEmpty(t, node.PeerConf.ID.String())
 	// create certification request
-	newIR := &types.InputRecord{Version: 1,
+	newIR := &types.InputRecord{
+		Version:      1,
 		PreviousHash: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.Hash,
 		Hash:         test.RandomBytes(32),
 		BlockHash:    test.RandomBytes(32),
@@ -454,7 +475,8 @@ func TestRootValidatorTest_SimulateResponse(t *testing.T) {
 			Version:     1,
 			InputRecord: newIR,
 			UnicityTreeCertificate: &types.UnicityTreeCertificate{
-				SystemIdentifier: partitionID,
+				Version:   1,
+				Partition: partitionID,
 			},
 			UnicitySeal: &types.UnicitySeal{Version: 1},
 		},
@@ -468,7 +490,7 @@ func TestRootValidatorTest_SimulateResponse(t *testing.T) {
 			FeeHash:  []byte{2},
 		}))
 	// simulate 2x subscriptions
-	id32 := rg.Partitions[0].PartitionDescription.SystemIdentifier
+	id32 := rg.Partitions[0].PartitionDescription.PartitionIdentifier
 	rootValidator.subscription.Subscribe(id32, rg.Partitions[0].Nodes[0].NodeIdentifier)
 	rootValidator.subscription.Subscribe(id32, rg.Partitions[0].Nodes[1].NodeIdentifier)
 	// simulate response from consensus manager
@@ -477,7 +499,7 @@ func TestRootValidatorTest_SimulateResponse(t *testing.T) {
 	certs := testutils.MockNetAwaitMultiple[*certification.CertificationResponse](t, mockNet, network.ProtocolUnicityCertificates, 2)
 	require.Len(t, certs, 2)
 	for _, cert := range certs {
-		require.Equal(t, partitionID, cert.UC.UnicityTreeCertificate.SystemIdentifier)
+		require.Equal(t, partitionID, cert.UC.UnicityTreeCertificate.Partition)
 		require.Equal(t, newIR, cert.UC.InputRecord)
 	}
 }
@@ -489,7 +511,8 @@ func TestRootValidator_ResultUnknown(t *testing.T) {
 	t.Cleanup(ctxCancel)
 	go func() { require.ErrorIs(t, rootValidator.Run(ctx), context.Canceled) }()
 
-	newIR := &types.InputRecord{Version: 1,
+	newIR := &types.InputRecord{
+		Version:      1,
 		PreviousHash: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.Hash,
 		Hash:         test.RandomBytes(32),
 		BlockHash:    test.RandomBytes(32),
@@ -502,7 +525,8 @@ func TestRootValidator_ResultUnknown(t *testing.T) {
 			Version:     1,
 			InputRecord: newIR,
 			UnicityTreeCertificate: &types.UnicityTreeCertificate{
-				SystemIdentifier: unknownID,
+				Version:   1,
+				Partition: unknownID,
 			},
 			UnicitySeal: &types.UnicitySeal{Version: 1},
 		},
@@ -528,7 +552,8 @@ func TestRootValidator_ExitWhenPendingCertRequestAndCMClosed(t *testing.T) {
 	}
 	go func() { require.ErrorIs(t, mockRunFn(ctx), context.Canceled) }()
 	// create certification request
-	newIR := &types.InputRecord{Version: 1,
+	newIR := &types.InputRecord{
+		Version:      1,
 		PreviousHash: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.Hash,
 		Hash:         test.RandomBytes(32),
 		BlockHash:    test.RandomBytes(32),

@@ -10,13 +10,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"reflect"
 	"runtime/pprof"
 	"slices"
 	"sort"
 	"testing"
 	"time"
 
+	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
 	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
@@ -45,7 +45,7 @@ import (
 
 // AlphabillNetwork for integration tests
 type AlphabillNetwork struct {
-	NodePartitions map[types.SystemID]*NodePartition
+	NodePartitions map[types.PartitionID]*NodePartition
 	RootPartition  *RootPartition
 	BootNodes      []*network.Peer
 	ctxCancel      context.CancelFunc
@@ -59,7 +59,7 @@ type RootPartition struct {
 }
 
 type NodePartition struct {
-	systemId         types.SystemID
+	partitionID      types.PartitionID
 	partitionGenesis *genesis.PartitionGenesis
 	genesisState     *state.State
 	txSystemFunc     func(trustBase types.RootTrustBase) txsystem.TransactionSystem
@@ -180,7 +180,7 @@ func newRootPartition(nofRootNodes uint8, nodePartitions []*NodePartition) (*Roo
 	// update partition genesis files
 	for _, pg := range partitionGenesisFiles {
 		for _, part := range nodePartitions {
-			if part.systemId == pg.PartitionDescription.SystemIdentifier {
+			if part.partitionID == pg.PartitionDescription.PartitionIdentifier {
 				part.partitionGenesis = pg
 			}
 		}
@@ -244,7 +244,7 @@ func NewPartition(t *testing.T, nodeCount uint8, txSystemProvider func(trustBase
 		return nil, fmt.Errorf("invalid count of partition Nodes: %d", nodeCount)
 	}
 	abPartition = &NodePartition{
-		systemId:     pdr.SystemIdentifier,
+		partitionID:  pdr.PartitionIdentifier,
 		txSystemFunc: txSystemProvider,
 		genesisState: state,
 		Nodes:        make([]*partitionNode, nodeCount),
@@ -370,9 +370,9 @@ func NewAlphabillPartition(nodePartitions []*NodePartition) (*AlphabillNetwork, 
 	if err != nil {
 		return nil, err
 	}
-	nodeParts := make(map[types.SystemID]*NodePartition)
+	nodeParts := make(map[types.PartitionID]*NodePartition)
 	for _, part := range nodePartitions {
-		nodeParts[part.systemId] = part
+		nodeParts[part.partitionID] = part
 	}
 	return &AlphabillNetwork{
 		RootPartition:  rootPartition,
@@ -389,9 +389,9 @@ func NewMultiRootAlphabillPartition(nofRootNodes uint8, nodePartitions []*NodePa
 	if err != nil {
 		return nil, err
 	}
-	nodeParts := make(map[types.SystemID]*NodePartition)
+	nodeParts := make(map[types.PartitionID]*NodePartition)
 	for _, part := range nodePartitions {
-		nodeParts[part.systemId] = part
+		nodeParts[part.partitionID] = part
 	}
 	return &AlphabillNetwork{
 		RootPartition:  rootPartition,
@@ -536,7 +536,7 @@ func (a *AlphabillNetwork) WaitClose(t *testing.T) {
 	}
 }
 
-func (a *AlphabillNetwork) GetNodePartition(sysID types.SystemID) (*NodePartition, error) {
+func (a *AlphabillNetwork) GetNodePartition(sysID types.PartitionID) (*NodePartition, error) {
 	part, f := a.NodePartitions[sysID]
 	if !f {
 		return nil, fmt.Errorf("unknown partition %s", sysID)
@@ -544,7 +544,7 @@ func (a *AlphabillNetwork) GetNodePartition(sysID types.SystemID) (*NodePartitio
 	return part, nil
 }
 
-func (a *AlphabillNetwork) GetValidator(sysID types.SystemID) (partition.UnicityCertificateValidator, error) {
+func (a *AlphabillNetwork) GetValidator(sysID types.PartitionID) (partition.UnicityCertificateValidator, error) {
 	part, f := a.NodePartitions[sysID]
 	if !f {
 		return nil, fmt.Errorf("unknown partition %s", sysID)
@@ -568,7 +568,8 @@ func (n *NodePartition) SubmitTx(tx *types.TransactionOrder) error {
 	return err
 }
 
-func (n *NodePartition) GetTxProof(tx *types.TransactionOrder) (*types.Block, *types.TxRecordProof, error) {
+func (n *NodePartition) GetTxProof(t *testing.T, tx *types.TransactionOrder) (*types.Block, *types.TxRecordProof, error) {
+	txBytes := testtransaction.TxoToBytes(t, tx)
 	for _, n := range n.Nodes {
 		number, err := n.LatestBlockNumber()
 		if err != nil {
@@ -580,7 +581,7 @@ func (n *NodePartition) GetTxProof(tx *types.TransactionOrder) (*types.Block, *t
 				continue
 			}
 			for j, t := range b.Transactions {
-				if reflect.DeepEqual(t.TransactionOrder, tx) {
+				if bytes.Equal(t.TransactionOrder, txBytes) {
 					proof, err := types.NewTxRecordProof(b, j, crypto.SHA256)
 					if err != nil {
 						return nil, nil, err
@@ -655,7 +656,7 @@ func WaitUnitProof(t *testing.T, part *NodePartition, ID types.UnitID, txOrder *
 // BlockchainContainsTx checks if at least one partition node block contains the given transaction.
 func BlockchainContainsTx(t *testing.T, part *NodePartition, tx *types.TransactionOrder) func() bool {
 	return BlockchainContains(t, part, func(actualTx *types.TransactionRecord) bool {
-		return reflect.DeepEqual(actualTx.TransactionOrder, tx)
+		return bytes.Equal(actualTx.TransactionOrder, testtransaction.TxoToBytes(t, tx))
 	})
 }
 
@@ -663,7 +664,7 @@ func BlockchainContainsTx(t *testing.T, part *NodePartition, tx *types.Transacti
 func BlockchainContainsSuccessfulTx(t *testing.T, part *NodePartition, tx *types.TransactionOrder) func() bool {
 	return BlockchainContains(t, part, func(actualTx *types.TransactionRecord) bool {
 		return actualTx.ServerMetadata.SuccessIndicator == types.TxStatusSuccessful &&
-			reflect.DeepEqual(actualTx.TransactionOrder, tx)
+			bytes.Equal(actualTx.TransactionOrder, testtransaction.TxoToBytes(t, tx))
 	})
 }
 

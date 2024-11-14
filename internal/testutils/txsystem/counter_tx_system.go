@@ -152,22 +152,27 @@ func (m *CounterTxSystem) SerializeState(writer io.Writer, committed bool) error
 	return nil
 }
 
-func (m *CounterTxSystem) Execute(_ *types.TransactionOrder) (*types.ServerMetadata, error) {
+func (m *CounterTxSystem) Execute(tx *types.TransactionOrder) (*types.TransactionRecord, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	m.ExecuteCountDelta++
 
+	txBytes, err := tx.MarshalCBOR()
+	if err != nil {
+		return nil, err
+	}
+
+	txr := &types.TransactionRecord{Version: 1, TransactionOrder: txBytes, ServerMetadata: &types.ServerMetadata{ActualFee: m.Fee}}
+
 	if m.ExecuteError != nil {
-		sm := &types.ServerMetadata{
-			ActualFee: m.Fee,
-		}
-		sm.SetError(m.ExecuteError)
-		return sm, nil
+		txr.ServerMetadata.SetError(m.ExecuteError)
+		return txr, nil
 	}
 
 	m.uncommitted = true
-	return &types.ServerMetadata{ActualFee: m.Fee}, nil
+
+	return txr, nil
 }
 
 func (m *CounterTxSystem) IsPermissionedMode() bool {

@@ -2,21 +2,21 @@
   "version": 1,
   "root": {
     "version": 1,
-    "root_validators": [
+    "rootValidators": [
       {
-        "node_identifier": "16Uiu2HAmCxsKbq1ARUAioqyLmWijEViEzbtSK1QXvNf7VZXAdZUb",
-        "signing_public_key": "ArPLdSIIsHhfFkSzoP8b4wygBHFye5UEoRuWpry36kLW",
-        "encryption_public_key": "ArPLdSIIsHhfFkSzoP8b4wygBHFye5UEoRuWpry36kLW"
+        "nodeIdentifier": "16Uiu2HAmJziSVUjJc4FrHFG34hNFJU44ce1EYSmwWm18CawywrQN",
+        "signingPublicKey": "0x0262258ac7a206589b8bad14b96e83026e57d749733cca630e4c7dcc9caf4a9250",
+        "encryptionPublicKey": "0x0262258ac7a206589b8bad14b96e83026e57d749733cca630e4c7dcc9caf4a9250"
       }
     ],
     "consensus": {
       "version": 1,
-      "total_root_validators": 1,
-      "block_rate_ms": 900,
-      "consensus_timeout_ms": 10000,
-      "hash_algorithm": 5,
+      "totalRootValidators": 1,
+      "blockRateMs": 900,
+      "consensusTimeoutMs": 10000,
+      "hashAlgorithm": 5,
       "signatures": {
-        "16Uiu2HAmCxsKbq1ARUAioqyLmWijEViEzbtSK1QXvNf7VZXAdZUb": "UQDncjf3AwhpI9+BONTFQYV3CK3KgQTCSNqS2HYKYnJQ+eJ/OO50cgs3Zsbh/SN0gW/BQy4AZuonE0W8DQDGXAE="
+        "16Uiu2HAmJziSVUjJc4FrHFG34hNFJU44ce1EYSmwWm18CawywrQN": "0x4ca9500e603cb0ea052f914244462132cbab48bb3c9a5c6834ef8e2b5ae2e1542eb42747bce7c7fc70cf506ac71d8e4b6e0d98d51c39ff1e8200dcebac10c76901"
       }
     }
   },
@@ -26,68 +26,87 @@
       "nodes": [
         {
           "version": 1,
-          "node_identifier": "16Uiu2HAmNcQZAk5N75KeyyfGGSdJLumLfFsz9oJtcUeFZTB7Mn41",
-          "signing_public_key": "AtDefYWz2J5rcumNnJ1KS/UklbBnQoLmraFb7oMp6aVm",
-          "encryption_public_key": "A5PrfswL3Q12qIkHq1GiJFdgR9MwtIhoPABRGZneKrhC",
-          "block_certification_request": {
-            "system_identifier": 1,
-            "shard_identifier": "0x80",
-            "node_identifier": "16Uiu2HAmNcQZAk5N75KeyyfGGSdJLumLfFsz9oJtcUeFZTB7Mn41",
-            "input_record": {
+          "nodeIdentifier": "16Uiu2HAmPPMGJ7oH9MDvFum1hv8BgJX3pY37FcKMQ2mdVNgws2kV",
+          "signingPublicKey": "0x0360278cc191bce85d2751a6fa01530fbea4b5b4d47ec9458dc080d0ca5b8c1c9c",
+          "encryptionPublicKey": "0x039f6ee921493a99b15deac6bf275733f4cb13fc7dcbfb6c903d32e958d59880ce",
+          "blockCertificationRequest": {
+            "partitionIdentifier": 1,
+            "shardIdentifier": "0x80",
+            "nodeIdentifier": "16Uiu2HAmPPMGJ7oH9MDvFum1hv8BgJX3pY37FcKMQ2mdVNgws2kV",
+            "inputRecord": {
               "version": 1,
-              "previous_hash": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
-              "hash": "AQEBAQ==",
-              "block_hash": "AAABAg==",
-              "summary_value": "AAABAw==",
-              "round_number": 1
+              "previousHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+              "hash": "0x01010101",
+              "blockHash": "0x00000102",
+              "summaryValue": "0x00000103",
+              "timestamp": 1731510365,
+              "roundNumber": 1,
+              "epoch": 0,
+              "sumOfEarnedFees": 0
             },
-            "root_round_number": 0,
-            "block_size": 0,
-            "state_size": 0,
-            "signature": "+vtrUQxB/AbHjRnyOzazPU5Dg2ZMQp+ucwIjTeuA5WFsEwWIUc8s+Up1/bLveU3bh1h4F4vE1Y8pzNFb1ypbFQA=",
-            "round_leader": ""
+            "rootRoundNumber": 0,
+            "blockSize": 0,
+            "stateSize": 0,
+            "signature": "0xdd239c2cea62e5fb95c5ab9cb5cddaca738305d90c1b0b10983067e96f546dea127531ed2f1bce66ceddf1ebb6cc556c4eee3738afdf8aeb5cb1eb466be54d5f00"
           },
-          "partition_description": {
-            "type_id_length": 0,
-            "unit_id_length": 0,
-            "sharding_scheme": null,
-            "t2timeout": 0
+          "partitionDescriptionRecord": {
+            "version": 1,
+            "networkIdentifier": 0,
+            "partitionIdentifier": 0,
+            "typeIdLength": 0,
+            "unitIdLength": 0,
+            "shardingScheme": null,
+            "summaryTrustBase": "",
+            "t2timeout": 0,
+            "feeCreditBill": null
           }
         }
       ],
       "certificate": {
         "version": 1,
-        "input_record": {
+        "inputRecord": {
           "version": 1,
-          "previous_hash": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=",
-          "hash": "AQEBAQ==",
-          "block_hash": "AAABAg==",
-          "summary_value": "AAABAw==",
-          "round_number": 1
+          "previousHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+          "hash": "0x01010101",
+          "blockHash": "0x00000102",
+          "summaryValue": "0x00000103",
+          "timestamp": 1731510365,
+          "roundNumber": 1,
+          "epoch": 0,
+          "sumOfEarnedFees": 0
         },
-        "tr_hash": "8+rPBRQKZZWsx5DdARiIWNpmGNd+47UpQA50sfjMm3c=",
-        "unicity_tree_certificate": {
-          "system_identifier": 1,
-          "partition_description_hash": "5Dxu7e2A+TzTJApnTi2xmHl0x30IhD8y0t7ucmcw9UY="
+        "trHash": "0x3f1f8534407bc040e6f6f0a681cd312a69e987d61a84ee423f87f643cab47f84",
+        "shardTreeCertificate": {
+          "Shard": "0x80",
+          "SiblingHashes": []
         },
-        "unicity_seal": {
+        "unicityTreeCertificate": {
           "version": 1,
-          "root_chain_round_number": 1,
+          "partitionIdentifier": 1,
+          "hashSteps": [],
+          "partitionDescriptionHash": "0xc57d52d4482de608b21c70b9118a35d0de8f0def0392ce13f96df83cdef9ca54"
+        },
+        "unicitySeal": {
+          "version": 1,
+          "rootChainRoundNumber": 1,
           "timestamp": 1681971084,
-          "previous_hash": "ksRXnkNauqpTflPWV+khZOwTiJqLG0zDZ6qSSJJIpn4=",
-          "hash": "xb9QD0MdJpkBhb1wpeoV8dKvs/O1hOMT9p41516yU5k=",
+          "previousHash": "0xf0ae03e79c3e3ff062573f1090f6f82a76cf3a93b4440d181ee5de178c1c2cde",
+          "hash": "0x58fe79ae98a7775c03340dfa0e2901949042b0ebd9548435bedda12e113d705b",
           "signatures": {
-            "16Uiu2HAmCxsKbq1ARUAioqyLmWijEViEzbtSK1QXvNf7VZXAdZUb": "UASBF3/50pyRpQts/5SCcvJk70jJKM5A3F7HB0OgsW1PkYs7FU4dJgak+qyZoPgGPAIh44x26fnQXFYldMuaKgA="
+            "16Uiu2HAmJziSVUjJc4FrHFG34hNFJU44ce1EYSmwWm18CawywrQN": "0x714e8e8f98a4d118feef4fcf2a58918af7c3ef0330622d2c1a4f057e6596964123b58ad05877d4a05bb1d0cdbf27d75773f7cb770c0045de594d850e60f5f43200"
           }
         }
       },
-      "partition_description_record": {
-        "network_identifier": 5,
-        "system_identifier": 1,
-        "type_id_length": 8,
-        "unit_id_length": 256,
-        "sharding_scheme": null,
-        "t2timeout": 2500000000
+      "partitionDescriptionRecord": {
+        "version": 1,
+        "networkIdentifier": 5,
+        "partitionIdentifier": 1,
+        "typeIdLength": 8,
+        "unitIdLength": 256,
+        "shardingScheme": null,
+        "summaryTrustBase": "",
+        "t2timeout": 2500000000,
+        "feeCreditBill": null
       }
     }
   ]

@@ -76,7 +76,7 @@ func evmGenesisRunFun(_ context.Context, config *evmGenesisConfig) error {
 		return fmt.Errorf("node genesis state file %q already exists", nodeGenesisStateFile)
 	}
 
-	pdr, err := util.ReadJsonFile(config.PDRFilename, &types.PartitionDescriptionRecord{})
+	pdr, err := util.ReadJsonFile(config.PDRFilename, &types.PartitionDescriptionRecord{Version: 1})
 	if err != nil {
 		return fmt.Errorf("loading partition description: %w", err)
 	}

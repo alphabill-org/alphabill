@@ -9,7 +9,7 @@ import (
 // AB "common types", ie not tx system specific stuff
 type ABTypesFactory struct{}
 
-// must be "tx system id + type id" to support tx system specific objects?
+// must be "tx partition id + type id" to support tx system specific objects?
 // or we only support generic types here?
 // either the "data" (CBOR!) must have version id or version must come in as param?
 // the data (CBOR) could also encode the type?
@@ -17,9 +17,9 @@ func (ABTypesFactory) createObj(typID uint32, data []byte) (any, error) {
 	var obj any
 	switch typID {
 	case type_id_tx_order:
-		obj = &types.TransactionOrder{}
+		obj = &types.TransactionOrder{Version: 1}
 	case type_id_tx_record:
-		obj = &types.TransactionRecord{}
+		obj = &types.TransactionRecord{Version: 1}
 	case type_id_tx_proof:
 		obj = &types.TxProof{Version: 1}
 	default:

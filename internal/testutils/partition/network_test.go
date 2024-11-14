@@ -15,11 +15,12 @@ import (
 
 func TestNewNetwork_Ok(t *testing.T) {
 	pdr := types.PartitionDescriptionRecord{
-		NetworkIdentifier: 5,
-		SystemIdentifier:  0x01020401,
-		TypeIdLen:         8,
-		UnitIdLen:         256,
-		T2Timeout:         3 * time.Second,
+		Version:             1,
+		NetworkIdentifier:   5,
+		PartitionIdentifier: 0x01020401,
+		TypeIdLen:           8,
+		UnitIdLen:           256,
+		T2Timeout:           3 * time.Second,
 	}
 	genesisState := state.NewEmptyState()
 	counterPartition, err := NewPartition(t, 3,
@@ -37,15 +38,15 @@ func TestNewNetwork_Ok(t *testing.T) {
 
 	require.Len(t, abNetwork.RootPartition.Nodes, 3)
 	require.Len(t, abNetwork.NodePartitions, 1)
-	cPart, err := abNetwork.GetNodePartition(pdr.SystemIdentifier)
+	cPart, err := abNetwork.GetNodePartition(pdr.PartitionIdentifier)
 	require.NoError(t, err)
 	require.Len(t, cPart.Nodes, 3)
 	require.Eventually(t, PartitionInitReady(t, cPart), test.WaitDuration, test.WaitTick)
-	tx := testtransaction.NewTransactionOrder(t, testtransaction.WithSystemID(pdr.SystemIdentifier))
+	tx := testtransaction.NewTransactionOrder(t, testtransaction.WithPartitionID(pdr.PartitionIdentifier))
 	require.NoError(t, cPart.SubmitTx(tx))
 	test.TryTilCountIs(t, BlockchainContainsTx(t, cPart, tx), 40, test.WaitTick)
 
-	tx = testtransaction.NewTransactionOrder(t, testtransaction.WithSystemID(pdr.SystemIdentifier))
+	tx = testtransaction.NewTransactionOrder(t, testtransaction.WithPartitionID(pdr.PartitionIdentifier))
 	require.NoError(t, cPart.BroadcastTx(tx))
 
 	test.TryTilCountIs(t, BlockchainContainsTx(t, cPart, tx), 40, test.WaitTick)
@@ -53,11 +54,12 @@ func TestNewNetwork_Ok(t *testing.T) {
 
 func TestNewNetwork_StandaloneBootstrapNodes(t *testing.T) {
 	pdr := types.PartitionDescriptionRecord{
-		NetworkIdentifier: 5,
-		SystemIdentifier:  0x01020401,
-		TypeIdLen:         8,
-		UnitIdLen:         256,
-		T2Timeout:         3 * time.Second,
+		Version:             1,
+		NetworkIdentifier:   5,
+		PartitionIdentifier: 0x01020401,
+		TypeIdLen:           8,
+		UnitIdLen:           256,
+		T2Timeout:           3 * time.Second,
 	}
 	genesisState := state.NewEmptyState()
 	counterPartition, err := NewPartition(t, 3,
@@ -75,15 +77,15 @@ func TestNewNetwork_StandaloneBootstrapNodes(t *testing.T) {
 
 	require.Len(t, abNetwork.RootPartition.Nodes, 3)
 	require.Len(t, abNetwork.NodePartitions, 1)
-	cPart, err := abNetwork.GetNodePartition(pdr.SystemIdentifier)
+	cPart, err := abNetwork.GetNodePartition(pdr.PartitionIdentifier)
 	require.NoError(t, err)
 	require.Len(t, cPart.Nodes, 3)
 	test.TryTilCountIs(t, PartitionInitReady(t, cPart), 40, test.WaitTick)
-	tx := testtransaction.NewTransactionOrder(t, testtransaction.WithSystemID(pdr.SystemIdentifier))
+	tx := testtransaction.NewTransactionOrder(t, testtransaction.WithPartitionID(pdr.PartitionIdentifier))
 	require.NoError(t, cPart.SubmitTx(tx))
 	test.TryTilCountIs(t, BlockchainContainsTx(t, cPart, tx), 40, test.WaitTick)
 
-	tx = testtransaction.NewTransactionOrder(t, testtransaction.WithSystemID(pdr.SystemIdentifier))
+	tx = testtransaction.NewTransactionOrder(t, testtransaction.WithPartitionID(pdr.PartitionIdentifier))
 	require.NoError(t, cPart.BroadcastTx(tx))
 
 	test.TryTilCountIs(t, BlockchainContainsTx(t, cPart, tx), 40, test.WaitTick)

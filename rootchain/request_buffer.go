@@ -24,7 +24,7 @@ type (
 	}
 
 	partitionShard struct {
-		partition types.SystemID
+		partition types.PartitionID
 		shard     string // can't use ShardID type as it's not comparable
 	}
 
@@ -78,7 +78,7 @@ func (c *CertRequestBuffer) Add(request *certification.BlockCertificationRequest
 }
 
 // IsConsensusReceived has partition with id reached consensus
-func (c *CertRequestBuffer) IsConsensusReceived(id types.SystemID, shard types.ShardID, tb QuorumInfo) QuorumStatus {
+func (c *CertRequestBuffer) IsConsensusReceived(id types.PartitionID, shard types.ShardID, tb QuorumInfo) QuorumStatus {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	rs := c.get(id, shard)
@@ -96,15 +96,15 @@ func (c *CertRequestBuffer) Reset() {
 }
 
 // Clear clears node request in one partition
-func (c *CertRequestBuffer) Clear(id types.SystemID, shard types.ShardID) {
+func (c *CertRequestBuffer) Clear(id types.PartitionID, shard types.ShardID) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	rs := c.get(id, shard)
 	rs.reset()
 }
 
-// get returns an existing store for system identifier or registers and returns a new one if none existed
-func (c *CertRequestBuffer) get(id types.SystemID, shard types.ShardID) *requestBuffer {
+// get returns an existing store for partition identifier or registers and returns a new one if none existed
+func (c *CertRequestBuffer) get(id types.PartitionID, shard types.ShardID) *requestBuffer {
 	key := partitionShard{partition: id, shard: shard.Key()}
 	rs, f := c.store[key]
 	if !f {

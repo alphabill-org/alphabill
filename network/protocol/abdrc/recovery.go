@@ -2,12 +2,13 @@ package abdrc
 
 import (
 	"crypto"
+	"errors"
 	"fmt"
 	"slices"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/network/protocol/certification"
-	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
+	rctypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
 )
 
 type StateRequestMsg struct {
@@ -17,26 +18,17 @@ type StateRequestMsg struct {
 	NodeId string
 }
 
-type InputData struct {
-	_         struct{} `cbor:",toarray"`
-	Partition types.SystemID
-	Shard     types.ShardID
-	Ir        *types.InputRecord
-	Technical certification.TechnicalRecord
-	PDRHash   []byte // Partition Description Record Hash
-}
-
 type CommittedBlock struct {
-	_        struct{} `cbor:",toarray"`
-	Block    *drctypes.BlockData
-	Ir       []*InputData
-	Qc       *drctypes.QuorumCert // block's quorum certificate (from next view)
-	CommitQc *drctypes.QuorumCert // commit certificate
+	_         struct{} `cbor:",toarray"`
+	Block     *rctypes.BlockData
+	ShardInfo []ShardInfo
+	Qc        *rctypes.QuorumCert // block's quorum certificate (from next view)
+	CommitQc  *rctypes.QuorumCert // commit certificate
 }
 
 type ShardInfo struct {
 	_         struct{} `cbor:",toarray"`
-	Partition types.SystemID
+	Partition types.PartitionID
 	Shard     types.ShardID
 	Round     uint64
 	Epoch     uint64
@@ -60,13 +52,17 @@ type ShardInfo struct {
 	// last CertificationResponse
 	UC types.UnicityCertificate
 	TR certification.TechnicalRecord
+
+	// input data of the block
+	IR      *types.InputRecord
+	IRTR    certification.TechnicalRecord
+	PDRHash []byte // Partition Description Record Hash
 }
 
 type StateMsg struct {
 	_             struct{} `cbor:",toarray"`
-	ShardInfo     []ShardInfo
 	CommittedHead *CommittedBlock
-	BlockData     []*drctypes.BlockData
+	BlockData     []*rctypes.BlockData
 }
 
 /*
@@ -83,7 +79,7 @@ func (sm *StateMsg) CanRecoverToRound(round uint64) error {
 	if round == sm.CommittedHead.Block.GetRound() {
 		return nil
 	}
-	if !slices.ContainsFunc(sm.BlockData, func(b *drctypes.BlockData) bool { return b.GetRound() == round }) {
+	if !slices.ContainsFunc(sm.BlockData, func(b *rctypes.BlockData) bool { return b.GetRound() == round }) {
 		return fmt.Errorf("state has no data block for round %d", round)
 	}
 
@@ -117,9 +113,9 @@ func (sm *StateMsg) Verify(hashAlgorithm crypto.Hash, tb types.RootTrustBase) er
 			}
 		}
 	}
-	for _, c := range sm.ShardInfo {
-		if err := c.UC.Verify(tb, hashAlgorithm, c.UC.UnicityTreeCertificate.SystemIdentifier, c.UC.UnicityTreeCertificate.PartitionDescriptionHash); err != nil {
-			return fmt.Errorf("certificate for %s is invalid: %w", c.UC.UnicityTreeCertificate.SystemIdentifier, err)
+	for _, c := range sm.CommittedHead.ShardInfo {
+		if err := c.UC.Verify(tb, hashAlgorithm, c.UC.UnicityTreeCertificate.Partition, c.UC.UnicityTreeCertificate.PDRHash); err != nil {
+			return fmt.Errorf("certificate for %s is invalid: %w", c.UC.UnicityTreeCertificate.Partition, err)
 		}
 	}
 	return nil
@@ -133,38 +129,63 @@ func (r *CommittedBlock) GetRound() uint64 {
 }
 
 func (r *CommittedBlock) IsValid() error {
-	if len(r.Ir) == 0 {
-		return fmt.Errorf("missing input record state")
+	if len(r.ShardInfo) == 0 {
+		return errors.New("missing ShardInfo")
 	}
-	for _, ir := range r.Ir {
-		if err := ir.IsValid(); err != nil {
-			return fmt.Errorf("invalid input record: %w", err)
+	for _, si := range r.ShardInfo {
+		if err := si.IsValid(); err != nil {
+			return fmt.Errorf("invalid ShardInfo[%s - %s]: %w", si.Partition, si.Shard, err)
 		}
 	}
 	if r.Block == nil {
 		return fmt.Errorf("block data is nil")
 	}
 	if err := r.Block.IsValid(); err != nil {
-		return fmt.Errorf("block data error: %w", err)
+		return fmt.Errorf("invalid block data: %w", err)
 	}
+
 	if r.Qc == nil {
-		return fmt.Errorf("commit head is missing qc certificate")
+		return errors.New("commit head is missing qc certificate")
 	}
 	if r.CommitQc == nil {
-		return fmt.Errorf("commit head is missing commit qc certificate")
+		return errors.New("commit head is missing commit qc certificate")
 	}
 	return nil
 }
 
-func (i *InputData) IsValid() error {
-	if i.Ir == nil {
-		return fmt.Errorf("input record is nil")
+func (si *ShardInfo) IsValid() error {
+	if si.Partition == 0 {
+		return errors.New("missing partition id")
 	}
-	if err := i.Ir.IsValid(); err != nil {
-		return fmt.Errorf("input record error: %w", err)
+	if si.Round == 0 {
+		return errors.New("missing Round number")
 	}
-	if len(i.PDRHash) == 0 {
-		return fmt.Errorf("system description hash not set")
+	if len(si.RootHash) == 0 {
+		return errors.New("missing RootHash")
 	}
+	if len(si.PrevEpochStat) == 0 {
+		return errors.New("missing PrevEpochStat")
+	}
+	if len(si.PrevEpochFees) == 0 {
+		return errors.New("missing PrevEpochFees")
+	}
+	if len(si.Fees) == 0 {
+		return errors.New("missing Fees")
+	}
+	if si.Leader == "" {
+		return errors.New("missing leader")
+	}
+
+	if err := si.IR.IsValid(); err != nil {
+		return fmt.Errorf("invalid input record: %w", err)
+	}
+	if len(si.PDRHash) == 0 {
+		return errors.New("system description hash not set")
+	}
+
+	if err := si.UC.IsValid(crypto.SHA256, si.Partition, si.PDRHash); err != nil {
+		return fmt.Errorf("invalid UC: %w", err)
+	}
+
 	return nil
 }

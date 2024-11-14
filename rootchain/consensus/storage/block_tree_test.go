@@ -8,14 +8,16 @@ import (
 	"time"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
+	basehex "github.com/alphabill-org/alphabill-go-base/types/hex"
 	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
+	"github.com/alphabill-org/alphabill/rootchain/partitions"
 	"github.com/stretchr/testify/require"
 )
 
-const sysID1 types.SystemID = 1
-const sysID2 types.SystemID = 2
+const sysID1 types.PartitionID = 1
+const sysID2 types.PartitionID = 2
 
 var zeroHash = make([]byte, gocrypto.SHA256.Size())
 
@@ -26,11 +28,13 @@ var inputRecord1 = &types.InputRecord{
 	BlockHash:    []byte{3, 3, 3},
 	SummaryValue: []byte{4, 4, 4},
 	RoundNumber:  1,
+	Timestamp:    202411131,
 }
 var sdr1 = &types.PartitionDescriptionRecord{
-	NetworkIdentifier: 5,
-	SystemIdentifier:  sysID1,
-	T2Timeout:         2500 * time.Millisecond,
+	Version:             1,
+	NetworkIdentifier:   5,
+	PartitionIdentifier: sysID1,
+	T2Timeout:           2500 * time.Millisecond,
 }
 var inputRecord2 = &types.InputRecord{
 	Version:      1,
@@ -39,28 +43,32 @@ var inputRecord2 = &types.InputRecord{
 	BlockHash:    []byte{3, 3, 3},
 	SummaryValue: []byte{4, 4, 4},
 	RoundNumber:  1,
+	Timestamp:    202411132,
 }
 var sdr2 = &types.PartitionDescriptionRecord{
-	NetworkIdentifier: 5,
-	SystemIdentifier:  sysID2,
-	T2Timeout:         2500 * time.Millisecond,
+	Version:             1,
+	NetworkIdentifier:   5,
+	PartitionIdentifier: sysID2,
+	T2Timeout:           2500 * time.Millisecond,
 }
 
 var roundInfo = &drctypes.RoundInfo{
 	RoundNumber:     genesis.RootRound,
 	Timestamp:       genesis.Timestamp,
-	CurrentRootHash: hexToBytes("637F77AA807367DA4AA6D585978B20BC13B245F0D374D4316479570E870D8A46"),
+	CurrentRootHash: hexToBytes("aceaab50b27aeade09f7bed1aad1a3cfcc42648dd4a6d628ecd5695718178d72"),
 }
 
 var pg = []*genesis.GenesisPartitionRecord{
 	{
+		Version: 1,
 		Certificate: &types.UnicityCertificate{
 			Version:     1,
 			InputRecord: inputRecord1,
 			TRHash:      []uint8{0x76, 0xdc, 0xe1, 0x7b, 0x29, 0xcb, 0xa7, 0x61, 0xf8, 0x9e, 0x3f, 0xd6, 0xc3, 0x50, 0x4d, 0x81, 0x83, 0x92, 0x3, 0xf9, 0x5b, 0x29, 0xd4, 0xbb, 0x64, 0x58, 0x67, 0x3e, 0xdb, 0x39, 0xb6, 0xb0},
 			UnicityTreeCertificate: &types.UnicityTreeCertificate{
-				SystemIdentifier:         sysID1,
-				PartitionDescriptionHash: sdr1.Hash(gocrypto.SHA256),
+				Version:   1,
+				Partition: sysID1,
+				PDRHash:   sdr1.Hash(gocrypto.SHA256),
 			},
 			UnicitySeal: &types.UnicitySeal{
 				Version:              1,
@@ -68,22 +76,29 @@ var pg = []*genesis.GenesisPartitionRecord{
 				Hash:                 roundInfo.CurrentRootHash,
 				Timestamp:            roundInfo.Timestamp,
 				PreviousHash:         roundInfo.Hash(gocrypto.SHA256),
-				Signatures:           map[string][]byte{},
+				Signatures:           map[string]basehex.Bytes{},
 			},
 		},
 		PartitionDescription: sdr1,
 		Nodes: []*genesis.PartitionNode{
-			{NodeIdentifier: "1111", SigningPublicKey: []byte{0x3, 0x24, 0x8b, 0x61, 0x68, 0x51, 0xac, 0x6e, 0x43, 0x7e, 0xc2, 0x4e, 0xcc, 0x21, 0x9e, 0x5b, 0x42, 0x43, 0xdf, 0xa5, 0xdb, 0xdb, 0x8, 0xce, 0xa6, 0x48, 0x3a, 0xc9, 0xe0, 0xdc, 0x6b, 0x55, 0xcd}},
+			{
+				Version:                    1,
+				NodeIdentifier:             "1111",
+				SigningPublicKey:           []byte{0x3, 0x24, 0x8b, 0x61, 0x68, 0x51, 0xac, 0x6e, 0x43, 0x7e, 0xc2, 0x4e, 0xcc, 0x21, 0x9e, 0x5b, 0x42, 0x43, 0xdf, 0xa5, 0xdb, 0xdb, 0x8, 0xce, 0xa6, 0x48, 0x3a, 0xc9, 0xe0, 0xdc, 0x6b, 0x55, 0xcd},
+				PartitionDescriptionRecord: types.PartitionDescriptionRecord{Version: 1},
+			},
 		},
 	},
 	{
+		Version: 1,
 		Certificate: &types.UnicityCertificate{
 			Version:     1,
 			InputRecord: inputRecord2,
 			TRHash:      []uint8{0x18, 0x28, 0x40, 0xfc, 0x9, 0x13, 0x83, 0xa, 0x92, 0x82, 0xc7, 0xd3, 0x50, 0x33, 0xac, 0x41, 0x2, 0x1b, 0x1e, 0x39, 0x6c, 0xd7, 0x30, 0xaa, 0x73, 0x8d, 0xa7, 0xaf, 0x7b, 0x3c, 0xbe, 0x18},
 			UnicityTreeCertificate: &types.UnicityTreeCertificate{
-				SystemIdentifier:         sysID2,
-				PartitionDescriptionHash: sdr2.Hash(gocrypto.SHA256),
+				Version:   1,
+				Partition: sysID2,
+				PDRHash:   sdr2.Hash(gocrypto.SHA256),
 			},
 			UnicitySeal: &types.UnicitySeal{
 				Version:              1,
@@ -91,12 +106,17 @@ var pg = []*genesis.GenesisPartitionRecord{
 				Hash:                 roundInfo.CurrentRootHash,
 				Timestamp:            roundInfo.Timestamp,
 				PreviousHash:         roundInfo.Hash(gocrypto.SHA256),
-				Signatures:           map[string][]byte{},
+				Signatures:           map[string]basehex.Bytes{},
 			},
 		},
 		PartitionDescription: sdr2,
 		Nodes: []*genesis.PartitionNode{
-			{NodeIdentifier: "2222", SigningPublicKey: []byte{0x3, 0x24, 0x8b, 0x61, 0x68, 0x51, 0xac, 0x6e, 0x43, 0x7e, 0xc2, 0x4e, 0xcc, 0x21, 0x9e, 0x5b, 0x42, 0x43, 0xdf, 0xa5, 0xdb, 0xdb, 0x8, 0xce, 0xa6, 0x48, 0x3a, 0xc9, 0xe0, 0xdc, 0x6b, 0x55, 0xcd}},
+			{
+				Version:                    1,
+				NodeIdentifier:             "2222",
+				SigningPublicKey:           []byte{0x3, 0x24, 0x8b, 0x61, 0x68, 0x51, 0xac, 0x6e, 0x43, 0x7e, 0xc2, 0x4e, 0xcc, 0x21, 0x9e, 0x5b, 0x42, 0x43, 0xdf, 0xa5, 0xdb, 0xdb, 0x8, 0xce, 0xa6, 0x48, 0x3a, 0xc9, 0xe0, 0xdc, 0x6b, 0x55, 0xcd},
+				PartitionDescriptionRecord: types.PartitionDescriptionRecord{Version: 1},
+			},
 		},
 	},
 }
@@ -112,11 +132,13 @@ func mockExecutedBlock(round, qcRound, qcParentRound uint64) *ExecutedBlock {
 					Epoch:             0,
 					CurrentRootHash:   zeroHash,
 				},
-				LedgerCommitInfo: &types.UnicitySeal{Version: 1,
-					Hash: zeroHash,
+				LedgerCommitInfo: &types.UnicitySeal{
+					Version: 1,
+					Hash:    zeroHash,
 				},
 			},
 		},
+		ShardInfo: shardStates{},
 	}
 }
 
@@ -184,11 +206,11 @@ func createTestBlockTree(t *testing.T) *BlockTree {
 
 func initFromGenesis(t *testing.T) *BlockTree {
 	t.Helper()
-	gBlock := NewGenesisBlock(gocrypto.SHA256, pg)
+	orchestration := partitions.NewOrchestration(&genesis.RootGenesis{Partitions: pg})
 	db, err := memorydb.New()
 	require.NoError(t, err)
-	require.NoError(t, blockStoreGenesisInit(gBlock, db))
-	btree, err := NewBlockTree(db)
+	require.NoError(t, storeGenesisInit(gocrypto.SHA256, pg, db, orchestration))
+	btree, err := NewBlockTree(db, orchestration)
 	require.NoError(t, err)
 	return btree
 }
@@ -218,25 +240,25 @@ func TestBlockTree_RemoveLeaf(t *testing.T) {
 func TestBlockTree_FindPathToRoot(t *testing.T) {
 	tree := createTestBlockTree(t)
 	// test tree root is set to B5
-	blocks := tree.FindPathToRoot(8)
+	blocks := tree.findPathToRoot(8)
 	require.Len(t, blocks, 3)
 	// B8-->B7-->B6-->root (not included)
 	require.Equal(t, "B8", blocks[0].BlockData.Author)
 	require.Equal(t, "B7", blocks[1].BlockData.Author)
 	require.Equal(t, "B6", blocks[2].BlockData.Author)
-	blocks = tree.FindPathToRoot(10)
+	blocks = tree.findPathToRoot(10)
 	// B10-->B9-->root (not included)
 	require.Len(t, blocks, 2)
 	require.Equal(t, "B10", blocks[0].BlockData.Author)
 	require.Equal(t, "B9", blocks[1].BlockData.Author)
-	blocks = tree.FindPathToRoot(12)
+	blocks = tree.findPathToRoot(12)
 	// B12-->B11-->B9-->root (not included)
 	require.Len(t, blocks, 3)
 	require.Equal(t, "B12", blocks[0].BlockData.Author)
 	require.Equal(t, "B11", blocks[1].BlockData.Author)
 	require.Equal(t, "B9", blocks[2].BlockData.Author)
 	// node not found
-	require.Nil(t, tree.FindPathToRoot(2))
+	require.Nil(t, tree.findPathToRoot(2))
 }
 
 func TestBlockTree_GetAllUncommittedNodes(t *testing.T) {
@@ -335,7 +357,9 @@ func TestNewBlockTree(t *testing.T) {
 func TestNewBlockTreeFromDb(t *testing.T) {
 	db, err := memorydb.New()
 	require.NoError(t, err)
-	gBlock := NewGenesisBlock(gocrypto.SHA256, pg)
+	orchestration := partitions.NewOrchestration(&genesis.RootGenesis{Partitions: pg})
+	gBlock, err := NewGenesisBlock(gocrypto.SHA256, pg, orchestration)
+	require.NoError(t, err)
 	require.NoError(t, db.Write(blockKey(genesis.RootRound), gBlock))
 	// create a new block
 	block2 := &ExecutedBlock{
@@ -348,12 +372,12 @@ func TestNewBlockTreeFromDb(t *testing.T) {
 			Qc:        gBlock.BlockData.Qc,
 		},
 		CurrentIR: gBlock.CurrentIR,
-		Changed:   make([]types.SystemID, 0),
+		Changed:   make(map[partitionShard]struct{}),
 		HashAlgo:  gocrypto.SHA256,
 		RootHash:  gBlock.BlockData.Qc.LedgerCommitInfo.Hash,
 	}
 	require.NoError(t, db.Write(blockKey(block2.BlockData.Round), block2))
-	bTree, err := NewBlockTree(db)
+	bTree, err := NewBlockTree(db, orchestration)
 	require.NoError(t, err)
 	require.NotNil(t, bTree)
 	require.Len(t, bTree.roundToNode, 2)
@@ -365,7 +389,9 @@ func TestNewBlockTreeFromDb(t *testing.T) {
 func TestNewBlockTreeFromDbChain3Blocks(t *testing.T) {
 	db, err := memorydb.New()
 	require.NoError(t, err)
-	gBlock := NewGenesisBlock(gocrypto.SHA256, pg)
+	orchestration := partitions.NewOrchestration(&genesis.RootGenesis{Partitions: pg})
+	gBlock, err := NewGenesisBlock(gocrypto.SHA256, pg, orchestration)
+	require.NoError(t, err)
 	require.NoError(t, db.Write(blockKey(genesis.RootRound), gBlock))
 	// create blocks 2 and 3
 	voteInfoB2 := &drctypes.RoundInfo{
@@ -376,7 +402,8 @@ func TestNewBlockTreeFromDbChain3Blocks(t *testing.T) {
 	}
 	qcBlock2 := &drctypes.QuorumCert{
 		VoteInfo: voteInfoB2,
-		LedgerCommitInfo: &types.UnicitySeal{Version: 1,
+		LedgerCommitInfo: &types.UnicitySeal{
+			Version:      1,
 			PreviousHash: voteInfoB2.Hash(gocrypto.SHA256),
 			Hash:         gBlock.RootHash,
 		},
@@ -392,7 +419,7 @@ func TestNewBlockTreeFromDbChain3Blocks(t *testing.T) {
 			Qc:        gBlock.BlockData.Qc,
 		},
 		CurrentIR: gBlock.CurrentIR,
-		Changed:   make([]types.SystemID, 0),
+		Changed:   make(map[partitionShard]struct{}),
 		HashAlgo:  gocrypto.SHA256,
 		RootHash:  gBlock.BlockData.Qc.LedgerCommitInfo.Hash,
 	}
@@ -406,14 +433,14 @@ func TestNewBlockTreeFromDbChain3Blocks(t *testing.T) {
 			Qc:        qcBlock2,
 		},
 		CurrentIR: gBlock.CurrentIR,
-		Changed:   make([]types.SystemID, 0),
+		Changed:   make(map[partitionShard]struct{}),
 		HashAlgo:  gocrypto.SHA256,
 		RootHash:  gBlock.BlockData.Qc.LedgerCommitInfo.Hash,
 	}
 	require.NoError(t, db.Write(blockKey(block2.BlockData.Round), block2))
 	require.NoError(t, db.Write(blockKey(block3.BlockData.Round), block3))
 
-	bTree, err := NewBlockTree(db)
+	bTree, err := NewBlockTree(db, orchestration)
 	require.NoError(t, err)
 	require.NotNil(t, bTree)
 	require.Len(t, bTree.roundToNode, 3)
@@ -425,7 +452,9 @@ func TestNewBlockTreeFromDbChain3Blocks(t *testing.T) {
 func TestNewBlockTreeFromRecovery(t *testing.T) {
 	db, err := memorydb.New()
 	require.NoError(t, err)
-	gBlock := NewGenesisBlock(gocrypto.SHA256, pg)
+	orchestration := partitions.NewOrchestration(&genesis.RootGenesis{Partitions: pg})
+	gBlock, err := NewGenesisBlock(gocrypto.SHA256, pg, orchestration)
+	require.NoError(t, err)
 	require.NoError(t, db.Write(blockKey(genesis.RootRound), gBlock))
 	// create blocks 2 and 3
 	voteInfoB2 := &drctypes.RoundInfo{
@@ -436,7 +465,8 @@ func TestNewBlockTreeFromRecovery(t *testing.T) {
 	}
 	qcBlock2 := &drctypes.QuorumCert{
 		VoteInfo: voteInfoB2,
-		LedgerCommitInfo: &types.UnicitySeal{Version: 1,
+		LedgerCommitInfo: &types.UnicitySeal{
+			Version:      1,
 			PreviousHash: voteInfoB2.Hash(gocrypto.SHA256),
 			Hash:         gBlock.RootHash,
 		},
@@ -455,7 +485,7 @@ func TestNewBlockTreeFromRecovery(t *testing.T) {
 			Qc:        gBlock.BlockData.Qc,
 		},
 		CurrentIR: gBlock.CurrentIR,
-		Changed:   make([]types.SystemID, 0),
+		Changed:   make(map[partitionShard]struct{}),
 		HashAlgo:  gocrypto.SHA256,
 		RootHash:  gBlock.BlockData.Qc.LedgerCommitInfo.Hash,
 	}
@@ -471,7 +501,7 @@ func TestNewBlockTreeFromRecovery(t *testing.T) {
 			Qc:        qcBlock2,
 		},
 		CurrentIR: gBlock.CurrentIR,
-		Changed:   make([]types.SystemID, 0),
+		Changed:   make(map[partitionShard]struct{}),
 		HashAlgo:  gocrypto.SHA256,
 		RootHash:  gBlock.BlockData.Qc.LedgerCommitInfo.Hash,
 	}
@@ -508,7 +538,7 @@ func TestAddAndCommit(t *testing.T) {
 	require.Equal(t, root.BlockData.Round, genesis.RootRound)
 	require.Len(t, bTree.GetAllUncommittedNodes(), 2)
 	// find path to root
-	blocks := bTree.FindPathToRoot(genesis.RootRound + 2)
+	blocks := bTree.findPathToRoot(genesis.RootRound + 2)
 	require.Len(t, blocks, 2)
 	require.Equal(t, uint64(3), blocks[0].BlockData.Round)
 	require.Equal(t, uint64(2), blocks[1].BlockData.Round)
@@ -516,10 +546,10 @@ func TestAddAndCommit(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, pruned, 2)
 	// find path to root
-	blocks = bTree.FindPathToRoot(genesis.RootRound + 1)
+	blocks = bTree.findPathToRoot(genesis.RootRound + 1)
 	require.Len(t, blocks, 1)
 	// find path to root
-	blocks = bTree.FindPathToRoot(genesis.RootRound)
+	blocks = bTree.findPathToRoot(genesis.RootRound)
 	require.Len(t, blocks, 0)
 	require.Len(t, bTree.GetAllUncommittedNodes(), 2)
 	require.NoError(t, bTree.RemoveLeaf(genesis.RootRound+2))
@@ -550,7 +580,8 @@ func TestAddAndCommit(t *testing.T) {
 			RoundNumber:       5,
 			ParentRoundNumber: 4,
 		},
-		LedgerCommitInfo: &types.UnicitySeal{Version: 1,
+		LedgerCommitInfo: &types.UnicitySeal{
+			Version:      1,
 			PreviousHash: []byte{1, 2, 3},
 			Hash:         zeroHash,
 		},

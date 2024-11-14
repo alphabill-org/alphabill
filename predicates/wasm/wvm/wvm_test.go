@@ -7,6 +7,7 @@ import (
 	"math"
 	"testing"
 
+	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tetratelabs/wazero"
@@ -211,12 +212,12 @@ func (env *mockTxContext) CalculateCost() uint64 { return env.calcCost() }
 func (env *mockTxContext) TransactionOrder() (*types.TransactionOrder, error) { return env.txo, nil }
 
 type mockRootTrustBase struct {
-	verifyQuorumSignatures func(data []byte, signatures map[string][]byte) (error, []error)
+	verifyQuorumSignatures func(data []byte, signatures map[string]hex.Bytes) (error, []error)
 
 	// instead of implementing all methods just embed the interface for now
 	types.RootTrustBase
 }
 
-func (rtb *mockRootTrustBase) VerifyQuorumSignatures(data []byte, signatures map[string][]byte) (error, []error) {
+func (rtb *mockRootTrustBase) VerifyQuorumSignatures(data []byte, signatures map[string]hex.Bytes) (error, []error) {
 	return rtb.verifyQuorumSignatures(data, signatures)
 }

@@ -21,14 +21,14 @@ type TxValidationContext struct {
 	Tx          *types.TransactionOrder
 	state       *state.State
 	NetworkID   types.NetworkID
-	SystemID    types.SystemID
+	PartitionID types.PartitionID
 	BlockNumber uint64
 	CustomData  []byte
 }
 
 type TxSystem struct {
 	networkID           types.NetworkID
-	systemID            types.SystemID
+	partitionID         types.PartitionID
 	hashAlgorithm       crypto.Hash
 	state               *state.State
 	currentRoundNumber  uint64
@@ -40,7 +40,7 @@ type TxSystem struct {
 	log                 *slog.Logger
 }
 
-func NewEVMTxSystem(networkID types.NetworkID, systemID types.SystemID, log *slog.Logger, opts ...Option) (*TxSystem, error) {
+func NewEVMTxSystem(networkID types.NetworkID, partitionID types.PartitionID, log *slog.Logger, opts ...Option) (*TxSystem, error) {
 	options, err := defaultOptions()
 	if err != nil {
 		return nil, fmt.Errorf("default configuration: %w", err)
@@ -54,17 +54,17 @@ func NewEVMTxSystem(networkID types.NetworkID, systemID types.SystemID, log *slo
 	/*	if options.blockDB == nil {
 		return nil, errors.New("evm tx system init failed, block DB is nil")
 	}*/
-	evm, err := NewEVMModule(systemID, options, log)
+	evm, err := NewEVMModule(partitionID, options, log)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load EVM module: %w", err)
 	}
-	fees, err := newFeeModule(systemID, options, log)
+	fees, err := newFeeModule(partitionID, options, log)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load EVM fee module: %w", err)
 	}
 	txs := &TxSystem{
 		networkID:           networkID,
-		systemID:            systemID,
+		partitionID:         partitionID,
 		hashAlgorithm:       options.hashAlgorithm,
 		state:               options.state,
 		beginBlockFunctions: evm.StartBlockFunc(options.blockGasLimit),
@@ -132,12 +132,12 @@ func (m *TxSystem) pruneState(roundNo uint64) error {
 	return m.state.Prune()
 }
 
-func (m *TxSystem) Execute(tx *types.TransactionOrder) (sm *types.ServerMetadata, err error) {
+func (m *TxSystem) Execute(tx *types.TransactionOrder) (trx *types.TransactionRecord, err error) {
 	exeCtx := &TxValidationContext{
 		Tx:          tx,
 		state:       m.state,
 		NetworkID:   m.networkID,
-		SystemID:    m.systemID,
+		PartitionID: m.partitionID,
 		BlockNumber: m.currentRoundNumber,
 	}
 	for _, validator := range m.genericTxValidators {
@@ -145,7 +145,14 @@ func (m *TxSystem) Execute(tx *types.TransactionOrder) (sm *types.ServerMetadata
 			return nil, fmt.Errorf("invalid transaction: %w", err)
 		}
 	}
-
+	txBytes, err := tx.MarshalCBOR()
+	if err != nil {
+		return nil, fmt.Errorf("transaction order serialization error: %w", err)
+	}
+	trx = &types.TransactionRecord{
+		Version:          1,
+		TransactionOrder: txBytes,
+	}
 	savepointID := m.state.Savepoint()
 	defer func() {
 		if err != nil {
@@ -153,11 +160,8 @@ func (m *TxSystem) Execute(tx *types.TransactionOrder) (sm *types.ServerMetadata
 			m.state.RollbackToSavepoint(savepointID)
 			return
 		}
-		trx := &types.TransactionRecord{
-			TransactionOrder: tx,
-			ServerMetadata:   sm,
-		}
-		for _, targetID := range sm.TargetUnits {
+
+		for _, targetID := range trx.ServerMetadata.TargetUnits {
 			// add log for each target unit
 			err := m.state.AddUnitLog(targetID, trx.Hash(m.hashAlgorithm))
 			if err != nil {
@@ -171,11 +175,11 @@ func (m *TxSystem) Execute(tx *types.TransactionOrder) (sm *types.ServerMetadata
 	}()
 	// execute transaction
 	m.log.Debug(fmt.Sprintf("execute %d", tx.Type), logger.UnitID(tx.UnitID), logger.Data(tx), logger.Round(m.currentRoundNumber))
-	sm, err = m.executors.ValidateAndExecute(tx, exeCtx)
+	trx.ServerMetadata, err = m.executors.ValidateAndExecute(tx, exeCtx)
 	if err != nil {
 		return nil, err
 	}
-	return sm, err
+	return trx, err
 }
 
 func (m *TxSystem) EndBlock() (txsystem.StateSummary, error) {

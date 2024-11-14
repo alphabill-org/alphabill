@@ -6,6 +6,7 @@ import (
 
 	"github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	"github.com/alphabill-org/alphabill/network/protocol/certification"
 )
 
@@ -17,14 +18,14 @@ var (
 )
 
 type PartitionNode struct {
-	_                         struct{}                                 `cbor:",toarray"`
-	Version                   types.ABVersion                          `json:"version,omitempty"`
-	NodeIdentifier            string                                   `json:"node_identifier,omitempty"`
-	SigningPublicKey          []byte                                   `json:"signing_public_key,omitempty"`
-	EncryptionPublicKey       []byte                                   `json:"encryption_public_key,omitempty"`
-	BlockCertificationRequest *certification.BlockCertificationRequest `json:"block_certification_request,omitempty"`
-	Params                    []byte                                   `json:"params,omitempty"`
-	PartitionDescription      types.PartitionDescriptionRecord         `json:"partition_description"`
+	_                          struct{}                                 `cbor:",toarray"`
+	Version                    types.ABVersion                          `json:"version"`
+	NodeIdentifier             string                                   `json:"nodeIdentifier"`
+	SigningPublicKey           hex.Bytes                                `json:"signingPublicKey"`
+	EncryptionPublicKey        hex.Bytes                                `json:"encryptionPublicKey"`
+	BlockCertificationRequest  *certification.BlockCertificationRequest `json:"blockCertificationRequest"`
+	PartitionDescriptionRecord types.PartitionDescriptionRecord         `json:"partitionDescriptionRecord"`
+	Params                     hex.Bytes                                `json:"params,omitempty"`
 }
 
 type MoneyPartitionParams struct {
@@ -80,8 +81,8 @@ func (x *PartitionNode) IsValid() error {
 
 func nodesUnique(x []*PartitionNode) error {
 	var ids = make(map[string]string)
-	var signingKeys = make(map[string][]byte)
-	var encryptionKeys = make(map[string][]byte)
+	var signingKeys = make(map[string]hex.Bytes)
+	var encryptionKeys = make(map[string]hex.Bytes)
 	for _, node := range x {
 		if err := node.IsValid(); err != nil {
 			return err

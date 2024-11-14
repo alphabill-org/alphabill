@@ -42,10 +42,10 @@ func Test_checkFeeAccountBalance(t *testing.T) {
 
 	// validate fee balance tx ok
 	require.NoError(t, validateFeeBalanceFn(&TxValidationContext{
-		Tx:        txo,
-		state:     s,
-		NetworkID: 5,
-		SystemID:  1,
+		Tx:          txo,
+		state:       s,
+		NetworkID:   5,
+		PartitionID: 1,
 	}))
 }
 
@@ -72,7 +72,7 @@ func Test_isFeeCreditTx(t *testing.T) {
 		},
 		{
 			name: "nil - false",
-			args: args{tx: &types.TransactionOrder{}},
+			args: args{tx: &types.TransactionOrder{Version: 1}},
 			want: false,
 		},
 	}

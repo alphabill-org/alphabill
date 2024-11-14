@@ -29,7 +29,9 @@ func Test_TXSystemEncoder_trigger(t *testing.T) {
 		// ver 1 of the txRec just contains txo handle so no need to fill out all the fields...
 		// getHandle is called once, always return 1 as the handle
 		getHandle := func(obj any) uint64 { return 1 }
-		buf, err := enc.Encode(&types.TransactionRecord{TransactionOrder: &types.TransactionOrder{}}, 1, getHandle)
+		tx, err := (&types.TransactionOrder{Version: 1}).MarshalCBOR()
+		require.NoError(t, err)
+		buf, err := enc.Encode(&types.TransactionRecord{Version: 1, TransactionOrder: tx}, 1, getHandle)
 		require.NoError(t, err)
 		require.Equal(t, []byte{0x1, 0x2, 0x1, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0}, buf)
 	})
@@ -38,10 +40,11 @@ func Test_TXSystemEncoder_trigger(t *testing.T) {
 		getHandle := func(obj any) uint64 { t.Errorf("unexpected call of getHandle(%T)", obj); return 0 }
 		// ver 1 of the txOrder
 		txo := &types.TransactionOrder{
+			Version: 1,
 			Payload: types.Payload{
-				SystemID: 7,
-				Type:     22,
-				UnitID:   []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10},
+				PartitionID: 7,
+				Type:        22,
+				UnitID:      []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10},
 				ClientMetadata: &types.ClientMetadata{
 					ReferenceNumber: []byte("ref-no"),
 				},
@@ -88,7 +91,9 @@ func Test_generate_TXSTestsData(t *testing.T) {
 
 	t.Run("txRecord", func(t *testing.T) {
 		// ver 1 of the txRec just contains txo handle so no need to fill out all the fields...
-		buf, err := enc.Encode(&types.TransactionRecord{TransactionOrder: &types.TransactionOrder{}}, 1, getHandle)
+		tx, err := (&types.TransactionOrder{Version: 1}).MarshalCBOR()
+		require.NoError(t, err)
+		buf, err := enc.Encode(&types.TransactionRecord{Version: 1, TransactionOrder: tx}, 1, getHandle)
 		require.NoError(t, err)
 		t.Errorf("\nlet data: &mut [u8] = &mut [%s];", bytesAsHex(t, buf))
 	})
@@ -96,10 +101,11 @@ func Test_generate_TXSTestsData(t *testing.T) {
 	t.Run("txOrder", func(t *testing.T) {
 		// ver 1 of the txOrder
 		txo := &types.TransactionOrder{
+			Version: 1,
 			Payload: types.Payload{
-				SystemID: 7,
-				Type:     22,
-				UnitID:   []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10},
+				PartitionID: 7,
+				Type:        22,
+				UnitID:      []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10},
 				ClientMetadata: &types.ClientMetadata{
 					ReferenceNumber: []byte("ref-no"),
 				},

@@ -18,20 +18,20 @@ var (
 
 type BlockData struct {
 	_         struct{} `cbor:",toarray"`
-	Author    string   `json:"author,omitempty"` // NodeIdentifier of the proposer
-	Round     uint64   `json:"round,omitempty"`  // Root round number
-	Epoch     uint64   `json:"epoch,omitempty"`  // Epoch to establish valid configuration
-	Timestamp uint64   `json:"timestamp,omitempty"`
-	Payload   *Payload `json:"payload,omitempty"` // Payload that will trigger changes to the state
+	Author    string   `json:"author"` // NodeIdentifier of the proposer
+	Round     uint64   `json:"round"`  // Root round number
+	Epoch     uint64   `json:"epoch"`  // Epoch to establish valid configuration
+	Timestamp uint64   `json:"timestamp"`
+	Payload   *Payload `json:"payload"` // Payload that will trigger changes to the state
 	// quorum certificate for ancestor
 	// before payload can be applied check that local state matches state in qc
 	// qc.vote_info.proposed.state_hash == h(UC[])
-	Qc *QuorumCert `json:"qc,omitempty"`
+	Qc *QuorumCert `json:"qc"`
 }
 
 type Payload struct {
 	_        struct{}       `cbor:",toarray"`
-	Requests []*IRChangeReq `json:"requests,omitempty"` // IR change requests with quorum or no quorum possible
+	Requests []*IRChangeReq `json:"requests"` // IR change requests with quorum or no quorum possible
 }
 
 // Bytes serializes entire struct.
@@ -47,8 +47,8 @@ func (x *Payload) Bytes() []byte {
 }
 
 func (x *Payload) IsValid() error {
-	// there can only be one request per system identifier in a block
-	sysIdSet := map[types.SystemID]struct{}{}
+	// there can only be one request per partition identifier in a block
+	sysIdSet := map[types.PartitionID]struct{}{}
 
 	for _, req := range x.Requests {
 		if err := req.IsValid(); err != nil {

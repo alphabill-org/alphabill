@@ -11,7 +11,7 @@ import (
 var (
 	ErrStateContainsUncommittedChanges = errors.New("state contains uncommitted changes")
 	ErrTransactionExpired              = errors.New("transaction timeout must be greater than current block number")
-	ErrInvalidSystemIdentifier         = errors.New("error invalid system identifier")
+	ErrInvalidPartitionIdentifier      = errors.New("error invalid partition identifier")
 )
 
 type (
@@ -72,7 +72,7 @@ type (
 	TransactionExecutor interface {
 		// Execute method executes the transaction order. An error must be returned if the transaction order execution
 		// was not successful.
-		Execute(order *types.TransactionOrder) (*types.ServerMetadata, error)
+		Execute(order *types.TransactionOrder) (*types.TransactionRecord, error)
 	}
 
 	// StateSummary represents the root hash and summary value of the transaction system.

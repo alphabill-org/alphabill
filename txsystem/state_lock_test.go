@@ -20,7 +20,7 @@ import (
 
 func Test_StateUnlockProofFromBytes(t *testing.T) {
 	t.Run("nil", func(t *testing.T) {
-		tx := &types.TransactionOrder{StateUnlock: nil}
+		tx := &types.TransactionOrder{Version: 1, StateUnlock: nil}
 
 		_, err := stateUnlockProofFromTx(tx)
 		require.Error(t, err)
@@ -28,7 +28,7 @@ func Test_StateUnlockProofFromBytes(t *testing.T) {
 	})
 
 	t.Run("empty input", func(t *testing.T) {
-		tx := &types.TransactionOrder{StateUnlock: []byte{}}
+		tx := &types.TransactionOrder{Version: 1, StateUnlock: []byte{}}
 
 		_, err := stateUnlockProofFromTx(tx)
 		require.Error(t, err)
@@ -39,7 +39,7 @@ func Test_StateUnlockProofFromBytes(t *testing.T) {
 		kind := StateUnlockExecute
 		proof := []byte("proof")
 
-		tx := &types.TransactionOrder{StateUnlock: append([]byte{byte(kind)}, proof...)}
+		tx := &types.TransactionOrder{Version: 1, StateUnlock: append([]byte{byte(kind)}, proof...)}
 		result, err := stateUnlockProofFromTx(tx)
 		require.NoError(t, err)
 		require.Equal(t, kind, result.Kind)
@@ -50,7 +50,7 @@ func Test_StateUnlockProofFromBytes(t *testing.T) {
 		kind := StateUnlockRollback
 		proof := []byte("proof")
 
-		tx := &types.TransactionOrder{StateUnlock: append([]byte{byte(kind)}, proof...)}
+		tx := &types.TransactionOrder{Version: 1, StateUnlock: append([]byte{byte(kind)}, proof...)}
 		result, err := stateUnlockProofFromTx(tx)
 		require.NoError(t, err)
 		require.Equal(t, kind, result.Kind)
@@ -60,7 +60,7 @@ func Test_StateUnlockProofFromBytes(t *testing.T) {
 	t.Run("invalid kind", func(t *testing.T) {
 		kind := byte(2) // Invalid kind
 		proof := []byte("proof")
-		tx := &types.TransactionOrder{StateUnlock: append([]byte{kind}, proof...)}
+		tx := &types.TransactionOrder{Version: 1, StateUnlock: append([]byte{kind}, proof...)}
 
 		result, err := stateUnlockProofFromTx(tx)
 		require.NoError(t, err)
@@ -73,7 +73,7 @@ func Test_StateUnlockProofFromBytes(t *testing.T) {
 func Test_proof_check_with_nil(t *testing.T) {
 	kind := StateUnlockExecute
 	proof := []byte("proof")
-	tx := &types.TransactionOrder{StateUnlock: append([]byte{byte(kind)}, proof...)}
+	tx := &types.TransactionOrder{Version: 1, StateUnlock: append([]byte{byte(kind)}, proof...)}
 	result, err := stateUnlockProofFromTx(tx)
 	require.NoError(t, err)
 	predEng, err := predicates.Dispatcher(templates.New())
@@ -90,7 +90,7 @@ func TestGenericTxSystem_handleUnlockUnitState(t *testing.T) {
 			t,
 			testtransaction.WithTransactionType(money.TransactionTypeTransfer),
 			testtransaction.WithUnitID(unitID),
-			testtransaction.WithSystemID(money.DefaultSystemID),
+			testtransaction.WithPartitionID(money.DefaultPartitionID),
 			testtransaction.WithAttributes(&money.TransferAttributes{}),
 		)
 		execCtx := txtypes.NewExecutionContext(tx, txSys, abfc.NewNoFeeCreditModule(), nil, 10)
@@ -105,7 +105,7 @@ func TestGenericTxSystem_handleUnlockUnitState(t *testing.T) {
 			t,
 			testtransaction.WithTransactionType(money.TransactionTypeTransfer),
 			testtransaction.WithUnitID(unitID),
-			testtransaction.WithSystemID(money.DefaultSystemID),
+			testtransaction.WithPartitionID(money.DefaultPartitionID),
 			testtransaction.WithAttributes(&money.TransferAttributes{}),
 		)
 		execCtx := txtypes.NewExecutionContext(tx, txSys, abfc.NewNoFeeCreditModule(), nil, 10)
@@ -120,7 +120,7 @@ func TestGenericTxSystem_handleUnlockUnitState(t *testing.T) {
 			t,
 			testtransaction.WithTransactionType(money.TransactionTypeTransfer),
 			testtransaction.WithUnitID(unitID),
-			testtransaction.WithSystemID(money.DefaultSystemID),
+			testtransaction.WithPartitionID(money.DefaultPartitionID),
 			testtransaction.WithAttributes(&money.TransferAttributes{}),
 		)
 		execCtx := txtypes.NewExecutionContext(tx, txSys, abfc.NewNoFeeCreditModule(), nil, 10)
@@ -142,7 +142,7 @@ func TestGenericTxSystem_handleUnlockUnitState(t *testing.T) {
 			t,
 			testtransaction.WithTransactionType(money.TransactionTypeTransfer),
 			testtransaction.WithUnitID(unitID),
-			testtransaction.WithSystemID(money.DefaultSystemID),
+			testtransaction.WithPartitionID(money.DefaultPartitionID),
 			testtransaction.WithAttributes(&money.TransferAttributes{}),
 		)
 		execCtx := txtypes.NewExecutionContext(tx, txSys, abfc.NewNoFeeCreditModule(), nil, 10)
@@ -165,7 +165,7 @@ func TestGenericTxSystem_handleUnlockUnitState(t *testing.T) {
 			t,
 			testtransaction.WithTransactionType(money.TransactionTypeTransfer),
 			testtransaction.WithUnitID(unitID),
-			testtransaction.WithSystemID(money.DefaultSystemID),
+			testtransaction.WithPartitionID(money.DefaultPartitionID),
 			testtransaction.WithAttributes(&money.TransferAttributes{}),
 			testtransaction.WithUnlockProof([]byte{255}),
 		)
@@ -191,7 +191,7 @@ func TestGenericTxSystem_handleUnlockUnitState(t *testing.T) {
 			t,
 			testtransaction.WithTransactionType(money.TransactionTypeTransfer),
 			testtransaction.WithUnitID(unitID),
-			testtransaction.WithSystemID(money.DefaultSystemID),
+			testtransaction.WithPartitionID(money.DefaultPartitionID),
 			testtransaction.WithAttributes(&money.TransferAttributes{}),
 			testtransaction.WithUnlockProof([]byte{byte(StateUnlockExecute), 1, 2, 3}),
 			testtransaction.WithClientMetadata(&types.ClientMetadata{
@@ -219,7 +219,7 @@ func TestGenericTxSystem_handleUnlockUnitState(t *testing.T) {
 			t,
 			testtransaction.WithTransactionType(money.TransactionTypeTransfer),
 			testtransaction.WithUnitID(unitID),
-			testtransaction.WithSystemID(money.DefaultSystemID),
+			testtransaction.WithPartitionID(money.DefaultPartitionID),
 			testtransaction.WithAttributes(&money.TransferAttributes{}),
 			testtransaction.WithUnlockProof([]byte{byte(StateUnlockRollback), 1, 2, 3}),
 		)
@@ -243,7 +243,7 @@ func TestGenericTxSystem_handleUnlockUnitState(t *testing.T) {
 			t,
 			testtransaction.WithTransactionType(money.TransactionTypeTransfer),
 			testtransaction.WithUnitID(unitID),
-			testtransaction.WithSystemID(money.DefaultSystemID),
+			testtransaction.WithPartitionID(money.DefaultPartitionID),
 			testtransaction.WithAttributes(&money.TransferAttributes{}),
 			testtransaction.WithAuthProof(&money.TransferAuthProof{}),
 		)
@@ -265,7 +265,7 @@ func TestGenericTxSystem_executeLockUnitState(t *testing.T) {
 			t,
 			testtransaction.WithTransactionType(money.TransactionTypeTransfer),
 			testtransaction.WithUnitID(unitID),
-			testtransaction.WithSystemID(money.DefaultSystemID),
+			testtransaction.WithPartitionID(money.DefaultPartitionID),
 			testtransaction.WithAttributes(&money.TransferAttributes{}),
 			testtransaction.WithStateLock(&types.StateLock{}),
 		)
@@ -281,7 +281,7 @@ func TestGenericTxSystem_executeLockUnitState(t *testing.T) {
 			t,
 			testtransaction.WithTransactionType(money.TransactionTypeTransfer),
 			testtransaction.WithUnitID(unitID),
-			testtransaction.WithSystemID(money.DefaultSystemID),
+			testtransaction.WithPartitionID(money.DefaultPartitionID),
 			testtransaction.WithAttributes(&money.TransferAttributes{}),
 			testtransaction.WithStateLock(&types.StateLock{ExecutionPredicate: []byte{1, 2, 3}}),
 		)
@@ -297,7 +297,7 @@ func TestGenericTxSystem_executeLockUnitState(t *testing.T) {
 			t,
 			testtransaction.WithTransactionType(money.TransactionTypeTransfer),
 			testtransaction.WithUnitID(unitID),
-			testtransaction.WithSystemID(money.DefaultSystemID),
+			testtransaction.WithPartitionID(money.DefaultPartitionID),
 			testtransaction.WithAttributes(&money.TransferAttributes{}),
 			testtransaction.WithStateLock(&types.StateLock{
 				ExecutionPredicate: basetemplates.AlwaysTrueBytes(),
@@ -322,7 +322,7 @@ func createLockTransaction(t *testing.T, id types.UnitID, pubkey []byte) []byte 
 		t,
 		testtransaction.WithTransactionType(money.TransactionTypeTransfer),
 		testtransaction.WithUnitID(id),
-		testtransaction.WithSystemID(money.DefaultSystemID),
+		testtransaction.WithPartitionID(money.DefaultPartitionID),
 		testtransaction.WithAttributes(&money.TransferAttributes{NewOwnerPredicate: basetemplates.AlwaysTrueBytes(), TargetValue: 1, Counter: 1}),
 		testtransaction.WithStateLock(&types.StateLock{
 			ExecutionPredicate: basetemplates.NewP2pkh256BytesFromKey(pubkey)}),

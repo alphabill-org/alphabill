@@ -19,15 +19,14 @@ var (
 )
 
 type BlockCertificationRequest struct {
-	_               struct{}           `cbor:",toarray"`
-	Partition       types.PartitionID  `json:"partitionIdentifier"`
-	Shard           types.ShardID      `json:"shardIdentifier"`
-	NodeIdentifier  string             `json:"nodeIdentifier"`
-	InputRecord     *types.InputRecord `json:"inputRecord"`
-	RootRoundNumber uint64             `json:"rootRoundNumber"` // latest known RC's round number (AB-1155)
-	BlockSize       uint64             `json:"blockSize"`
-	StateSize       uint64             `json:"stateSize"`
-	Signature       hex.Bytes          `json:"signature"`
+	_              struct{}           `cbor:",toarray"`
+	Partition      types.PartitionID  `json:"partitionIdentifier"`
+	Shard          types.ShardID      `json:"shardIdentifier"`
+	NodeIdentifier string             `json:"nodeIdentifier"`
+	InputRecord    *types.InputRecord `json:"inputRecord"`
+	BlockSize      uint64             `json:"blockSize"`
+	StateSize      uint64             `json:"stateSize"`
+	Signature      hex.Bytes          `json:"signature"`
 }
 
 func (x *BlockCertificationRequest) IRRound() uint64 {
@@ -44,13 +43,6 @@ func (x *BlockCertificationRequest) IRPreviousHash() []byte {
 	return x.InputRecord.PreviousHash
 }
 
-func (x *BlockCertificationRequest) RootRound() uint64 {
-	if x == nil {
-		return 0
-	}
-	return x.RootRoundNumber
-}
-
 func (x *BlockCertificationRequest) IsValid(v crypto.Verifier) error {
 	if x == nil {
 		return ErrBlockCertificationRequestIsNil
@@ -65,10 +57,10 @@ func (x *BlockCertificationRequest) IsValid(v crypto.Verifier) error {
 		return errEmptyNodeIdentifier
 	}
 	if err := x.InputRecord.IsValid(); err != nil {
-		return fmt.Errorf("input record error: %w", err)
+		return fmt.Errorf("invalid input record: %w", err)
 	}
 	if err := v.VerifyBytes(x.Signature, x.Bytes()); err != nil {
-		return fmt.Errorf("signature verification failed")
+		return fmt.Errorf("signature verification: %w", err)
 	}
 	return nil
 }
@@ -95,7 +87,7 @@ func (x *BlockCertificationRequest) Bytes() []byte {
 	b.Write(x.InputRecord.BlockHash)
 	b.Write(x.InputRecord.SummaryValue)
 	b.Write(util.Uint64ToBytes(x.InputRecord.RoundNumber))
-	b.Write(util.Uint64ToBytes(x.RootRoundNumber))
+	b.Write(util.Uint64ToBytes(x.InputRecord.Timestamp))
 	b.Write(util.Uint64ToBytes(x.BlockSize))
 	b.Write(util.Uint64ToBytes(x.StateSize))
 	return b.Bytes()

@@ -145,6 +145,7 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 						Hash:         test.RandomBytes(32),
 						BlockHash:    test.RandomBytes(32),
 						SummaryValue: test.RandomBytes(32),
+						Timestamp:    1,
 					}, pdr, 1, []byte{0}, make([]byte, 32)),
 				TechnicalRecord:     tr,
 				Transactions:        []*types.TransactionRecord{},

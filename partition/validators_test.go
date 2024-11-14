@@ -84,6 +84,7 @@ func TestDefaultUnicityCertificateValidator_ValidateOk(t *testing.T) {
 		BlockHash:    make([]byte, 32),
 		SummaryValue: make([]byte, 32),
 		RoundNumber:  1,
+		Timestamp:    types.NewTimestamp(),
 	}
 	uc := testcertificates.CreateUnicityCertificate(
 		t,
@@ -158,6 +159,7 @@ func TestDefaultNewDefaultBlockProposalValidator_ValidateOk(t *testing.T) {
 		BlockHash:    make([]byte, 32),
 		SummaryValue: make([]byte, 32),
 		RoundNumber:  1,
+		Timestamp:    types.NewTimestamp(),
 	}
 	tr := certification.TechnicalRecord{
 		Round:    1,

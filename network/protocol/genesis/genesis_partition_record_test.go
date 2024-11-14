@@ -160,8 +160,8 @@ func createPartitionNode(t *testing.T, nodeID string, signingKey abcrypto.Signer
 			BlockHash:    make([]byte, 32),
 			SummaryValue: make([]byte, 32),
 			RoundNumber:  1,
+			Timestamp:    types.NewTimestamp(),
 		},
-		RootRoundNumber: 1,
 	}
 	require.NoError(t, request.Sign(signingKey))
 	pr := &PartitionNode{

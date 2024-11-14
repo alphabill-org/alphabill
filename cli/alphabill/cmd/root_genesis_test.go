@@ -99,7 +99,7 @@ func Test_RootGenesis_New(t *testing.T) {
 			" --partition-node-genesis-file=" + invalidPGFile +
 			" -g"
 		cmd.baseCmd.SetArgs(strings.Split(args, " "))
-		require.ErrorContains(t, cmd.Execute(context.Background()), "signature verification failed")
+		require.ErrorContains(t, cmd.Execute(context.Background()), "signature verification: verification failed")
 	})
 
 	t.Run("ErrBlockRateInvalid", func(t *testing.T) {

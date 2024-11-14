@@ -91,6 +91,7 @@ func createInputRequest(t *testing.T, partitionIdentifier types.PartitionID, nod
 			BlockHash:    make([]byte, 32),
 			SummaryValue: []byte{1, 0, 0},
 			RoundNumber:  pg.PartitionRoundNumber,
+			Timestamp:    types.NewTimestamp(),
 		},
 	}
 

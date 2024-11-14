@@ -1390,6 +1390,7 @@ func (n *Node) sendCertificationRequest(ctx context.Context, blockAuthor string)
 			RoundNumber:     n.currentRoundNumber(),
 			PreviousHash:    luc.GetStateHash(),
 			Hash:            stateHash,
+			Timestamp:       luc.UnicitySeal.Timestamp,
 			SummaryValue:    state.Summary(),
 			SumOfEarnedFees: n.sumOfEarnedFees,
 		},
@@ -1422,11 +1423,10 @@ func (n *Node) sendCertificationRequest(ctx context.Context, blockAuthor string)
 	n.sumOfEarnedFees = 0
 	// send new input record for certification
 	req := &certification.BlockCertificationRequest{
-		Partition:       n.configuration.GetPartitionIdentifier(),
-		Shard:           n.configuration.shardID,
-		NodeIdentifier:  n.peer.ID().String(),
-		InputRecord:     ir,
-		RootRoundNumber: luc.GetRootRoundNumber(),
+		Partition:      n.configuration.GetPartitionIdentifier(),
+		Shard:          n.configuration.shardID,
+		NodeIdentifier: n.peer.ID().String(),
+		InputRecord:    ir,
 	}
 	if req.BlockSize, err = pendingProposal.Size(); err != nil {
 		return fmt.Errorf("calculating block size: %w", err)

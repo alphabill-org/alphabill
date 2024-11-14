@@ -76,10 +76,9 @@ func CreatePartitionNodesAndPartitionRecord(t *testing.T, ir *types.InputRecord,
 func CreateBlockCertificationRequest(t *testing.T, ir *types.InputRecord, sysID types.PartitionID, node *TestNode) *certification.BlockCertificationRequest {
 	t.Helper()
 	r1 := &certification.BlockCertificationRequest{
-		Partition:       sysID,
-		NodeIdentifier:  node.PeerConf.ID.String(),
-		InputRecord:     ir,
-		RootRoundNumber: 1,
+		Partition:      sysID,
+		NodeIdentifier: node.PeerConf.ID.String(),
+		InputRecord:    ir,
 	}
 	require.NoError(t, r1.Sign(node.Signer))
 	return r1

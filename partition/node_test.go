@@ -563,6 +563,7 @@ func TestBlockProposal_TxSystemStateIsDifferent_newUC(t *testing.T) {
 		BlockHash:    uc1.InputRecord.BlockHash,
 		SummaryValue: uc1.InputRecord.SummaryValue,
 		RoundNumber:  uc1.InputRecord.RoundNumber + 1,
+		Timestamp:    types.NewTimestamp(),
 	}
 	uc2, err := tp.CreateUnicityCertificate(
 		ir,

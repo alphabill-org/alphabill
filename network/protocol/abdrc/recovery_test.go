@@ -156,6 +156,7 @@ func TestStateMsg_Verify(t *testing.T) {
 		SummaryValue:    test.RandomBytes(32),
 		RoundNumber:     3,
 		SumOfEarnedFees: 10,
+		Timestamp:       types.NewTimestamp(),
 	}
 
 	pdr := types.PartitionDescriptionRecord{
@@ -283,6 +284,7 @@ func TestRecoveryBlock_IsValid(t *testing.T) {
 		SummaryValue:    test.RandomBytes(32),
 		RoundNumber:     3,
 		SumOfEarnedFees: 10,
+		Timestamp:       types.NewTimestamp(),
 	}
 
 	pdr := types.PartitionDescriptionRecord{

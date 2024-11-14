@@ -739,7 +739,7 @@ func (n *Node) updateLUC(ctx context.Context, uc *types.UnicityCertificate, tr *
 		return nil
 	}
 
-	if n.log.Enabled(ctx, slog.LevelDebug) && n.status.Load() != initializing {
+	if n.status.Load() != initializing {
 		n.log.DebugContext(ctx,
 			fmt.Sprintf("LUC:\n%s\n\nReceived UC:\n%s", printUC(luc), printUC(uc)),
 			logger.Round(n.currentRoundNumber()))

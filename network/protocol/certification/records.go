@@ -40,9 +40,6 @@ func (tr *TechnicalRecord) IsValid() error {
 }
 
 func (tr *TechnicalRecord) Hash() ([]byte, error) {
-	if tr == nil {
-		return make([]byte, crypto.SHA256.Size()), nil
-	}
 	h := abhash.New(crypto.SHA256.New())
 	h.Write(tr)
 	return h.Sum()

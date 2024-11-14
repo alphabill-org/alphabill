@@ -121,10 +121,9 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 			Timestamp:       types.NewTimestamp(),
 		}
 		request := &certification.BlockCertificationRequest{
-			Partition:       sysID1,
-			NodeIdentifier:  "node1",
-			InputRecord:     newIR,
-			RootRoundNumber: 1,
+			Partition:      sysID1,
+			NodeIdentifier: "node1",
+			InputRecord:    newIR,
 		}
 		require.NoError(t, request.Sign(signer))
 		irChReq := &abtypes.IRChangeReq{
@@ -153,10 +152,9 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 			SumOfEarnedFees: 1,
 		}
 		request := &certification.BlockCertificationRequest{
-			Partition:       sysID2,
-			NodeIdentifier:  "node1",
-			InputRecord:     newIR,
-			RootRoundNumber: 1,
+			Partition:      sysID2,
+			NodeIdentifier: "node1",
+			InputRecord:    newIR,
 		}
 		require.NoError(t, request.Sign(signer))
 		irChReq := &abtypes.IRChangeReq{
@@ -186,10 +184,9 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 			orchestration: orchestration,
 		}
 		request := &certification.BlockCertificationRequest{
-			Partition:       sysID1,
-			NodeIdentifier:  "node1",
-			InputRecord:     newIR,
-			RootRoundNumber: 1,
+			Partition:      sysID1,
+			NodeIdentifier: "node1",
+			InputRecord:    newIR,
 		}
 		require.NoError(t, request.Sign(signer))
 		irChReq := &abtypes.IRChangeReq{
@@ -219,10 +216,9 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 			Timestamp:       types.NewTimestamp(),
 		}
 		request := &certification.BlockCertificationRequest{
-			Partition:       sysID1,
-			NodeIdentifier:  "node1",
-			InputRecord:     newIR,
-			RootRoundNumber: 1,
+			Partition:      sysID1,
+			NodeIdentifier: "node1",
+			InputRecord:    newIR,
 		}
 		require.NoError(t, request.Sign(signer))
 		irChReq := &abtypes.IRChangeReq{
@@ -252,10 +248,9 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 			Timestamp:       types.NewTimestamp(),
 		}
 		request := &certification.BlockCertificationRequest{
-			Partition:       sysID1,
-			NodeIdentifier:  "node1",
-			InputRecord:     newIR,
-			RootRoundNumber: 1,
+			Partition:      sysID1,
+			NodeIdentifier: "node1",
+			InputRecord:    newIR,
 		}
 		require.NoError(t, request.Sign(signer))
 		irChReq := &abtypes.IRChangeReq{

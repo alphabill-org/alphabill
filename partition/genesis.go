@@ -110,7 +110,7 @@ func NewNodeGenesis(state *state.State, pdr types.PartitionDescriptionRecord, op
 		Hash:         hash,
 		RoundNumber:  pg.PartitionRoundNumber,
 		SummaryValue: util.Uint64ToBytes(summaryValue),
-		Timestamp:    types.NewTimestamp(),
+		Timestamp:    types.GenesisTime,
 	}
 	// create genesis block
 	ucBytes, err := types.Cbor.Marshal(&types.UnicityCertificate{

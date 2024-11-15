@@ -97,7 +97,7 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withPendingProposa
 		RoundNumber:  uc1.InputRecord.RoundNumber + 1,
 		Timestamp:    uc1.UnicitySeal.Timestamp,
 	}
-	repeatUC, err := tp.CreateUnicityCertificate(
+	repeatUC, _, err := tp.CreateUnicityCertificate(
 		ir,
 		uc1.UnicitySeal.RootChainRoundNumber+1,
 	)
@@ -247,7 +247,7 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withPendingProposa
 	// now assume while the node was offline, other validators produced several new blocks, all empty
 	// that is, round number has been incremented, but the state hash is the same
 	uc.InputRecord.RoundNumber += 5
-	uc, err = tp.CreateUnicityCertificate(
+	uc, _, err = tp.CreateUnicityCertificate(
 		uc.InputRecord,
 		uc.UnicitySeal.RootChainRoundNumber+1,
 	)
@@ -286,24 +286,51 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_noPendingProposal_
 	bl := tp.GetLatestBlock(t)
 	uc, err := getUCv1(bl)
 	require.NoError(t, err)
-	latestRound := uc.GetRoundNumber()
+	committedRound := uc.GetRoundNumber()
 
 	// now assume while the node was offline, other validators produced several new blocks, all empty
 	// that is, round number has been incremented, but the state hash is the same
 	uc.InputRecord.RoundNumber += 5
-	uc, err = tp.CreateUnicityCertificate(
+	uc, _, err = tp.CreateUnicityCertificate(
 		uc.InputRecord,
 		uc.UnicitySeal.RootChainRoundNumber+1,
 	)
 	require.NoError(t, err)
-	// submit UC, node must recover the gap of 5 blocks
+
+	// submit UC, node must not start recovery as the submitted UC is a successor of the committed UC
 	tp.SubmitUnicityCertificate(t, uc)
-	testevent.ContainsEvent(t, tp.eh, event.RecoveryStarted)
-	require.Equal(t, recovering, tp.partition.status.Load())
+	require.Eventually(t, func() bool {
+		// No recovery, node started a new round
+		return tp.partition.currentRoundNumber() == uc.GetRoundNumber()+1
+	}, test.WaitDuration, test.WaitTick)
+
+	// Create an UC that is not a successor of previous UC
+	ir := &types.InputRecord{
+		Version:         1,
+		Epoch:           0,
+		RoundNumber:     uc.GetRoundNumber()+5,
+		Hash:            test.RandomBytes(32),
+		PreviousHash:    test.RandomBytes(32),
+		BlockHash:       test.RandomBytes(32),
+		SummaryValue:    []byte{0},
+		SumOfEarnedFees: 1,
+		Timestamp:       1,
+	}
+	uc, _, err = tp.CreateUnicityCertificate(
+		ir,
+		uc.UnicitySeal.RootChainRoundNumber+1,
+	)
+
+	// submit UC, node must start recovery as the submitted UC is not a successor of the committed UC
+	tp.SubmitUnicityCertificate(t, uc)
+	require.Eventually(t, func() bool {
+		return tp.partition.status.Load() == recovering
+	}, test.WaitDuration, test.WaitTick)
+
 	req := WaitNodeRequestReceived(t, tp, network.ProtocolLedgerReplicationReq)
 	require.NotNil(t, req)
 	msg := req.Message.(*replication.LedgerReplicationRequest)
-	require.Equal(t, latestRound+1, msg.BeginBlockNumber)
+	require.Equal(t, committedRound+1, msg.BeginBlockNumber)
 }
 
 func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_missedPendingProposal_sameIR_butDifferentBlocks(t *testing.T) {
@@ -337,24 +364,28 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_missedPendingPropo
 	// since there's no proposal, the node will start a new round (the one that has been already finalized)
 	ir := uc.InputRecord.NewRepeatIR()
 	ir.RoundNumber += 1
-	uc, err = tp.CreateUnicityCertificate(
+	uc, _, err = tp.CreateUnicityCertificate(
 		ir,
 		uc.UnicitySeal.RootChainRoundNumber+1,
 	)
 	require.NoError(t, err)
 	tp.SubmitUnicityCertificate(t, uc)
 	testevent.ContainsEvent(t, tp.eh, event.NewRoundStarted)
+
 	// okay, now let's finalize another round, node should start the recovery
 	ir = uc.InputRecord.NewRepeatIR()
-	ir.RoundNumber += 1
-	uc, err = tp.CreateUnicityCertificate(
+	ir.RoundNumber += 5
+	ir.PreviousHash = test.RandomBytes(32)
+	ir.Hash = ir.PreviousHash
+	uc, _, err = tp.CreateUnicityCertificate(
 		ir,
-		uc.UnicitySeal.RootChainRoundNumber+1,
+		uc.GetRootRoundNumber()+5,
 	)
 	require.NoError(t, err)
 	tp.SubmitUnicityCertificate(t, uc)
 	testevent.ContainsEvent(t, tp.eh, event.RecoveryStarted)
 	require.Equal(t, recovering, tp.partition.status.Load())
+
 	// let's submit another UC and make sure node updates the LUC and keeps recovering
 	ir = uc.InputRecord.NewRepeatIR()
 	ir.RoundNumber += 1
@@ -362,6 +393,7 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_missedPendingPropo
 	tp.eh.Reset()
 	testevent.ContainsEvent(t, tp.eh, event.LatestUnicityCertificateUpdated)
 	require.Equal(t, recovering, tp.partition.status.Load())
+
 	req := WaitNodeRequestReceived(t, tp, network.ProtocolLedgerReplicationReq)
 	require.NotNil(t, req)
 	msg := req.Message.(*replication.LedgerReplicationRequest)
@@ -458,9 +490,9 @@ func TestNode_RecoverBlocks(t *testing.T) {
 	testevent.ContainsEvent(t, tp.eh, event.RecoveryFinished)
 	require.Equal(t, normal, tp.partition.status.Load())
 	// test get interfaces
-	nr, err := tp.partition.GetLatestRoundNumber(context.Background())
+	nr, err := tp.partition.CurrentRoundNumber(context.Background())
 	require.NoError(t, err)
-	require.Equal(t, uint64(3), nr)
+	require.Equal(t, uint64(4), nr)
 	latestBlock := tp.GetLatestBlock(t)
 	require.NoError(t, err)
 	require.Equal(t, latestBlock, newBlock3)
@@ -515,9 +547,9 @@ func TestNode_RecoverBlocks_NewerUCIsReceivedDuringRecovery(t *testing.T) {
 	testevent.ContainsEvent(t, tp.eh, event.RecoveryFinished)
 	require.Equal(t, normal, tp.partition.status.Load())
 	// test get interfaces
-	nr, err := tp.partition.GetLatestRoundNumber(context.Background())
+	nr, err := tp.partition.CurrentRoundNumber(context.Background())
 	require.NoError(t, err)
-	require.Equal(t, uint64(3), nr)
+	require.Equal(t, uint64(4), nr)
 	latestBlock := tp.GetLatestBlock(t)
 	require.Equal(t, latestBlock, newBlock3)
 	require.EqualValues(t, 0x01010101, tp.partition.PartitionID())
@@ -565,9 +597,9 @@ func TestNode_RecoverBlocks_withEmptyBlocksChangingState(t *testing.T) {
 	testevent.ContainsEvent(t, tp.eh, event.RecoveryFinished)
 	require.Equal(t, normal, tp.partition.status.Load())
 	// test get interfaces
-	nr, err := tp.partition.GetLatestRoundNumber(context.Background())
+	nr, err := tp.partition.CurrentRoundNumber(context.Background())
 	require.NoError(t, err)
-	require.Equal(t, uint64(5), nr)
+	require.Equal(t, uint64(6), nr)
 	latestBlock := tp.GetLatestBlock(t)
 	require.NoError(t, err)
 	require.Equal(t, latestBlock, newBlock5empty)
@@ -1323,7 +1355,7 @@ func createNewBlockOutsideNode(t *testing.T, tp *SingleNodePartition, txs *testt
 	require.NoError(t, newUC.UnmarshalCBOR(newBlock.UnicityCertificate))
 	require.NoError(t, txs.Commit(newUC))
 
-	newUC, err = tp.CreateUnicityCertificate(
+	newUC, _, err = tp.CreateUnicityCertificate(
 		newUC.InputRecord,
 		uc.UnicitySeal.RootChainRoundNumber+1,
 	)

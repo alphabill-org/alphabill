@@ -172,6 +172,7 @@ func TestStateMsg_Verify(t *testing.T) {
 		&pdr,
 		1,
 		make([]byte, 32),
+		make([]byte, 32),
 	)
 
 	validStateMsg := func() StateMsg {
@@ -298,6 +299,7 @@ func TestRecoveryBlock_IsValid(t *testing.T) {
 		headIR,
 		&pdr,
 		1,
+		make([]byte, 32),
 		make([]byte, 32),
 	)
 	validBlock := func() CommittedBlock {

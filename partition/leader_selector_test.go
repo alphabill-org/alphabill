@@ -3,6 +3,7 @@ package partition
 import (
 	"testing"
 
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
 
 	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
@@ -23,11 +24,12 @@ func Test_Leader(t *testing.T) {
 	require.Equal(t, UnknownLeader, ls.Get().String())
 	require.False(t, ls.IsLeader(nodeID))
 
-	require.EqualError(t, ls.Set("foobar"), `decoding node ID "foobar": failed to parse peer ID: invalid cid: encoding/hex: invalid byte: U+006F 'o'`)
 	require.Equal(t, UnknownLeader, ls.Get().String())
 	require.False(t, ls.IsLeader(nodeID))
 
-	require.NoError(t, ls.Set(nodeID.String()))
+	peerID, err := peer.Decode(nodeID.String())
+	require.NoError(t, err)
+	ls.Set(peerID)
 	require.Equal(t, nodeID, ls.Get())
 	require.True(t, ls.IsLeader(nodeID))
 }

@@ -399,9 +399,11 @@ func Test_BlockStore_StateRoundtrip(t *testing.T) {
 		siA, err := storeA.ShardInfo(partGenesis.PartitionDescription.PartitionIdentifier, types.ShardID{})
 		require.NoError(t, err)
 		require.NotNil(t, siA)
+		require.NoError(t, siA.IsValid())
 		siB, err := storeB.ShardInfo(partGenesis.PartitionDescription.PartitionIdentifier, types.ShardID{})
 		require.NoError(t, err)
 		require.NotNil(t, siB)
+		require.NoError(t, siB.IsValid())
 
 		require.Equal(t, siA, siB)
 	}

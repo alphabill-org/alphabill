@@ -915,6 +915,9 @@ func (x *ConsensusManager) onStateReq(ctx context.Context, req *abdrc.StateReque
 	}
 	// read state
 	stateMsg := x.blockStore.GetState()
+	/*if err = stateMsg.Verify(crypto.SHA256, x.trustBase); err != nil {
+		return fmt.Errorf("built invalid state response: %w", err)
+	}*/
 	if err = x.net.Send(ctx, stateMsg, peerID); err != nil {
 		return fmt.Errorf("failed to send state response message: %w", err)
 	}

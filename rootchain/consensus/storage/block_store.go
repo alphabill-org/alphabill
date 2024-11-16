@@ -162,6 +162,15 @@ func (x *BlockStore) ProcessQc(qc *drctypes.QuorumCert) ([]*certification.Certif
 	if err != nil {
 		return nil, fmt.Errorf("commit block failed to generate certificates for round %v: %w", committedBlock.GetRound(), err)
 	}
+
+	for _, pb := range x.blockTree.GetAllUncommittedNodes() {
+		for key, si := range committedBlock.ShardInfo {
+			if pbSI, ok := pb.ShardInfo[key]; ok {
+				pbSI.LastCR = si.LastCR
+			}
+		}
+	}
+
 	return ucs, nil
 }
 
@@ -238,6 +247,7 @@ func (x *BlockStore) ShardInfo(partition types.PartitionID, shard types.ShardID)
 }
 
 func (x *BlockStore) GetState() *abdrc.StateMsg {
+	// TODO: implement in blockTree to keep uncommited and root in sync!
 	pendingBlocks := x.blockTree.GetAllUncommittedNodes()
 	pending := make([]*drctypes.BlockData, len(pendingBlocks))
 	for i, b := range pendingBlocks {
@@ -288,7 +298,6 @@ func toRecoveryShardInfo(data *ExecutedBlock) []abdrc.ShardInfo {
 		si[idx].Stat = v.Stat
 		si[idx].PrevEpochFees = v.PrevEpochFees
 		si[idx].Fees = v.Fees
-		si[idx].Leader = v.Leader
 		si[idx].UC = v.LastCR.UC
 		si[idx].TR = v.LastCR.Technical
 		if ir := data.CurrentIR.Find(k.partition); ir != nil {

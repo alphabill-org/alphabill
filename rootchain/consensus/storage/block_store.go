@@ -247,24 +247,7 @@ func (x *BlockStore) ShardInfo(partition types.PartitionID, shard types.ShardID)
 }
 
 func (x *BlockStore) GetState() *abdrc.StateMsg {
-	// TODO: implement in blockTree to keep uncommited and root in sync!
-	pendingBlocks := x.blockTree.GetAllUncommittedNodes()
-	pending := make([]*drctypes.BlockData, len(pendingBlocks))
-	for i, b := range pendingBlocks {
-		pending[i] = b.BlockData
-	}
-
-	committedBlock := x.blockTree.Root()
-
-	return &abdrc.StateMsg{
-		CommittedHead: &abdrc.CommittedBlock{
-			ShardInfo: toRecoveryShardInfo(committedBlock),
-			Block:     committedBlock.BlockData,
-			Qc:        committedBlock.Qc,
-			CommitQc:  committedBlock.CommitQc,
-		},
-		BlockData: pending,
-	}
+	return x.blockTree.CurrentState()
 }
 
 /*

@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	"github.com/alphabill-org/alphabill/keyvaluedb"
+	rcnet "github.com/alphabill-org/alphabill/network/protocol/abdrc"
 	abdrc "github.com/alphabill-org/alphabill/rootchain/consensus/types"
 )
 
@@ -261,6 +262,10 @@ func (bt *BlockTree) GetAllUncommittedNodes() []*ExecutedBlock {
 	bt.m.Lock()
 	defer bt.m.Unlock()
 
+	return bt.getAllUncommittedNodes()
+}
+
+func (bt *BlockTree) getAllUncommittedNodes() []*ExecutedBlock {
 	blocks := make([]*ExecutedBlock, 0, 2)
 	// start from root children
 	var blocksToCheck []*node
@@ -384,4 +389,27 @@ func (bt *BlockTree) Commit(commitQc *abdrc.QuorumCert) (execBlock *ExecutedBloc
 	}
 	bt.root = commitNode
 	return commitNode.data, err
+}
+
+func (bt *BlockTree) CurrentState() *rcnet.StateMsg {
+	bt.m.Lock()
+	defer bt.m.Unlock()
+
+	pendingBlocks := bt.getAllUncommittedNodes()
+	pending := make([]*abdrc.BlockData, len(pendingBlocks))
+	for i, b := range pendingBlocks {
+		pending[i] = b.BlockData
+	}
+
+	committedBlock := bt.root.data
+
+	return &rcnet.StateMsg{
+		CommittedHead: &rcnet.CommittedBlock{
+			ShardInfo: toRecoveryShardInfo(committedBlock),
+			Block:     committedBlock.BlockData,
+			Qc:        committedBlock.Qc,
+			CommitQc:  committedBlock.CommitQc,
+		},
+		BlockData: pending,
+	}
 }

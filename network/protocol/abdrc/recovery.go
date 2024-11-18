@@ -46,8 +46,7 @@ type ShardInfo struct {
 	// for hashing so we keep it in serialized representation
 	PrevEpochFees []byte
 
-	Fees   map[string]uint64 // per validator summary fees of the current epoch
-	Leader string            // identifier of the Round leader
+	Fees map[string]uint64 // per validator summary fees of the current epoch
 
 	// last CertificationResponse
 	UC types.UnicityCertificate
@@ -172,9 +171,6 @@ func (si *ShardInfo) IsValid() error {
 	if len(si.Fees) == 0 {
 		return errors.New("missing Fees")
 	}
-	if si.Leader == "" {
-		return errors.New("missing leader")
-	}
 
 	if err := si.IR.IsValid(); err != nil {
 		return fmt.Errorf("invalid input record: %w", err)
@@ -185,6 +181,9 @@ func (si *ShardInfo) IsValid() error {
 
 	if err := si.UC.IsValid(crypto.SHA256, si.Partition, si.PDRHash); err != nil {
 		return fmt.Errorf("invalid UC: %w", err)
+	}
+	if err := si.TR.IsValid(); err != nil {
+		return fmt.Errorf("invalid TR of CertificationResponse: %w", err)
 	}
 
 	return nil

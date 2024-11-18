@@ -312,6 +312,10 @@ func NewRootGenesis(
 }
 
 func TechnicalRecord(ir *types.InputRecord, nodes []string) (tr certification.TechnicalRecord, err error) {
+	if len(nodes) == 0 {
+		return tr, errors.New("node list is empty")
+	}
+
 	tr = certification.TechnicalRecord{
 		Round:  ir.RoundNumber + 1,
 		Epoch:  ir.Epoch,

@@ -289,7 +289,6 @@ func Test_ExecutedBlock_serialization(t *testing.T) {
 			PrevEpochStat: []byte{0x43, 4, 4, 4}, // array(3)
 			PrevEpochFees: []byte{0x43, 5, 5, 5},
 			Fees:          map[string]uint64{"A": 10},
-			Leader:        "L111111",
 			LastCR: &certification.CertificationResponse{
 				Partition: 9,
 				Shard:     types.ShardID{},

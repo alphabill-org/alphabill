@@ -237,24 +237,8 @@ func (x *BlockStore) ShardInfo(partition types.PartitionID, shard types.ShardID)
 	return nil, fmt.Errorf("no shard info found for {%s : %s}", partition, shard)
 }
 
-func (x *BlockStore) GetState() *abdrc.StateMsg {
-	pendingBlocks := x.blockTree.GetAllUncommittedNodes()
-	pending := make([]*drctypes.BlockData, len(pendingBlocks))
-	for i, b := range pendingBlocks {
-		pending[i] = b.BlockData
-	}
-
-	committedBlock := x.blockTree.Root()
-
-	return &abdrc.StateMsg{
-		CommittedHead: &abdrc.CommittedBlock{
-			ShardInfo: toRecoveryShardInfo(committedBlock),
-			Block:     committedBlock.BlockData,
-			Qc:        committedBlock.Qc,
-			CommitQc:  committedBlock.CommitQc,
-		},
-		BlockData: pending,
-	}
+func (x *BlockStore) GetState() (*abdrc.StateMsg, error) {
+	return x.blockTree.CurrentState()
 }
 
 /*
@@ -273,30 +257,4 @@ func (x *BlockStore) StoreLastVote(vote any) error {
 // ReadLastVote returns last sent vote message by this node
 func (x *BlockStore) ReadLastVote() (any, error) {
 	return ReadVote(x.storage)
-}
-
-func toRecoveryShardInfo(data *ExecutedBlock) []abdrc.ShardInfo {
-	si := make([]abdrc.ShardInfo, len(data.ShardInfo))
-	idx := 0
-	for k, v := range data.ShardInfo {
-		si[idx].Partition = k.partition
-		si[idx].Shard = v.LastCR.Shard
-		si[idx].Round = v.Round
-		si[idx].Epoch = v.Epoch
-		si[idx].RootHash = v.RootHash
-		si[idx].PrevEpochStat = v.PrevEpochStat
-		si[idx].Stat = v.Stat
-		si[idx].PrevEpochFees = v.PrevEpochFees
-		si[idx].Fees = v.Fees
-		si[idx].Leader = v.Leader
-		si[idx].UC = v.LastCR.UC
-		si[idx].TR = v.LastCR.Technical
-		if ir := data.CurrentIR.Find(k.partition); ir != nil {
-			si[idx].IR = ir.IR
-			si[idx].IRTR = ir.Technical
-			si[idx].PDRHash = ir.PDRHash
-		}
-		idx++
-	}
-	return si
 }

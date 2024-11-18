@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	"github.com/alphabill-org/alphabill/keyvaluedb"
+	rcnet "github.com/alphabill-org/alphabill/network/protocol/abdrc"
 	abdrc "github.com/alphabill-org/alphabill/rootchain/consensus/types"
 )
 
@@ -261,6 +262,10 @@ func (bt *BlockTree) GetAllUncommittedNodes() []*ExecutedBlock {
 	bt.m.Lock()
 	defer bt.m.Unlock()
 
+	return bt.allUncommittedNodes()
+}
+
+func (bt *BlockTree) allUncommittedNodes() []*ExecutedBlock {
 	blocks := make([]*ExecutedBlock, 0, 2)
 	// start from root children
 	var blocksToCheck []*node
@@ -384,4 +389,57 @@ func (bt *BlockTree) Commit(commitQc *abdrc.QuorumCert) (execBlock *ExecutedBloc
 	}
 	bt.root = commitNode
 	return commitNode.data, err
+}
+
+func (bt *BlockTree) CurrentState() (*rcnet.StateMsg, error) {
+	bt.m.Lock()
+	defer bt.m.Unlock()
+
+	pendingBlocks := bt.allUncommittedNodes()
+	pending := make([]*abdrc.BlockData, len(pendingBlocks))
+	for i, b := range pendingBlocks {
+		pending[i] = b.BlockData
+	}
+
+	committedBlock := bt.root.data
+	si, err := toRecoveryShardInfo(committedBlock)
+	if err != nil {
+		return nil, fmt.Errorf("building recovery info of the root block: %w", err)
+	}
+	return &rcnet.StateMsg{
+		CommittedHead: &rcnet.CommittedBlock{
+			ShardInfo: si,
+			Block:     committedBlock.BlockData,
+			Qc:        committedBlock.Qc,
+			CommitQc:  committedBlock.CommitQc,
+		},
+		BlockData: pending,
+	}, nil
+}
+
+func toRecoveryShardInfo(block *ExecutedBlock) ([]rcnet.ShardInfo, error) {
+	si := make([]rcnet.ShardInfo, len(block.ShardInfo))
+	idx := 0
+	for _, v := range block.ShardInfo {
+		si[idx].Partition = v.LastCR.Partition
+		si[idx].Shard = v.LastCR.Shard
+		si[idx].Round = v.Round
+		si[idx].Epoch = v.Epoch
+		si[idx].RootHash = v.RootHash
+		si[idx].PrevEpochStat = v.PrevEpochStat
+		si[idx].Stat = v.Stat
+		si[idx].PrevEpochFees = v.PrevEpochFees
+		si[idx].Fees = maps.Clone(v.Fees)
+		si[idx].UC = v.LastCR.UC
+		si[idx].TR = v.LastCR.Technical
+		if ir := block.CurrentIR.Find(v.LastCR.Partition); ir != nil {
+			si[idx].IR = ir.IR
+			si[idx].IRTR = ir.Technical
+			si[idx].PDRHash = ir.PDRHash
+		} else {
+			return nil, fmt.Errorf("no InputData for shard %s-%s", v.LastCR.Partition, v.LastCR.Shard)
+		}
+		idx++
+	}
+	return si, nil
 }

@@ -117,7 +117,7 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 			SummaryValue:    []byte{5, 5, 5},
 			RoundNumber:     2,
 			SumOfEarnedFees: 1,
-			Timestamp:       types.NewTimestamp(),
+			Timestamp:       genesisPartitions[0].Certificate.UnicitySeal.Timestamp,
 		}
 		request := &certification.BlockCertificationRequest{
 			Partition:      sysID1,
@@ -149,6 +149,7 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 			SummaryValue:    []byte{5, 5, 5},
 			RoundNumber:     2,
 			SumOfEarnedFees: 1,
+			Timestamp:       genesisPartitions[0].Certificate.UnicitySeal.Timestamp,
 		}
 		request := &certification.BlockCertificationRequest{
 			Partition:      sysID2,
@@ -175,7 +176,7 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 			SummaryValue:    []byte{5, 5, 5},
 			RoundNumber:     2,
 			SumOfEarnedFees: 1,
-			Timestamp:       types.NewTimestamp(),
+			Timestamp:       genesisPartitions[0].Certificate.UnicitySeal.Timestamp,
 		}
 		ver := &IRChangeReqVerifier{
 			params:        &Parameters{BlockRate: 500 * time.Millisecond},
@@ -212,7 +213,7 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 			SummaryValue:    []byte{5, 5, 5},
 			RoundNumber:     2,
 			SumOfEarnedFees: 1,
-			Timestamp:       types.NewTimestamp(),
+			Timestamp:       genesisPartitions[0].Certificate.UnicitySeal.Timestamp,
 		}
 		request := &certification.BlockCertificationRequest{
 			Partition:      sysID1,
@@ -244,7 +245,7 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 			SummaryValue:    []byte{5, 5, 5},
 			RoundNumber:     2,
 			SumOfEarnedFees: 1,
-			Timestamp:       types.NewTimestamp(),
+			Timestamp:       genesisPartitions[0].Certificate.UnicitySeal.Timestamp,
 		}
 		request := &certification.BlockCertificationRequest{
 			Partition:      sysID1,

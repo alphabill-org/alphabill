@@ -39,6 +39,7 @@ type (
 		unicityCertificateValidator UnicityCertificateValidator
 		blockProposalValidator      BlockProposalValidator
 		blockStore                  keyvaluedb.KeyValueDB
+		shardStore                  keyvaluedb.KeyValueDB
 		proofIndexConfig            proofIndexConfig
 		ownerIndexer                *OwnerIndexer
 		t1Timeout                   time.Duration // T1 timeout of the node. Time to wait before node creates a new block proposal.
@@ -192,6 +193,13 @@ func (c *configuration) initMissingDefaults() error {
 		}
 	}
 
+	// TODO: configure shardStore from command line
+	if c.shardStore == nil {
+		if c.shardStore, err = memorydb.New(); err != nil {
+			return fmt.Errorf("creating shard store DB: %w", err)
+		}
+	}
+
 	if c.blockProposalValidator == nil {
 		c.blockProposalValidator, err = NewDefaultBlockProposalValidator(c.genesis.PartitionDescription, c.trustBase, c.hashAlgorithm)
 		if err != nil {
@@ -238,15 +246,6 @@ func (c *configuration) GetPartitionIdentifier() types.PartitionID {
 
 func (c *configuration) GetT2Timeout() time.Duration {
 	return c.genesis.PartitionDescription.T2Timeout
-}
-
-func (c *configuration) GetSigningPublicKey(nodeIdentifier string) (abcrypto.Verifier, error) {
-	for _, key := range c.genesis.Keys {
-		if key.NodeIdentifier == nodeIdentifier {
-			return abcrypto.NewVerifierSecp256k1(key.SigningPublicKey)
-		}
-	}
-	return nil, fmt.Errorf("signing public key for id %v not found", nodeIdentifier)
 }
 
 func (c *configuration) getRootNodes() (peer.IDSlice, error) {

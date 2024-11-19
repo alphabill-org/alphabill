@@ -157,6 +157,13 @@ func (m *MockNet) PublishBlock(ctx context.Context, block *types.Block) error {
 	return nil
 }
 
+func (m *MockNet) SubscribeToBlocks(ctx context.Context) error {
+	return nil
+}
+
+func (m *MockNet) UnsubscribeFromBlocks() {
+}
+
 type msgProtocol struct {
 	msgStruct  any
 	protocolID string

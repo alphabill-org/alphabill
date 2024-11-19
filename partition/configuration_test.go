@@ -147,32 +147,34 @@ func createPartitionGenesis(t *testing.T, nodeSigningKey crypto.Signer, nodeEncr
 	return pg[0]
 }
 
-func TestGetPublicKey_Ok(t *testing.T) {
-	peerConf := test.CreatePeerConfiguration(t)
-	signer, verifier := testsig.CreateSignerAndVerifier(t)
-	pg := createPartitionGenesis(t, signer, verifier, nil, peerConf)
-	trustBase, err := pg.GenerateRootTrustBase()
-	require.NoError(t, err)
-	conf, err := loadAndValidateConfiguration(signer, pg, trustBase, &testtxsystem.CounterTxSystem{})
-	require.NoError(t, err)
+// TODO: move test to shard_store
+// func TestGetPublicKey_Ok(t *testing.T) {
+// 	peerConf := test.CreatePeerConfiguration(t)
+// 	signer, verifier := testsig.CreateSignerAndVerifier(t)
+// 	pg := createPartitionGenesis(t, signer, verifier, nil, peerConf)
+// 	trustBase, err := pg.GenerateRootTrustBase()
+// 	require.NoError(t, err)
+// 	conf, err := loadAndValidateConfiguration(signer, pg, trustBase, &testtxsystem.CounterTxSystem{})
+// 	require.NoError(t, err)
 
-	v, err := conf.GetSigningPublicKey(peerConf.ID.String())
-	require.NoError(t, err)
-	require.Equal(t, verifier, v)
-}
+// 	v, err := conf.GetSigningPublicKey(peerConf.ID.String())
+// 	require.NoError(t, err)
+// 	require.Equal(t, verifier, v)
+// }
 
-func TestGetPublicKey_NotFound(t *testing.T) {
-	peerConf := test.CreatePeerConfiguration(t)
-	signer, verifier := testsig.CreateSignerAndVerifier(t)
+// TODO: move test to shard_store
+// func TestGetPublicKey_NotFound(t *testing.T) {
+// 	peerConf := test.CreatePeerConfiguration(t)
+// 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 
-	pg := createPartitionGenesis(t, signer, verifier, nil, peerConf)
-	trustBase, err := pg.GenerateRootTrustBase()
-	require.NoError(t, err)
-	conf, err := loadAndValidateConfiguration(signer, pg, trustBase, &testtxsystem.CounterTxSystem{})
-	require.NoError(t, err)
-	_, err = conf.GetSigningPublicKey("1")
-	require.ErrorContains(t, err, "public key for id 1 not found")
-}
+// 	pg := createPartitionGenesis(t, signer, verifier, nil, peerConf)
+// 	trustBase, err := pg.GenerateRootTrustBase()
+// 	require.NoError(t, err)
+// 	conf, err := loadAndValidateConfiguration(signer, pg, trustBase, &testtxsystem.CounterTxSystem{})
+// 	require.NoError(t, err)
+// 	_, err = conf.GetSigningPublicKey("1")
+// 	require.ErrorContains(t, err, "public key for id 1 not found")
+// }
 
 func TestGetRootNodes(t *testing.T) {
 	peerConf := test.CreatePeerConfiguration(t)

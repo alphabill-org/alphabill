@@ -28,7 +28,8 @@ type (
 		GetTransactionRecordProof(ctx context.Context, hash []byte) (*types.TxRecordProof, error)
 		CurrentRoundNumber(ctx context.Context) (uint64, error)
 		TransactionSystemState() txsystem.StateReader
-		ValidatorNodes() peer.IDSlice
+		Validators() peer.IDSlice
+		RegisterValidatorAssignmentRecord(v *partition.ValidatorAssignmentRecord) error
 		GetTrustBase(epochNumber uint64) (types.RootTrustBase, error)
 		IsPermissionedMode() bool
 		IsFeelessMode() bool

@@ -436,7 +436,7 @@ func TestBlockProposal_InvalidNodeIdentifier(t *testing.T) {
 	tp.CreateBlock(t)
 	require.Eventually(t, NextBlockReceived(t, tp, uc), test.WaitDuration, test.WaitTick)
 	tp.SubmitBlockProposal(&blockproposal.BlockProposal{NodeIdentifier: "1", UnicityCertificate: uc})
-	ContainsError(t, tp, "public key for id 1 not found")
+	ContainsError(t, tp, "block proposal from unknown node")
 }
 
 func TestBlockProposal_InvalidBlockProposal(t *testing.T) {
@@ -456,7 +456,7 @@ func TestBlockProposal_InvalidBlockProposal(t *testing.T) {
 	tp.partition.blockProposalValidator = val
 
 	tp.SubmitBlockProposal(&blockproposal.BlockProposal{
-		NodeIdentifier:     tp.nodeDeps.peerConf.ID.String(),
+		NodeIdentifier:     tp.nodeDeps.peerConf.ID,
 		UnicityCertificate: uc,
 	})
 
@@ -474,7 +474,7 @@ func TestBlockProposal_HandleOldBlockProposal(t *testing.T) {
 	require.Eventually(t, NextBlockReceived(t, tp, uc), test.WaitDuration, test.WaitTick)
 
 	tp.SubmitBlockProposal(&blockproposal.BlockProposal{
-		NodeIdentifier:     tp.nodeDeps.peerConf.ID.String(),
+		NodeIdentifier:     tp.nodeDeps.peerConf.ID,
 		Partition:          tp.nodeConf.GetPartitionIdentifier(),
 		UnicityCertificate: uc,
 	})
@@ -499,7 +499,7 @@ func TestBlockProposal_ExpectedLeaderInvalid(t *testing.T) {
 
 	bp := &blockproposal.BlockProposal{
 		Partition:          uc2.UnicityTreeCertificate.Partition,
-		NodeIdentifier:     tp.nodeDeps.peerConf.ID.String(),
+		NodeIdentifier:     tp.nodeDeps.peerConf.ID,
 		UnicityCertificate: uc2,
 		Transactions:       []*types.TransactionRecord{},
 		Technical:          *tr,
@@ -524,7 +524,7 @@ func TestBlockProposal_Ok(t *testing.T) {
 
 	bp := &blockproposal.BlockProposal{
 		Partition:          uc2.UnicityTreeCertificate.Partition,
-		NodeIdentifier:     tp.nodeDeps.peerConf.ID.String(),
+		NodeIdentifier:     tp.nodeDeps.peerConf.ID,
 		UnicityCertificate: uc2,
 		Transactions:       []*types.TransactionRecord{},
 	}
@@ -547,7 +547,7 @@ func TestBlockProposal_TxSystemStateIsDifferent_sameUC(t *testing.T) {
 
 	bp := &blockproposal.BlockProposal{
 		Partition:          uc2.UnicityTreeCertificate.Partition,
-		NodeIdentifier:     tp.nodeDeps.peerConf.ID.String(),
+		NodeIdentifier:     tp.nodeDeps.peerConf.ID,
 		UnicityCertificate: uc2,
 		Transactions:       []*types.TransactionRecord{},
 	}
@@ -581,7 +581,7 @@ func TestBlockProposal_TxSystemStateIsDifferent_newUC(t *testing.T) {
 
 	bp := &blockproposal.BlockProposal{
 		Partition:          uc2.UnicityTreeCertificate.Partition,
-		NodeIdentifier:     tp.nodeDeps.peerConf.ID.String(),
+		NodeIdentifier:     tp.nodeDeps.peerConf.ID,
 		UnicityCertificate: uc2,
 		Transactions:       []*types.TransactionRecord{},
 		Technical:          *tr,

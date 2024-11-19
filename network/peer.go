@@ -41,7 +41,6 @@ type (
 		AnnounceAddrs  []ma.Multiaddr  // callback addresses to announce to other peers, if specified then overwrites any and all default listen addresses
 		KeyPair        *PeerKeyPair    // keypair for the peer.
 		BootstrapPeers []peer.AddrInfo // a list of seed peers to connect to.
-		Validators     []peer.ID       // a list of known peers (in case of partition node this list must contain all validators).
 	}
 
 	// PeerKeyPair contains node's public and private key.
@@ -239,8 +238,7 @@ func NewPeerConfiguration(
 	addr string,
 	announceAddrs []string,
 	keyPair *PeerKeyPair,
-	bootstrapPeers []peer.AddrInfo,
-	validators []peer.ID) (*PeerConfiguration, error) {
+	bootstrapPeers []peer.AddrInfo) (*PeerConfiguration, error) {
 
 	if keyPair == nil {
 		return nil, fmt.Errorf("missing key pair")
@@ -266,7 +264,6 @@ func NewPeerConfiguration(
 		AnnounceAddrs:  announceMultiAddrs,
 		KeyPair:        keyPair,
 		BootstrapPeers: bootstrapPeers,
-		Validators:     validators,
 	}, nil
 }
 

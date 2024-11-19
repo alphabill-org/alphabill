@@ -50,9 +50,9 @@ func TestNewLibP2PValidatorNetwork(t *testing.T) {
 
 func TestNewValidatorLibP2PNetwork_Ok(t *testing.T) {
 	obs := observability.Default(t)
-	peer := createPeer(t)
-	defer func() { require.NoError(t, peer.Close()) }()
-	net, err := NewLibP2PValidatorNetwork(context.Background(), &mockNode{1, peer, peer.conf.Validators}, DefaultValidatorNetworkOptions, obs)
+	p := createPeer(t)
+	defer func() { require.NoError(t, p.Close()) }()
+	net, err := NewLibP2PValidatorNetwork(context.Background(), &mockNode{1, p, []peer.ID{p.ID()}}, DefaultValidatorNetworkOptions, obs)
 	require.NoError(t, err)
 	require.NotNil(t, net)
 	require.Equal(t, cap(net.ReceivedChannel()), 1000)
@@ -76,7 +76,10 @@ func TestForwardTransactions_ChangingReceiver(t *testing.T) {
 
 	obs := observability.Default(t)
 	peer1 := createPeer(t)
+	validators1 := []peer.ID{peer1.ID()}
+
 	peer2 := createPeer(t)
+	validators2 := []peer.ID{peer2.ID()}
 
 	// peer1 and peer2 are bootstrap peers for peer3
 	bootstrapPeers := []peer.AddrInfo{{
@@ -86,18 +89,20 @@ func TestForwardTransactions_ChangingReceiver(t *testing.T) {
 		ID:    peer2.ID(),
 		Addrs: peer2.host.Addrs(),
 	}}
-	peer3 := createBootstrappedPeer(t, bootstrapPeers, []peer.ID{peer1.ID(), peer2.ID()})
 
-	network1, err := NewLibP2PValidatorNetwork(context.Background(), &mockNode{1, peer1, peer1.conf.Validators}, opts, obs)
+	peer3 := createBootstrappedPeer(t, bootstrapPeers)
+	validators3 := []peer.ID{peer1.ID(), peer2.ID(), peer3.ID()}
+
+	network1, err := NewLibP2PValidatorNetwork(context.Background(), &mockNode{1, peer1, validators1}, opts, obs)
 	require.NoError(t, err)
 	require.NotNil(t, network1)
 
-	network2, err := NewLibP2PValidatorNetwork(context.Background(), &mockNode{1, peer2, peer2.conf.Validators}, opts, obs)
+	network2, err := NewLibP2PValidatorNetwork(context.Background(), &mockNode{1, peer2, validators2}, opts, obs)
 	require.NoError(t, err)
 	require.NotNil(t, network2)
 	require.NoError(t, peer2.BootstrapConnect(context.Background(), obs.Logger()))
 
-	network3, err := NewLibP2PValidatorNetwork(context.Background(), &mockNode{1, peer3, peer3.conf.Validators}, opts, obs)
+	network3, err := NewLibP2PValidatorNetwork(context.Background(), &mockNode{1, peer3, validators3}, opts, obs)
 	require.NoError(t, err)
 	require.NotNil(t, network3)
 	require.NoError(t, peer3.BootstrapConnect(context.Background(), obs.Logger()))
@@ -198,6 +203,6 @@ func (mn *mockNode) Peer() *Peer {
 	return mn.peer
 }
 
-func (mn *mockNode) IsValidatorNode() bool {
+func (mn *mockNode) IsValidator() bool {
 	return slices.Contains(mn.validatorNodes, mn.peer.ID())
 }

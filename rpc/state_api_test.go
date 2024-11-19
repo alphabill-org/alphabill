@@ -23,6 +23,7 @@ import (
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtxsystem "github.com/alphabill-org/alphabill/internal/testutils/txsystem"
 	"github.com/alphabill-org/alphabill/network"
+	"github.com/alphabill-org/alphabill/partition"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
 )
@@ -341,8 +342,12 @@ func (mn *MockNode) Peer() *network.Peer {
 	return nil
 }
 
-func (mn *MockNode) ValidatorNodes() peer.IDSlice {
+func (mn *MockNode) Validators() peer.IDSlice {
 	return []peer.ID{}
+}
+
+func (mn *MockNode) RegisterValidatorAssignmentRecord(v *partition.ValidatorAssignmentRecord) error {
+	return nil
 }
 
 func (mn *MockNode) SerializeState(writer io.Writer) error {

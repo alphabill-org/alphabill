@@ -116,6 +116,30 @@ func newSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, v
 
 	net := testnetwork.NewMockNetwork(t)
 
+	// Create a fake validator, so that network 'send' requests don't fail
+	_, fakeValidatorPubKey, err := p2pcrypto.GenerateSecp256k1Key(rand.Reader)
+	require.NoError(t, err)
+	fakeValidatorID, err := peer.IDFromPublicKey(fakeValidatorPubKey)
+	require.NoError(t, err)
+
+	fakeValidatorPubKeyRaw, err := fakeValidatorPubKey.Raw()
+	require.NoError(t, err)
+	partitionGenesis[0].Keys = []*genesis.PublicKeyInfo{
+		&genesis.PublicKeyInfo{
+			NodeIdentifier: fakeValidatorID.String(),
+			SigningPublicKey: fakeValidatorPubKeyRaw,
+			EncryptionPublicKey: fakeValidatorPubKeyRaw,
+		},
+	}
+	if validator {
+		partitionGenesis[0].Keys = append(partitionGenesis[0].Keys,
+			&genesis.PublicKeyInfo{
+				NodeIdentifier: peerConf.ID.String(),
+				SigningPublicKey: peerConf.KeyPair.PublicKey,
+				EncryptionPublicKey: peerConf.KeyPair.PublicKey,
+			})
+	}
+
 	// allows restarting the node
 	deps := &partitionStartupDependencies{
 		peerConf:    peerConf,
@@ -445,12 +469,6 @@ func (sn *SingleNodePartition) SubmitMonitorTimeout(t *testing.T) {
 }
 
 func createPeerConfiguration(t *testing.T, validator bool) *network.PeerConfiguration {
-	// fake validator, so that network 'send' requests don't fail
-	_, fakeValidatorPubKey, err := p2pcrypto.GenerateSecp256k1Key(rand.Reader)
-	require.NoError(t, err)
-	fakeValidatorID, err := peer.IDFromPublicKey(fakeValidatorPubKey)
-	require.NoError(t, err)
-
 	privKey, pubKey, err := p2pcrypto.GenerateSecp256k1Key(rand.Reader)
 	require.NoError(t, err)
 
@@ -460,24 +478,14 @@ func createPeerConfiguration(t *testing.T, validator bool) *network.PeerConfigur
 	pubKeyBytes, err := pubKey.Raw()
 	require.NoError(t, err)
 
-	peerID, err := peer.IDFromPublicKey(pubKey)
-	require.NoError(t, err)
-
-	validators := []peer.ID{fakeValidatorID}
-	if validator {
-		validators = append(validators, peerID)
-	}
 
 	peerConf, err := network.NewPeerConfiguration(
 		"/ip4/127.0.0.1/tcp/0",
 		nil,
 		&network.PeerKeyPair{PublicKey: pubKeyBytes, PrivateKey: privKeyBytes},
 		nil,
-		// Need to also add peerID to make it a validator node.
-		validators,
 	)
 	require.NoError(t, err)
-
 	return peerConf
 }
 

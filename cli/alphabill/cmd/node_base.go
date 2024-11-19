@@ -1,14 +1,12 @@
 package cmd
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
-	"sort"
 	"time"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
@@ -24,7 +22,6 @@ import (
 	"github.com/alphabill-org/alphabill/rpc"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
-	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/spf13/cobra"
 	"golang.org/x/sync/errgroup"
 )
@@ -127,33 +124,11 @@ func loadPeerConfiguration(keys *Keys, pg *genesis.PartitionGenesis, cfg *startN
 	if err != nil {
 		return nil, err
 	}
-	peerID, err := peer.IDFromPublicKey(keys.EncryptionPrivateKey.GetPublic())
-	if err != nil {
-		return nil, err
-	}
-	validatorIdentifiers := make(peer.IDSlice, len(pg.Keys))
-	for i, k := range pg.Keys {
-		if peerID.String() == k.NodeIdentifier {
-			if !bytes.Equal(pair.PublicKey, k.EncryptionPublicKey) {
-				return nil, fmt.Errorf("invalid encryption key: expected %X, got %X", pair.PublicKey, k.EncryptionPublicKey)
-			}
-		}
-		nodeID, err := network.NodeIDFromPublicKeyBytes(k.EncryptionPublicKey)
-		if err != nil {
-			return nil, fmt.Errorf("invalid encryption key: %X", k.EncryptionPublicKey)
-		}
-		if nodeID.String() != k.NodeIdentifier {
-			return nil, fmt.Errorf("invalid nodeID/encryption key combination: %s", nodeID)
-		}
-		validatorIdentifiers[i] = nodeID
-	}
-	sort.Sort(validatorIdentifiers)
-
 	bootNodes, err := getBootStrapNodes(cfg.BootStrapAddresses)
 	if err != nil {
 		return nil, fmt.Errorf("boot nodes parameter error: %w", err)
 	}
-	return network.NewPeerConfiguration(cfg.Address, cfg.AnnounceAddrs, pair, bootNodes, validatorIdentifiers)
+	return network.NewPeerConfiguration(cfg.Address, cfg.AnnounceAddrs, pair, bootNodes)
 }
 
 func createNode(ctx context.Context,

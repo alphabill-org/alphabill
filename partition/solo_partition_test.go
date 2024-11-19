@@ -29,7 +29,6 @@ import (
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/observability"
 	"github.com/alphabill-org/alphabill/partition/event"
-	consensustypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
 	rootgenesis "github.com/alphabill-org/alphabill/rootchain/genesis"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
@@ -443,9 +442,9 @@ func (sn *SingleNodePartition) CreateBlock(t *testing.T) {
 func (sn *SingleNodePartition) IssueBlockUC(t *testing.T) *types.UnicityCertificate {
 	req := sn.mockNet.SentMessages(network.ProtocolBlockCertification)[0].Message.(*certification.BlockCertificationRequest)
 	sn.mockNet.ResetSentMessages(network.ProtocolBlockCertification)
-	luc, found := sn.certs[req.Partition]
-	require.True(t, found)
-	require.NoError(t, consensustypes.CheckBlockCertificationRequest(req, luc))
+	ver, err := sn.nodeConf.signer.Verifier()
+	require.NoError(t, err)
+	require.NoError(t, req.IsValid(ver))
 	uc, _, err := sn.CreateUnicityCertificate(req.InputRecord, sn.rootRound+1)
 	require.NoError(t, err)
 	// update state

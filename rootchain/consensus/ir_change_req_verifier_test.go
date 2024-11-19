@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
+	testcertificates "github.com/alphabill-org/alphabill/internal/testutils/certificates"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
@@ -64,21 +65,19 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 	signer, encPubKey := testsig.CreateSignerAndVerifier(t)
 	pubKeyBytes, err := encPubKey.MarshalPublicKey()
 	require.NoError(t, err)
+	pdr := &types.PartitionDescriptionRecord{
+		Version:             1,
+		NetworkIdentifier:   5,
+		PartitionIdentifier: 1,
+		T2Timeout:           2000 * time.Millisecond,
+	}
 	genesisPartitions := []*genesis.GenesisPartitionRecord{
 		{
-			PartitionDescription: &types.PartitionDescriptionRecord{
-				Version:             1,
-				NetworkIdentifier:   5,
-				PartitionIdentifier: 1,
-				T2Timeout:           2000 * time.Millisecond,
-			},
+			PartitionDescription: pdr,
 			Nodes: []*genesis.PartitionNode{
-				{NodeIdentifier: "node1", SigningPublicKey: pubKeyBytes, PartitionDescriptionRecord: types.PartitionDescriptionRecord{Version: 1}},
+				{NodeIdentifier: "node1", SigningPublicKey: pubKeyBytes, PartitionDescriptionRecord: *pdr},
 			},
-			Certificate: &types.UnicityCertificate{
-				InputRecord: irSysID1,
-				UnicitySeal: &types.UnicitySeal{RootChainRoundNumber: 1},
-			},
+			Certificate: testcertificates.CreateUnicityCertificate(t, signer, irSysID1, pdr, 1, make([]byte, 32), make([]byte, 32)),
 		},
 	}
 	orchestration := partitions.NewOrchestration(&genesis.RootGenesis{Version: 1, Partitions: genesisPartitions})
@@ -118,7 +117,7 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 			SummaryValue:    []byte{5, 5, 5},
 			RoundNumber:     2,
 			SumOfEarnedFees: 1,
-			Timestamp:       types.NewTimestamp(),
+			Timestamp:       genesisPartitions[0].Certificate.UnicitySeal.Timestamp,
 		}
 		request := &certification.BlockCertificationRequest{
 			Partition:      sysID1,
@@ -150,6 +149,7 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 			SummaryValue:    []byte{5, 5, 5},
 			RoundNumber:     2,
 			SumOfEarnedFees: 1,
+			Timestamp:       genesisPartitions[0].Certificate.UnicitySeal.Timestamp,
 		}
 		request := &certification.BlockCertificationRequest{
 			Partition:      sysID2,
@@ -176,7 +176,7 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 			SummaryValue:    []byte{5, 5, 5},
 			RoundNumber:     2,
 			SumOfEarnedFees: 1,
-			Timestamp:       types.NewTimestamp(),
+			Timestamp:       genesisPartitions[0].Certificate.UnicitySeal.Timestamp,
 		}
 		ver := &IRChangeReqVerifier{
 			params:        &Parameters{BlockRate: 500 * time.Millisecond},
@@ -213,7 +213,7 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 			SummaryValue:    []byte{5, 5, 5},
 			RoundNumber:     2,
 			SumOfEarnedFees: 1,
-			Timestamp:       types.NewTimestamp(),
+			Timestamp:       genesisPartitions[0].Certificate.UnicitySeal.Timestamp,
 		}
 		request := &certification.BlockCertificationRequest{
 			Partition:      sysID1,
@@ -245,7 +245,7 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 			SummaryValue:    []byte{5, 5, 5},
 			RoundNumber:     2,
 			SumOfEarnedFees: 1,
-			Timestamp:       types.NewTimestamp(),
+			Timestamp:       genesisPartitions[0].Certificate.UnicitySeal.Timestamp,
 		}
 		request := &certification.BlockCertificationRequest{
 			Partition:      sysID1,
@@ -363,9 +363,10 @@ func TestPartitionTimeoutGenerator_GetT2Timeouts(t *testing.T) {
 		{
 			Version: 1,
 			Certificate: &types.UnicityCertificate{
-				Version:     1,
-				InputRecord: &types.InputRecord{Version: 1},
-				UnicitySeal: &types.UnicitySeal{Version: 1, RootChainRoundNumber: 1},
+				Version:                1,
+				InputRecord:            &types.InputRecord{Version: 1},
+				UnicitySeal:            &types.UnicitySeal{Version: 1, RootChainRoundNumber: 1},
+				UnicityTreeCertificate: &types.UnicityTreeCertificate{Partition: sysID1},
 			},
 			PartitionDescription: &types.PartitionDescriptionRecord{
 				Version:             1,

@@ -270,7 +270,7 @@ func runRootNode(ctx context.Context, config *rootNodeConfig) error {
 		// in the body must take effect)
 		mux.HandleFunc("PUT /api/v1/configurations", cfgHandler(partitionCfg.AddConfiguration))
 		return httpsrv.Run(ctx,
-			http.Server{
+			&http.Server{
 				Addr:              config.RPCServerAddress,
 				Handler:           mux,
 				ReadTimeout:       3 * time.Second,

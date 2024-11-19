@@ -17,6 +17,7 @@ RUN --mount=from=go-dependency,target=$DOCKER_GO_DEPENDENCY \
     make build
 
 FROM gcr.io/distroless/base-debian12:debug-nonroot
+USER nonroot
 SHELL [ "/busybox/sh", "-c" ]
 WORKDIR /app
 ENV PATH="/app:${PATH}"

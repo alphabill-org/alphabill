@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/alphabill-org/alphabill-go-base/types/hex"
+	testpartition "github.com/alphabill-org/alphabill/rootchain/partitions/testutils"
 	p2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	p2ptest "github.com/libp2p/go-libp2p/core/test"
@@ -35,7 +36,6 @@ import (
 	abdrctu "github.com/alphabill-org/alphabill/rootchain/consensus/testutils"
 	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
 	rootgenesis "github.com/alphabill-org/alphabill/rootchain/genesis"
-	"github.com/alphabill-org/alphabill/rootchain/partitions"
 	"github.com/alphabill-org/alphabill/rootchain/testutils"
 )
 
@@ -75,7 +75,7 @@ func initConsensusManager(t *testing.T, net RootNet) (*ConsensusManager, *testut
 	trustBase, err := rootGenesis.GenerateTrustBase()
 	require.NoError(t, err)
 	observe := testobservability.Default(t)
-	cm, err := NewConsensusManager(id, rootGenesis, trustBase, partitions.NewOrchestration(rootGenesis), net, rootNode.Signer, observability.WithLogger(observe, observe.Logger().With(logger.NodeID(id))))
+	cm, err := NewConsensusManager(id, rootGenesis, trustBase, testpartition.NewOrchestration(t, rootGenesis), net, rootNode.Signer, observability.WithLogger(observe, observe.Logger().With(logger.NodeID(id))))
 	require.NoError(t, err)
 	return cm, rootNode, partitionNodes, rootGenesis
 }
@@ -1216,7 +1216,7 @@ func TestConsensusManger_RestoreVote(t *testing.T) {
 	db, err := memorydb.New()
 	require.NoError(t, err)
 	// init DB from genesis
-	orchestration := partitions.NewOrchestration(rootGenesis)
+	orchestration := testpartition.NewOrchestration(t, rootGenesis)
 	_, err = storage.New(gocrypto.SHA256, rootGenesis.Partitions, db, orchestration)
 	require.NoError(t, err)
 	timeoutVote := &abdrc.TimeoutMsg{

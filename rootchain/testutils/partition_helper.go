@@ -13,6 +13,7 @@ import (
 	"github.com/alphabill-org/alphabill/network"
 	"github.com/alphabill-org/alphabill/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
+	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
 )
@@ -123,4 +124,19 @@ func MockNetAwaitMultiple[T any](t *testing.T, net *testnetwork.MockNet, msgType
 	// cleat the queue
 	net.ResetSentMessages(msgType)
 	return result
+}
+
+// RandomNodeID returns base58 node id and the corresponding auth public key
+func RandomNodeID(t *testing.T) (string, []byte) {
+	signer, err := crypto.NewInMemorySecp256K1Signer()
+	require.NoError(t, err)
+	verifier, err := signer.Verifier()
+	require.NoError(t, err)
+	publicKey, err := verifier.MarshalPublicKey()
+	require.NoError(t, err)
+	libp2pPublicKey, err := libp2pcrypto.UnmarshalSecp256k1PublicKey(publicKey)
+	require.NoError(t, err)
+	nodeID, err := peer.IDFromPublicKey(libp2pPublicKey)
+	require.NoError(t, err)
+	return nodeID.String(), publicKey
 }

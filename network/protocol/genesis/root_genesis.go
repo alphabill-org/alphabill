@@ -196,3 +196,12 @@ func (x *RootGenesis) UnmarshalCBOR(data []byte) error {
 	type alias RootGenesis
 	return types.Cbor.UnmarshalTaggedValue(types.RootGenesisTag, data, (*alias)(x))
 }
+
+func (x *RootGenesis) GetPartitionGenesis(partitionID types.PartitionID) (*GenesisPartitionRecord, error) {
+	for _, pg := range x.Partitions {
+		if pg.PartitionDescription.PartitionIdentifier == partitionID {
+			return pg, nil
+		}
+	}
+	return nil, fmt.Errorf("partition %q not found in root genesis", partitionID)
+}

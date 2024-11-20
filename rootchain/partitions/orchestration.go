@@ -1,6 +1,7 @@
 package partitions
 
 import (
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -55,8 +56,8 @@ func (o *Orchestration) ShardEpoch(partition types.PartitionID, shard types.Shar
 
 		c := roundToEpochBucket.Cursor()
 		for k, v := c.Last(); k != nil; k, v = c.Prev() {
-			epoch = keyToRound(v)
-			epochStartRound := keyToRound(k)
+			epoch = keyToUint64(v)
+			epochStartRound := keyToUint64(k)
 			if epochStartRound <= shardRound {
 				return nil
 			}
@@ -133,7 +134,7 @@ func getVAR(tx *bolt.Tx, partition types.PartitionID, shard types.ShardID, epoch
 	if err != nil {
 		return nil, err
 	}
-	varBytes := epochToVarBucket.Get(roundToKey(epoch))
+	varBytes := epochToVarBucket.Get(uint64ToKey(epoch))
 	if varBytes == nil {
 		return nil, fmt.Errorf("the epoch %d does not exist", epoch)
 	}
@@ -153,10 +154,10 @@ func setVAR(tx *bolt.Tx, _var *ValidatorAssignmentRecord) error {
 	if err != nil {
 		return err
 	}
-	if err = roundToEpochBucket.Put(roundToKey(_var.RoundNumber), roundToKey(_var.EpochNumber)); err != nil {
+	if err = roundToEpochBucket.Put(uint64ToKey(_var.RoundNumber), uint64ToKey(_var.EpochNumber)); err != nil {
 		return fmt.Errorf("storing round to epoch index: %w", err)
 	}
-	if err = epochToVarBucket.Put(roundToKey(_var.EpochNumber), varBytes); err != nil {
+	if err = epochToVarBucket.Put(uint64ToKey(_var.EpochNumber), varBytes); err != nil {
 		return fmt.Errorf("storing var: %w", err)
 	}
 	return nil
@@ -237,17 +238,27 @@ func createSchemaAndFirstVAR(db *bolt.DB, seed *genesis.RootGenesis) error {
 			if err != nil {
 				return fmt.Errorf("creating the epoch to var %q bucket: %w", epochToVarBucketName, err)
 			}
-			if err = roundToEpochBucket.Put(roundToKey(_var.RoundNumber), roundToKey(_var.EpochNumber)); err != nil {
+			if err = roundToEpochBucket.Put(uint64ToKey(_var.RoundNumber), uint64ToKey(_var.EpochNumber)); err != nil {
 				return fmt.Errorf("storing round to epoch index: %w", err)
 			}
 			varBytes, err := json.Marshal(_var)
 			if err != nil {
 				return fmt.Errorf("marshalling var to json: %w", err)
 			}
-			if err = epochToVarBucket.Put(roundToKey(_var.EpochNumber), varBytes); err != nil {
+			if err = epochToVarBucket.Put(uint64ToKey(_var.EpochNumber), varBytes); err != nil {
 				return fmt.Errorf("storing var: %w", err)
 			}
 		}
 		return nil
 	})
+}
+
+func uint64ToKey(n uint64) []byte {
+	key := make([]byte, 8)
+	binary.BigEndian.PutUint64(key, n)
+	return key
+}
+
+func keyToUint64(key []byte) uint64 {
+	return binary.BigEndian.Uint64(key)
 }

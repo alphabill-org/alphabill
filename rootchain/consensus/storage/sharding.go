@@ -162,33 +162,6 @@ func NewShardInfoFromGenesis(pg *genesis.GenesisPartitionRecord) (*ShardInfo, er
 	return si, nil
 }
 
-type ShardInfo struct {
-	_        struct{} `cbor:",toarray"`
-	Round    uint64
-	Epoch    uint64
-	RootHash []byte // last certified root hash
-
-	// statistical record of the previous epoch. As we only need
-	// it for hashing we keep it in serialized representation
-	PrevEpochStat types.RawCBOR
-
-	// statistical record of the current epoch
-	Stat certification.StatisticalRecord
-
-	// per validator total, invariant fees of the previous epoch
-	// but as with statistical record of the previous epoch we need it
-	// for hashing so we keep it in serialized representation
-	PrevEpochFees types.RawCBOR
-
-	Fees   map[string]uint64 // per validator summary fees of the current epoch
-	Leader string            // identifier of the Round leader
-
-	LastCR *certification.CertificationResponse // last response sent to shard
-
-	nodeIDs   []string // sorted list of partition node IDs
-	trustBase map[string]abcrypto.Verifier
-}
-
 /*
 init sets up internal caches, calculated values etc which are not restored
 automatically on deserialization.
@@ -239,7 +212,7 @@ func (si *ShardInfo) nextEpoch(_var *partitions.ValidatorAssignmentRecord) (*Sha
 		return nil, fmt.Errorf("epochs must be consecutive, current is %d proposed next %d", si.Epoch, _var.EpochNumber)
 	}
 	nextSI := &ShardInfo{
-		Epoch:    si.Epoch+1,
+		Epoch:    si.Epoch + 1,
 		Round:    si.Round,
 		RootHash: si.RootHash,
 		LastCR:   si.LastCR,

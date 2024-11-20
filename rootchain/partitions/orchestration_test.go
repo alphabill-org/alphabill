@@ -1,6 +1,7 @@
 package partitions
 
 import (
+	"embed"
 	"encoding/json"
 	"fmt"
 	"io/fs"
@@ -315,3 +316,6 @@ func rootGenesis(t *testing.T, path string) *genesis.RootGenesis {
 	require.NoError(t, f.Close())
 	return rgA
 }
+
+//go:embed testdata/*.json
+var genesisFiles embed.FS

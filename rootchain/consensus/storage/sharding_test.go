@@ -295,16 +295,20 @@ func Test_ShardInfo_nextRound(t *testing.T) {
 
 	t.Run("next epoch", func(t *testing.T) {
 		// case where next round is in the next epoch
-		zH := make([]byte, 32)
 		irE2 := irEpoch1
 		irE2.Epoch++
-		pgEpoch2 := &genesis.GenesisPartitionRecord{
-			Version:     1,
-			Certificate: testcertificates.CreateUnicityCertificate(t, signer, &irE2, &pdr, 900, zH, zH),
-			Nodes: []*genesis.PartitionNode{
-				{NodeIdentifier: "2222", SigningPublicKey: pubKey},
+		varEpoch2 := &partitions.ValidatorAssignmentRecord{
+			NetworkID:   0,
+			PartitionID: 7,
+			ShardID:     types.ShardID{},
+			EpochNumber: 3,
+			RoundNumber: 101,
+			Nodes: []partitions.NodeInfo{
+				{
+					NodeID: "2222",
+					SigKey: pubKey,
+				},
 			},
-			PartitionDescription: &pdr,
 		}
 
 		si := getSI(t)
@@ -315,8 +319,8 @@ func Test_ShardInfo_nextRound(t *testing.T) {
 				}
 				return si.Epoch, nil
 			},
-			shardConfig: func(partition types.PartitionID, shard types.ShardID, epoch uint64) (*genesis.GenesisPartitionRecord, error) {
-				return pgEpoch2, nil
+			shardConfig: func(partition types.PartitionID, shard types.ShardID, epoch uint64) (*partitions.ValidatorAssignmentRecord, error) {
+				return varEpoch2, nil
 			},
 		}
 		rootH := si.RootHash
@@ -341,22 +345,14 @@ func Test_ShardInfo_nextRound(t *testing.T) {
 
 func Test_ShardInfo_NextEpoch(t *testing.T) {
 	validKey := []byte{0x3, 0x24, 0x8b, 0x61, 0x68, 0x51, 0xac, 0x6e, 0x43, 0x7e, 0xc2, 0x4e, 0xcc, 0x21, 0x9e, 0x5b, 0x42, 0x43, 0xdf, 0xa5, 0xdb, 0xdb, 0x8, 0xce, 0xa6, 0x48, 0x3a, 0xc9, 0xe0, 0xdc, 0x6b, 0x55, 0xcd}
-	//zH := make([]byte, 32)
-	//signer, _ := testsig.CreateSignerAndVerifier(t)
-	//ir := &types.InputRecord{
-	//	RoundNumber: 101,
-	//	Epoch:       2,
-	//	Hash:        []byte{1, 2, 3, 4, 5, 6, 7, 8},
-	//}
-	//pdr := types.PartitionDescriptionRecord{PartitionIdentifier: 7}
-	//pgEpoch2 := &genesis.GenesisPartitionRecord{
-	//	Version: 1,
-	//	Nodes: []*genesis.PartitionNode{
-	//		{NodeIdentifier: "2222", SigningPublicKey: validKey},
-	//	},
-	//	Certificate:          testcertificates.CreateUnicityCertificate(t, signer, ir, &pdr, 1, zH, zH),
-	//	PartitionDescription: &pdr,
-	//}
+	zH := make([]byte, 32)
+	signer, _ := testsig.CreateSignerAndVerifier(t)
+	ir := &types.InputRecord{
+		RoundNumber: 101,
+		Epoch:       2,
+		Hash:        []byte{1, 2, 3, 4, 5, 6, 7, 8},
+	}
+	pdr := types.PartitionDescriptionRecord{PartitionIdentifier: 7}
 	varEpoch2 := &partitions.ValidatorAssignmentRecord{
 		NetworkID:   0,
 		PartitionID: 7,

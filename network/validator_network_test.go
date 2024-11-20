@@ -94,15 +94,18 @@ func TestForwardTransactions_ChangingReceiver(t *testing.T) {
 	validators3 := []peer.ID{peer1.ID(), peer2.ID(), peer3.ID()}
 
 	network1, err := NewLibP2PValidatorNetwork(context.Background(), &mockNode{1, peer1, validators1}, opts, obs)
+	require.NoError(t, network1.RegisterValidatorProtocols())
 	require.NoError(t, err)
 	require.NotNil(t, network1)
 
 	network2, err := NewLibP2PValidatorNetwork(context.Background(), &mockNode{1, peer2, validators2}, opts, obs)
+	require.NoError(t, network2.RegisterValidatorProtocols())
 	require.NoError(t, err)
 	require.NotNil(t, network2)
 	require.NoError(t, peer2.BootstrapConnect(context.Background(), obs.Logger()))
 
 	network3, err := NewLibP2PValidatorNetwork(context.Background(), &mockNode{1, peer3, validators3}, opts, obs)
+	require.NoError(t, network3.RegisterValidatorProtocols())
 	require.NoError(t, err)
 	require.NotNil(t, network3)
 	require.NoError(t, peer3.BootstrapConnect(context.Background(), obs.Logger()))

@@ -164,6 +164,13 @@ func (m *MockNet) SubscribeToBlocks(ctx context.Context) error {
 func (m *MockNet) UnsubscribeFromBlocks() {
 }
 
+func (n *MockNet) RegisterValidatorProtocols() error {
+	return nil
+}
+
+func (n *MockNet) UnregisterValidatorProtocols() {
+}
+
 type msgProtocol struct {
 	msgStruct  any
 	protocolID string

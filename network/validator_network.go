@@ -152,18 +152,6 @@ func NewLibP2PValidatorNetwork(ctx context.Context, node node, opts ValidatorNet
 			protocolID: ProtocolLedgerReplicationResp,
 			typeFn:     func() any { return &replication.LedgerReplicationResponse{} },
 		},
-		{
-			protocolID: ProtocolBlockProposal,
-			typeFn:     func() any { return &blockproposal.BlockProposal{} },
-		},
-		{
-			protocolID: ProtocolInputForward,
-			handler:    n.handleTransactions,
-		},
-		{
-			protocolID: ProtocolUnicityCertificates,
-			typeFn:     func() any { return &certification.CertificationResponse{} },
-		},
 	}
 	if err = n.registerReceiveProtocols(receiveProtocolDescriptions); err != nil {
 		return nil, fmt.Errorf("registering receive protocols: %w", err)
@@ -243,12 +231,38 @@ func (n *validatorNetwork) SubscribeToBlocks(ctx context.Context) error {
 }
 
 func (n *validatorNetwork) UnsubscribeFromBlocks() {
-	if n.gsSubscriptionBlock != nil {
-		n.gsSubscriptionBlock.Cancel()
-		n.gsSubscriptionBlock = nil
+	if n.gsSubscriptionBlock == nil {
+		return
 	}
-	// TODO: needed? Canceling subscription should cause handelBlocks() to return as well
-	// n.gsCancelHandleBlocks()
+	n.log.Info(fmt.Sprintf("Unsubscribing from gossipsub topic %s", n.gsTopicBlock))
+
+	n.gsSubscriptionBlock.Cancel()
+	n.gsSubscriptionBlock = nil
+	n.gsCancelHandleBlocks()
+}
+
+func (n *validatorNetwork) RegisterValidatorProtocols() error {
+	receiveProtocols := []receiveProtocolDescription{
+		{
+			protocolID: ProtocolBlockProposal,
+			typeFn:     func() any { return &blockproposal.BlockProposal{} },
+		},
+		{
+			protocolID: ProtocolInputForward,
+			handler:    n.handleTransactions,
+		},
+		{
+			protocolID: ProtocolUnicityCertificates,
+			typeFn:     func() any { return &certification.CertificationResponse{} },
+		},
+	}
+	return n.registerReceiveProtocols(receiveProtocols)
+}
+
+func (n *validatorNetwork) UnregisterValidatorProtocols() {
+	n.self.RemoveProtocolHandler(ProtocolBlockProposal)
+	n.self.RemoveProtocolHandler(ProtocolInputForward)
+	n.self.RemoveProtocolHandler(ProtocolUnicityCertificates)
 }
 
 func (n *validatorNetwork) PublishBlock(ctx context.Context, block *types.Block) error {
@@ -381,12 +395,9 @@ func (n *validatorNetwork) handleTransactions(stream libp2pNetwork.Stream) {
 func (n *validatorNetwork) handleBlocks(ctx context.Context) {
 	for {
 		msg, err := n.gsSubscriptionBlock.Next(ctx)
-		if ctx.Err() != nil {
-			return
-		}
 		if err != nil {
-			n.log.WarnContext(ctx, "getting block from topic", logger.Error(err))
-			continue
+			n.log.DebugContext(ctx, "block handling stopped", logger.Error(err))
+			return
 		}
 
 		block := &types.Block{}

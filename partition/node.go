@@ -70,6 +70,8 @@ type (
 		PublishBlock(ctx context.Context, block *types.Block) error
 		SubscribeToBlocks(ctx context.Context) error
 		UnsubscribeFromBlocks()
+		RegisterValidatorProtocols() error
+		UnregisterValidatorProtocols()
 
 		AddTransaction(ctx context.Context, tx *types.TransactionOrder) ([]byte, error)
 		ForwardTransactions(ctx context.Context, receiverFunc network.TxReceiver)
@@ -109,6 +111,7 @@ type (
 		ownerIndexer                *OwnerIndexer
 		stopTxProcessor             atomic.Value
 		t1event                     chan struct{}
+		epochChangeEvent            chan struct{}
 		peer                        *network.Peer
 		rootNodes                   peer.IDSlice
 		shardStore                  *shardStore
@@ -191,6 +194,7 @@ func NewNode(
 		proofIndexer:                proofIndexer,
 		ownerIndexer:                conf.ownerIndexer,
 		t1event:                     make(chan struct{}), // do not buffer!
+		epochChangeEvent:            make(chan struct{}, 1),
 		eventHandler:                conf.eventHandler,
 		rootNodes:                   rn,
 		shardStore:                  shardStore,
@@ -540,6 +544,8 @@ func (n *Node) loop(ctx context.Context) error {
 			}
 		case <-n.t1event:
 			n.handleT1TimeoutEvent(ctx)
+		case <-n.epochChangeEvent:
+			n.handleEpochChangeEvent(ctx)
 		case <-ticker.C:
 			n.handleMonitoring(ctx, lastUCReceived, lastBlockReceived)
 		}
@@ -696,6 +702,10 @@ func (n *Node) handleBlockProposal(ctx context.Context, prop *blockproposal.Bloc
 		if err := n.handleUnicityCertificate(ctx, uc, &prop.Technical); err != nil {
 			return fmt.Errorf("block proposal UC handling failed: %w", err)
 		}
+		if !n.IsValidator() {
+			// Epoch must have changed and we are not a validator any more, no point in processing the BP
+			return fmt.Errorf("block proposal handling cancelled, node is not a validator")
+		}
 	}
 
 	// Leader must be the author of the proposal
@@ -794,18 +804,14 @@ func (n *Node) updateLUC(ctx context.Context, uc *types.UnicityCertificate, tr *
 	newEpoch := n.currentEpoch()
 	// Either epoch has changed or we have not managed to load a correct configuration for the epoch yet
 	if prevEpoch != newEpoch || n.shardStore.LoadedEpoch() != newEpoch {
-		prevIsValidator := n.IsValidator()
-		if err := n.shardStore.LoadEpoch(newEpoch); err != nil {
-			// Log the error and let the node continue with an old shard configuration
-			n.log.ErrorContext(ctx, fmt.Sprintf("failed to load configuration for epoch %d", newEpoch), logger.Error(err))
-		} else if prevIsValidator != n.IsValidator() {
-			// TODO: should not make those changes during initialization? then when?
-			if prevIsValidator {
-				n.stopValidating(ctx)
-			} else {
-				n.startValidating(ctx)
-			}
+		// Schedule epoch change. The handling of current message is finished with the old configuration.
+		// This might be problematic if epoch change is triggered by a TR in BlockProposal, which should
+		// be validated according to the new epoch configuration already.
+		select {
+		case n.epochChangeEvent <- struct{}{}:
+		default:
 		}
+
 	}
 
 	return nil
@@ -1078,6 +1084,23 @@ func (n *Node) handleT1TimeoutEvent(ctx context.Context) {
 	}
 	if err := n.sendCertificationRequest(ctx, n.peer.ID().String()); err != nil {
 		n.log.WarnContext(ctx, "Failed to send certification request", logger.Error(err))
+	}
+}
+
+func (n *Node) handleEpochChangeEvent(ctx context.Context) {
+	wasValidator := n.IsValidator()
+	newEpoch := n.currentEpoch()
+
+	if err := n.shardStore.LoadEpoch(newEpoch); err != nil {
+		// Log the error and let the node continue with the old configuration
+		n.log.ErrorContext(ctx, fmt.Sprintf("failed to load configuration for epoch %d", newEpoch), logger.Error(err))
+	} else if wasValidator != n.IsValidator() {
+		// Configuration loaded for the new epoch, and our validator status changed
+		if wasValidator {
+			n.stopValidating(ctx)
+		} else {
+			n.startValidating(ctx)
+		}
 	}
 }
 
@@ -1614,8 +1637,9 @@ func (n *Node) TransactionSystemState() txsystem.StateReader {
 }
 
 func (n *Node) stopProcessingTransactions() {
-	// TODO: safe to call multiple times?
 	n.stopTxProcessor.Load().(func())()
+	n.stopTxProcessor.Store(func() {})
+
 }
 
 func (n *Node) startProcessingTransactions(ctx context.Context) {
@@ -1684,19 +1708,23 @@ func (n *Node) attrRound() attribute.KeyValue {
 
 func (n *Node) startValidating(ctx context.Context) {
 	n.log.InfoContext(ctx, "Entering validator mode")
+
+	n.network.UnsubscribeFromBlocks()
+	if err := n.network.RegisterValidatorProtocols(); err != nil {
+		n.log.ErrorContext(ctx, "Failed to register validator protocols", logger.Error(err))
+	}
 	n.sendHandshake(ctx)
 	// Non-validator was processing/forwarding indefinitely
 	n.stopProcessingTransactions()
-	n.network.UnsubscribeFromBlocks()
 }
 
-// TODO: should change status? what if in recovery?
 func (n *Node) stopValidating(ctx context.Context) {
 	n.log.InfoContext(ctx, "Entering non-validator mode")
+
 	if err := n.network.SubscribeToBlocks(ctx); err != nil {
 		n.log.ErrorContext(ctx, "Failed to subscribe to blocks", logger.Error(err))
 	}
-	// TODO: should not process proposals
+	n.network.UnregisterValidatorProtocols()
 	n.startProcessingTransactions(ctx)
 }
 

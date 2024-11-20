@@ -914,8 +914,10 @@ func (x *ConsensusManager) onStateReq(ctx context.Context, req *abdrc.StateReque
 	if err != nil {
 		return fmt.Errorf("invalid receiver identifier %q: %w", req.NodeId, err)
 	}
-	// read state
-	stateMsg := x.blockStore.GetState()
+	stateMsg, err := x.blockStore.GetState()
+	if err != nil {
+		return fmt.Errorf("creating state message: %w", err)
+	}
 	if err = x.net.Send(ctx, stateMsg, peerID); err != nil {
 		return fmt.Errorf("failed to send state response message: %w", err)
 	}

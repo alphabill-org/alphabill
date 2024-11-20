@@ -258,7 +258,7 @@ func runRootNode(ctx context.Context, config *rootNodeConfig) error {
 		}
 		mux.HandleFunc("PUT /api/v1/configurations", putShardConfigHandler(orchestration.AddShardConfig))
 		return httpsrv.Run(ctx,
-			http.Server{
+			&http.Server{
 				Addr:              config.RPCServerAddress,
 				Handler:           mux,
 				ReadTimeout:       3 * time.Second,

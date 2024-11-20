@@ -256,7 +256,6 @@ func NewRootBlock(hash crypto.Hash, block *abdrc.CommittedBlock, orchestration O
 			Stat:          d.Stat,
 			PrevEpochFees: d.PrevEpochFees,
 			Fees:          d.Fees,
-			Leader:        d.Leader,
 			LastCR: &certification.CertificationResponse{
 				Partition: d.Partition,
 				Shard:     d.Shard,

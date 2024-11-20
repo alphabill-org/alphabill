@@ -131,7 +131,7 @@ func (x *PartitionTimeoutGenerator) GetT2Timeouts(currentRound uint64) (_ []type
 			timeoutIds = append(timeoutIds, partitionID)
 		}
 	}
-	return timeoutIds, err
+	return timeoutIds, retErr
 }
 
 func t2TimeoutToRootRounds(t2Timeout time.Duration, blockRate time.Duration) uint64 {

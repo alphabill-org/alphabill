@@ -89,7 +89,7 @@ func buildBlockCertificationRequest(t *testing.T, rg *genesis.RootGenesis, parti
 		BlockHash:    test.RandomBytes(32),
 		SummaryValue: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.SummaryValue,
 		RoundNumber:  2,
-		Timestamp:    types.NewTimestamp(),
+		Timestamp:    rg.Partitions[0].Certificate.UnicitySeal.Timestamp,
 	}
 	requests := make([]*certification.BlockCertificationRequest, len(partitionNodes))
 	for i, n := range partitionNodes {

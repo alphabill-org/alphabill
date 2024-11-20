@@ -13,6 +13,7 @@ import (
 	testcertificates "github.com/alphabill-org/alphabill/internal/testutils/certificates"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtb "github.com/alphabill-org/alphabill/internal/testutils/trustbase"
+	"github.com/alphabill-org/alphabill/network/protocol/certification"
 	rctypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
 )
 
@@ -185,10 +186,16 @@ func TestStateMsg_Verify(t *testing.T) {
 					PrevEpochFees: []byte{0xF, 0xE, 0xE, 5},
 					RootHash:      test.RandomBytes(32),
 					Fees:          map[string]uint64{"A": 0},
-					Leader:        "leader id",
 					UC:            *uc,
-					IR:            headIR,
-					PDRHash:       pdr.Hash(crypto.SHA256),
+					TR: certification.TechnicalRecord{
+						Round:    5,
+						Epoch:    1,
+						Leader:   "A",
+						StatHash: []byte{5},
+						FeeHash:  []byte{0xF, 0xE, 0xE},
+					},
+					IR:      headIR,
+					PDRHash: pdr.Hash(crypto.SHA256),
 				}},
 				Block: &rctypes.BlockData{
 					Round:   5,
@@ -327,10 +334,16 @@ func TestRecoveryBlock_IsValid(t *testing.T) {
 				PrevEpochFees: []byte{0xF, 0xE, 0xE, 5},
 				RootHash:      test.RandomBytes(32),
 				Fees:          map[string]uint64{"A": 10},
-				Leader:        "777",
 				UC:            *uc,
 				IR:            headIR,
-				PDRHash:       pdr.Hash(crypto.SHA256),
+				TR: certification.TechnicalRecord{
+					Round:    5,
+					Epoch:    1,
+					Leader:   "A",
+					StatHash: []byte{5},
+					FeeHash:  []byte{0xF, 0xE, 0xE},
+				},
+				PDRHash: pdr.Hash(crypto.SHA256),
 			}},
 			Qc:       &rctypes.QuorumCert{},
 			CommitQc: &rctypes.QuorumCert{},
@@ -344,6 +357,12 @@ func TestRecoveryBlock_IsValid(t *testing.T) {
 		r := validBlock()
 		r.ShardInfo = nil
 		require.ErrorContains(t, r.IsValid(), "missing ShardInfo")
+	})
+
+	t.Run("invalid ShardInfo", func(t *testing.T) {
+		r := validBlock()
+		r.ShardInfo[0].Round = 0
+		require.ErrorContains(t, r.IsValid(), "invalid ShardInfo[00000001 - ]: missing Round number")
 	})
 
 	t.Run("input record state is nil", func(t *testing.T) {

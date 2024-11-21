@@ -365,8 +365,8 @@ func Test_BlockStore_ShardInfo(t *testing.T) {
 		si, err := bStore.ShardInfo(partGenesis.PartitionDescription.PartitionIdentifier, types.ShardID{})
 		require.NoError(t, err)
 		require.NotNil(t, si)
-		require.Equal(t, partGenesis.Certificate.InputRecord.Epoch, si.Epoch)
-		require.Equal(t, partGenesis.Certificate.InputRecord.RoundNumber, si.Round)
+		require.Equal(t, partGenesis.Certificate.InputRecord.Epoch, si.LastCR.Technical.Epoch)
+		require.Equal(t, partGenesis.Certificate.InputRecord.RoundNumber+1, si.LastCR.Technical.Round)
 		require.EqualValues(t, partGenesis.Certificate.InputRecord.Hash, si.RootHash)
 		require.Equal(t, partGenesis.Certificate, &si.LastCR.UC, "genesis[%d]", idx)
 		require.Equal(t, partGenesis.PartitionDescription.PartitionIdentifier, si.LastCR.Partition)
@@ -380,6 +380,11 @@ func Test_BlockStore_ShardInfo(t *testing.T) {
 
 func Test_BlockStore_StateRoundtrip(t *testing.T) {
 	storeA := initBlockStoreFromGenesis(t)
+	// modify Fees to see will these be restored correctly
+	si, err := storeA.ShardInfo(pg[0].PartitionDescription.PartitionIdentifier, types.ShardID{})
+	require.NoError(t, err)
+	si.Fees[si.nodeIDs[0]] = 10
+
 	state, err := storeA.GetState()
 	require.NoError(t, err)
 	require.NotNil(t, state)
@@ -393,6 +398,7 @@ func Test_BlockStore_StateRoundtrip(t *testing.T) {
 
 	// two stores should have the same state now
 	require.ElementsMatch(t, storeA.blockTree.root.data.CurrentIR, storeB.blockTree.root.data.CurrentIR)
+	require.Equal(t, storeA.blockTree.root.data.RootHash, storeB.blockTree.root.data.RootHash)
 	require.Equal(t, storeA.blockTree.root.child, storeB.blockTree.root.child)
 	require.Len(t, storeB.blockTree.roundToNode, len(storeA.blockTree.roundToNode))
 	for k, v := range storeA.blockTree.roundToNode {
@@ -437,8 +443,8 @@ func Test_BlockStore_persistance(t *testing.T) {
 		si, err := storeB.ShardInfo(partGenesis.PartitionDescription.PartitionIdentifier, types.ShardID{})
 		require.NoError(t, err)
 		require.NotNil(t, si)
-		require.Equal(t, partGenesis.Certificate.InputRecord.Epoch, si.Epoch)
-		require.Equal(t, partGenesis.Certificate.InputRecord.RoundNumber, si.Round)
+		require.Equal(t, partGenesis.Certificate.InputRecord.Epoch, si.LastCR.Technical.Epoch)
+		require.Equal(t, partGenesis.Certificate.InputRecord.RoundNumber+1, si.LastCR.Technical.Round)
 		require.EqualValues(t, partGenesis.Certificate.InputRecord.Hash, si.RootHash)
 		require.Equal(t, partGenesis.Certificate, &si.LastCR.UC, "genesis[%d]", idx)
 		require.Equal(t, partGenesis.PartitionDescription.PartitionIdentifier, si.LastCR.Partition)

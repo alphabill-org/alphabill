@@ -64,8 +64,8 @@ type (
 	Orchestration interface {
 		ShardEpoch(partition types.PartitionID, shard types.ShardID, round uint64) (uint64, error)
 		ShardConfig(partition types.PartitionID, shard types.ShardID, epoch uint64) (*partitions.ValidatorAssignmentRecord, error)
-		RoundPartitions(rootRound uint64) ([]*genesis.GenesisPartitionRecord, error)
-		PartitionGenesis(partition types.PartitionID) (*genesis.GenesisPartitionRecord, error)
+		RoundPartitions(rootRound uint64) ([]*types.PartitionDescriptionRecord, error)
+		PartitionDescription(partition types.PartitionID, epoch uint64) (*types.PartitionDescriptionRecord, error)
 	}
 
 	certRequest struct {
@@ -961,6 +961,7 @@ func (x *ConsensusManager) onStateResponse(ctx context.Context, rsp *abdrc.State
 					// since history is only kept until the last committed round it is not possible to commit a previous round
 					return fmt.Errorf("block %d for round %v add qc failed: %w", i, block.GetRound(), err)
 				}
+				x.log.DebugContext(ctx, "processing QC from recovery block", logger.Error(err), logger.Round(x.pacemaker.GetCurrentRound()))
 			}
 			x.pacemaker.AdvanceRoundQC(ctx, block.Qc)
 		}

@@ -27,11 +27,11 @@ func (ss shardStates) nextBlock(orchestration Orchestration) (shardStates, error
 	nextBlock := make(shardStates, len(ss))
 	for shardID, shardInfo := range ss {
 		if shardInfo.Epoch != shardInfo.LastCR.Technical.Epoch {
-			_var, err := orchestration.ShardConfig(shardInfo.LastCR.Partition, shardInfo.LastCR.Shard, shardInfo.LastCR.Technical.Epoch)
+			rec, err := orchestration.ShardConfig(shardInfo.LastCR.Partition, shardInfo.LastCR.Shard, shardInfo.LastCR.Technical.Epoch)
 			if err != nil {
 				return nil, fmt.Errorf("loading shard config: %w", err)
 			}
-			if nextBlock[shardID], err = shardInfo.nextEpoch(_var); err != nil {
+			if nextBlock[shardID], err = shardInfo.nextEpoch(rec); err != nil {
 				return nil, fmt.Errorf("creating ShardInfo %s - %s of the next epoch: %w", shardInfo.LastCR.Partition, shardInfo.LastCR.Shard, err)
 			}
 		} else {
@@ -48,11 +48,11 @@ init calls init for all the ShardInfo instances in the map
 */
 func (ss shardStates) init(orchestration Orchestration) error {
 	for _, si := range ss {
-		_var, err := orchestration.ShardConfig(si.LastCR.Partition, si.LastCR.Shard, si.Epoch)
+		rec, err := orchestration.ShardConfig(si.LastCR.Partition, si.LastCR.Shard, si.Epoch)
 		if err != nil {
 			return fmt.Errorf("acquiring shard configuration: %w", err)
 		}
-		if err = si.init(_var); err != nil {
+		if err = si.init(rec); err != nil {
 			return fmt.Errorf("init shard info (%s - %s): %w", si.LastCR.Partition, si.LastCR.Shard, err)
 		}
 	}
@@ -166,11 +166,11 @@ func NewShardInfoFromGenesis(pg *genesis.GenesisPartitionRecord) (*ShardInfo, er
 init sets up internal caches, calculated values etc which are not restored
 automatically on deserialization.
 */
-func (si *ShardInfo) init(_var *partitions.ValidatorAssignmentRecord) error {
+func (si *ShardInfo) init(rec *partitions.ValidatorAssignmentRecord) error {
 	// TODO: genesis must support sharding - currently we only support
 	// single shard partitions so all nodes belong into the same shard!
 	fees := make(map[string]uint64)
-	for _, n := range _var.Nodes {
+	for _, n := range rec.Nodes {
 		fees[n.NodeID] = 0
 	}
 	si.Fees = fees
@@ -186,7 +186,7 @@ func (si *ShardInfo) init(_var *partitions.ValidatorAssignmentRecord) error {
 	// TODO: genesis must support sharding - currently we only support
 	// single shard partitions so all nodes belong into the same shard!
 	si.trustBase = make(map[string]abcrypto.Verifier)
-	for _, n := range _var.Nodes {
+	for _, n := range rec.Nodes {
 		ver, err := abcrypto.NewVerifierSecp256k1(n.SigKey)
 		if err != nil {
 			return fmt.Errorf("creating verifier for the node %q: %w", n.NodeID, err)
@@ -207,9 +207,9 @@ func (si *ShardInfo) IsValid() error {
 	return nil
 }
 
-func (si *ShardInfo) nextEpoch(_var *partitions.ValidatorAssignmentRecord) (*ShardInfo, error) {
-	if _var.EpochNumber != si.Epoch+1 {
-		return nil, fmt.Errorf("epochs must be consecutive, current is %d proposed next %d", si.Epoch, _var.EpochNumber)
+func (si *ShardInfo) nextEpoch(rec *partitions.ValidatorAssignmentRecord) (*ShardInfo, error) {
+	if rec.EpochNumber != si.Epoch+1 {
+		return nil, fmt.Errorf("epochs must be consecutive, current is %d proposed next %d", si.Epoch, rec.EpochNumber)
 	}
 	nextSI := &ShardInfo{
 		Epoch:    si.Epoch + 1,
@@ -226,7 +226,7 @@ func (si *ShardInfo) nextEpoch(_var *partitions.ValidatorAssignmentRecord) (*Sha
 		return nil, fmt.Errorf("encoding previous epoch stat: %w", err)
 	}
 
-	if err = nextSI.init(_var); err != nil {
+	if err = nextSI.init(rec); err != nil {
 		return nil, fmt.Errorf("shard info init: %w", err)
 	}
 	return nextSI, nil
@@ -246,11 +246,11 @@ func (si *ShardInfo) nextRound(req *certification.BlockCertificationRequest, orc
 		return tr, fmt.Errorf("querying shard's epoch: %w", err)
 	}
 	if si.Epoch != tr.Epoch {
-		_var, err := orc.ShardConfig(si.LastCR.Partition, si.LastCR.Shard, tr.Epoch)
+		rec, err := orc.ShardConfig(si.LastCR.Partition, si.LastCR.Shard, tr.Epoch)
 		if err != nil {
 			return tr, fmt.Errorf("reading config of the epoch: %w", err)
 		}
-		if siTR, err = si.nextEpoch(_var); err != nil {
+		if siTR, err = si.nextEpoch(rec); err != nil {
 			return tr, fmt.Errorf("creating ShardInfo of the next epoch: %w", err)
 		}
 	}

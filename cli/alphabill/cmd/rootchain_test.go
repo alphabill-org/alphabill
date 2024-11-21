@@ -371,8 +371,8 @@ func Test_cfgHandler(t *testing.T) {
 	// helper to set up handler for the case where we expect that the addConfig
 	// callback is not called (ie handler fails before there is a reason to call it)
 	setupNoCallbackHandler := func(t *testing.T) (http.HandlerFunc, *httptest.ResponseRecorder) {
-		return putShardConfigHandler(func(_var *partitions.ValidatorAssignmentRecord) error {
-				err := fmt.Errorf("unexpected call of addConfig callback with %v", _var)
+		return putShardConfigHandler(func(rec *partitions.ValidatorAssignmentRecord) error {
+				err := fmt.Errorf("unexpected call of addConfig callback with %v", rec)
 				t.Error(err)
 				return err
 			}),
@@ -406,8 +406,8 @@ func Test_cfgHandler(t *testing.T) {
 	require.NoError(t, err)
 	rg := genesis.RootGenesis{}
 	require.NoError(t, json.Unmarshal(rootGenesisData, &rg))
-	_var := partitions.NewVARFromGenesis(rg.Partitions[0])
-	varBytes, err := json.Marshal(_var)
+	rec := partitions.NewVARFromGenesis(rg.Partitions[0])
+	varBytes, err := json.Marshal(rec)
 	require.NoError(t, err)
 
 	t.Run("config registration fails", func(t *testing.T) {
@@ -427,7 +427,7 @@ func Test_cfgHandler(t *testing.T) {
 		cbCall := false
 		hf := putShardConfigHandler(func(cfg *partitions.ValidatorAssignmentRecord) error {
 			cbCall = true
-			require.Equal(t, _var, cfg)
+			require.Equal(t, rec, cfg)
 			return nil
 		})
 		w := httptest.NewRecorder()

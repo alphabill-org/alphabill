@@ -72,10 +72,10 @@ func (o *Orchestration) ShardEpoch(partition types.PartitionID, shard types.Shar
 
 // ShardConfig returns VAR for the given shard epoch.
 func (o *Orchestration) ShardConfig(partition types.PartitionID, shard types.ShardID, epoch uint64) (*ValidatorAssignmentRecord, error) {
-	var _var *ValidatorAssignmentRecord
+	var rec *ValidatorAssignmentRecord
 	err := o.db.View(func(tx *bolt.Tx) error {
 		var err error
-		_var, err = getVAR(tx, partition, shard, epoch)
+		rec, err = getVAR(tx, partition, shard, epoch)
 		if err != nil {
 			return err
 		}
@@ -84,7 +84,7 @@ func (o *Orchestration) ShardConfig(partition types.PartitionID, shard types.Sha
 	if err != nil {
 		return nil, fmt.Errorf("failed to load VAR for partition %q shard %q and epoch %q: %w", partition, shard, epoch, err)
 	}
-	return _var, nil
+	return rec, nil
 }
 
 // AddShardConfig verifies and stores the given VAR.
@@ -96,12 +96,12 @@ func (o *Orchestration) ShardConfig(partition types.PartitionID, shard types.Sha
 //   - The new epoch number must be one greater than the current epoch of the only shard in the specified partition
 //   - The activation round number must be strictly greater than the current round of the only shard in the specified partition
 //   - The node identifiers must match their authentication keys
-func (o *Orchestration) AddShardConfig(_var *ValidatorAssignmentRecord) error {
+func (o *Orchestration) AddShardConfig(rec *ValidatorAssignmentRecord) error {
 	err := o.db.Update(func(tx *bolt.Tx) error {
-		if err := verifyVAR(tx, _var); err != nil {
+		if err := verifyVAR(tx, rec); err != nil {
 			return fmt.Errorf("verify var: %w", err)
 		}
-		if err := setVAR(tx, _var); err != nil {
+		if err := setVAR(tx, rec); err != nil {
 			return fmt.Errorf("set var: %w", err)
 		}
 		return nil
@@ -138,41 +138,41 @@ func getVAR(tx *bolt.Tx, partition types.PartitionID, shard types.ShardID, epoch
 	if varBytes == nil {
 		return nil, fmt.Errorf("the epoch %d does not exist", epoch)
 	}
-	var _var *ValidatorAssignmentRecord
-	if err := json.Unmarshal(varBytes, &_var); err != nil {
+	var rec *ValidatorAssignmentRecord
+	if err := json.Unmarshal(varBytes, &rec); err != nil {
 		return nil, fmt.Errorf("failed to parse VAR json: %w", err)
 	}
-	return _var, nil
+	return rec, nil
 }
 
-func setVAR(tx *bolt.Tx, _var *ValidatorAssignmentRecord) error {
-	varBytes, err := json.Marshal(_var)
+func setVAR(tx *bolt.Tx, rec *ValidatorAssignmentRecord) error {
+	varBytes, err := json.Marshal(rec)
 	if err != nil {
 		return fmt.Errorf("failed to parse VAR json: %w", err)
 	}
-	roundToEpochBucket, epochToVarBucket, err := shardBuckets(tx, _var.PartitionID, _var.ShardID)
+	roundToEpochBucket, epochToVarBucket, err := shardBuckets(tx, rec.PartitionID, rec.ShardID)
 	if err != nil {
 		return err
 	}
-	if err = roundToEpochBucket.Put(uint64ToKey(_var.RoundNumber), uint64ToKey(_var.EpochNumber)); err != nil {
+	if err = roundToEpochBucket.Put(uint64ToKey(rec.RoundNumber), uint64ToKey(rec.EpochNumber)); err != nil {
 		return fmt.Errorf("storing round to epoch index: %w", err)
 	}
-	if err = epochToVarBucket.Put(uint64ToKey(_var.EpochNumber), varBytes); err != nil {
+	if err = epochToVarBucket.Put(uint64ToKey(rec.EpochNumber), varBytes); err != nil {
 		return fmt.Errorf("storing var: %w", err)
 	}
 	return nil
 }
 
-func verifyVAR(tx *bolt.Tx, _var *ValidatorAssignmentRecord) error {
+func verifyVAR(tx *bolt.Tx, rec *ValidatorAssignmentRecord) error {
 	// currently every VAR must extend previous VAR (no adding of new partitions/shards)
-	if _var.EpochNumber == 0 {
+	if rec.EpochNumber == 0 {
 		return errors.New("invalid epoch number, must not be zero")
 	}
-	previousVAR, err := getVAR(tx, _var.PartitionID, _var.ShardID, _var.EpochNumber-1)
+	previousVAR, err := getVAR(tx, rec.PartitionID, rec.ShardID, rec.EpochNumber-1)
 	if err != nil {
 		return fmt.Errorf("previous var not found: %w", err)
 	}
-	if err = _var.Verify(previousVAR); err != nil {
+	if err = rec.Verify(previousVAR); err != nil {
 		return fmt.Errorf("var does not extend previous var: %w", err)
 	}
 	return err
@@ -221,14 +221,14 @@ func createSchemaAndFirstVAR(db *bolt.DB, seed *genesis.RootGenesis) error {
 			return fmt.Errorf("creating the root %q bucket: %w", partitionsBucketName, err)
 		}
 		for _, partition := range seed.Partitions {
-			_var := NewVARFromGenesis(partition)
-			partitionBucket, err := partitionsBucket.CreateBucketIfNotExists(_var.PartitionID.Bytes())
+			rec := NewVARFromGenesis(partition)
+			partitionBucket, err := partitionsBucket.CreateBucketIfNotExists(rec.PartitionID.Bytes())
 			if err != nil {
-				return fmt.Errorf("creating the partition %q bucket: %w", _var.PartitionID.Bytes(), err)
+				return fmt.Errorf("creating the partition %q bucket: %w", rec.PartitionID.Bytes(), err)
 			}
-			shardBucket, err := partitionBucket.CreateBucketIfNotExists(_var.ShardID.Bytes())
+			shardBucket, err := partitionBucket.CreateBucketIfNotExists(rec.ShardID.Bytes())
 			if err != nil {
-				return fmt.Errorf("creating the shard %q bucket: %w", _var.ShardID.Bytes(), err)
+				return fmt.Errorf("creating the shard %q bucket: %w", rec.ShardID.Bytes(), err)
 			}
 			roundToEpochBucket, err := shardBucket.CreateBucketIfNotExists(roundToEpochBucketName)
 			if err != nil {
@@ -238,14 +238,14 @@ func createSchemaAndFirstVAR(db *bolt.DB, seed *genesis.RootGenesis) error {
 			if err != nil {
 				return fmt.Errorf("creating the epoch to var %q bucket: %w", epochToVarBucketName, err)
 			}
-			if err = roundToEpochBucket.Put(uint64ToKey(_var.RoundNumber), uint64ToKey(_var.EpochNumber)); err != nil {
+			if err = roundToEpochBucket.Put(uint64ToKey(rec.RoundNumber), uint64ToKey(rec.EpochNumber)); err != nil {
 				return fmt.Errorf("storing round to epoch index: %w", err)
 			}
-			varBytes, err := json.Marshal(_var)
+			varBytes, err := json.Marshal(rec)
 			if err != nil {
 				return fmt.Errorf("marshalling var to json: %w", err)
 			}
-			if err = epochToVarBucket.Put(uint64ToKey(_var.EpochNumber), varBytes); err != nil {
+			if err = epochToVarBucket.Put(uint64ToKey(rec.EpochNumber), varBytes); err != nil {
 				return fmt.Errorf("storing var: %w", err)
 			}
 		}

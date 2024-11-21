@@ -168,7 +168,7 @@ func NewGenesisBlock(hash crypto.Hash, pg []*genesis.GenesisPartitionRecord, orc
 		if len(pdr.Shards) > 0 {
 			return nil, fmt.Errorf("multi shard partitions are currently not supported (pdr shardingscheme must be nil or empty")
 		}
-		_var, err := orchestration.ShardConfig(partitionID, shardID, epoch)
+		rec, err := orchestration.ShardConfig(partitionID, shardID, epoch)
 		if err != nil {
 			return nil, fmt.Errorf("loading ShardConfig: %w", err)
 		}
@@ -176,7 +176,7 @@ func NewGenesisBlock(hash crypto.Hash, pg []*genesis.GenesisPartitionRecord, orc
 		if err != nil {
 			return nil, fmt.Errorf("creating ShardInfo for partition %s: %w", partitionID, err)
 		}
-		if err := si.init(_var); err != nil {
+		if err := si.init(rec); err != nil {
 			return nil, fmt.Errorf("init ShardInfo: %w", err)
 		}
 		shardInfoMap[partitionShard{partition: partitionID, shard: shardID.Key()}] = si
@@ -229,7 +229,7 @@ func NewRootBlock(hash crypto.Hash, block *abdrc.CommittedBlock, orchestration O
 	irState := make(InputRecords, len(block.ShardInfo))
 	shardInfoMap := shardStates{}
 	for i, d := range block.ShardInfo {
-		_var, err := orchestration.ShardConfig(d.Partition, d.Shard, d.Epoch)
+		rec, err := orchestration.ShardConfig(d.Partition, d.Shard, d.Epoch)
 		if err != nil {
 			return nil, fmt.Errorf("loading shard %s-%s config: %w", d.Partition, d.Shard, err)
 		}
@@ -263,7 +263,7 @@ func NewRootBlock(hash crypto.Hash, block *abdrc.CommittedBlock, orchestration O
 				UC:        d.UC,
 			},
 		}
-		if err := si.init(_var); err != nil {
+		if err := si.init(rec); err != nil {
 			return nil, fmt.Errorf("initializing shard state info: %w", err)
 		}
 		shardInfoMap[partitionShard{d.Partition, d.Shard.Key()}] = si

@@ -328,16 +328,16 @@ func initTrustBase(store keyvaluedb.KeyValueDB, trustBaseFile string) (types.Roo
 	return trustBase, nil
 }
 
-func putShardConfigHandler(addVarFn func(_var *partitions.ValidatorAssignmentRecord) error) http.HandlerFunc {
+func putShardConfigHandler(addVarFn func(rec *partitions.ValidatorAssignmentRecord) error) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		_var, err := parseVAR(r.Body)
+		rec, err := parseVAR(r.Body)
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			fmt.Fprintf(w, "parsing var request body: %v", err)
 			return
 		}
 
-		if err := addVarFn(_var); err != nil {
+		if err := addVarFn(rec); err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			fmt.Fprintf(w, "registering configurations: %v", err)
 			return
@@ -361,9 +361,9 @@ func parseRootGenesis(r io.ReadCloser) (*genesis.RootGenesis, error) {
 
 func parseVAR(r io.ReadCloser) (*partitions.ValidatorAssignmentRecord, error) {
 	defer r.Close()
-	var _var *partitions.ValidatorAssignmentRecord
-	if err := json.NewDecoder(r).Decode(&_var); err != nil {
+	var rec *partitions.ValidatorAssignmentRecord
+	if err := json.NewDecoder(r).Decode(&rec); err != nil {
 		return nil, fmt.Errorf("decoding var json: %w", err)
 	}
-	return _var, nil
+	return rec, nil
 }

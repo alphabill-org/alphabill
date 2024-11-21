@@ -39,17 +39,17 @@ func TestNewOrchestration(t *testing.T) {
 		require.NotNil(t, o)
 		t.Cleanup(func() { _ = o.db.Close() })
 
-		_varA, err := o.ShardConfig(1, types.ShardID{}, 0)
+		recA, err := o.ShardConfig(1, types.ShardID{}, 0)
 		require.NoError(t, err)
 		pgPartition := rgA.Partitions[0]
 		pgPDR := pgPartition.PartitionDescription
 		pgIR := pgPartition.Certificate.InputRecord
-		require.EqualValues(t, pgPDR.NetworkIdentifier, _varA.NetworkID)
-		require.EqualValues(t, pgPDR.PartitionIdentifier, _varA.PartitionID)
-		require.EqualValues(t, pgPartition.Certificate.ShardTreeCertificate.Shard, _varA.ShardID)
-		require.EqualValues(t, pgIR.Epoch, _varA.EpochNumber)
-		require.EqualValues(t, pgIR.RoundNumber, _varA.RoundNumber)
-		varNodes := _varA.Nodes
+		require.EqualValues(t, pgPDR.NetworkIdentifier, recA.NetworkID)
+		require.EqualValues(t, pgPDR.PartitionIdentifier, recA.PartitionID)
+		require.EqualValues(t, pgPartition.Certificate.ShardTreeCertificate.Shard, recA.ShardID)
+		require.EqualValues(t, pgIR.Epoch, recA.EpochNumber)
+		require.EqualValues(t, pgIR.RoundNumber, recA.RoundNumber)
+		varNodes := recA.Nodes
 		require.Len(t, varNodes, 1)
 		require.EqualValues(t, pgPartition.Nodes[0].NodeIdentifier, varNodes[0].NodeID)
 		require.EqualValues(t, pgPartition.Nodes[0].SigningPublicKey, varNodes[0].SigKey)
@@ -64,9 +64,9 @@ func TestNewOrchestration(t *testing.T) {
 		require.NotNil(t, o)
 		t.Cleanup(func() { _ = o.db.Close() })
 
-		_varB, err := o.ShardConfig(1, types.ShardID{}, 0)
+		recB, err := o.ShardConfig(1, types.ShardID{}, 0)
 		require.NoError(t, err)
-		require.Equal(t, _varA, _varB)
+		require.Equal(t, recA, recB)
 	})
 }
 
@@ -159,7 +159,7 @@ func TestShardConfig(t *testing.T) {
 		shardID     types.ShardID              // shard id to query
 		epoch       uint64                     // epoch number to query
 		errMsg      string                     // expected err message
-		_var        *ValidatorAssignmentRecord // expected var
+		rec         *ValidatorAssignmentRecord // expected var
 	}{
 		{partitionID: 0, shardID: shardID, epoch: 0, errMsg: "the partition 0x00000000 does not exist"},
 		{partitionID: 3, shardID: shardID, epoch: 0, errMsg: "the partition 0x00000003 does not exist"},
@@ -167,7 +167,7 @@ func TestShardConfig(t *testing.T) {
 		{partitionID: 1, shardID: invalidShardID, epoch: 0, errMsg: "the partition shard 0x81 does not exist"},
 		{partitionID: 1, shardID: shardID, epoch: 1, errMsg: "the epoch 1 does not exist"},
 		{partitionID: 1, shardID: shardID, epoch: 0,
-			_var: &ValidatorAssignmentRecord{
+			rec: &ValidatorAssignmentRecord{
 				NetworkID:   5,
 				PartitionID: 1,
 				ShardID:     shardID,
@@ -179,7 +179,7 @@ func TestShardConfig(t *testing.T) {
 		{partitionID: 2, shardID: invalidShardID, epoch: 0, errMsg: "the partition shard 0x81 does not exist"},
 		{partitionID: 2, shardID: shardID, epoch: 1, errMsg: "the epoch 1 does not exist"},
 		{partitionID: 2, shardID: shardID, epoch: 0,
-			_var: &ValidatorAssignmentRecord{
+			rec: &ValidatorAssignmentRecord{
 				NetworkID:   5,
 				PartitionID: 2,
 				ShardID:     shardID,
@@ -189,14 +189,14 @@ func TestShardConfig(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(fmt.Sprintf("query shard epoch for partition %q shard %q epoch %q", tc.partitionID, tc.shardID, tc.epoch), func(t *testing.T) {
-			_var, err := o.ShardConfig(tc.partitionID, tc.shardID, tc.epoch)
+			rec, err := o.ShardConfig(tc.partitionID, tc.shardID, tc.epoch)
 			if tc.errMsg != "" {
 				require.ErrorContains(t, err, tc.errMsg)
-				require.Nil(t, _var)
+				require.Nil(t, rec)
 			} else {
 				require.NoError(t, err)
-				require.NotNil(t, _var)
-				require.Equal(t, tc._var, _var)
+				require.NotNil(t, rec)
+				require.Equal(t, tc.rec, rec)
 			}
 		})
 	}
@@ -225,11 +225,11 @@ func TestAddShardConfig(t *testing.T) {
 	t.Cleanup(func() { _ = o.db.Close() })
 
 	var testCases = []struct {
-		_var   *ValidatorAssignmentRecord // shard config to add
+		rec    *ValidatorAssignmentRecord // shard config to add
 		errMsg string                     // expected err message
 	}{
 		{
-			_var: &ValidatorAssignmentRecord{
+			rec: &ValidatorAssignmentRecord{
 				NetworkID:   networkID,
 				PartitionID: partitionID,
 				ShardID:     shardID,
@@ -239,7 +239,7 @@ func TestAddShardConfig(t *testing.T) {
 			errMsg: "invalid epoch number, must not be zero",
 		},
 		{
-			_var: &ValidatorAssignmentRecord{
+			rec: &ValidatorAssignmentRecord{
 				NetworkID:   networkID,
 				PartitionID: 2,
 				ShardID:     shardID,
@@ -249,7 +249,7 @@ func TestAddShardConfig(t *testing.T) {
 			errMsg: "the partition 0x00000002 does not exist",
 		},
 		{
-			_var: &ValidatorAssignmentRecord{
+			rec: &ValidatorAssignmentRecord{
 				NetworkID:   networkID,
 				PartitionID: partitionID,
 				ShardID:     invalidShardID,
@@ -259,7 +259,7 @@ func TestAddShardConfig(t *testing.T) {
 			errMsg: "the partition shard 0x81 does not exist",
 		},
 		{
-			_var: &ValidatorAssignmentRecord{
+			rec: &ValidatorAssignmentRecord{
 				NetworkID:   networkID,
 				PartitionID: partitionID,
 				ShardID:     shardID,
@@ -269,7 +269,7 @@ func TestAddShardConfig(t *testing.T) {
 			errMsg: "invalid shard round number, provided 1 previous 1",
 		},
 		{
-			_var: &ValidatorAssignmentRecord{
+			rec: &ValidatorAssignmentRecord{
 				NetworkID:   networkID,
 				PartitionID: partitionID,
 				ShardID:     shardID,
@@ -280,8 +280,8 @@ func TestAddShardConfig(t *testing.T) {
 		},
 	}
 	for _, tc := range testCases {
-		t.Run(fmt.Sprintf("add shard config for partition %q shard %q epoch %q", tc._var.PartitionID, tc._var.ShardID, tc._var.EpochNumber), func(t *testing.T) {
-			err := o.AddShardConfig(tc._var)
+		t.Run(fmt.Sprintf("add shard config for partition %q shard %q epoch %q", tc.rec.PartitionID, tc.rec.ShardID, tc.rec.EpochNumber), func(t *testing.T) {
+			err := o.AddShardConfig(tc.rec)
 			if tc.errMsg != "" {
 				require.ErrorContains(t, err, tc.errMsg)
 			} else {

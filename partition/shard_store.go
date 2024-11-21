@@ -34,15 +34,17 @@ func newShardStore(db keyvaluedb.KeyValueDB, log *slog.Logger) *shardStore {
 func (s *shardStore) StoreValidatorAssignmentRecord(v *ValidatorAssignmentRecord) error {
 	s.log.Info(fmt.Sprintf("Registering shard validators for epoch %d", v.EpochNumber))
 
+	var prevVAR *ValidatorAssignmentRecord
 	if v.EpochNumber > 0 {
 		prevEpoch := v.EpochNumber-1
-		prevVAR, err := s.loadVAR(prevEpoch)
+		var err error
+		prevVAR, err = s.loadVAR(prevEpoch)
 		if err != nil {
 			return fmt.Errorf("failed to load VAR for epoch %d: %w", prevEpoch, err)
 		}
-		if err := v.Verify(prevVAR); err != nil {
-			return fmt.Errorf("failed to verify VAR for epoch %d: %w", v.EpochNumber, err)
-		}
+	}
+	if err := v.Verify(prevVAR); err != nil {
+		return fmt.Errorf("failed to verify VAR for epoch %d: %w", v.EpochNumber, err)
 	}
 	if err := s.db.Write(epochToKey(v.EpochNumber), v); err != nil {
 		return fmt.Errorf("saving VAR for epoch %d: %w", v.EpochNumber, err)

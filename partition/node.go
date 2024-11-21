@@ -702,10 +702,6 @@ func (n *Node) handleBlockProposal(ctx context.Context, prop *blockproposal.Bloc
 		if err := n.handleUnicityCertificate(ctx, uc, &prop.Technical); err != nil {
 			return fmt.Errorf("block proposal UC handling failed: %w", err)
 		}
-		if !n.IsValidator() {
-			// Epoch must have changed and we are not a validator any more, no point in processing the BP
-			return fmt.Errorf("block proposal handling cancelled, node is not a validator")
-		}
 	}
 
 	// Leader must be the author of the proposal
@@ -802,7 +798,7 @@ func (n *Node) updateLUC(ctx context.Context, uc *types.UnicityCertificate, tr *
 	n.sendEvent(event.LatestUnicityCertificateUpdated, uc)
 
 	newEpoch := n.currentEpoch()
-	// Either epoch has changed or we have not managed to load a correct configuration for the epoch yet
+	// Either epoch has changed or we have not managed to load the correct configuration for the epoch yet
 	if prevEpoch != newEpoch || n.shardStore.LoadedEpoch() != newEpoch {
 		// Schedule epoch change. The handling of current message is finished with the old configuration.
 		// This might be problematic if epoch change is triggered by a TR in BlockProposal, which should

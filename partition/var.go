@@ -1,7 +1,6 @@
 package partition
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/alphabill-org/alphabill-go-base/crypto"
@@ -56,23 +55,22 @@ func newVARFromGenesis(genesis *genesis.PartitionGenesis) *ValidatorAssignmentRe
 
 // Verify verifies the current VAR extends the previous VAR.
 func (v *ValidatorAssignmentRecord) Verify(prev *ValidatorAssignmentRecord) error {
-	if prev == nil {
-		return errors.New("previous var cannot be nil")
-	}
-	if v.NetworkID != prev.NetworkID {
-		return fmt.Errorf("invalid network id, current %d previous %v", v.NetworkID, prev.NetworkID)
-	}
-	if v.PartitionID != prev.PartitionID {
-		return fmt.Errorf("invalid partition id, current %d previous %v", v.NetworkID, prev.NetworkID)
-	}
-	if v.ShardID.Equal(prev.ShardID) {
-		return fmt.Errorf("invalid shard id, current %x previous %x", v.ShardID, prev.ShardID)
-	}
-	if v.EpochNumber != prev.EpochNumber+1 {
-		return fmt.Errorf("invalid epoch number, current %d previous %d", v.EpochNumber, prev.EpochNumber)
-	}
-	if v.RoundNumber <= prev.RoundNumber {
-		return fmt.Errorf("invalid shard round number, current %d previous %d", v.RoundNumber, prev.RoundNumber)
+	if prev != nil {
+		if v.NetworkID != prev.NetworkID {
+			return fmt.Errorf("invalid network id, current %d previous %v", v.NetworkID, prev.NetworkID)
+		}
+		if v.PartitionID != prev.PartitionID {
+			return fmt.Errorf("invalid partition id, current %d previous %v", v.NetworkID, prev.NetworkID)
+		}
+		if !v.ShardID.Equal(prev.ShardID) {
+			return fmt.Errorf("invalid shard id, current %x previous %x", v.ShardID, prev.ShardID)
+		}
+		if v.EpochNumber != prev.EpochNumber+1 {
+			return fmt.Errorf("invalid epoch number, current %d previous %d", v.EpochNumber, prev.EpochNumber)
+		}
+		if v.RoundNumber <= prev.RoundNumber {
+			return fmt.Errorf("invalid shard round number, current %d previous %d", v.RoundNumber, prev.RoundNumber)
+		}
 	}
 	// verify the node ids are correctly calculated (no nodes in shard is considered valid)
 	for i, n := range v.Nodes {
@@ -85,16 +83,16 @@ func (v *ValidatorAssignmentRecord) Verify(prev *ValidatorAssignmentRecord) erro
 
 // Verify verifies the node id is derived from the auth key
 func (v *ValidatorInfo) Verify() error {
-	authKeyPublic, err := libp2pcrypto.UnmarshalSecp256k1PublicKey(v.AuthKey)
+	authKey, err := libp2pcrypto.UnmarshalSecp256k1PublicKey(v.AuthKey)
 	if err != nil {
 		return fmt.Errorf("unmarshal auth key: %w", err)
 	}
-	nodeID, err := peer.IDFromPublicKey(authKeyPublic)
+	nodeID, err := peer.IDFromPublicKey(authKey)
 	if err != nil {
 		return err
 	}
 	if nodeID.String() != v.NodeID {
-		return fmt.Errorf("invalid node ID %s: %w", v.NodeID, err)
+		return fmt.Errorf("invalid node ID: %s", v.NodeID)
 	}
 	if _, err := crypto.NewVerifierSecp256k1(v.SigKey); err != nil {
 		return fmt.Errorf("invalid sign key for node %s: %w", v.NodeID, err)

@@ -164,8 +164,12 @@ func NewNode(
 
 	shardStore := newShardStore(conf.shardStore, observe.Logger())
 	vaRecord := newVARFromGenesis(genesis)
-	shardStore.StoreValidatorAssignmentRecord(vaRecord)
-	shardStore.LoadEpoch(vaRecord.EpochNumber)
+	if err := shardStore.StoreValidatorAssignmentRecord(vaRecord); err != nil {
+		return nil, fmt.Errorf("failed to store VAR created from partition genesis: %w", err)
+	}
+	if err := shardStore.LoadEpoch(vaRecord.EpochNumber); err != nil {
+		return nil, fmt.Errorf("failed to load epoch configuration: %w", err)
+	}
 
 	rn, err := conf.getRootNodes()
 	if err != nil {

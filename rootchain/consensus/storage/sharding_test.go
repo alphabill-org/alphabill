@@ -5,14 +5,15 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	testcertificates "github.com/alphabill-org/alphabill/internal/testutils/certificates"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
+	"github.com/alphabill-org/alphabill/rootchain/partitions"
+	"github.com/alphabill-org/alphabill/rootchain/testutils"
+	"github.com/stretchr/testify/require"
 )
 
 func Test_shardInfo_Update(t *testing.T) {
@@ -294,16 +295,20 @@ func Test_ShardInfo_nextRound(t *testing.T) {
 
 	t.Run("next epoch", func(t *testing.T) {
 		// case where next round is in the next epoch
-		zH := make([]byte, 32)
 		irE2 := irEpoch1
 		irE2.Epoch++
-		pgEpoch2 := &genesis.GenesisPartitionRecord{
-			Version:     1,
-			Certificate: testcertificates.CreateUnicityCertificate(t, signer, &irE2, &pdr, 900, zH, zH),
-			Nodes: []*genesis.PartitionNode{
-				{NodeIdentifier: "2222", SigningPublicKey: pubKey},
+		varEpoch2 := &partitions.ValidatorAssignmentRecord{
+			NetworkID:   0,
+			PartitionID: 7,
+			ShardID:     types.ShardID{},
+			EpochNumber: 3,
+			RoundNumber: 101,
+			Nodes: []partitions.NodeInfo{
+				{
+					NodeID: "2222",
+					SigKey: pubKey,
+				},
 			},
-			PartitionDescription: &pdr,
 		}
 
 		si := getSI(t)
@@ -314,8 +319,8 @@ func Test_ShardInfo_nextRound(t *testing.T) {
 				}
 				return si.Epoch, nil
 			},
-			shardConfig: func(partition types.PartitionID, shard types.ShardID, epoch uint64) (*genesis.GenesisPartitionRecord, error) {
-				return pgEpoch2, nil
+			shardConfig: func(partition types.PartitionID, shard types.ShardID, epoch uint64) (*partitions.ValidatorAssignmentRecord, error) {
+				return varEpoch2, nil
 			},
 		}
 		rootH := si.RootHash
@@ -348,13 +353,18 @@ func Test_ShardInfo_NextEpoch(t *testing.T) {
 		Hash:        []byte{1, 2, 3, 4, 5, 6, 7, 8},
 	}
 	pdr := types.PartitionDescriptionRecord{PartitionIdentifier: 7}
-	pgEpoch2 := &genesis.GenesisPartitionRecord{
-		Version: 1,
-		Nodes: []*genesis.PartitionNode{
-			{NodeIdentifier: "2222", SigningPublicKey: validKey},
+	varEpoch2 := &partitions.ValidatorAssignmentRecord{
+		NetworkID:   0,
+		PartitionID: 7,
+		ShardID:     types.ShardID{},
+		EpochNumber: 2,
+		RoundNumber: 101,
+		Nodes: []partitions.NodeInfo{
+			{
+				NodeID: "2222",
+				SigKey: validKey,
+			},
 		},
-		Certificate:          testcertificates.CreateUnicityCertificate(t, signer, ir, &pdr, 1, zH, zH),
-		PartitionDescription: &pdr,
 	}
 
 	orc := mockOrchestration{
@@ -364,8 +374,8 @@ func Test_ShardInfo_NextEpoch(t *testing.T) {
 			}
 			return 1, nil
 		},
-		shardConfig: func(partition types.PartitionID, shard types.ShardID, epoch uint64) (*genesis.GenesisPartitionRecord, error) {
-			return pgEpoch2, nil
+		shardConfig: func(partition types.PartitionID, shard types.ShardID, epoch uint64) (*partitions.ValidatorAssignmentRecord, error) {
+			return varEpoch2, nil
 		},
 	}
 
@@ -421,7 +431,7 @@ func Test_ShardInfo_NextEpoch(t *testing.T) {
 	// round is cloned and si.nextEpoch is called for shards where
 	// si.Epoch != si.LastCR.Technical.Epoch ie last CertResp
 	// triggered epoch change
-	nextSI, err := si.nextEpoch(pgEpoch2)
+	nextSI, err := si.nextEpoch(varEpoch2)
 	require.NoError(t, err)
 	require.NotNil(t, nextSI)
 	require.NoError(t, nextSI.IsValid())
@@ -487,10 +497,11 @@ func Test_NewShardInfoFromGenesis(t *testing.T) {
 	}
 	pdr := &types.PartitionDescriptionRecord{PartitionIdentifier: 7}
 	zH := make([]byte, 32)
+	nodeID, authKey := testutils.RandomNodeID(t)
 	pgEpoch1 := &genesis.GenesisPartitionRecord{
 		Version: 1,
 		Nodes: []*genesis.PartitionNode{
-			{NodeIdentifier: "1111", SigningPublicKey: validKey},
+			{NodeIdentifier: nodeID, EncryptionPublicKey: authKey, SigningPublicKey: validKey},
 		},
 		Certificate:          testcertificates.CreateUnicityCertificate(t, signer, ir, pdr, 1, zH, zH),
 		PartitionDescription: pdr,
@@ -503,10 +514,10 @@ func Test_NewShardInfoFromGenesis(t *testing.T) {
 		require.Equal(t, pgEpoch1.Certificate.InputRecord.Epoch, si.Epoch)
 		require.EqualValues(t, pgEpoch1.Certificate.InputRecord.Hash, si.RootHash)
 		require.Equal(t, certification.StatisticalRecord{}, si.Stat)
-		require.Equal(t, map[string]uint64{"1111": 0}, si.Fees)
+		require.Equal(t, map[string]uint64{nodeID: 0}, si.Fees)
 		require.Equal(t, types.RawCBOR{0xA0}, si.PrevEpochFees)
 		require.Equal(t, types.RawCBOR{0x87, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0}, si.PrevEpochStat)
-		require.Equal(t, "1111", si.LastCR.Technical.Leader)
+		require.Equal(t, nodeID, si.LastCR.Technical.Leader)
 		require.Equal(t, si.Round+1, si.LastCR.Technical.Round)
 		require.Equal(t, si.Epoch, si.LastCR.Technical.Epoch)
 	})
@@ -552,7 +563,7 @@ func Test_shardStates_nextBlock(t *testing.T) {
 	t.Run("epoch change, missing config", func(t *testing.T) {
 		expErr := errors.New("nope, don't have this config")
 		orc := mockOrchestration{
-			shardConfig: func(partition types.PartitionID, shard types.ShardID, epoch uint64) (*genesis.GenesisPartitionRecord, error) {
+			shardConfig: func(partition types.PartitionID, shard types.ShardID, epoch uint64) (*partitions.ValidatorAssignmentRecord, error) {
 				return nil, expErr
 			},
 		}
@@ -579,11 +590,9 @@ func Test_shardStates_nextBlock(t *testing.T) {
 		orc := mockOrchestration{
 			// return genesis where Epoch number is not +1 of the current one - this causes
 			// known error we can test against to make sure that SI.nextEpoch was called
-			shardConfig: func(partition types.PartitionID, shard types.ShardID, epoch uint64) (*genesis.GenesisPartitionRecord, error) {
-				return &genesis.GenesisPartitionRecord{
-					Certificate: &types.UnicityCertificate{
-						InputRecord: &types.InputRecord{Epoch: 3},
-					},
+			shardConfig: func(partition types.PartitionID, shard types.ShardID, epoch uint64) (*partitions.ValidatorAssignmentRecord, error) {
+				return &partitions.ValidatorAssignmentRecord{
+					EpochNumber: 3,
 				}, nil
 			},
 		}
@@ -608,13 +617,17 @@ func Test_shardStates_nextBlock(t *testing.T) {
 
 type mockOrchestration struct {
 	shardEpoch  func(partition types.PartitionID, shard types.ShardID, round uint64) (uint64, error)
-	shardConfig func(partition types.PartitionID, shard types.ShardID, epoch uint64) (*genesis.GenesisPartitionRecord, error)
+	shardConfig func(partition types.PartitionID, shard types.ShardID, epoch uint64) (*partitions.ValidatorAssignmentRecord, error)
 }
 
 func (mo mockOrchestration) ShardEpoch(partition types.PartitionID, shard types.ShardID, round uint64) (uint64, error) {
 	return mo.shardEpoch(partition, shard, round)
 }
 
-func (mo mockOrchestration) ShardConfig(partition types.PartitionID, shard types.ShardID, epoch uint64) (*genesis.GenesisPartitionRecord, error) {
+func (mo mockOrchestration) ShardConfig(partition types.PartitionID, shard types.ShardID, epoch uint64) (*partitions.ValidatorAssignmentRecord, error) {
 	return mo.shardConfig(partition, shard, epoch)
+}
+
+func (mo mockOrchestration) PartitionGenesis(partition types.PartitionID) (*genesis.GenesisPartitionRecord, error) {
+	return nil, nil
 }

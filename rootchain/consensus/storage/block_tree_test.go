@@ -12,7 +12,7 @@ import (
 	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
-	"github.com/alphabill-org/alphabill/rootchain/partitions"
+	testpartition "github.com/alphabill-org/alphabill/rootchain/partitions/testutils"
 	"github.com/stretchr/testify/require"
 )
 
@@ -206,7 +206,7 @@ func createTestBlockTree(t *testing.T) *BlockTree {
 
 func initFromGenesis(t *testing.T) *BlockTree {
 	t.Helper()
-	orchestration := partitions.NewOrchestration(&genesis.RootGenesis{Partitions: pg})
+	orchestration := testpartition.NewOrchestration(t, &genesis.RootGenesis{Partitions: pg})
 	db, err := memorydb.New()
 	require.NoError(t, err)
 	require.NoError(t, storeGenesisInit(gocrypto.SHA256, pg, db, orchestration))
@@ -357,7 +357,7 @@ func TestNewBlockTree(t *testing.T) {
 func TestNewBlockTreeFromDb(t *testing.T) {
 	db, err := memorydb.New()
 	require.NoError(t, err)
-	orchestration := partitions.NewOrchestration(&genesis.RootGenesis{Partitions: pg})
+	orchestration := testpartition.NewOrchestration(t, &genesis.RootGenesis{Partitions: pg})
 	gBlock, err := NewGenesisBlock(gocrypto.SHA256, pg, orchestration)
 	require.NoError(t, err)
 	require.NoError(t, db.Write(blockKey(genesis.RootRound), gBlock))
@@ -389,7 +389,7 @@ func TestNewBlockTreeFromDb(t *testing.T) {
 func TestNewBlockTreeFromDbChain3Blocks(t *testing.T) {
 	db, err := memorydb.New()
 	require.NoError(t, err)
-	orchestration := partitions.NewOrchestration(&genesis.RootGenesis{Partitions: pg})
+	orchestration := testpartition.NewOrchestration(t, &genesis.RootGenesis{Partitions: pg})
 	gBlock, err := NewGenesisBlock(gocrypto.SHA256, pg, orchestration)
 	require.NoError(t, err)
 	require.NoError(t, db.Write(blockKey(genesis.RootRound), gBlock))
@@ -452,7 +452,7 @@ func TestNewBlockTreeFromDbChain3Blocks(t *testing.T) {
 func TestNewBlockTreeFromRecovery(t *testing.T) {
 	db, err := memorydb.New()
 	require.NoError(t, err)
-	orchestration := partitions.NewOrchestration(&genesis.RootGenesis{Partitions: pg})
+	orchestration := testpartition.NewOrchestration(t, &genesis.RootGenesis{Partitions: pg})
 	gBlock, err := NewGenesisBlock(gocrypto.SHA256, pg, orchestration)
 	require.NoError(t, err)
 	require.NoError(t, db.Write(blockKey(genesis.RootRound), gBlock))

@@ -9,12 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alphabill-org/alphabill-go-base/types/hex"
-	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/stretchr/testify/require"
-
 	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	abtypes "github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	testobservability "github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/alphabill-org/alphabill/logger"
 	"github.com/alphabill-org/alphabill/network"
@@ -25,7 +22,9 @@ import (
 	"github.com/alphabill-org/alphabill/rootchain/consensus/leader"
 	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
 	rootgenesis "github.com/alphabill-org/alphabill/rootchain/genesis"
-	"github.com/alphabill-org/alphabill/rootchain/partitions"
+	testpartition "github.com/alphabill-org/alphabill/rootchain/partitions/testutils"
+	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/stretchr/testify/require"
 )
 
 func Test_ConsensusManager_sendRecoveryRequests(t *testing.T) {
@@ -779,7 +778,7 @@ func createConsensusManagers(t *testing.T, count int, partitionRecs []*genesis.P
 		nodeID, err := peer.Decode(v.NodeIdentifier)
 		require.NoError(t, err)
 
-		cm, err := NewConsensusManager(nodeID, rootG, trustBase, partitions.NewOrchestration(rootG), nw.Connect(nodeID), signers[v.NodeIdentifier], observability.WithLogger(observe, observe.Logger().With(logger.NodeID(nodeID))))
+		cm, err := NewConsensusManager(nodeID, rootG, trustBase, testpartition.NewOrchestration(t, rootG), nw.Connect(nodeID), signers[v.NodeIdentifier], observability.WithLogger(observe, observe.Logger().With(logger.NodeID(nodeID))))
 		require.NoError(t, err)
 		cms = append(cms, cm)
 	}

@@ -13,6 +13,7 @@ import (
 	"github.com/alphabill-org/alphabill/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
+	"github.com/alphabill-org/alphabill/rootchain/partitions"
 )
 
 type (
@@ -31,7 +32,8 @@ type (
 
 	Orchestration interface {
 		ShardEpoch(partition types.PartitionID, shard types.ShardID, round uint64) (uint64, error)
-		ShardConfig(partition types.PartitionID, shard types.ShardID, epoch uint64) (*genesis.GenesisPartitionRecord, error)
+		ShardConfig(partition types.PartitionID, shard types.ShardID, epoch uint64) (*partitions.ValidatorAssignmentRecord, error)
+		PartitionGenesis(partition types.PartitionID) (*genesis.GenesisPartitionRecord, error)
 	}
 )
 

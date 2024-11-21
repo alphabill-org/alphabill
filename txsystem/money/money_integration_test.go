@@ -69,7 +69,7 @@ func TestPartition_Ok(t *testing.T) {
 		return system
 	}, pdr, s)
 	require.NoError(t, err)
-	abNet, err := testpartition.NewAlphabillPartition([]*testpartition.NodePartition{moneyPrt})
+	abNet, err := testpartition.NewAlphabillPartition(t, []*testpartition.NodePartition{moneyPrt})
 
 	require.NoError(t, err)
 	require.NoError(t, abNet.Start(t))
@@ -203,7 +203,7 @@ func TestPartition_SwapDCOk(t *testing.T) {
 		return system
 	}, pdr, txsState)
 	require.NoError(t, err)
-	abNet, err := testpartition.NewAlphabillPartition([]*testpartition.NodePartition{moneyPrt})
+	abNet, err := testpartition.NewAlphabillPartition(t, []*testpartition.NodePartition{moneyPrt})
 	require.NoError(t, err)
 	require.NoError(t, abNet.Start(t))
 	defer abNet.WaitClose(t)

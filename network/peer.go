@@ -103,7 +103,10 @@ func NewPeer(ctx context.Context, conf *PeerConfiguration, log *slog.Logger, pro
 	if len(conf.AnnounceAddrs) > 0 {
 		addrsFactory := libp2p.AddrsFactory(func(_ []ma.Multiaddr) []ma.Multiaddr {
 			// completely overwrite default announce addresses with provided values
-			return conf.AnnounceAddrs
+			// and make a defensive copy, consumers can modify the slice elements
+			res := make([]ma.Multiaddr, len(conf.AnnounceAddrs))
+			copy(res, conf.AnnounceAddrs)
+			return res
 		})
 		opts = append(opts, addrsFactory)
 	}

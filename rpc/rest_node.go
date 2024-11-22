@@ -8,7 +8,7 @@ import (
 
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/logger"
-	"github.com/alphabill-org/alphabill/partition"
+	"github.com/alphabill-org/alphabill/rootchain/partitions"
 	"github.com/gorilla/mux"
 )
 
@@ -40,10 +40,10 @@ func getState(node partitionNode, log *slog.Logger) http.HandlerFunc {
 	}
 }
 
-func putVar(registerVAR func(v *partition.ValidatorAssignmentRecord) error) http.HandlerFunc {
+func putVar(registerVAR func(v *partitions.ValidatorAssignmentRecord) error) http.HandlerFunc {
 	return func(w http.ResponseWriter, request *http.Request) {
 		defer request.Body.Close()
-		v := &partition.ValidatorAssignmentRecord{}
+		v := &partitions.ValidatorAssignmentRecord{}
 		if err := json.NewDecoder(request.Body).Decode(&v); err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			fmt.Fprintf(w, "parsing validator assignment record: %v", err)

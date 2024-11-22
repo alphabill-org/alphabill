@@ -8,6 +8,7 @@ import (
 	testpeer "github.com/alphabill-org/alphabill/internal/testutils/peer"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
+	"github.com/alphabill-org/alphabill/rootchain/partitions"
 	"github.com/stretchr/testify/require"
 )
 
@@ -46,19 +47,19 @@ func TestVerifier_Ok(t *testing.T) {
 	require.False(t, ss.IsValidator(peer1Conf.ID))
 }
 
-func createVARWithNewNode(t *testing.T, prev *ValidatorAssignmentRecord) *ValidatorAssignmentRecord {
+func createVARWithNewNode(t *testing.T, prev *partitions.ValidatorAssignmentRecord) *partitions.ValidatorAssignmentRecord {
 	peerConf := testpeer.CreatePeerConfiguration(t)
 	_, sigVerifier := testsig.CreateSignerAndVerifier(t)
 	signKey, err := sigVerifier.MarshalPublicKey()
 	require.NoError(t, err)
 
-	nodes := append(prev.Nodes, ValidatorInfo{
+	nodes := append(prev.Nodes, partitions.NodeInfo{
 		NodeID: peerConf.ID.String(),
 		AuthKey: peerConf.KeyPair.PublicKey,
 		SigKey: signKey,
 	})
 
-	return &ValidatorAssignmentRecord{
+	return &partitions.ValidatorAssignmentRecord{
 		NetworkID:   prev.NetworkID,
 		PartitionID: prev.PartitionID,
 		ShardID:     prev.ShardID,
@@ -68,12 +69,12 @@ func createVARWithNewNode(t *testing.T, prev *ValidatorAssignmentRecord) *Valida
 	}
 }
 
-func createVARWithRemovedNode(t *testing.T, prev *ValidatorAssignmentRecord, removeNodeIdx uint) *ValidatorAssignmentRecord {
-	nodes := make([]ValidatorInfo, len(prev.Nodes)-1)
+func createVARWithRemovedNode(t *testing.T, prev *partitions.ValidatorAssignmentRecord, removeNodeIdx uint) *partitions.ValidatorAssignmentRecord {
+	nodes := make([]partitions.NodeInfo, len(prev.Nodes)-1)
 	copy(nodes[0:], prev.Nodes[:removeNodeIdx])
 	copy(nodes[removeNodeIdx:], prev.Nodes[removeNodeIdx+1:])
 
-	return &ValidatorAssignmentRecord{
+	return &partitions.ValidatorAssignmentRecord{
 		NetworkID:   prev.NetworkID,
 		PartitionID: prev.PartitionID,
 		ShardID:     prev.ShardID,

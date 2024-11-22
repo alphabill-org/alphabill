@@ -11,6 +11,7 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill/keyvaluedb"
 	"github.com/alphabill-org/alphabill/logger"
+	"github.com/alphabill-org/alphabill/rootchain/partitions"
 	"github.com/libp2p/go-libp2p/core/peer"
 )
 
@@ -31,10 +32,10 @@ func newShardStore(db keyvaluedb.KeyValueDB, log *slog.Logger) *shardStore {
 	}
 }
 
-func (s *shardStore) StoreValidatorAssignmentRecord(v *ValidatorAssignmentRecord) error {
+func (s *shardStore) StoreValidatorAssignmentRecord(v *partitions.ValidatorAssignmentRecord) error {
 	s.log.Info(fmt.Sprintf("Registering VAR for epoch %d", v.EpochNumber))
 
-	var prevVAR *ValidatorAssignmentRecord
+	var prevVAR *partitions.ValidatorAssignmentRecord
 	if v.EpochNumber > 0 {
 		prevEpoch := v.EpochNumber-1
 		var err error
@@ -111,8 +112,8 @@ func (s *shardStore) Verifier(validator peer.ID) crypto.Verifier {
 	return s.epochValidators[validator]
 }
 
-func (s *shardStore) loadVAR(epoch uint64) (*ValidatorAssignmentRecord, error) {
-	v := &ValidatorAssignmentRecord{}
+func (s *shardStore) loadVAR(epoch uint64) (*partitions.ValidatorAssignmentRecord, error) {
+	v := &partitions.ValidatorAssignmentRecord{}
 	found, err := s.db.Read(epochToKey(epoch), v)
 	if err != nil {
 		return nil, fmt.Errorf("reading VAR: %w", err)

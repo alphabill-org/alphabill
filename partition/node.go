@@ -33,6 +33,7 @@ import (
 	"github.com/alphabill-org/alphabill/network/protocol/replication"
 	"github.com/alphabill-org/alphabill/observability"
 	"github.com/alphabill-org/alphabill/partition/event"
+	"github.com/alphabill-org/alphabill/rootchain/partitions"
 	"github.com/alphabill-org/alphabill/txsystem"
 )
 
@@ -1596,7 +1597,7 @@ func (n *Node) IsValidator() bool {
 	return n.shardStore.IsValidator(n.peer.ID())
 }
 
-func (n *Node) RegisterValidatorAssignmentRecord(v *ValidatorAssignmentRecord) error {
+func (n *Node) RegisterValidatorAssignmentRecord(v *partitions.ValidatorAssignmentRecord) error {
 	return n.shardStore.StoreValidatorAssignmentRecord(v)
 }
 
@@ -1737,4 +1738,27 @@ func printUC(uc *types.UnicityCertificate) string {
 	return fmt.Sprintf("H:\t%X\nH':\t%X\nHb:\t%X\nfees:%d, round:%d, root round:%d",
 		uc.InputRecord.Hash, uc.InputRecord.PreviousHash, uc.InputRecord.BlockHash,
 		uc.InputRecord.SumOfEarnedFees, uc.GetRoundNumber(), uc.GetRootRoundNumber())
+}
+
+func newVARFromGenesis(genesis *genesis.PartitionGenesis) *partitions.ValidatorAssignmentRecord {
+	if genesis == nil {
+		return nil
+	}
+
+	validators := make([]partitions.NodeInfo, len(genesis.Keys))
+	for i, k := range genesis.Keys {
+		validators[i] = partitions.NodeInfo{
+			NodeID:  k.NodeIdentifier,
+			AuthKey: k.EncryptionPublicKey,
+			SigKey:  k.SigningPublicKey,
+		}
+	}
+
+	return &partitions.ValidatorAssignmentRecord{
+		NetworkID:   genesis.PartitionDescription.NetworkIdentifier,
+		PartitionID: genesis.PartitionDescription.PartitionIdentifier,
+		EpochNumber: genesis.Certificate.InputRecord.Epoch,
+		RoundNumber: genesis.Certificate.GetRoundNumber(),
+		Nodes:       validators,
+	}
 }

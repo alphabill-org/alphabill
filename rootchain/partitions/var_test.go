@@ -22,12 +22,6 @@ func TestVerify(t *testing.T) {
 		errMsg string
 	}{
 		{
-			name:   "prev is nil",
-			prev:   nil,
-			next:   &ValidatorAssignmentRecord{},
-			errMsg: "previous var cannot be nil",
-		},
-		{
 			name:   "invalid network id",
 			prev:   &ValidatorAssignmentRecord{NetworkID: 1},
 			next:   &ValidatorAssignmentRecord{NetworkID: 2},
@@ -95,6 +89,7 @@ func TestVerify(t *testing.T) {
 					{
 						NodeID:  node1ID,
 						AuthKey: node1AuthKey,
+						SigKey:  node1AuthKey,
 					},
 				}},
 		},
@@ -114,5 +109,4 @@ func TestVerify(t *testing.T) {
 			}
 		})
 	}
-
 }

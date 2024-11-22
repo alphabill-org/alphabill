@@ -5,8 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/alphabill-org/alphabill-go-base/types"
 	testcertificates "github.com/alphabill-org/alphabill/internal/testutils/certificates"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
@@ -14,7 +12,8 @@ import (
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/rootchain/consensus/storage"
 	abtypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
-	"github.com/alphabill-org/alphabill/rootchain/partitions"
+	testpartition "github.com/alphabill-org/alphabill/rootchain/partitions/testutils"
+	"github.com/stretchr/testify/require"
 )
 
 type (
@@ -80,14 +79,13 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 			Certificate: testcertificates.CreateUnicityCertificate(t, signer, irSysID1, pdr, 1, make([]byte, 32), make([]byte, 32)),
 		},
 	}
-	orchestration := partitions.NewOrchestration(&genesis.RootGenesis{Version: 1, Partitions: genesisPartitions})
-	stateProvider := func(partitions []types.PartitionID, irs *types.InputRecord) *MockState {
+	orchestration := testpartition.NewOrchestration(t, &genesis.RootGenesis{Version: 1, Partitions: genesisPartitions})
+	stateProvider := func(partitionIDs []types.PartitionID, irs *types.InputRecord) *MockState {
 		return &MockState{
-			inProgress:   partitions,
+			inProgress:   partitionIDs,
 			irInProgress: irs,
 			shardInfo: func(partition types.PartitionID, shard types.ShardID) (*storage.ShardInfo, error) {
-				si, err := storage.NewShardInfoFromGenesis(genesisPartitions[0])
-				return si, err
+				return storage.NewShardInfoFromGenesis(genesisPartitions[0])
 			},
 		}
 	}
@@ -164,7 +162,7 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 		}
 		data, err := ver.VerifyIRChangeReq(2, irChReq)
 		require.Nil(t, data)
-		require.EqualError(t, err, "acquiring shard config: no configuration for 00000002 -  epoch 0")
+		require.EqualError(t, err, "querying shard epoch: db tx failed: the partition 0x00000002 does not exist")
 	})
 
 	t.Run("duplicate request", func(t *testing.T) {
@@ -200,9 +198,16 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 	})
 
 	t.Run("invalid root round, luc round is bigger", func(t *testing.T) {
+		si, err := storage.NewShardInfoFromGenesis(genesisPartitions[0])
+		require.NoError(t, err)
+		si.LastCR.UC.UnicitySeal.RootChainRoundNumber = 2
 		ver := &IRChangeReqVerifier{
-			params:        &Parameters{BlockRate: 500 * time.Millisecond, HashAlgorithm: crypto.SHA256},
-			state:         stateProvider(nil, nil),
+			params: &Parameters{BlockRate: 500 * time.Millisecond, HashAlgorithm: crypto.SHA256},
+			state: &MockState{
+				shardInfo: func(partition types.PartitionID, shard types.ShardID) (*storage.ShardInfo, error) {
+					return si, nil
+				},
+			},
 			orchestration: orchestration,
 		}
 		newIR := &types.InputRecord{
@@ -226,9 +231,9 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 			CertReason: abtypes.Quorum,
 			Requests:   []*certification.BlockCertificationRequest{request},
 		}
-		data, err := ver.VerifyIRChangeReq(0, irChReq)
+		data, err := ver.VerifyIRChangeReq(1, irChReq)
 		require.Nil(t, data)
-		require.EqualError(t, err, "current round 0 is in the past, LUC round 1")
+		require.EqualError(t, err, "current round 1 is in the past, LUC round 2")
 	})
 
 	t.Run("ok", func(t *testing.T) {
@@ -282,9 +287,12 @@ func TestNewIRChangeReqVerifier(t *testing.T) {
 				{NodeIdentifier: "node2", SigningPublicKey: pubKeyBytes, PartitionDescriptionRecord: types.PartitionDescriptionRecord{Version: 1}},
 				{NodeIdentifier: "node3", SigningPublicKey: pubKeyBytes, PartitionDescriptionRecord: types.PartitionDescriptionRecord{Version: 1}},
 			},
+			Certificate: &types.UnicityCertificate{
+				InputRecord: &types.InputRecord{},
+			},
 		},
 	}
-	orchestration := partitions.NewOrchestration(&genesis.RootGenesis{Version: 1, Partitions: genesisPartitions})
+	orchestration := testpartition.NewOrchestration(t, &genesis.RootGenesis{Version: 1, Partitions: genesisPartitions})
 
 	t.Run("orchestration is nil", func(t *testing.T) {
 		ver, err := NewIRChangeReqVerifier(&Parameters{}, nil, &MockState{})
@@ -326,9 +334,11 @@ func TestNewLucBasedT2TimeoutGenerator(t *testing.T) {
 			Nodes: []*genesis.PartitionNode{
 				{NodeIdentifier: "node1", SigningPublicKey: pubKeyBytes, PartitionDescriptionRecord: types.PartitionDescriptionRecord{Version: 1}},
 			},
+			Certificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{}},
 		},
 	}
-	orchestration := partitions.NewOrchestration(&genesis.RootGenesis{Version: 1, Partitions: genesisPartitions})
+
+	orchestration := testpartition.NewOrchestration(t, &genesis.RootGenesis{Version: 1, Partitions: genesisPartitions})
 
 	t.Run("state monitor is nil", func(t *testing.T) {
 		tmoGen, err := NewLucBasedT2TimeoutGenerator(&Parameters{}, orchestration, nil)
@@ -379,11 +389,10 @@ func TestPartitionTimeoutGenerator_GetT2Timeouts(t *testing.T) {
 			},
 		},
 	}
-	orchestration := partitions.NewOrchestration(&genesis.RootGenesis{Version: 1, Partitions: genesisPartitions})
+	orchestration := testpartition.NewOrchestration(t, &genesis.RootGenesis{Version: 1, Partitions: genesisPartitions})
 	state := &MockState{
 		shardInfo: func(partition types.PartitionID, shard types.ShardID) (*storage.ShardInfo, error) {
-			si, err := storage.NewShardInfoFromGenesis(genesisPartitions[0])
-			return si, err
+			return storage.NewShardInfoFromGenesis(genesisPartitions[0])
 		},
 	}
 	tmoGen := &PartitionTimeoutGenerator{

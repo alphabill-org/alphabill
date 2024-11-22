@@ -31,7 +31,7 @@ func TestNewNetwork_Ok(t *testing.T) {
 		},
 		pdr, genesisState)
 	require.NoError(t, err)
-	abNetwork, err := NewMultiRootAlphabillPartition(3, []*NodePartition{counterPartition})
+	abNetwork, err := NewMultiRootAlphabillPartition(t, 3, []*NodePartition{counterPartition})
 	require.NoError(t, err)
 	require.NoError(t, abNetwork.Start(t))
 	defer abNetwork.WaitClose(t)
@@ -70,7 +70,7 @@ func TestNewNetwork_StandaloneBootstrapNodes(t *testing.T) {
 		},
 		pdr, genesisState)
 	require.NoError(t, err)
-	abNetwork, err := NewMultiRootAlphabillPartition(3, []*NodePartition{counterPartition})
+	abNetwork, err := NewMultiRootAlphabillPartition(t, 3, []*NodePartition{counterPartition})
 	require.NoError(t, err)
 	require.NoError(t, abNetwork.StartWithStandAloneBootstrapNodes(t))
 	defer abNetwork.WaitClose(t)

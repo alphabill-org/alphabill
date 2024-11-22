@@ -47,7 +47,7 @@ func TestInitPartitionAndDefineNFT_Ok(t *testing.T) {
 		return system
 	}, pdr, genesisState)
 	require.NoError(t, err)
-	abNet, err := testpartition.NewAlphabillPartition([]*testpartition.NodePartition{tokenPrt})
+	abNet, err := testpartition.NewAlphabillPartition(t, []*testpartition.NodePartition{tokenPrt})
 	require.NoError(t, err)
 	require.NoError(t, abNet.Start(t))
 	defer abNet.WaitClose(t)
@@ -107,7 +107,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	// the tx system lambda is called once for node genesis, but this is not interesting so clear the states before node
 	// is started
 	states = []*state.State{}
-	abNet, err := testpartition.NewAlphabillPartition([]*testpartition.NodePartition{tokenPrt})
+	abNet, err := testpartition.NewAlphabillPartition(t, []*testpartition.NodePartition{tokenPrt})
 	require.NoError(t, err)
 	require.NoError(t, abNet.Start(t))
 	defer abNet.WaitClose(t)

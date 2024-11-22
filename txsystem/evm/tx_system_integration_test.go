@@ -79,7 +79,7 @@ func TestEVMPartition_DeployAndCallContract(t *testing.T) {
 	}, pdr, genesisState)
 	require.NoError(t, err)
 
-	network, err := testpartition.NewAlphabillPartition([]*testpartition.NodePartition{evmPartition})
+	network, err := testpartition.NewAlphabillPartition(t, []*testpartition.NodePartition{evmPartition})
 	require.NoError(t, err)
 	require.NoError(t, network.Start(t))
 	defer network.WaitClose(t)

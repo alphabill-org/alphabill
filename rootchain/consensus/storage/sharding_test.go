@@ -13,6 +13,8 @@ import (
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
+	"github.com/alphabill-org/alphabill/rootchain/partitions"
+	"github.com/alphabill-org/alphabill/rootchain/testutils"
 )
 
 func Test_shardInfo_Update(t *testing.T) {
@@ -35,9 +37,8 @@ func Test_shardInfo_Update(t *testing.T) {
 				Technical: certification.TechnicalRecord{Leader: "L"},
 			},
 		}
-		si.update(cr)
+		si.update(cr, "L")
 
-		require.EqualValues(t, cr.InputRecord.RoundNumber, si.Round)
 		require.EqualValues(t, cr.InputRecord.Hash, si.RootHash)
 		require.EqualValues(t, cr.InputRecord.SumOfEarnedFees, si.Fees[si.LastCR.Technical.Leader])
 		require.EqualValues(t, cr.InputRecord.SumOfEarnedFees, si.Stat.BlockFees)
@@ -66,7 +67,7 @@ func Test_shardInfo_Update(t *testing.T) {
 			BlockSize: 1002,
 			StateSize: 1003,
 		}
-		si.update(cr)
+		si.update(cr, "L")
 		require.EqualValues(t, 2000, si.Stat.MaxBlockSize)
 		require.EqualValues(t, 2000, si.Stat.MaxStateSize)
 		require.EqualValues(t, 2000, si.Stat.MaxFee)
@@ -75,7 +76,7 @@ func Test_shardInfo_Update(t *testing.T) {
 		cr.BlockSize = 3001
 		cr.StateSize = 3002
 		cr.InputRecord.SumOfEarnedFees = 3003
-		si.update(cr)
+		si.update(cr, "L")
 		require.EqualValues(t, 3001, si.Stat.MaxBlockSize)
 		require.EqualValues(t, 3002, si.Stat.MaxStateSize)
 		require.EqualValues(t, 3003, si.Stat.MaxFee)
@@ -91,12 +92,12 @@ func Test_shardInfo_Update(t *testing.T) {
 				PreviousHash: []byte{1, 1, 1, 1},
 			},
 		}
-		si.update(cr)
+		si.update(cr, "L")
 		require.Zero(t, si.Stat.Blocks)
 
 		// state changes, should count the block
 		cr.InputRecord.Hash = append(cr.InputRecord.Hash, 0)
-		si.update(cr)
+		si.update(cr, "L")
 		require.EqualValues(t, 1, si.Stat.Blocks)
 	})
 }
@@ -109,8 +110,6 @@ func Test_ShardInfo_ValidRequest(t *testing.T) {
 
 	// shard info we test against
 	si := &ShardInfo{
-		Round:    3432,
-		Epoch:    3,
 		RootHash: []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2},
 		LastCR: &certification.CertificationResponse{
 			Partition: 22,
@@ -128,8 +127,8 @@ func Test_ShardInfo_ValidRequest(t *testing.T) {
 	}
 	si.LastCR.UC.InputRecord = &types.InputRecord{
 		Version:      1,
-		RoundNumber:  si.Round,
-		Epoch:        si.Epoch,
+		RoundNumber:  3432,
+		Epoch:        3,
 		Hash:         si.RootHash,
 		PreviousHash: si.RootHash,
 		BlockHash:    make([]byte, 32),
@@ -151,8 +150,8 @@ func Test_ShardInfo_ValidRequest(t *testing.T) {
 			NodeIdentifier: "1111",
 			InputRecord: &types.InputRecord{
 				Version:      1,
-				RoundNumber:  si.Round + 1, // incoming request must be for next round
-				Epoch:        si.Epoch,
+				RoundNumber:  si.LastCR.Technical.Round, // incoming request must be for next round
+				Epoch:        si.LastCR.Technical.Epoch,
 				PreviousHash: si.RootHash,
 				Hash:         []byte{2, 2, 2, 2, 2, 6, 6, 6, 6, 6},
 				BlockHash:    []byte{1},
@@ -230,16 +229,12 @@ func Test_ShardInfo_nextRound(t *testing.T) {
 
 	zH := make([]byte, 32)
 	ucE1 := testcertificates.CreateUnicityCertificate(t, signer, &irEpoch1, &pdr, 1, zH, zH)
-	// to keep the UC hash deterministic so we can check that expected leader was selected
-	ucE1.UnicitySeal.Timestamp = 1000000
-	ucE1.UnicitySeal.Signatures = nil
 
 	// returns shard info in the end of epoch 1
 	getSI := func(t *testing.T) ShardInfo {
 		si := ShardInfo{
-			Round: irEpoch1.RoundNumber,
-			Epoch: irEpoch1.Epoch,
-			Fees:  map[string]uint64{"B": 2, "A": 1, "C": 3},
+			RootHash: []byte{0, 1, 2, 3, 4, 5, 6, 7},
+			Fees:     map[string]uint64{"B": 2, "A": 1, "C": 3},
 			Stat: certification.StatisticalRecord{
 				Blocks:       0,
 				BlockFees:    1,
@@ -256,8 +251,8 @@ func Test_ShardInfo_nextRound(t *testing.T) {
 			nodeIDs: []string{"A", "B", "C"},
 		}
 		require.NoError(t, si.LastCR.SetTechnicalRecord(certification.TechnicalRecord{
-			Round:    si.Round + 1,
-			Epoch:    si.Epoch,
+			Round:    irEpoch1.RoundNumber + 1,
+			Epoch:    irEpoch1.Epoch,
 			Leader:   "A",
 			StatHash: []byte{5},
 			FeeHash:  []byte{0xF},
@@ -271,16 +266,17 @@ func Test_ShardInfo_nextRound(t *testing.T) {
 		si := getSI(t)
 		orc := mockOrchestration{
 			shardEpoch: func(partition types.PartitionID, shard types.ShardID, round uint64) (uint64, error) {
-				return si.Epoch, nil
+				return irEpoch1.Epoch, nil
 			},
 		}
 		rootH := si.RootHash
 		// no BCR, ie timeout round
-		tr, err := si.nextRound(nil, orc)
+		prevTR := certification.TechnicalRecord{Leader: "A", Round: irEpoch1.RoundNumber, Epoch: irEpoch1.Epoch}
+		tr, err := si.nextRound(nil, prevTR, orc)
 		require.NoError(t, err)
-		require.Equal(t, si.Round+1, tr.Round, "TR is for the next round")
-		require.Equal(t, si.Epoch, tr.Epoch, "epoch mustn't have changed")
-		require.Equal(t, "B", tr.Leader)
+		require.Equal(t, prevTR.Round+1, tr.Round, "TR is for the next round")
+		require.Equal(t, prevTR.Epoch, tr.Epoch, "epoch mustn't have changed")
+		require.Equal(t, "C", tr.Leader)
 		// stat and fee hash calculated based on si
 		h, err := si.statHash(crypto.SHA256)
 		require.NoError(t, err)
@@ -294,36 +290,41 @@ func Test_ShardInfo_nextRound(t *testing.T) {
 
 	t.Run("next epoch", func(t *testing.T) {
 		// case where next round is in the next epoch
-		zH := make([]byte, 32)
 		irE2 := irEpoch1
 		irE2.Epoch++
-		pgEpoch2 := &genesis.GenesisPartitionRecord{
-			Version:     1,
-			Certificate: testcertificates.CreateUnicityCertificate(t, signer, &irE2, &pdr, 900, zH, zH),
-			Nodes: []*genesis.PartitionNode{
-				{NodeIdentifier: "2222", SigningPublicKey: pubKey},
+		varEpoch2 := &partitions.ValidatorAssignmentRecord{
+			NetworkID:   0,
+			PartitionID: 7,
+			ShardID:     types.ShardID{},
+			EpochNumber: 3,
+			RoundNumber: 101,
+			Nodes: []partitions.NodeInfo{
+				{
+					NodeID: "2222",
+					SigKey: pubKey,
+				},
 			},
-			PartitionDescription: &pdr,
 		}
 
-		si := getSI(t)
+		prevTR := certification.TechnicalRecord{Leader: "A", Round: irEpoch1.RoundNumber, Epoch: irEpoch1.Epoch}
 		orc := mockOrchestration{
 			shardEpoch: func(partition types.PartitionID, shard types.ShardID, round uint64) (uint64, error) {
-				if round > si.Round {
-					return si.Epoch + 1, nil
+				if round > prevTR.Round {
+					return prevTR.Epoch + 1, nil
 				}
-				return si.Epoch, nil
+				return prevTR.Epoch, nil
 			},
-			shardConfig: func(partition types.PartitionID, shard types.ShardID, epoch uint64) (*genesis.GenesisPartitionRecord, error) {
-				return pgEpoch2, nil
+			shardConfig: func(partition types.PartitionID, shard types.ShardID, epoch uint64) (*partitions.ValidatorAssignmentRecord, error) {
+				return varEpoch2, nil
 			},
 		}
+		si := getSI(t)
 		rootH := si.RootHash
 		// no BCR, ie timeout round
-		tr, err := si.nextRound(nil, orc)
+		tr, err := si.nextRound(nil, prevTR, orc)
 		require.NoError(t, err)
-		require.Equal(t, si.Round+1, tr.Round, "TR is for the next round")
-		require.Equal(t, si.Epoch+1, tr.Epoch, "epoch must have changed")
+		require.Equal(t, prevTR.Round+1, tr.Round, "TR is for the next round")
+		require.Equal(t, prevTR.Epoch+1, tr.Epoch, "epoch must have changed")
 		require.Equal(t, "2222", tr.Leader, "leader must be from the next epoch")
 		// stat and fee hash calculated based on si of the next epoch
 		// we just check that it isn't equal to the hash based on current si
@@ -348,13 +349,18 @@ func Test_ShardInfo_NextEpoch(t *testing.T) {
 		Hash:        []byte{1, 2, 3, 4, 5, 6, 7, 8},
 	}
 	pdr := types.PartitionDescriptionRecord{PartitionIdentifier: 7}
-	pgEpoch2 := &genesis.GenesisPartitionRecord{
-		Version: 1,
-		Nodes: []*genesis.PartitionNode{
-			{NodeIdentifier: "2222", SigningPublicKey: validKey},
+	varEpoch2 := &partitions.ValidatorAssignmentRecord{
+		NetworkID:   0,
+		PartitionID: 7,
+		ShardID:     types.ShardID{},
+		EpochNumber: 2,
+		RoundNumber: 101,
+		Nodes: []partitions.NodeInfo{
+			{
+				NodeID: "2222",
+				SigKey: validKey,
+			},
 		},
-		Certificate:          testcertificates.CreateUnicityCertificate(t, signer, ir, &pdr, 1, zH, zH),
-		PartitionDescription: &pdr,
 	}
 
 	orc := mockOrchestration{
@@ -364,17 +370,16 @@ func Test_ShardInfo_NextEpoch(t *testing.T) {
 			}
 			return 1, nil
 		},
-		shardConfig: func(partition types.PartitionID, shard types.ShardID, epoch uint64) (*genesis.GenesisPartitionRecord, error) {
-			return pgEpoch2, nil
+		shardConfig: func(partition types.PartitionID, shard types.ShardID, epoch uint64) (*partitions.ValidatorAssignmentRecord, error) {
+			return varEpoch2, nil
 		},
 	}
 
 	// shard info in the end of epoch 1
 	ucE1 := testcertificates.CreateUnicityCertificate(t, signer, ir, &pdr, 1, zH, zH)
 	si := ShardInfo{
-		Round: 100,
-		Epoch: 1,
-		Fees:  map[string]uint64{"B": 2, "A": 1, "C": 3},
+		RootHash: []byte{0, 1, 2, 3, 4, 5, 6, 7},
+		Fees:     map[string]uint64{"B": 2, "A": 1, "C": 3},
 		Stat: certification.StatisticalRecord{
 			Blocks:       0,
 			BlockFees:    1,
@@ -391,7 +396,7 @@ func Test_ShardInfo_NextEpoch(t *testing.T) {
 		nodeIDs: []string{"A", "B", "C"},
 	}
 	require.NoError(t, si.LastCR.SetTechnicalRecord(certification.TechnicalRecord{
-		Round:    si.Round,
+		Round:    100,
 		Leader:   "A",
 		StatHash: []byte{5},
 		FeeHash:  []byte{0xF},
@@ -399,9 +404,13 @@ func Test_ShardInfo_NextEpoch(t *testing.T) {
 	require.NoError(t, si.IsValid())
 
 	// when block is extended si.nextRound is called to get TR for the
-	// Input Change Request to be certified
-	tr, err := si.nextRound(nil, orc)
+	// certificate generated by this block (which shard will use for next round)
+	lastTR := certification.TechnicalRecord{Leader: "A", Round: 100, Epoch: 1}
+	tr, err := si.nextRound(nil, lastTR, orc)
 	require.NoError(t, err)
+	require.Equal(t, lastTR.Round+1, tr.Round)
+	require.Equal(t, lastTR.Epoch+1, tr.Epoch)
+	require.Equal(t, "2222", tr.Leader, "expected leader form the next epoch TB")
 	// when block is committed CertResponse is created based on that
 	// and assigned to SI.LastCR
 	trH, err := tr.Hash()
@@ -411,25 +420,15 @@ func Test_ShardInfo_NextEpoch(t *testing.T) {
 	si.LastCR.UC = *ucE1
 	require.NoError(t, si.IsValid())
 
-	// epoch switch hasn't happened yet but the TR should already have
-	// next round, next epoch & leader from validator set of the next epoch
-	require.Equal(t, si.Round+1, si.LastCR.Technical.Round)
-	require.Equal(t, si.Epoch+1, si.LastCR.Technical.Epoch)
-	require.Equal(t, "2222", si.LastCR.Technical.Leader)
-
-	// when processing next block proposal ShardInfo of the previous
-	// round is cloned and si.nextEpoch is called for shards where
-	// si.Epoch != si.LastCR.Technical.Epoch ie last CertResp
-	// triggered epoch change
-	nextSI, err := si.nextEpoch(pgEpoch2)
+	// when processing next block proposal ShardInfo of the previous round
+	// is cloned and si.nextEpoch is called for shards where epoch change
+	nextSI, err := si.nextEpoch(lastTR.Epoch+1, varEpoch2)
 	require.NoError(t, err)
 	require.NotNil(t, nextSI)
 	require.NoError(t, nextSI.IsValid())
 	// data which is carried on to the next epoch
 	require.Equal(t, si.RootHash, nextSI.RootHash)
-	require.Equal(t, si.Round, nextSI.Round)
 	require.Equal(t, si.LastCR, nextSI.LastCR)
-	require.Equal(t, si.Epoch+1, nextSI.Epoch)
 	/* Fee list of the previous epoch was serialized
 	A3       # map(3)
 	   61    # text(1)
@@ -487,10 +486,11 @@ func Test_NewShardInfoFromGenesis(t *testing.T) {
 	}
 	pdr := &types.PartitionDescriptionRecord{PartitionIdentifier: 7}
 	zH := make([]byte, 32)
+	nodeID, authKey := testutils.RandomNodeID(t)
 	pgEpoch1 := &genesis.GenesisPartitionRecord{
 		Version: 1,
 		Nodes: []*genesis.PartitionNode{
-			{NodeIdentifier: "1111", SigningPublicKey: validKey},
+			{NodeIdentifier: nodeID, EncryptionPublicKey: authKey, SigningPublicKey: validKey},
 		},
 		Certificate:          testcertificates.CreateUnicityCertificate(t, signer, ir, pdr, 1, zH, zH),
 		PartitionDescription: pdr,
@@ -499,16 +499,14 @@ func Test_NewShardInfoFromGenesis(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		si, err := NewShardInfoFromGenesis(pgEpoch1)
 		require.NoError(t, err)
-		require.Equal(t, pgEpoch1.Certificate.GetRoundNumber(), si.Round)
-		require.Equal(t, pgEpoch1.Certificate.InputRecord.Epoch, si.Epoch)
 		require.EqualValues(t, pgEpoch1.Certificate.InputRecord.Hash, si.RootHash)
 		require.Equal(t, certification.StatisticalRecord{}, si.Stat)
-		require.Equal(t, map[string]uint64{"1111": 0}, si.Fees)
+		require.Equal(t, map[string]uint64{nodeID: 0}, si.Fees)
 		require.Equal(t, types.RawCBOR{0xA0}, si.PrevEpochFees)
 		require.Equal(t, types.RawCBOR{0x87, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0}, si.PrevEpochStat)
-		require.Equal(t, "1111", si.LastCR.Technical.Leader)
-		require.Equal(t, si.Round+1, si.LastCR.Technical.Round)
-		require.Equal(t, si.Epoch, si.LastCR.Technical.Epoch)
+		require.Equal(t, nodeID, si.LastCR.Technical.Leader)
+		require.Equal(t, ir.RoundNumber+1, si.LastCR.Technical.Round)
+		require.Equal(t, pgEpoch1.Certificate.InputRecord.Epoch, si.LastCR.Technical.Epoch)
 	})
 
 	t.Run("no nodes", func(t *testing.T) {
@@ -531,16 +529,39 @@ func Test_NewShardInfoFromGenesis(t *testing.T) {
 }
 
 func Test_shardStates_nextBlock(t *testing.T) {
-	t.Run("no epoch changes", func(t *testing.T) {
+	t.Run("invalid input, parent round input data", func(t *testing.T) {
 		orc := mockOrchestration{}
 		si := ShardInfo{
-			Round:  22,
-			Fees:   map[string]uint64{"A": 0},
-			LastCR: &certification.CertificationResponse{Technical: certification.TechnicalRecord{}},
+			Fees: map[string]uint64{"A": 0},
+			LastCR: &certification.CertificationResponse{
+				Partition: 1,
+			},
 		}
-		shardKey := partitionShard{1, types.ShardID{}.Key()}
+		shardKey := partitionShard{si.LastCR.Partition, si.LastCR.Shard.Key()}
 		ssA := shardStates{shardKey: &si}
-		ssB, err := ssA.nextBlock(orc)
+		ssB, err := ssA.nextBlock(nil, orc)
+		require.EqualError(t, err, `no previous round data for shard 00000001 - `)
+		require.Empty(t, ssB)
+	})
+
+	t.Run("no epoch changes", func(t *testing.T) {
+		orc := mockOrchestration{
+			shardEpoch: func(partition types.PartitionID, shard types.ShardID, round uint64) (uint64, error) { return 1, nil },
+		}
+		si := ShardInfo{
+			Fees: map[string]uint64{"A": 0},
+			LastCR: &certification.CertificationResponse{
+				Partition: 1,
+			},
+		}
+		parentIR := InputRecords{{
+			Partition: si.LastCR.Partition,
+			Shard:     si.LastCR.Shard,
+			IR:        &types.InputRecord{Epoch: 1},
+		}}
+		shardKey := partitionShard{si.LastCR.Partition, si.LastCR.Shard.Key()}
+		ssA := shardStates{shardKey: &si}
+		ssB, err := ssA.nextBlock(parentIR, orc)
 		require.NoError(t, err)
 		require.Equal(t, ssA, ssB, "expected clone to be identical")
 
@@ -552,23 +573,25 @@ func Test_shardStates_nextBlock(t *testing.T) {
 	t.Run("epoch change, missing config", func(t *testing.T) {
 		expErr := errors.New("nope, don't have this config")
 		orc := mockOrchestration{
-			shardConfig: func(partition types.PartitionID, shard types.ShardID, epoch uint64) (*genesis.GenesisPartitionRecord, error) {
+			shardEpoch: func(partition types.PartitionID, shard types.ShardID, round uint64) (uint64, error) { return 2, nil },
+			shardConfig: func(partition types.PartitionID, shard types.ShardID, epoch uint64) (*partitions.ValidatorAssignmentRecord, error) {
 				return nil, expErr
 			},
 		}
 		si := ShardInfo{
-			Epoch: 1,
-			Round: 22,
-			Fees:  map[string]uint64{"A": 0},
+			Fees: map[string]uint64{"A": 0},
 			LastCR: &certification.CertificationResponse{
-				Technical: certification.TechnicalRecord{
-					Epoch: 2,
-				},
+				Partition: 77,
 			},
 		}
-		shardKey := partitionShard{1, types.ShardID{}.Key()}
+		parentIR := InputRecords{{
+			Partition: si.LastCR.Partition,
+			Shard:     si.LastCR.Shard,
+			IR:        &types.InputRecord{Epoch: 1},
+		}}
+		shardKey := partitionShard{si.LastCR.Partition, si.LastCR.Shard.Key()}
 		ssA := shardStates{shardKey: &si}
-		ssB, err := ssA.nextBlock(orc)
+		ssB, err := ssA.nextBlock(parentIR, orc)
 		require.ErrorIs(t, err, expErr)
 		require.Nil(t, ssB)
 	})
@@ -577,44 +600,47 @@ func Test_shardStates_nextBlock(t *testing.T) {
 		// test that ShardInfo.nextEpoch is called - validating that the returned state is
 		// correct "clone" of the current state is tested by the SI.nextEpoch tests
 		orc := mockOrchestration{
+			shardEpoch: func(partition types.PartitionID, shard types.ShardID, round uint64) (uint64, error) { return 2, nil },
 			// return genesis where Epoch number is not +1 of the current one - this causes
 			// known error we can test against to make sure that SI.nextEpoch was called
-			shardConfig: func(partition types.PartitionID, shard types.ShardID, epoch uint64) (*genesis.GenesisPartitionRecord, error) {
-				return &genesis.GenesisPartitionRecord{
-					Certificate: &types.UnicityCertificate{
-						InputRecord: &types.InputRecord{Epoch: 3},
-					},
+			shardConfig: func(partition types.PartitionID, shard types.ShardID, epoch uint64) (*partitions.ValidatorAssignmentRecord, error) {
+				return &partitions.ValidatorAssignmentRecord{
+					EpochNumber: 3,
 				}, nil
 			},
 		}
 		si := ShardInfo{
-			Epoch: 1,
-			Round: 22,
-			Fees:  map[string]uint64{"A": 0},
+			Fees: map[string]uint64{"A": 0},
 			LastCR: &certification.CertificationResponse{
 				Partition: 1,
-				Technical: certification.TechnicalRecord{
-					Epoch: 2,
-				},
 			},
 		}
-		shardKey := partitionShard{1, types.ShardID{}.Key()}
+		parentIR := InputRecords{{
+			Partition: si.LastCR.Partition,
+			Shard:     si.LastCR.Shard,
+			IR:        &types.InputRecord{Epoch: 1},
+		}}
+		shardKey := partitionShard{si.LastCR.Partition, si.LastCR.Shard.Key()}
 		ssA := shardStates{shardKey: &si}
-		ssB, err := ssA.nextBlock(orc)
-		require.EqualError(t, err, `creating ShardInfo 00000001 -  of the next epoch: epochs must be consecutive, current is 1 proposed next 3`)
+		ssB, err := ssA.nextBlock(parentIR, orc)
+		require.EqualError(t, err, `creating ShardInfo 00000001 -  of the next epoch: epochs must be consecutive, expected 2 proposed next 3`)
 		require.Nil(t, ssB)
 	})
 }
 
 type mockOrchestration struct {
 	shardEpoch  func(partition types.PartitionID, shard types.ShardID, round uint64) (uint64, error)
-	shardConfig func(partition types.PartitionID, shard types.ShardID, epoch uint64) (*genesis.GenesisPartitionRecord, error)
+	shardConfig func(partition types.PartitionID, shard types.ShardID, epoch uint64) (*partitions.ValidatorAssignmentRecord, error)
 }
 
 func (mo mockOrchestration) ShardEpoch(partition types.PartitionID, shard types.ShardID, round uint64) (uint64, error) {
 	return mo.shardEpoch(partition, shard, round)
 }
 
-func (mo mockOrchestration) ShardConfig(partition types.PartitionID, shard types.ShardID, epoch uint64) (*genesis.GenesisPartitionRecord, error) {
+func (mo mockOrchestration) ShardConfig(partition types.PartitionID, shard types.ShardID, epoch uint64) (*partitions.ValidatorAssignmentRecord, error) {
 	return mo.shardConfig(partition, shard, epoch)
+}
+
+func (mo mockOrchestration) PartitionDescription(partitionID types.PartitionID, epoch uint64) (*types.PartitionDescriptionRecord, error) {
+	return nil, nil
 }

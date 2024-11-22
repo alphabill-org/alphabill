@@ -181,7 +181,6 @@ func TestStateMsg_Verify(t *testing.T) {
 			CommittedHead: &CommittedBlock{
 				ShardInfo: []ShardInfo{{
 					Partition:     1,
-					Round:         5,
 					PrevEpochStat: []byte{0, 0, 0, 0, 0},
 					PrevEpochFees: []byte{0xF, 0xE, 0xE, 5},
 					RootHash:      test.RandomBytes(32),
@@ -329,7 +328,6 @@ func TestRecoveryBlock_IsValid(t *testing.T) {
 			},
 			ShardInfo: []ShardInfo{{
 				Partition:     1,
-				Round:         5,
 				PrevEpochStat: []byte{0, 0, 0, 0, 0},
 				PrevEpochFees: []byte{0xF, 0xE, 0xE, 5},
 				RootHash:      test.RandomBytes(32),
@@ -361,8 +359,8 @@ func TestRecoveryBlock_IsValid(t *testing.T) {
 
 	t.Run("invalid ShardInfo", func(t *testing.T) {
 		r := validBlock()
-		r.ShardInfo[0].Round = 0
-		require.ErrorContains(t, r.IsValid(), "invalid ShardInfo[00000001 - ]: missing Round number")
+		r.ShardInfo[0].Partition = 0
+		require.ErrorContains(t, r.IsValid(), "invalid ShardInfo[00000000 - ]: missing partition id")
 	})
 
 	t.Run("input record state is nil", func(t *testing.T) {

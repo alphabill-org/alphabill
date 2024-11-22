@@ -8,9 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
-	"golang.org/x/sync/errgroup"
-
 	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
@@ -26,8 +23,10 @@ import (
 	"github.com/alphabill-org/alphabill/rootchain/consensus"
 	"github.com/alphabill-org/alphabill/rootchain/consensus/storage"
 	rootgenesis "github.com/alphabill-org/alphabill/rootchain/genesis"
-	"github.com/alphabill-org/alphabill/rootchain/partitions"
+	testpartition "github.com/alphabill-org/alphabill/rootchain/partitions/testutils"
 	"github.com/alphabill-org/alphabill/rootchain/testutils"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/errgroup"
 )
 
 const partitionID types.PartitionID = 0x00FF0001
@@ -150,7 +149,7 @@ func TestRootValidatorTest_ConstructWithDistributedManager(t *testing.T) {
 	cm, err := consensus.NewConsensusManager(rootHost.PeerConf.ID,
 		rootGenesis,
 		trustBase,
-		partitions.NewOrchestration(rootGenesis),
+		testpartition.NewOrchestration(t, rootGenesis),
 		rootNetMock,
 		rootHost.Signer,
 		observe)

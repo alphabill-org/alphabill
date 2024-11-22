@@ -5,14 +5,14 @@ import (
 	"encoding/hex"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
 	rootgenesis "github.com/alphabill-org/alphabill/rootchain/genesis"
+	"github.com/alphabill-org/alphabill/rootchain/partitions"
 	"github.com/alphabill-org/alphabill/rootchain/testutils"
+	"github.com/stretchr/testify/require"
 )
 
 const partitionID1 types.PartitionID = 1
@@ -39,7 +39,7 @@ func (x *mockIRVerifier) VerifyIRChangeReq(_ uint64, irChReq *drctypes.IRChangeR
 }
 
 func TestNewExecutedBlockFromGenesis(t *testing.T) {
-	_, partitionRecord := testutils.CreatePartitionNodesAndPartitionRecord(t, genesisInputRecord, partitionID1, 3)
+	partitionNodes, partitionRecord := testutils.CreatePartitionNodesAndPartitionRecord(t, genesisInputRecord, partitionID1, 3)
 	rootNode := testutils.NewTestNode(t)
 	verifier := rootNode.Verifier
 	rootPubKeyBytes, err := verifier.MarshalPublicKey()
@@ -48,8 +48,24 @@ func TestNewExecutedBlockFromGenesis(t *testing.T) {
 	rootGenesis, _, err := rootgenesis.NewRootGenesis(id.String(), rootNode.Signer, rootPubKeyBytes, []*genesis.PartitionRecord{partitionRecord})
 	require.NoError(t, err)
 	hash := crypto.Hash(rootGenesis.Root.Consensus.HashAlgorithm)
+	var varNodes []partitions.NodeInfo
+	for _, pn := range partitionNodes {
+		varNodes = append(varNodes, partitions.NodeInfo{
+			NodeID:  pn.PeerConf.ID.String(),
+			AuthKey: pn.PeerConf.KeyPair.PublicKey,
+			SigKey:  pn.PeerConf.KeyPair.PublicKey,
+		})
+	}
 	orchestration := mockOrchestration{
 		shardEpoch: func(partition types.PartitionID, shard types.ShardID, round uint64) (uint64, error) { return 0, nil },
+		shardConfig: func(partition types.PartitionID, shard types.ShardID, epoch uint64) (*partitions.ValidatorAssignmentRecord, error) {
+			return &partitions.ValidatorAssignmentRecord{
+				PartitionID: partition,
+				ShardID:     shard,
+				EpochNumber: epoch,
+				Nodes:       varNodes,
+			}, nil
+		},
 	}
 	b, err := NewGenesisBlock(hash, rootGenesis.Partitions, orchestration)
 	require.NoError(t, err)
@@ -73,7 +89,7 @@ func TestNewExecutedBlockFromGenesis(t *testing.T) {
 }
 
 func TestExecutedBlock_Extend(t *testing.T) {
-	_, partitionRecord := testutils.CreatePartitionNodesAndPartitionRecord(t, genesisInputRecord, partitionID1, 3)
+	partitionNodes, partitionRecord := testutils.CreatePartitionNodesAndPartitionRecord(t, genesisInputRecord, partitionID1, 3)
 	rootNode := testutils.NewTestNode(t)
 	verifier := rootNode.Verifier
 	rootPubKeyBytes, err := verifier.MarshalPublicKey()
@@ -82,9 +98,25 @@ func TestExecutedBlock_Extend(t *testing.T) {
 	rootGenesis, _, err := rootgenesis.NewRootGenesis(id.String(), rootNode.Signer, rootPubKeyBytes, []*genesis.PartitionRecord{partitionRecord})
 	require.NoError(t, err)
 	hash := crypto.Hash(rootGenesis.Root.Consensus.HashAlgorithm)
+	var varNodes []partitions.NodeInfo
+	for _, pn := range partitionNodes {
+		varNodes = append(varNodes, partitions.NodeInfo{
+			NodeID:  pn.PeerConf.ID.String(),
+			AuthKey: pn.PeerConf.KeyPair.PublicKey,
+			SigKey:  pn.PeerConf.KeyPair.PublicKey,
+		})
+	}
 	orchestration := mockOrchestration{
 		shardEpoch: func(partition types.PartitionID, shard types.ShardID, round uint64) (uint64, error) {
 			return genesisInputRecord.Epoch, nil
+		},
+		shardConfig: func(partition types.PartitionID, shard types.ShardID, epoch uint64) (*partitions.ValidatorAssignmentRecord, error) {
+			return &partitions.ValidatorAssignmentRecord{
+				PartitionID: partition,
+				ShardID:     shard,
+				EpochNumber: epoch,
+				Nodes:       varNodes,
+			}, nil
 		},
 	}
 	parent, err := NewGenesisBlock(hash, rootGenesis.Partitions, orchestration)
@@ -283,8 +315,6 @@ func Test_ExecutedBlock_serialization(t *testing.T) {
 
 		// non-empty map
 		si := ShardInfo{
-			Round:         1,
-			Epoch:         2,
 			RootHash:      []byte{3, 3, 3},
 			PrevEpochStat: []byte{0x43, 4, 4, 4}, // array(3)
 			PrevEpochFees: []byte{0x43, 5, 5, 5},

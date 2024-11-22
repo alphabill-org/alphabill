@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/rootchain/consensus/storage"
 	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
 )
@@ -24,7 +23,6 @@ type (
 		params        *Parameters
 		state         State
 		orchestration Orchestration
-		rootGenesis   *genesis.RootGenesis
 	}
 
 	PartitionTimeoutGenerator struct {
@@ -60,14 +58,18 @@ func (x *IRChangeReqVerifier) VerifyIRChangeReq(round uint64, irChReq *drctypes.
 	if err != nil {
 		return nil, fmt.Errorf("acquiring shard info: %w", err)
 	}
-	luc := si.LastCR.UC
 
-	pg, err := x.orchestration.PartitionGenesis(irChReq.Partition)
+	epoch, err := x.orchestration.ShardEpoch(irChReq.Partition, irChReq.Shard, round)
+	if err != nil {
+		return nil, fmt.Errorf("querying shard epoch: %w", err)
+	}
+	pdr, err := x.orchestration.PartitionDescription(irChReq.Partition, epoch)
 	if err != nil {
 		return nil, fmt.Errorf("acquiring partition genesis: %w", err)
 	}
 	// verify request
-	inputRecord, err := irChReq.Verify(si, &luc, round, t2TimeoutToRootRounds(pg.PartitionDescription.T2Timeout, x.params.BlockRate/2))
+	luc := si.LastCR.UC
+	inputRecord, err := irChReq.Verify(si, &luc, round, t2TimeoutToRootRounds(pdr.T2Timeout, x.params.BlockRate/2))
 	if err != nil {
 		return nil, fmt.Errorf("certification request verification failed: %w", err)
 	}
@@ -87,7 +89,7 @@ func (x *IRChangeReqVerifier) VerifyIRChangeReq(round uint64, irChReq *drctypes.
 		Partition: irChReq.Partition,
 		Shard:     irChReq.Shard,
 		IR:        inputRecord,
-		PDRHash:   pg.PartitionDescription.Hash(x.params.HashAlgorithm),
+		PDRHash:   pdr.Hash(x.params.HashAlgorithm),
 	}, nil
 }
 
@@ -109,13 +111,13 @@ func NewLucBasedT2TimeoutGenerator(c *Parameters, orchestration Orchestration, s
 }
 
 func (x *PartitionTimeoutGenerator) GetT2Timeouts(currentRound uint64) (_ []types.PartitionID, retErr error) {
-	configs, err := x.orchestration.RoundPartitions(currentRound)
+	pdrs, err := x.orchestration.RoundPartitions(currentRound)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("loading PDRs of the round %d: %w", currentRound, err)
 	}
-	timeoutIds := make([]types.PartitionID, 0, len(configs))
-	for _, partition := range configs {
-		partitionID := partition.PartitionDescription.PartitionIdentifier
+	timeoutIds := make([]types.PartitionID, 0, len(pdrs))
+	for _, partition := range pdrs {
+		partitionID := partition.PartitionIdentifier
 		// do not create T2 timeout requests if partition has a change already in pipeline
 		if ir := x.state.IsChangeInProgress(partitionID, types.ShardID{}); ir != nil {
 			continue
@@ -127,7 +129,7 @@ func (x *PartitionTimeoutGenerator) GetT2Timeouts(currentRound uint64) (_ []type
 			continue
 		}
 		lastRootRound := si.LastCR.UC.UnicitySeal.RootChainRoundNumber
-		if currentRound-lastRootRound >= t2TimeoutToRootRounds(partition.PartitionDescription.T2Timeout, x.blockRate/2) {
+		if currentRound-lastRootRound >= t2TimeoutToRootRounds(partition.T2Timeout, x.blockRate/2) {
 			timeoutIds = append(timeoutIds, partitionID)
 		}
 	}

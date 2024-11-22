@@ -30,8 +30,6 @@ type ShardInfo struct {
 	_         struct{} `cbor:",toarray"`
 	Partition types.PartitionID
 	Shard     types.ShardID
-	Round     uint64
-	Epoch     uint64
 	RootHash  []byte // last certified root hash
 
 	// statistical record of the previous epoch. As we only need
@@ -155,9 +153,6 @@ func (r *CommittedBlock) IsValid() error {
 func (si *ShardInfo) IsValid() error {
 	if si.Partition == 0 {
 		return errors.New("missing partition id")
-	}
-	if si.Round == 0 {
-		return errors.New("missing Round number")
 	}
 	if len(si.RootHash) == 0 {
 		return errors.New("missing RootHash")

@@ -33,7 +33,7 @@ type (
 	Orchestration interface {
 		ShardEpoch(partition types.PartitionID, shard types.ShardID, round uint64) (uint64, error)
 		ShardConfig(partition types.PartitionID, shard types.ShardID, epoch uint64) (*partitions.ValidatorAssignmentRecord, error)
-		PartitionGenesis(partition types.PartitionID) (*genesis.GenesisPartitionRecord, error)
+		PartitionDescription(partition types.PartitionID, epoch uint64) (*types.PartitionDescriptionRecord, error)
 	}
 )
 
@@ -192,7 +192,7 @@ func (x *BlockStore) Add(block *drctypes.BlockData, verifier IRChangeReqVerifier
 	}
 	// append new block
 	if err = x.blockTree.Add(exeBlock); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("adding block to the tree: %w", err)
 	}
 	return exeBlock.RootHash, nil
 }

@@ -20,8 +20,12 @@ var (
 
 type (
 	Orchestration struct {
-		db   *bolt.DB
-		seed *genesis.RootGenesis
+		db *bolt.DB
+
+		// Partition Description Record "cache", initialized from the
+		// seed genesis - as we currently support only single shard partitions
+		// the PRDs never change
+		pdrs []*types.PartitionDescriptionRecord
 	}
 )
 
@@ -42,7 +46,11 @@ func NewOrchestration(seed *genesis.RootGenesis, dbFile string) (*Orchestration,
 	if err = createSchemaAndFirstVAR(db, seed); err != nil {
 		return nil, fmt.Errorf("initializing the DB: %w", err)
 	}
-	return &Orchestration{db: db, seed: seed}, nil
+	var pdrs []*types.PartitionDescriptionRecord
+	for _, v := range seed.Partitions {
+		pdrs = append(pdrs, v.PartitionDescription)
+	}
+	return &Orchestration{db: db, pdrs: pdrs}, nil
 }
 
 // ShardEpoch returns the active epoch number for the given round in a shard.
@@ -112,13 +120,21 @@ func (o *Orchestration) AddShardConfig(rec *ValidatorAssignmentRecord) error {
 	return nil
 }
 
-func (o *Orchestration) RoundPartitions(rootRound uint64) ([]*genesis.GenesisPartitionRecord, error) {
-	return o.seed.Partitions, nil
+/*
+RoundPartitions returns Partition Descriptions active on the given RootChain round.
+*/
+func (o *Orchestration) RoundPartitions(rootRound uint64) ([]*types.PartitionDescriptionRecord, error) {
+	// TODO: dynamic/multi shard support - currently we only support single shard partitions and PDRs
+	// never change, so we can return genesis data. Once sharding is supported the ShardingScheme
+	// becomes "dynamic" and we must return the PRDs in effect at the given round
+	return o.pdrs, nil
 }
 
-func (o *Orchestration) PartitionGenesis(partitionID types.PartitionID) (*genesis.GenesisPartitionRecord, error) {
-	for _, pg := range o.seed.Partitions {
-		if pg.PartitionDescription.PartitionIdentifier == partitionID {
+func (o *Orchestration) PartitionDescription(partitionID types.PartitionID, epoch uint64) (*types.PartitionDescriptionRecord, error) {
+	// TODO: dynamic/multi shard support - currently all epochs of the partition share the same PDR
+	// as we do not support "shard splitting"
+	for _, pg := range o.pdrs {
+		if pg.PartitionIdentifier == partitionID {
 			return pg, nil
 		}
 	}

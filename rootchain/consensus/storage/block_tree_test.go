@@ -331,8 +331,8 @@ func TestBlockTree_pruning(t *testing.T) {
 
 func TestBlockTree_InsertQc(t *testing.T) {
 	tree := createTestBlockTree(t)
-	require.ErrorContains(t, tree.InsertQc(&drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 2, CurrentRootHash: zeroHash}}), "block tree add qc failed, block for round 2 not found")
-	require.ErrorContains(t, tree.InsertQc(&drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 12, CurrentRootHash: zeroHash}}), "block tree add qc failed, qc state hash is different from local computed state hash")
+	require.ErrorContains(t, tree.InsertQc(&drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 2, CurrentRootHash: zeroHash}}), "find block: block for round 2 not found")
+	require.ErrorContains(t, tree.InsertQc(&drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 12, CurrentRootHash: zeroHash}}), "qc state hash is different from local computed state hash")
 	b, err := tree.FindBlock(12)
 	require.NoError(t, err)
 	b.RootHash = []byte{1, 2, 3}

@@ -52,7 +52,6 @@ func (l *node) removeChild(child *node) {
 
 func NewBlockTreeFromRecovery(block *ExecutedBlock, bDB keyvaluedb.KeyValueDB) (*BlockTree, error) {
 	rootNode := newNode(block)
-	hQC := block.CommitQc
 	treeNodes := map[uint64]*node{rootNode.data.GetRound(): rootNode}
 	if err := bDB.Write(blockKey(block.GetRound()), block); err != nil {
 		return nil, fmt.Errorf("block write failed, %w", err)
@@ -60,7 +59,7 @@ func NewBlockTreeFromRecovery(block *ExecutedBlock, bDB keyvaluedb.KeyValueDB) (
 	return &BlockTree{
 		roundToNode: treeNodes,
 		root:        rootNode,
-		highQc:      hQC,
+		highQc:      block.CommitQc,
 		blocksDB:    bDB,
 	}, nil
 }
@@ -74,8 +73,14 @@ func readBlocksFromDB(bDB keyvaluedb.KeyValueDB, orchestration Orchestration) (b
 		if err = itr.Value(&b); err != nil {
 			return nil, fmt.Errorf("read block %v from db: %w", itr.Key(), err)
 		}
-		if err := b.ShardInfo.init(orchestration); err != nil {
-			return nil, fmt.Errorf("init shard states of the block: %w", err)
+		for _, si := range b.ShardInfo {
+			rec, err := orchestration.ShardConfig(si.LastCR.Partition, si.LastCR.Shard, si.LastCR.Technical.Epoch)
+			if err != nil {
+				return nil, fmt.Errorf("acquiring shard configuration: %w", err)
+			}
+			if err = si.resetTrustBase(rec); err != nil {
+				return nil, fmt.Errorf("init shard trustbase (%s - %s): %w", si.LastCR.Partition, si.LastCR.Shard, err)
+			}
 		}
 		blocks = append(blocks, &b)
 	}
@@ -149,10 +154,10 @@ func (bt *BlockTree) InsertQc(qc *abdrc.QuorumCert) error {
 	// find block, if it does not exist, return error we need to recover missing info
 	b, err := bt.FindBlock(qc.GetRound())
 	if err != nil {
-		return fmt.Errorf("block tree add qc failed, %w", err)
+		return fmt.Errorf("find block: %w", err)
 	}
 	if !bytes.Equal(b.RootHash, qc.VoteInfo.CurrentRootHash) {
-		return fmt.Errorf("block tree add qc failed, qc state hash is different from local computed state hash")
+		return errors.New("qc state hash is different from local computed state hash")
 	}
 
 	bt.m.Lock()
@@ -423,8 +428,6 @@ func toRecoveryShardInfo(block *ExecutedBlock) ([]rcnet.ShardInfo, error) {
 	for _, v := range block.ShardInfo {
 		si[idx].Partition = v.LastCR.Partition
 		si[idx].Shard = v.LastCR.Shard
-		si[idx].Round = v.Round
-		si[idx].Epoch = v.Epoch
 		si[idx].RootHash = v.RootHash
 		si[idx].PrevEpochStat = v.PrevEpochStat
 		si[idx].Stat = v.Stat

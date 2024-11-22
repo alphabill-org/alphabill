@@ -162,7 +162,7 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 		}
 		data, err := ver.VerifyIRChangeReq(2, irChReq)
 		require.Nil(t, data)
-		require.EqualError(t, err, "acquiring partition genesis: partition genesis not found for partition 2")
+		require.EqualError(t, err, "querying shard epoch: db tx failed: the partition 0x00000002 does not exist")
 	})
 
 	t.Run("duplicate request", func(t *testing.T) {
@@ -198,9 +198,16 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 	})
 
 	t.Run("invalid root round, luc round is bigger", func(t *testing.T) {
+		si, err := storage.NewShardInfoFromGenesis(genesisPartitions[0])
+		require.NoError(t, err)
+		si.LastCR.UC.UnicitySeal.RootChainRoundNumber = 2
 		ver := &IRChangeReqVerifier{
-			params:        &Parameters{BlockRate: 500 * time.Millisecond, HashAlgorithm: crypto.SHA256},
-			state:         stateProvider(nil, nil),
+			params: &Parameters{BlockRate: 500 * time.Millisecond, HashAlgorithm: crypto.SHA256},
+			state: &MockState{
+				shardInfo: func(partition types.PartitionID, shard types.ShardID) (*storage.ShardInfo, error) {
+					return si, nil
+				},
+			},
 			orchestration: orchestration,
 		}
 		newIR := &types.InputRecord{
@@ -224,9 +231,9 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 			CertReason: abtypes.Quorum,
 			Requests:   []*certification.BlockCertificationRequest{request},
 		}
-		data, err := ver.VerifyIRChangeReq(0, irChReq)
+		data, err := ver.VerifyIRChangeReq(1, irChReq)
 		require.Nil(t, data)
-		require.EqualError(t, err, "current round 0 is in the past, LUC round 1")
+		require.EqualError(t, err, "current round 1 is in the past, LUC round 2")
 	})
 
 	t.Run("ok", func(t *testing.T) {

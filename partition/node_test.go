@@ -70,13 +70,17 @@ func TestNode_NodeStartWithRecoverStateFromDB(t *testing.T) {
 	tp := newSingleValidatorNodePartition(t, &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}}, WithBlockStore(db))
 
 	uc0 := tp.GetCommittedUC(t)
-	newBlock1, uc1 := createNewBlockOutsideNode(t, tp, system, uc0, testtransaction.NewTransactionRecord(t))
-	newBlock2, uc2 := createNewBlockOutsideNode(t, tp, system, uc1, testtransaction.NewTransactionRecord(t))
-	newBlock3, _ := createNewBlockOutsideNode(t, tp, system, uc2, testtransaction.NewTransactionRecord(t))
+	newBlock1, uc1 := createSameEpochBlock(t, tp, system, uc0, testtransaction.NewTransactionRecord(t))
+	newBlock2, uc2 := createSameEpochBlock(t, tp, system, uc1, testtransaction.NewTransactionRecord(t))
+	newBlock3, uc3 := createNextEpochBlock(t, tp, system, uc2, testtransaction.NewTransactionRecord(t))
+	newBlock4, uc4 := createSameEpochBlock(t, tp, system, uc3, testtransaction.NewTransactionRecord(t))
+	newBlock5, _ := createSameEpochBlock(t, tp, system, uc4, testtransaction.NewTransactionRecord(t))
 	require.NoError(t, db.Write(util.Uint64ToBytes(1), newBlock1))
 	require.NoError(t, db.Write(util.Uint64ToBytes(2), newBlock2))
+	require.NoError(t, db.Write(util.Uint64ToBytes(3), newBlock3))
+	require.NoError(t, db.Write(util.Uint64ToBytes(4), newBlock4))
 	// add transactions from block 4 as pending block
-	require.NoError(t, db.Write(util.Uint32ToBytes(proposalKey), newBlock3))
+	require.NoError(t, db.Write(util.Uint32ToBytes(proposalKey), newBlock5))
 	// start node with db filled
 	ctx, cancel := context.WithCancel(context.Background())
 	done := StartSingleNodePartition(ctx, t, tp)
@@ -92,16 +96,16 @@ func TestNode_NodeStartWithRecoverStateFromDB(t *testing.T) {
 	b := tp.GetLatestBlock(t)
 	rn, err := b.GetRoundNumber()
 	require.NoError(t, err)
-	require.Equal(t, uint64(2), rn)
+	require.Equal(t, uint64(4), rn)
 	// Simulate UC received for block 4 - the pending block
-	uc4, err := getUCv1(newBlock3)
+	uc5, err := getUCv1(newBlock5)
 	require.NoError(t, err)
-	tp.SubmitUnicityCertificate(t, uc4)
+	tp.SubmitUnicityCertificate(t, uc5)
 	ContainsEventType(t, tp, event.BlockFinalized)
 	b = tp.GetLatestBlock(t)
 	rn, err = b.GetRoundNumber()
 	require.NoError(t, err)
-	require.Equal(t, uint64(3), rn)
+	require.Equal(t, uint64(5), rn)
 }
 
 func TestNode_CreateBlocks(t *testing.T) {
@@ -249,7 +253,7 @@ func TestNode_StartNodeBehindRootchain_OK(t *testing.T) {
 	require.True(t, found)
 	// Mock and skip some root rounds
 	tp.eh.Reset()
-	tp.ReceiveCertResponse(t, luc.InputRecord, luc.UnicitySeal.RootChainRoundNumber+3)
+	tp.ReceiveCertResponseSameEpoch(t, luc.InputRecord, luc.UnicitySeal.RootChainRoundNumber+3)
 
 	require.Eventually(t, func() bool {
 		events := tp.eh.GetEvents()
@@ -299,7 +303,7 @@ func TestNode_HandleEquivocatingUnicityCertificate_SameRoundDifferentIRHashes(t 
 	ir.Hash = test.RandomBytes(32)
 	ir.BlockHash = test.RandomBytes(32)
 
-	tp.ReceiveCertResponse(t, ir, uc2.UnicitySeal.RootChainRoundNumber)
+	tp.ReceiveCertResponseSameEpoch(t, ir, uc2.UnicitySeal.RootChainRoundNumber)
 	ContainsError(t, tp, "equivocating UC, different input records for same partition round")
 }
 
@@ -319,7 +323,7 @@ func TestNode_HandleEquivocatingUnicityCertificate_SameIRPreviousHashDifferentIR
 	uc2 := tp.GetCommittedUC(t)
 	ir := uc2.InputRecord.NewRepeatIR()
 	ir.Hash = test.RandomBytes(32)
-	tp.ReceiveCertResponse(t, ir, uc2.UnicitySeal.RootChainRoundNumber+1)
+	tp.ReceiveCertResponseSameEpoch(t, ir, uc2.UnicitySeal.RootChainRoundNumber+1)
 	ContainsError(t, tp, "equivocating UC, different input records for same partition round")
 }
 
@@ -346,7 +350,7 @@ func TestNode_HandleUnicityCertificate_SameIR_DifferentBlockHash_StateReverted(t
 	require.Equal(t, uint64(0), txs.RevertCount)
 
 	// simulate receiving repeat UC
-	tp.ReceiveCertResponse(t, latestUC.InputRecord.NewRepeatIR(), latestUC.UnicitySeal.RootChainRoundNumber+1)
+	tp.ReceiveCertResponseSameEpoch(t, latestUC.InputRecord.NewRepeatIR(), latestUC.UnicitySeal.RootChainRoundNumber+1)
 	ContainsEventType(t, tp, event.StateReverted)
 	require.Equal(t, uint64(1), txs.RevertCount)
 }
@@ -360,7 +364,7 @@ func TestNode_HandleUnicityCertificate_ProposalIsNil(t *testing.T) {
 
 	ir := uc.InputRecord.NewRepeatIR()
 	ir.RoundNumber++
-	tp.ReceiveCertResponse(t, ir, uc.UnicitySeal.RootChainRoundNumber+1)
+	tp.ReceiveCertResponseSameEpoch(t, ir, uc.UnicitySeal.RootChainRoundNumber+1)
 
 	ContainsError(t, tp, ErrNodeDoesNotHaveLatestBlock.Error())
 	require.Equal(t, uint64(1), txSystem.RevertCount)
@@ -387,7 +391,7 @@ func TestNode_HandleUnicityCertificate_Revert(t *testing.T) {
 	// send repeat UC
 	ir := uc.InputRecord.NewRepeatIR()
 	ir.RoundNumber = ir.RoundNumber + 1
-	tp.ReceiveCertResponse(t, ir, uc.UnicitySeal.RootChainRoundNumber+1)
+	tp.ReceiveCertResponseSameEpoch(t, ir, uc.UnicitySeal.RootChainRoundNumber+1)
 	ContainsEventType(t, tp, event.StateReverted)
 	require.Equal(t, uint64(1), system.RevertCount)
 }
@@ -418,6 +422,59 @@ func TestNode_HandleUnicityCertificate_SumOfEarnedFeesMismatch_1(t *testing.T) {
 
 	// then state is reverted
 	ContainsEventType(t, tp, event.StateReverted)
+}
+
+func TestNode_HandleUnicityCertificate_SwitchToNonValidator(t *testing.T) {
+	tp := runSingleValidatorNodePartition(t, &testtxsystem.CounterTxSystem{})
+	tp.WaitHandshake(t)
+	uc1 := tp.GetCommittedUC(t)
+	tp.CreateBlock(t)
+	require.Eventually(t, NextBlockReceived(t, tp, uc1), test.WaitDuration, test.WaitTick)
+
+	require.Equal(t, 2, len(tp.partition.Validators()))
+	require.True(t, tp.partition.IsValidator())
+
+	// Create VAR for epoch 1
+	// epoch 1 validators are [epoch0Node, thisNode, epoch1Node]
+	vaRec1 := createVARWithNewNode(t, newVARFromGenesis(tp.nodeConf.genesis))
+	require.NoError(t, tp.partition.RegisterValidatorAssignmentRecord(vaRec1))
+
+	ir2 := tp.GetCommittedUC(t).InputRecord.NewRepeatIR()
+	tp.ReceiveCertResponseWithEpoch(t, ir2, 200, 1)
+	require.Eventually(t, func() bool {
+		return len(tp.partition.Validators()) == 3
+	}, test.WaitDuration, test.WaitTick)
+	require.True(t, tp.partition.IsValidator())
+
+	// Create VAR for epoch 2
+	// epoch 2 validators are [epoch0Node, epoch1Node]
+	vaRec2 := createVARWithRemovedNode(t, vaRec1, 1)
+	require.NoError(t, tp.partition.RegisterValidatorAssignmentRecord(vaRec2))
+
+	tp.ReceiveCertResponseWithEpoch(t, ir2.NewRepeatIR(), 300, 2)
+	require.Eventually(t, func() bool {
+		return len(tp.partition.Validators()) == 2
+	}, test.WaitDuration, test.WaitTick)
+	// This node has become a non-validator
+	require.False(t, tp.partition.IsValidator())
+
+	// Create VAR for epoch 3
+	// epoch 3 validators are [epoch0Node, thisNode, epoch1Node]
+	vaRec3 := *vaRec1
+	vaRec3.EpochNumber = 3
+	vaRec3.RoundNumber = 300
+	require.Equal(t, 3, len(vaRec3.Nodes))
+	require.NoError(t, tp.partition.RegisterValidatorAssignmentRecord(&vaRec3))
+
+	tp.ReceiveCertResponseWithEpoch(t, ir2.NewRepeatIR(), 400, 3)
+	require.Eventually(t, func() bool {
+		return len(tp.partition.Validators()) == 3
+	}, test.WaitDuration, test.WaitTick)
+	// This node has become a validator again
+	require.True(t, tp.partition.IsValidator())
+
+	// Node is able to produce a block after becoming a validator again
+	tp.CreateBlock(t)
 }
 
 func TestBlockProposal_BlockProposalIsNil(t *testing.T) {

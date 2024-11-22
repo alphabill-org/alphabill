@@ -1065,6 +1065,11 @@ func (n *Node) handleT1TimeoutEvent(ctx context.Context) {
 	ctx, span := n.tracer.Start(ctx, "node.handleT1TimeoutEvent", trace.WithNewRoot(), trace.WithAttributes(n.attrRound()))
 	defer span.End()
 
+	if !n.IsValidator() {
+		n.log.InfoContext(ctx, "T1 timeout: node is non-validator")
+		return
+	}
+
 	n.stopProcessingTransactions()
 
 	if n.status.Load() == recovering {

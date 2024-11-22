@@ -77,7 +77,7 @@ func newSingleNonValidatorNodePartition(t *testing.T, txSystem txsystem.Transact
 }
 
 func newSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, validator bool, nodeOptions ...NodeOption) *SingleNodePartition {
-	peerConf := createPeerConfiguration(t, validator)
+	peerConf := createPeerConfiguration(t)
 	pdr := types.PartitionDescriptionRecord{Version: 1, NetworkIdentifier: 5, PartitionIdentifier: 0x01010101, TypeIdLen: 8, UnitIdLen: 256, T2Timeout: 2500 * time.Millisecond}
 	// node genesis
 	nodeSigner, _ := testsig.CreateSignerAndVerifier(t)
@@ -235,11 +235,20 @@ func (sn *SingleNodePartition) SubmitTxFromRPC(tx *types.TransactionOrder) error
 	return err
 }
 
+func (sn *SingleNodePartition) ReceiveCertResponseSameEpoch(t *testing.T, ir *types.InputRecord, rootRoundNumber uint64) {
+	sn.ReceiveCertResponse(t, ir, rootRoundNumber, ir.Epoch)
+}
+
+
+func (sn *SingleNodePartition) ReceiveCertResponseWithEpoch(t *testing.T, ir *types.InputRecord, rootRoundNumber uint64, epoch uint64) {
+	sn.ReceiveCertResponse(t, ir, rootRoundNumber, epoch)
+}
+
 /*
 ReceiveCertResponse builds UC and TR based on given input and "sends" them as CertificationResponse to the node.
 */
-func (sn *SingleNodePartition) ReceiveCertResponse(t *testing.T, ir *types.InputRecord, roundNumber uint64) {
-	uc, tr, err := sn.CreateUnicityCertificateTR(ir, roundNumber)
+func (sn *SingleNodePartition) ReceiveCertResponse(t *testing.T, ir *types.InputRecord, rootRoundNumber uint64, epoch uint64) {
+	uc, tr, err := sn.CreateUnicityCertificateTR(ir, rootRoundNumber, epoch)
 	if err != nil {
 		t.Fatalf("creating UC and TR: %v", err)
 	}
@@ -354,8 +363,9 @@ func (sn *SingleNodePartition) CreateUnicityCertificate(ir *types.InputRecord, r
 	}, &tr, nil
 }
 
-func (sn *SingleNodePartition) CreateUnicityCertificateTR(ir *types.InputRecord, roundNumber uint64) (*types.UnicityCertificate, certification.TechnicalRecord, error) {
+func (sn *SingleNodePartition) CreateUnicityCertificateTR(ir *types.InputRecord, rootRoundNumber uint64, epoch uint64) (*types.UnicityCertificate, certification.TechnicalRecord, error) {
 	tr, err := rootgenesis.TechnicalRecord(ir, []string{sn.nodeDeps.peerConf.ID.String()})
+	tr.Epoch = epoch
 	if err != nil {
 		return nil, tr, fmt.Errorf("creating TechnicalRecord: %w", err)
 	}
@@ -385,7 +395,7 @@ func (sn *SingleNodePartition) CreateUnicityCertificateTR(ir *types.InputRecord,
 		return nil, tr, err
 	}
 	rootHash := ut.RootHash()
-	unicitySeal, err := sn.createUnicitySeal(roundNumber, rootHash)
+	unicitySeal, err := sn.createUnicitySeal(rootRoundNumber, rootHash)
 	if err != nil {
 		return nil, tr, err
 	}
@@ -445,7 +455,8 @@ func (sn *SingleNodePartition) IssueBlockUC(t *testing.T) *types.UnicityCertific
 	ver, err := sn.nodeConf.signer.Verifier()
 	require.NoError(t, err)
 	require.NoError(t, req.IsValid(ver))
-	uc, _, err := sn.CreateUnicityCertificate(req.InputRecord, sn.rootRound+1)
+	rootRound := sn.partition.luc.Load().GetRootRoundNumber()
+	uc, _, err := sn.CreateUnicityCertificate(req.InputRecord, rootRound+1)
 	require.NoError(t, err)
 	// update state
 	sn.rootRound = uc.UnicitySeal.RootChainRoundNumber
@@ -455,6 +466,7 @@ func (sn *SingleNodePartition) IssueBlockUC(t *testing.T) *types.UnicityCertific
 
 func (sn *SingleNodePartition) SubmitT1Timeout(t *testing.T) {
 	sn.eh.Reset()
+	sn.mockNet.ResetSentMessages(network.ProtocolBlockCertification)
 	sn.partition.handleT1TimeoutEvent(context.Background())
 	require.Eventually(t, func() bool {
 		return len(sn.mockNet.SentMessages(network.ProtocolBlockCertification)) == 1
@@ -467,7 +479,7 @@ func (sn *SingleNodePartition) SubmitMonitorTimeout(t *testing.T) {
 	sn.partition.handleMonitoring(context.Background(), time.Now().Add(-3*sn.nodeConf.GetT2Timeout()), time.Now())
 }
 
-func createPeerConfiguration(t *testing.T, validator bool) *network.PeerConfiguration {
+func createPeerConfiguration(t *testing.T) *network.PeerConfiguration {
 	privKey, pubKey, err := p2pcrypto.GenerateSecp256k1Key(rand.Reader)
 	require.NoError(t, err)
 

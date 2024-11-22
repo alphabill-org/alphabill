@@ -32,7 +32,7 @@ func newShardStore(db keyvaluedb.KeyValueDB, log *slog.Logger) *shardStore {
 }
 
 func (s *shardStore) StoreValidatorAssignmentRecord(v *ValidatorAssignmentRecord) error {
-	s.log.Info(fmt.Sprintf("Registering shard validators for epoch %d", v.EpochNumber))
+	s.log.Info(fmt.Sprintf("Registering VAR for epoch %d", v.EpochNumber))
 
 	var prevVAR *ValidatorAssignmentRecord
 	if v.EpochNumber > 0 {
@@ -53,7 +53,7 @@ func (s *shardStore) StoreValidatorAssignmentRecord(v *ValidatorAssignmentRecord
 }
 
 func (s *shardStore) LoadEpoch(epoch uint64) error {
-	s.log.Info(fmt.Sprintf("Loading shard validators for epoch %d", epoch))
+	s.log.Info(fmt.Sprintf("Loading VAR for epoch %d", epoch))
 	s.mu.Lock()
 	defer s.mu.Unlock()
 

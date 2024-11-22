@@ -41,7 +41,7 @@ func TestNode_LedgerReplicationRequestTimeout(t *testing.T) {
 		RoundNumber:  uc1.InputRecord.RoundNumber + 1,
 		Timestamp:    types.NewTimestamp(),
 	}
-	tp.ReceiveCertResponse(t, ir, uc1.UnicitySeal.RootChainRoundNumber+1)
+	tp.ReceiveCertResponseSameEpoch(t, ir, uc1.UnicitySeal.RootChainRoundNumber+1)
 
 	ContainsError(t, tp, ErrNodeDoesNotHaveLatestBlock.Error())
 	require.Equal(t, uint64(1), system.RevertCount)
@@ -122,7 +122,7 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withPendingProposa
 		RoundNumber:  ir.RoundNumber + 1,
 		Timestamp:    uc1.UnicitySeal.Timestamp,
 	}
-	tp.ReceiveCertResponse(t, irNew, repeatUC.UnicitySeal.RootChainRoundNumber+1)
+	tp.ReceiveCertResponseSameEpoch(t, irNew, repeatUC.UnicitySeal.RootChainRoundNumber+1)
 	testevent.ContainsEvent(t, tp.eh, event.LatestUnicityCertificateUpdated)
 	require.Equal(t, recovering, tp.partition.status.Load())
 }
@@ -133,10 +133,10 @@ func TestNode_RecoverToOlderRootRound(t *testing.T) {
 	uc1 := tp.GetCommittedUC(t)
 
 	// create a new block with a new UC which node does not know about
-	uc2Block, uc2 := createNewBlockOutsideNode(t, tp, &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}}, uc1, testtransaction.NewTransactionRecord(t))
+	uc2Block, uc2 := createSameEpochBlock(t, tp, &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}}, uc1, testtransaction.NewTransactionRecord(t))
 
 	// submit repeat UC so that node starts recovery
-	tp.ReceiveCertResponse(t, uc2.InputRecord.NewRepeatIR(), uc2.UnicitySeal.RootChainRoundNumber+1)
+	tp.ReceiveCertResponseSameEpoch(t, uc2.InputRecord.NewRepeatIR(), uc2.UnicitySeal.RootChainRoundNumber+1)
 	ContainsError(t, tp, ErrNodeDoesNotHaveLatestBlock.Error())
 	require.Equal(t, uint64(1), system.RevertCount)
 	require.Equal(t, recovering, tp.partition.status.Load())
@@ -389,7 +389,7 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_missedPendingPropo
 	// let's submit another UC and make sure node updates the LUC and keeps recovering
 	ir = uc.InputRecord.NewRepeatIR()
 	ir.RoundNumber += 1
-	tp.ReceiveCertResponse(t, ir, uc.UnicitySeal.RootChainRoundNumber+1)
+	tp.ReceiveCertResponseSameEpoch(t, ir, uc.UnicitySeal.RootChainRoundNumber+1)
 	tp.eh.Reset()
 	testevent.ContainsEvent(t, tp.eh, event.LatestUnicityCertificateUpdated)
 	require.Equal(t, recovering, tp.partition.status.Load())
@@ -423,7 +423,7 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withNoProposal(t *
 		RoundNumber:  partitionRound,
 		Timestamp:    uc1.UnicitySeal.Timestamp,
 	}
-	tp.ReceiveCertResponse(t, ir, rootRound)
+	tp.ReceiveCertResponseSameEpoch(t, ir, rootRound)
 
 	ContainsError(t, tp, ErrNodeDoesNotHaveLatestBlock.Error())
 	require.Equal(t, uint64(1), system.RevertCount)
@@ -445,7 +445,7 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withNoProposal(t *
 		RoundNumber:  partitionRound,
 		Timestamp:    uc1.UnicitySeal.Timestamp,
 	}
-	tp.ReceiveCertResponse(t, ir, rootRound)
+	tp.ReceiveCertResponseSameEpoch(t, ir, rootRound)
 	testevent.ContainsEvent(t, tp.eh, event.LatestUnicityCertificateUpdated)
 	require.Equal(t, recovering, tp.partition.status.Load())
 }
@@ -456,9 +456,9 @@ func TestNode_RecoverBlocks(t *testing.T) {
 	uc0 := tp.GetCommittedUC(t)
 
 	system := &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}}
-	newBlock1, uc1 := createNewBlockOutsideNode(t, tp, system, uc0, testtransaction.NewTransactionRecord(t))
-	newBlock2, uc2 := createNewBlockOutsideNode(t, tp, system, uc1, testtransaction.NewTransactionRecord(t))
-	newBlock3, uc3 := createNewBlockOutsideNode(t, tp, system, uc2, testtransaction.NewTransactionRecord(t))
+	newBlock1, uc1 := createSameEpochBlock(t, tp, system, uc0, testtransaction.NewTransactionRecord(t))
+	newBlock2, uc2 := createSameEpochBlock(t, tp, system, uc1, testtransaction.NewTransactionRecord(t))
+	newBlock3, uc3 := createSameEpochBlock(t, tp, system, uc2, testtransaction.NewTransactionRecord(t))
 
 	// prepare proposal, send "newer" UC, revert state and start recovery
 	tp.SubmitT1Timeout(t)
@@ -522,9 +522,9 @@ func TestNode_RecoverBlocks_NewerUCIsReceivedDuringRecovery(t *testing.T) {
 	uc0 := tp.GetCommittedUC(t)
 
 	system := &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}}
-	newBlock1, uc1 := createNewBlockOutsideNode(t, tp, system, uc0, testtransaction.NewTransactionRecord(t))
-	newBlock2, uc2 := createNewBlockOutsideNode(t, tp, system, uc1, testtransaction.NewTransactionRecord(t))
-	newBlock3, uc3 := createNewBlockOutsideNode(t, tp, system, uc2, testtransaction.NewTransactionRecord(t))
+	newBlock1, uc1 := createSameEpochBlock(t, tp, system, uc0, testtransaction.NewTransactionRecord(t))
+	newBlock2, uc2 := createSameEpochBlock(t, tp, system, uc1, testtransaction.NewTransactionRecord(t))
+	newBlock3, uc3 := createSameEpochBlock(t, tp, system, uc2, testtransaction.NewTransactionRecord(t))
 	// prepare a proposal
 	tp.SubmitT1Timeout(t)
 	// simulate root response with newer UC from round 2
@@ -561,11 +561,11 @@ func TestNode_RecoverBlocks_withEmptyBlocksChangingState(t *testing.T) {
 	uc0 := tp.GetCommittedUC(t)
 
 	system := &testtxsystem.CounterTxSystem{EndBlockChangesState: true, FixedState: mockStateStoreOK{}}
-	newBlock1, uc1 := createNewBlockOutsideNode(t, tp, system, uc0, testtransaction.NewTransactionRecord(t))
-	newBlock2, uc2 := createNewBlockOutsideNode(t, tp, system, uc1, testtransaction.NewTransactionRecord(t))
-	newBlock3empty, uc3 := createNewBlockOutsideNode(t, tp, system, uc2)
-	newBlock4, uc4 := createNewBlockOutsideNode(t, tp, system, uc3, testtransaction.NewTransactionRecord(t))
-	newBlock5empty, uc5 := createNewBlockOutsideNode(t, tp, system, uc4)
+	newBlock1, uc1 := createSameEpochBlock(t, tp, system, uc0, testtransaction.NewTransactionRecord(t))
+	newBlock2, uc2 := createSameEpochBlock(t, tp, system, uc1, testtransaction.NewTransactionRecord(t))
+	newBlock3empty, uc3 := createSameEpochBlock(t, tp, system, uc2)
+	newBlock4, uc4 := createSameEpochBlock(t, tp, system, uc3, testtransaction.NewTransactionRecord(t))
+	newBlock5empty, uc5 := createSameEpochBlock(t, tp, system, uc4)
 
 	// prepare proposal, send "newer" UC, revert state and start recovery
 	tp.SubmitT1Timeout(t)
@@ -634,9 +634,9 @@ func TestNode_RecoverSkipsRequiredBlock(t *testing.T) {
 	uc0 := tp.GetCommittedUC(t)
 
 	system := &testtxsystem.CounterTxSystem{EndBlockChangesState: true}
-	newBlock1, uc1 := createNewBlockOutsideNode(t, tp, system, uc0)
-	newBlock2, uc2 := createNewBlockOutsideNode(t, tp, system, uc1, testtransaction.NewTransactionRecord(t))
-	newBlock3, uc3 := createNewBlockOutsideNode(t, tp, system, uc2, testtransaction.NewTransactionRecord(t))
+	newBlock1, uc1 := createSameEpochBlock(t, tp, system, uc0)
+	newBlock2, uc2 := createSameEpochBlock(t, tp, system, uc1, testtransaction.NewTransactionRecord(t))
+	newBlock3, uc3 := createSameEpochBlock(t, tp, system, uc2, testtransaction.NewTransactionRecord(t))
 
 	// prepare proposal, send "newer" UC, revert state and start recovery
 	tp.SubmitT1Timeout(t)
@@ -692,9 +692,9 @@ func TestNode_RecoverSkipsBlocksAndSendMixedBlocks(t *testing.T) {
 	uc0 := tp.GetCommittedUC(t)
 
 	system := &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}}
-	newBlock1, uc1 := createNewBlockOutsideNode(t, tp, system, uc0, testtransaction.NewTransactionRecord(t))
-	newBlock2, uc2 := createNewBlockOutsideNode(t, tp, system, uc1, testtransaction.NewTransactionRecord(t))
-	newBlock3, uc3 := createNewBlockOutsideNode(t, tp, system, uc2, testtransaction.NewTransactionRecord(t))
+	newBlock1, uc1 := createSameEpochBlock(t, tp, system, uc0, testtransaction.NewTransactionRecord(t))
+	newBlock2, uc2 := createSameEpochBlock(t, tp, system, uc1, testtransaction.NewTransactionRecord(t))
+	newBlock3, uc3 := createSameEpochBlock(t, tp, system, uc2, testtransaction.NewTransactionRecord(t))
 
 	// prepare proposal, send "newer" UC, revert state and start recovery
 	tp.SubmitT1Timeout(t)
@@ -755,12 +755,12 @@ func TestNode_RecoverReceivesInvalidBlock(t *testing.T) {
 	uc0 := tp.GetCommittedUC(t)
 
 	system := &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}}
-	newBlock1, uc1 := createNewBlockOutsideNode(t, tp, system, uc0, testtransaction.NewTransactionRecord(t))
-	newBlock2, uc2 := createNewBlockOutsideNode(t, tp, system, uc1, testtransaction.NewTransactionRecord(t))
+	newBlock1, uc1 := createSameEpochBlock(t, tp, system, uc0, testtransaction.NewTransactionRecord(t))
+	newBlock2, uc2 := createSameEpochBlock(t, tp, system, uc1, testtransaction.NewTransactionRecord(t))
 
 	altBlock2 := copyBlock(t, newBlock2)
 	altBlock2.Transactions = append(altBlock2.Transactions, testtransaction.NewTransactionRecord(t))
-	newBlock3, uc3 := createNewBlockOutsideNode(t, tp, system, uc2, testtransaction.NewTransactionRecord(t))
+	newBlock3, uc3 := createSameEpochBlock(t, tp, system, uc2, testtransaction.NewTransactionRecord(t))
 
 	// prepare proposal, send "newer" UC, revert state and start recovery
 	tp.SubmitT1Timeout(t)
@@ -814,11 +814,11 @@ func TestNode_RecoverReceivesInvalidBlockNoBlockProposerId(t *testing.T) {
 	})
 	uc0 := tp.GetCommittedUC(t)
 	system := &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}}
-	newBlock1, uc1 := createNewBlockOutsideNode(t, tp, system, uc0, testtransaction.NewTransactionRecord(t))
-	newBlock2, uc2 := createNewBlockOutsideNode(t, tp, system, uc1, testtransaction.NewTransactionRecord(t))
+	newBlock1, uc1 := createSameEpochBlock(t, tp, system, uc0, testtransaction.NewTransactionRecord(t))
+	newBlock2, uc2 := createSameEpochBlock(t, tp, system, uc1, testtransaction.NewTransactionRecord(t))
 	altBlock2 := copyBlock(t, newBlock2)
 	altBlock2.Header.ProposerID = ""
-	newBlock3, uc3 := createNewBlockOutsideNode(t, tp, system, uc2, testtransaction.NewTransactionRecord(t))
+	newBlock3, uc3 := createSameEpochBlock(t, tp, system, uc2, testtransaction.NewTransactionRecord(t))
 
 	// prepare proposal, send "newer" UC, revert state and start recovery
 	tp.SubmitT1Timeout(t)
@@ -879,9 +879,9 @@ func TestNode_RecoverySimulateStorageFailsOnRecovery(t *testing.T) {
 		}
 	})
 	uc0 := tp.GetCommittedUC(t)
-	newBlock1, uc1 := createNewBlockOutsideNode(t, tp, system, uc0, testtransaction.NewTransactionRecord(t))
-	newBlock2, uc2 := createNewBlockOutsideNode(t, tp, system, uc1, testtransaction.NewTransactionRecord(t))
-	newBlock3, uc3 := createNewBlockOutsideNode(t, tp, system, uc2, testtransaction.NewTransactionRecord(t))
+	newBlock1, uc1 := createSameEpochBlock(t, tp, system, uc0, testtransaction.NewTransactionRecord(t))
+	newBlock2, uc2 := createSameEpochBlock(t, tp, system, uc1, testtransaction.NewTransactionRecord(t))
+	newBlock3, uc3 := createSameEpochBlock(t, tp, system, uc2, testtransaction.NewTransactionRecord(t))
 
 	// prepare proposal, send "newer" UC, revert state and start recovery
 	tp.SubmitUnicityCertificate(t, uc3)
@@ -964,7 +964,7 @@ func TestNode_RecoverySimulateStorageFailsDuringBlockFinalizationOnUC(t *testing
 	tp.mockNet.ResetSentMessages(network.ProtocolHandshake)
 	// root responds with genesis
 	tp.SubmitUnicityCertificate(t, uc0)
-	newBlock1, uc1 := createNewBlockOutsideNode(t, tp, system, uc0, testtransaction.NewTransactionRecord(t))
+	newBlock1, uc1 := createSameEpochBlock(t, tp, system, uc0, testtransaction.NewTransactionRecord(t))
 	require.Len(t, newBlock1.Transactions, 1)
 	// submit transaction
 	tx, err := newBlock1.Transactions[0].GetTransactionOrderV1()
@@ -1041,7 +1041,7 @@ func TestNode_CertificationRequestNotSentWhenProposalStoreFails(t *testing.T) {
 	tp.mockNet.ResetSentMessages(network.ProtocolHandshake)
 	// root responds with genesis
 	tp.SubmitUnicityCertificate(t, uc0)
-	newBlock1, uc1 := createNewBlockOutsideNode(t, tp, system, uc0, testtransaction.NewTransactionRecord(t))
+	newBlock1, uc1 := createSameEpochBlock(t, tp, system, uc0, testtransaction.NewTransactionRecord(t))
 	require.Len(t, newBlock1.Transactions, 1)
 	// mock error situation, every next write will fail with error
 	db.MockWriteError(fmt.Errorf("disk full"))
@@ -1096,9 +1096,9 @@ func TestNode_RecoverySendInvalidLedgerReplicationReplies(t *testing.T) {
 	uc0 := tp.GetCommittedUC(t)
 
 	system := &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}}
-	newBlock1, uc1 := createNewBlockOutsideNode(t, tp, system, uc0, testtransaction.NewTransactionRecord(t))
-	newBlock2, uc2 := createNewBlockOutsideNode(t, tp, system, uc1, testtransaction.NewTransactionRecord(t))
-	newBlock3, uc3 := createNewBlockOutsideNode(t, tp, system, uc2, testtransaction.NewTransactionRecord(t))
+	newBlock1, uc1 := createSameEpochBlock(t, tp, system, uc0, testtransaction.NewTransactionRecord(t))
+	newBlock2, uc2 := createSameEpochBlock(t, tp, system, uc1, testtransaction.NewTransactionRecord(t))
+	newBlock3, uc3 := createSameEpochBlock(t, tp, system, uc2, testtransaction.NewTransactionRecord(t))
 
 	// prepare proposal, send "newer" UC, revert state and start recovery
 	tp.SubmitT1Timeout(t)
@@ -1309,7 +1309,15 @@ func TestNode_RespondToInvalidReplicationRequest(t *testing.T) {
 	require.ErrorContains(t, tp.partition.handleLedgerReplicationRequest(context.Background(), req), "invalid request, node identifier is missing")
 }
 
-func createNewBlockOutsideNode(t *testing.T, tp *SingleNodePartition, txs *testtxsystem.CounterTxSystem, uc *types.UnicityCertificate, txrs ...*types.TransactionRecord) (*types.Block, *types.UnicityCertificate) {
+func createSameEpochBlock(t *testing.T, tp *SingleNodePartition, txs *testtxsystem.CounterTxSystem, uc *types.UnicityCertificate, txrs ...*types.TransactionRecord) (*types.Block, *types.UnicityCertificate) {
+	return createBlock(t, tp, txs, uc, uc.InputRecord.Epoch, txrs...)
+}
+
+func createNextEpochBlock(t *testing.T, tp *SingleNodePartition, txs *testtxsystem.CounterTxSystem, uc *types.UnicityCertificate, txrs ...*types.TransactionRecord) (*types.Block, *types.UnicityCertificate) {
+	return createBlock(t, tp, txs, uc, uc.InputRecord.Epoch+1, txrs...)
+}
+
+func createBlock(t *testing.T, tp *SingleNodePartition, txs *testtxsystem.CounterTxSystem, uc *types.UnicityCertificate, epoch uint64, txrs ...*types.TransactionRecord) (*types.Block, *types.UnicityCertificate) {
 	newRound := uc.InputRecord.RoundNumber + 1
 	var transactions = make([]*types.TransactionRecord, len(txrs))
 	// simulate new block's state
@@ -1330,6 +1338,7 @@ func createNewBlockOutsideNode(t *testing.T, tp *SingleNodePartition, txs *testt
 		TRHash:  make([]byte, 32),
 		InputRecord: &types.InputRecord{
 			Version:      1,
+			Epoch:        epoch,
 			RoundNumber:  newRound,
 			Hash:         state.Root(),
 			PreviousHash: uc.InputRecord.Hash,
@@ -1375,7 +1384,7 @@ func TestNode_HandleLedgerReplicationResponse_SumOfEarnedFeesMismatch(t *testing
 
 	// create a block with single tx with fee=1 but sumOfEarnedFees=0
 	system := &testtxsystem.CounterTxSystem{}
-	newBlock1, uc1 := createNewBlockOutsideNode(t, tp, system, uc0, testtransaction.NewTransactionRecord(t))
+	newBlock1, uc1 := createSameEpochBlock(t, tp, system, uc0, testtransaction.NewTransactionRecord(t))
 
 	// prepare proposal, send "newer" UC, revert state and start recovery
 	tp.SubmitT1Timeout(t)

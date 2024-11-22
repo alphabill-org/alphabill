@@ -69,12 +69,16 @@ func createVARWithNewNode(t *testing.T, prev *ValidatorAssignmentRecord) *Valida
 }
 
 func createVARWithRemovedNode(t *testing.T, prev *ValidatorAssignmentRecord, removeNodeIdx uint) *ValidatorAssignmentRecord {
+	nodes := make([]ValidatorInfo, len(prev.Nodes)-1)
+	copy(nodes[0:], prev.Nodes[:removeNodeIdx])
+	copy(nodes[removeNodeIdx:], prev.Nodes[removeNodeIdx+1:])
+
 	return &ValidatorAssignmentRecord{
 		NetworkID:   prev.NetworkID,
 		PartitionID: prev.PartitionID,
 		ShardID:     prev.ShardID,
 		EpochNumber: prev.EpochNumber+1,
 		RoundNumber: prev.RoundNumber+100,
-		Nodes:       append(prev.Nodes[:removeNodeIdx], prev.Nodes[removeNodeIdx+1:]...),
+		Nodes:       nodes,
 	}
 }

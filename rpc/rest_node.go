@@ -18,7 +18,7 @@ func NodeEndpoints(node partitionNode, obs Observability) RegistrarFunc {
 
 		// get the state file
 		r.HandleFunc("/state", getState(node, log)).Methods("GET")
-		r.HandleFunc("/vars", putVar(node.RegisterValidatorAssignmentRecord)).Methods("PUT")
+		r.HandleFunc("/configurations", putVar(node.RegisterValidatorAssignmentRecord)).Methods("PUT")
 	}
 }
 

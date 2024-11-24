@@ -82,6 +82,19 @@ func TestVerify(t *testing.T) {
 			errMsg: "invalid node at idx 0: node id is not hash of auth key",
 		},
 		{
+			name: "invalid node sigKey",
+			prev: &ValidatorAssignmentRecord{},
+			next: &ValidatorAssignmentRecord{RoundNumber: 1, EpochNumber: 1,
+				Nodes: []NodeInfo{
+					{
+						NodeID:  node1ID,
+						AuthKey: node1AuthKey,
+						SigKey: []byte{1},
+					},
+				}},
+			errMsg: "invalid node at idx 0: invalid sign key for node",
+		},
+		{
 			name: "ok with nodes",
 			prev: &ValidatorAssignmentRecord{},
 			next: &ValidatorAssignmentRecord{RoundNumber: 1, EpochNumber: 1,

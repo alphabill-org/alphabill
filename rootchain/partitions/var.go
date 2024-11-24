@@ -55,6 +55,9 @@ func NewVARNodeFromGenesisNode(pn *genesis.PartitionNode) NodeInfo {
 
 // Verify verifies the provided VAR extends the previous VAR.
 func (v *ValidatorAssignmentRecord) Verify(prev *ValidatorAssignmentRecord) error {
+	if prev == nil && v.EpochNumber != 0 {
+		return errors.New("previous var cannot be nil")
+	}
 	if prev != nil {
 		if v.NetworkID != prev.NetworkID {
 			return fmt.Errorf("invalid network id, provided %d previous %d", v.NetworkID, prev.NetworkID)

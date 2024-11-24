@@ -27,7 +27,6 @@ import (
 )
 
 const (
-	BoltBlockStoreFileName = "blocks.db"
 	cmdFlagState           = "state"
 	cmdFlagTrustBaseFile   = "trust-base-file"
 )
@@ -44,6 +43,7 @@ type startNodeConfiguration struct {
 	TrustBaseFile                   string
 	KeyFile                         string
 	DbFile                          string
+	ShardConfigurationDbFile        string
 	TxIndexerDBFile                 string
 	WithOwnerIndex                  bool
 	LedgerReplicationMaxBlocksFetch uint64
@@ -159,9 +159,14 @@ func createNode(ctx context.Context,
 			return nil, err
 		}
 	}
+	shardStore, err := initStore(cfg.ShardConfigurationDbFile)
+	if err != nil {
+		return nil, err
+	}
 
 	options := []partition.NodeOption{
 		partition.WithBlockStore(blockStore),
+		partition.WithShardStore(shardStore),
 		partition.WithReplicationParams(cfg.LedgerReplicationMaxBlocksFetch, cfg.LedgerReplicationMaxBlocks, cfg.LedgerReplicationMaxTx, time.Duration(cfg.LedgerReplicationTimeoutMs)*time.Millisecond),
 		partition.WithProofIndex(proofStore, 20), // TODO history size!
 		partition.WithOwnerIndex(ownerIndexer),
@@ -226,7 +231,8 @@ func addCommonNodeConfigurationFlags(nodeCmd *cobra.Command, config *startNodeCo
 	nodeCmd.Flags().StringVarP(&config.StateFile, cmdFlagState, "s", "", fmt.Sprintf("path to the state file : $AB_HOME/%s/node-genesis-state.cbor)", partitionSuffix))
 	nodeCmd.Flags().StringVarP(&config.TrustBaseFile, cmdFlagTrustBaseFile, "t", "", "path to the root trust base file : $AB_HOME/root-trust-base.json)")
 	nodeCmd.Flags().StringVar(&config.BootStrapAddresses, rootBootStrapNodesCmdFlag, "", "comma separated list of bootstrap root node addresses id@libp2p-multiaddress-format")
-	nodeCmd.Flags().StringVarP(&config.DbFile, "db", "f", "", fmt.Sprintf("path to the database file (default: $AB_HOME/%s/%s)", partitionSuffix, BoltBlockStoreFileName))
+	nodeCmd.Flags().StringVarP(&config.DbFile, "db", "f", "", "path to the block database file")
+	nodeCmd.Flags().StringVarP(&config.ShardConfigurationDbFile, "shard-db", "", "", "path to the shard configuration database file")
 	nodeCmd.Flags().StringVarP(&config.TxIndexerDBFile, "tx-db", "", "", "path to the transaction indexer database file")
 	nodeCmd.Flags().BoolVar(&config.WithOwnerIndex, "with-owner-index", true, "enable/disable owner indexer")
 	nodeCmd.Flags().Uint64Var(&config.LedgerReplicationMaxBlocksFetch, "ledger-replication-max-blocks-fetch", 1000, "maximum number of blocks to query in a single replication request")

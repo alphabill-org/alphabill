@@ -33,15 +33,13 @@ func newShardStore(db keyvaluedb.KeyValueDB, log *slog.Logger) *shardStore {
 }
 
 func (s *shardStore) StoreValidatorAssignmentRecord(v *partitions.ValidatorAssignmentRecord) error {
-	s.log.Info(fmt.Sprintf("Registering VAR for epoch %d", v.EpochNumber))
-
 	var prevVAR *partitions.ValidatorAssignmentRecord
 	if v.EpochNumber > 0 {
 		prevEpoch := v.EpochNumber-1
 		var err error
 		prevVAR, err = s.loadVAR(prevEpoch)
 		if err != nil {
-			return fmt.Errorf("failed to load VAR for epoch %d: %w", prevEpoch, err)
+			return fmt.Errorf("failed to load VAR for previous epoch %d: %w", prevEpoch, err)
 		}
 	}
 	if err := v.Verify(prevVAR); err != nil {

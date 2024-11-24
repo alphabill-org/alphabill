@@ -1598,7 +1598,12 @@ func (n *Node) IsValidator() bool {
 }
 
 func (n *Node) RegisterValidatorAssignmentRecord(v *partitions.ValidatorAssignmentRecord) error {
-	return n.shardStore.StoreValidatorAssignmentRecord(v)
+	n.log.Info(fmt.Sprintf("Registering VAR for epoch %d", v.EpochNumber))
+	if err := n.shardStore.StoreValidatorAssignmentRecord(v); err != nil {
+		n.log.Error(fmt.Sprintf("Failed to register VAR for epoch %d", v.EpochNumber), logger.Error(err))
+		return err
+	}
+	return nil
 }
 
 func (n *Node) IsPermissionedMode() bool {

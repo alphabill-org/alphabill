@@ -46,12 +46,12 @@ func putVar(registerVAR func(v *partitions.ValidatorAssignmentRecord) error) htt
 		v := &partitions.ValidatorAssignmentRecord{}
 		if err := json.NewDecoder(request.Body).Decode(&v); err != nil {
 			w.WriteHeader(http.StatusBadRequest)
-			fmt.Fprintf(w, "parsing validator assignment record: %v", err)
+			fmt.Fprintf(w, "failed to parse validator assignment record: %v", err)
 			return
 		}
 		if err := registerVAR(v); err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
-			fmt.Fprintf(w, "registering validator assignment record: %v", err)
+			fmt.Fprintf(w, "failed to register validator assignment record: %v", err)
 			return
 		}
 		w.WriteHeader(http.StatusOK)

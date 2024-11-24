@@ -100,6 +100,12 @@ func WithBlockStore(blockStore keyvaluedb.KeyValueDB) NodeOption {
 	}
 }
 
+func WithShardStore(shardStore keyvaluedb.KeyValueDB) NodeOption {
+	return func(c *configuration) {
+		c.shardStore = shardStore
+	}
+}
+
 func WithProofIndex(db keyvaluedb.KeyValueDB, history uint64) NodeOption {
 	return func(c *configuration) {
 		c.proofIndexConfig.store = db
@@ -193,7 +199,6 @@ func (c *configuration) initMissingDefaults() error {
 		}
 	}
 
-	// TODO: configure shardStore from command line
 	if c.shardStore == nil {
 		if c.shardStore, err = memorydb.New(); err != nil {
 			return fmt.Errorf("creating shard store DB: %w", err)

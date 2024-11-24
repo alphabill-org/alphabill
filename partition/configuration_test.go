@@ -104,6 +104,9 @@ func TestLoadConfigurationWithOptions_Ok(t *testing.T) {
 
 	blockStore, err := memorydb.New()
 	require.NoError(t, err)
+	shardStore, err := memorydb.New()
+	require.NoError(t, err)
+
 	t1Timeout := 250 * time.Millisecond
 	pg := createPartitionGenesis(t, signer, authKey, nil, peerConf)
 	trustBase, err := pg.GenerateRootTrustBase()
@@ -113,6 +116,7 @@ func TestLoadConfigurationWithOptions_Ok(t *testing.T) {
 		WithUnicityCertificateValidator(&AlwaysValidCertificateValidator{}),
 		WithBlockProposalValidator(&AlwaysValidBlockProposalValidator{}),
 		WithBlockStore(blockStore),
+		WithShardStore(shardStore),
 		WithT1Timeout(t1Timeout),
 		WithReplicationParams(1, 2, 3, 1000),
 		WithBlockSubscriptionTimeout(3500),
@@ -121,6 +125,7 @@ func TestLoadConfigurationWithOptions_Ok(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, conf)
 	require.Equal(t, blockStore, conf.blockStore)
+	require.Equal(t, shardStore, conf.shardStore)
 	require.NoError(t, conf.txValidator.Validate(nil, 0))
 	require.NoError(t, conf.blockProposalValidator.Validate(nil, nil))
 	require.NoError(t, conf.unicityCertificateValidator.Validate(nil))

@@ -169,7 +169,8 @@ func Test_StartSingleNode(t *testing.T) {
 		rootID, rootAddress, err := getRootValidatorIDAndMultiAddress(rootValidatorEncryptionKey, address)
 		require.NoError(t, err)
 		cfg := &startNodeConfiguration{
-			Address: "/ip4/127.0.0.1/tcp/26652",
+			Address:       "/ip4/127.0.0.1/tcp/26652",
+			AnnounceAddrs: []string{"/ip4/127.0.0.1/tcp/26652"},
 		}
 		moneyPeerCfg, err := loadPeerConfiguration(keys, pg, cfg)
 		require.NoError(t, err)

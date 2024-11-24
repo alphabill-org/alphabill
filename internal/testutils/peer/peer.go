@@ -14,7 +14,7 @@ import (
 )
 
 func CreatePeerConfiguration(t *testing.T) *network.PeerConfiguration {
-	peerConf, err := network.NewPeerConfiguration("/ip4/127.0.0.1/tcp/0", nil, generateKeyPair(t), nil, nil)
+	peerConf, err := network.NewPeerConfiguration("/ip4/127.0.0.1/tcp/0", nil, generateKeyPair(t), nil)
 	require.NoError(t, err)
 	return peerConf
 }

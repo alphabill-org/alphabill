@@ -22,12 +22,6 @@ func TestVerify(t *testing.T) {
 		errMsg string
 	}{
 		{
-			name:   "prev is nil",
-			prev:   nil,
-			next:   &ValidatorAssignmentRecord{},
-			errMsg: "previous var cannot be nil",
-		},
-		{
 			name:   "invalid network id",
 			prev:   &ValidatorAssignmentRecord{NetworkID: 1},
 			next:   &ValidatorAssignmentRecord{NetworkID: 2},
@@ -88,6 +82,19 @@ func TestVerify(t *testing.T) {
 			errMsg: "invalid node at idx 0: node id is not hash of auth key",
 		},
 		{
+			name: "invalid node sigKey",
+			prev: &ValidatorAssignmentRecord{},
+			next: &ValidatorAssignmentRecord{RoundNumber: 1, EpochNumber: 1,
+				Nodes: []NodeInfo{
+					{
+						NodeID:  node1ID,
+						AuthKey: node1AuthKey,
+						SigKey: []byte{1},
+					},
+				}},
+			errMsg: "invalid node at idx 0: invalid sign key for node",
+		},
+		{
 			name: "ok with nodes",
 			prev: &ValidatorAssignmentRecord{},
 			next: &ValidatorAssignmentRecord{RoundNumber: 1, EpochNumber: 1,
@@ -95,6 +102,7 @@ func TestVerify(t *testing.T) {
 					{
 						NodeID:  node1ID,
 						AuthKey: node1AuthKey,
+						SigKey:  node1AuthKey,
 					},
 				}},
 		},
@@ -114,5 +122,4 @@ func TestVerify(t *testing.T) {
 			}
 		})
 	}
-
 }

@@ -221,6 +221,7 @@ local rpcPort=0
     build/alphabill "$cmd" \
         --home ${home}$i \
         --db ${home}$i/"$cmd"/blocks.db \
+        --shard-db ${home}$i/"$cmd"/shard.db \
         --tx-db ${home}$i/"$cmd"/tx.db \
         --key-file $keyf \
         --genesis $genesis_file \
@@ -289,6 +290,7 @@ function start_non_validator_partition_nodes() {
     build/alphabill $partition \
       --home ${home}$i \
       --db ${home}$i/$partition/blocks.db \
+      --shard-db ${home}$i/$partition/shard.db \
       --tx-db ${home}$i/$partition/tx.db \
       --key-file ${home}$i/$partition/keys.json \
       --genesis $partitionGenesis \

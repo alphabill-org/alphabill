@@ -63,7 +63,7 @@ func (s *AdminAPI) GetNodeInfo() (*NodeInfoResponse, error) {
 }
 
 func getPartitionValidators(node partitionNode, self *network.Peer) []PeerInfo {
-	validators := node.ValidatorNodes()
+	validators := node.Validators()
 	peers := make([]PeerInfo, len(validators))
 	peerStore := self.Network().Peerstore()
 	for i, v := range validators {

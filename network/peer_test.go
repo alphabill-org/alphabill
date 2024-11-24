@@ -85,14 +85,14 @@ func TestNewPeer_LoadsKeyPairCorrectly(t *testing.T) {
 func TestBootstrapNodes(t *testing.T) {
 	log := logger.New(t)
 	ctx := context.Background()
-	bootStrapPeerConf, err := NewPeerConfiguration(randomTestAddressStr, nil, generateKeyPair(t), nil, nil)
+	bootStrapPeerConf, err := NewPeerConfiguration(randomTestAddressStr, nil, generateKeyPair(t), nil)
 	require.NoError(t, err)
 
 	bootstrapNode, err := NewPeer(ctx, bootStrapPeerConf, log, nil)
 	require.NoError(t, err)
 	bootstrapNodeAddrInfo := []peer.AddrInfo{{ID: bootstrapNode.ID(), Addrs: bootstrapNode.MultiAddresses()}}
 
-	peerConf1, err := NewPeerConfiguration(randomTestAddressStr, nil, generateKeyPair(t), bootstrapNodeAddrInfo, nil)
+	peerConf1, err := NewPeerConfiguration(randomTestAddressStr, nil, generateKeyPair(t), bootstrapNodeAddrInfo)
 	require.NoError(t, err)
 
 	peer1, err := NewPeer(ctx, peerConf1, log, nil)
@@ -100,7 +100,7 @@ func TestBootstrapNodes(t *testing.T) {
 	defer func() { _ = peer1.Close() }()
 	require.Eventually(t, func() bool { return peer1.dht.RoutingTable().Size() == 1 }, test.WaitDuration, test.WaitTick)
 
-	peerConf2, err := NewPeerConfiguration(randomTestAddressStr, nil, generateKeyPair(t), bootstrapNodeAddrInfo, nil)
+	peerConf2, err := NewPeerConfiguration(randomTestAddressStr, nil, generateKeyPair(t), bootstrapNodeAddrInfo)
 	require.NoError(t, err)
 
 	peer2, err := NewPeer(ctx, peerConf2, log, nil)
@@ -116,12 +116,12 @@ func TestBootstrapNodes(t *testing.T) {
 func TestBootstrap_OneBootStrapConnectionFails_StillOK(t *testing.T) {
 	log := logger.New(t)
 	ctx := context.Background()
-	bootStrapPeer1Conf, err := NewPeerConfiguration(randomTestAddressStr, nil, generateKeyPair(t), nil, nil)
+	bootStrapPeer1Conf, err := NewPeerConfiguration(randomTestAddressStr, nil, generateKeyPair(t), nil)
 	require.NoError(t, err)
 	bootstrap1NodeAddr, err := ma.NewMultiaddr("/ip4/127.0.0.2/tcp/10")
 	require.NoError(t, err)
 
-	bootStrapPeer2Conf, err := NewPeerConfiguration(randomTestAddressStr, nil, generateKeyPair(t), nil, nil)
+	bootStrapPeer2Conf, err := NewPeerConfiguration(randomTestAddressStr, nil, generateKeyPair(t), nil)
 	require.NoError(t, err)
 	bootstrapNode2, err := NewPeer(ctx, bootStrapPeer2Conf, log, nil)
 	require.NoError(t, err)
@@ -131,7 +131,7 @@ func TestBootstrap_OneBootStrapConnectionFails_StillOK(t *testing.T) {
 		{ID: bootstrapNode2.ID(), Addrs: bootstrapNode2.MultiAddresses()},
 	}
 
-	peerConf1, err := NewPeerConfiguration(randomTestAddressStr, nil, generateKeyPair(t), bootstrapNodeAddrInfo, nil)
+	peerConf1, err := NewPeerConfiguration(randomTestAddressStr, nil, generateKeyPair(t), bootstrapNodeAddrInfo)
 	require.NoError(t, err)
 
 	peer1, err := NewPeer(ctx, peerConf1, log, nil)
@@ -139,7 +139,7 @@ func TestBootstrap_OneBootStrapConnectionFails_StillOK(t *testing.T) {
 	defer func() { _ = peer1.Close() }()
 	require.Eventually(t, func() bool { return peer1.dht.RoutingTable().Size() == 1 }, 2*test.WaitDuration, test.WaitTick)
 
-	peerConf2, err := NewPeerConfiguration(randomTestAddressStr, nil, generateKeyPair(t), bootstrapNodeAddrInfo, nil)
+	peerConf2, err := NewPeerConfiguration(randomTestAddressStr, nil, generateKeyPair(t), bootstrapNodeAddrInfo)
 	require.NoError(t, err)
 
 	peer2, err := NewPeer(ctx, peerConf2, log, nil)
@@ -155,14 +155,14 @@ func TestBootstrap_OneBootStrapConnectionFails_StillOK(t *testing.T) {
 func TestBootstrap_AllConnectionsFail(t *testing.T) {
 	log := logger.New(t)
 	ctx := context.Background()
-	bootStrapPeer1Conf, err := NewPeerConfiguration(randomTestAddressStr, nil, generateKeyPair(t), nil, nil)
+	bootStrapPeer1Conf, err := NewPeerConfiguration(randomTestAddressStr, nil, generateKeyPair(t), nil)
 	require.NoError(t, err)
 	addr, err := ma.NewMultiaddr("/ip4/127.0.0.2/tcp/10")
 	require.NoError(t, err)
 
 	bootstrapNodeAddrInfo := []peer.AddrInfo{{ID: bootStrapPeer1Conf.ID, Addrs: []ma.Multiaddr{addr}}}
 
-	peerConf1, err := NewPeerConfiguration(randomTestAddressStr, nil, generateKeyPair(t), bootstrapNodeAddrInfo, nil)
+	peerConf1, err := NewPeerConfiguration(randomTestAddressStr, nil, generateKeyPair(t), bootstrapNodeAddrInfo)
 	require.NoError(t, err)
 
 	peer1, err := NewPeer(ctx, peerConf1, log, nil)
@@ -175,26 +175,26 @@ func TestBootstrap_AllConnectionsFail(t *testing.T) {
 func TestProvidesAndDiscoverNodes(t *testing.T) {
 	log := logger.New(t)
 	ctx := context.Background()
-	bootStrapPeerConf, err := NewPeerConfiguration(randomTestAddressStr, nil, generateKeyPair(t), nil, nil)
+	bootStrapPeerConf, err := NewPeerConfiguration(randomTestAddressStr, nil, generateKeyPair(t), nil)
 	require.NoError(t, err)
 	bootstrapNode, err := NewPeer(ctx, bootStrapPeerConf, log, nil)
 	require.NoError(t, err)
 	bootstrapNodeAddrInfo := []peer.AddrInfo{{ID: bootstrapNode.ID(), Addrs: bootstrapNode.MultiAddresses()}}
 
-	peerConf1, err := NewPeerConfiguration(randomTestAddressStr, nil, generateKeyPair(t), bootstrapNodeAddrInfo, nil)
+	peerConf1, err := NewPeerConfiguration(randomTestAddressStr, nil, generateKeyPair(t), bootstrapNodeAddrInfo)
 	require.NoError(t, err)
 	peer1, err := NewPeer(ctx, peerConf1, log, nil)
 	require.NoError(t, err)
 	defer func() { _ = peer1.Close() }()
 	require.Eventually(t, func() bool { return peer1.dht.RoutingTable().Size() == 1 }, test.WaitDuration, test.WaitTick)
 
-	peerConf2, err := NewPeerConfiguration(randomTestAddressStr, nil, generateKeyPair(t), bootstrapNodeAddrInfo, nil)
+	peerConf2, err := NewPeerConfiguration(randomTestAddressStr, nil, generateKeyPair(t), bootstrapNodeAddrInfo)
 	require.NoError(t, err)
 	peer2, err := NewPeer(ctx, peerConf2, log, nil)
 	require.NoError(t, err)
 	defer func() { _ = peer2.Close() }()
 
-	peerConf3, err := NewPeerConfiguration(randomTestAddressStr, nil, generateKeyPair(t), bootstrapNodeAddrInfo, nil)
+	peerConf3, err := NewPeerConfiguration(randomTestAddressStr, nil, generateKeyPair(t), bootstrapNodeAddrInfo)
 	require.NoError(t, err)
 	peer3, err := NewPeer(ctx, peerConf3, log, nil)
 	require.NoError(t, err)
@@ -224,7 +224,7 @@ func TestAnnounceAddrs(t *testing.T) {
 		"/ip4/203.0.113.1/tcp/4001",
 		"/ip4/203.0.113.1/tcp/4002",
 	}
-	conf, err := NewPeerConfiguration(randomTestAddressStr, announceAddrs, generateKeyPair(t), nil, nil)
+	conf, err := NewPeerConfiguration(randomTestAddressStr, announceAddrs, generateKeyPair(t), nil)
 	require.NoError(t, err)
 
 	peer1, err := NewPeer(ctx, conf, logger.New(t), nil)
@@ -241,16 +241,12 @@ createPeer returns new Peer configured with random port on localhost and registe
 cleanup for it (ie in the end of the test peer.Close is called).
 */
 func createPeer(t *testing.T) *Peer {
-	return createBootstrappedPeer(t, nil, []peer.ID{})
+	return createBootstrappedPeer(t, nil)
 }
 
-func createBootstrappedPeer(t *testing.T, bootstrapPeers []peer.AddrInfo, validators []peer.ID) *Peer {
+func createBootstrappedPeer(t *testing.T, bootstrapPeers []peer.AddrInfo) *Peer {
 	keyPair := generateKeyPair(t)
-	peerID, err := NodeIDFromPublicKeyBytes(keyPair.PublicKey)
-	require.NoError(t, err)
-
-	validators = append(validators, peerID)
-	peerConf, err := NewPeerConfiguration(randomTestAddressStr, nil, keyPair, bootstrapPeers, validators)
+	peerConf, err := NewPeerConfiguration(randomTestAddressStr, nil, keyPair, bootstrapPeers)
 	require.NoError(t, err)
 
 	p, err := NewPeer(context.Background(), peerConf, logger.New(t), nil)

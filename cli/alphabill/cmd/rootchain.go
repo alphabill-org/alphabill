@@ -280,7 +280,7 @@ func createHost(ctx context.Context, keys *Keys, cfg *rootNodeConfig) (*network.
 	if err != nil {
 		return nil, fmt.Errorf("get key pair failed: %w", err)
 	}
-	peerConf, err := network.NewPeerConfiguration(cfg.Address, cfg.AnnounceAddrs, keyPair, bootNodes, nil)
+	peerConf, err := network.NewPeerConfiguration(cfg.Address, cfg.AnnounceAddrs, keyPair, bootNodes)
 	if err != nil {
 		return nil, err
 	}

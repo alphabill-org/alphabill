@@ -13,6 +13,7 @@ import (
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/internal/testutils/trustbase"
 	"github.com/alphabill-org/alphabill/network/protocol/certification"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
 )
 
@@ -23,7 +24,7 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 	ucSigner, trustBase := testsig.CreateSignerAndVerifier(t)
 	type fields struct {
 		PartitionIdentifier types.PartitionID
-		NodeIdentifier      string
+		NodeIdentifier      peer.ID
 		UnicityCertificate  *types.UnicityCertificate
 		TechnicalRecord     certification.TechnicalRecord
 		Transactions        []*types.TransactionRecord

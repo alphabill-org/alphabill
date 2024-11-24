@@ -20,6 +20,9 @@ import (
 func Test_loadAndValidateConfiguration_Nok(t *testing.T) {
 	peerConf := test.CreatePeerConfiguration(t)
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
+	authKey, err := verifier.MarshalPublicKey()
+	require.NoError(t, err)
+
 	type args struct {
 		signer  crypto.Signer
 		genesis *genesis.PartitionGenesis
@@ -49,7 +52,7 @@ func Test_loadAndValidateConfiguration_Nok(t *testing.T) {
 			name: "transaction system is nil",
 			args: args{
 				signer:  signer,
-				genesis: createPartitionGenesis(t, signer, verifier, nil, peerConf),
+				genesis: createPartitionGenesis(t, signer, authKey, nil, peerConf),
 				txs:     nil,
 			},
 			wantErr: ErrTxSystemIsNil,
@@ -68,7 +71,10 @@ func Test_loadAndValidateConfiguration_Nok(t *testing.T) {
 func TestLoadConfigurationWithDefaultValues_Ok(t *testing.T) {
 	peerConf := test.CreatePeerConfiguration(t)
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
-	pg := createPartitionGenesis(t, signer, verifier, nil, peerConf)
+	authKey, err := verifier.MarshalPublicKey()
+	require.NoError(t, err)
+	pg := createPartitionGenesis(t, signer, authKey, nil, peerConf)
+
 	trustBase, err := pg.GenerateRootTrustBase()
 	require.NoError(t, err)
 	conf, err := loadAndValidateConfiguration(signer, pg, trustBase, &testtxsystem.CounterTxSystem{})
@@ -93,10 +99,16 @@ func TestLoadConfigurationWithDefaultValues_Ok(t *testing.T) {
 func TestLoadConfigurationWithOptions_Ok(t *testing.T) {
 	peerConf := test.CreatePeerConfiguration(t)
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
+	authKey, err := verifier.MarshalPublicKey()
+	require.NoError(t, err)
+
 	blockStore, err := memorydb.New()
 	require.NoError(t, err)
+	shardStore, err := memorydb.New()
+	require.NoError(t, err)
+
 	t1Timeout := 250 * time.Millisecond
-	pg := createPartitionGenesis(t, signer, verifier, nil, peerConf)
+	pg := createPartitionGenesis(t, signer, authKey, nil, peerConf)
 	trustBase, err := pg.GenerateRootTrustBase()
 	require.NoError(t, err)
 	conf, err := loadAndValidateConfiguration(signer, pg, trustBase, &testtxsystem.CounterTxSystem{},
@@ -104,6 +116,7 @@ func TestLoadConfigurationWithOptions_Ok(t *testing.T) {
 		WithUnicityCertificateValidator(&AlwaysValidCertificateValidator{}),
 		WithBlockProposalValidator(&AlwaysValidBlockProposalValidator{}),
 		WithBlockStore(blockStore),
+		WithShardStore(shardStore),
 		WithT1Timeout(t1Timeout),
 		WithReplicationParams(1, 2, 3, 1000),
 		WithBlockSubscriptionTimeout(3500),
@@ -112,6 +125,7 @@ func TestLoadConfigurationWithOptions_Ok(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, conf)
 	require.Equal(t, blockStore, conf.blockStore)
+	require.Equal(t, shardStore, conf.shardStore)
 	require.NoError(t, conf.txValidator.Validate(nil, 0))
 	require.NoError(t, conf.blockProposalValidator.Validate(nil, nil))
 	require.NoError(t, conf.unicityCertificateValidator.Validate(nil))
@@ -123,7 +137,7 @@ func TestLoadConfigurationWithOptions_Ok(t *testing.T) {
 	require.EqualValues(t, 3500, conf.blockSubscriptionTimeout)
 }
 
-func createPartitionGenesis(t *testing.T, nodeSigningKey crypto.Signer, nodeEncryptionPubKey crypto.Verifier, rootSigner crypto.Signer, peerConf *network.PeerConfiguration) *genesis.PartitionGenesis {
+func createPartitionGenesis(t *testing.T, nodeSigningKey crypto.Signer, authKey []byte, rootSigner crypto.Signer, peerConf *network.PeerConfiguration) *genesis.PartitionGenesis {
 	t.Helper()
 	if rootSigner == nil {
 		rootSigner, _ = testsig.CreateSignerAndVerifier(t)
@@ -136,7 +150,7 @@ func createPartitionGenesis(t *testing.T, nodeSigningKey crypto.Signer, nodeEncr
 		UnitIdLen:           256,
 		T2Timeout:           2500 * time.Millisecond,
 	}
-	pn := createPartitionNode(t, nodeSigningKey, nodeEncryptionPubKey, pdr, peerConf.ID)
+	pn := createPartitionNode(t, nodeSigningKey, authKey, pdr, peerConf.ID)
 	_, encPubKey := testsig.CreateSignerAndVerifier(t)
 	rootPubKeyBytes, err := encPubKey.MarshalPublicKey()
 	require.NoError(t, err)
@@ -147,38 +161,13 @@ func createPartitionGenesis(t *testing.T, nodeSigningKey crypto.Signer, nodeEncr
 	return pg[0]
 }
 
-func TestGetPublicKey_Ok(t *testing.T) {
-	peerConf := test.CreatePeerConfiguration(t)
-	signer, verifier := testsig.CreateSignerAndVerifier(t)
-	pg := createPartitionGenesis(t, signer, verifier, nil, peerConf)
-	trustBase, err := pg.GenerateRootTrustBase()
-	require.NoError(t, err)
-	conf, err := loadAndValidateConfiguration(signer, pg, trustBase, &testtxsystem.CounterTxSystem{})
-	require.NoError(t, err)
-
-	v, err := conf.GetSigningPublicKey(peerConf.ID.String())
-	require.NoError(t, err)
-	require.Equal(t, verifier, v)
-}
-
-func TestGetPublicKey_NotFound(t *testing.T) {
-	peerConf := test.CreatePeerConfiguration(t)
-	signer, verifier := testsig.CreateSignerAndVerifier(t)
-
-	pg := createPartitionGenesis(t, signer, verifier, nil, peerConf)
-	trustBase, err := pg.GenerateRootTrustBase()
-	require.NoError(t, err)
-	conf, err := loadAndValidateConfiguration(signer, pg, trustBase, &testtxsystem.CounterTxSystem{})
-	require.NoError(t, err)
-	_, err = conf.GetSigningPublicKey("1")
-	require.ErrorContains(t, err, "public key for id 1 not found")
-}
-
 func TestGetRootNodes(t *testing.T) {
 	peerConf := test.CreatePeerConfiguration(t)
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
+	authKey, err := verifier.MarshalPublicKey()
+	require.NoError(t, err)
 
-	pg := createPartitionGenesis(t, signer, verifier, nil, peerConf)
+	pg := createPartitionGenesis(t, signer, authKey, nil, peerConf)
 	trustBase, err := pg.GenerateRootTrustBase()
 	require.NoError(t, err)
 	conf, err := loadAndValidateConfiguration(signer, pg, trustBase, &testtxsystem.CounterTxSystem{})

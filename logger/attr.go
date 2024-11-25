@@ -10,6 +10,8 @@ import (
 	"strings"
 
 	"github.com/libp2p/go-libp2p/core/peer"
+
+	"github.com/alphabill-org/alphabill-go-base/types"
 )
 
 /*
@@ -54,13 +56,6 @@ func Error(err error) slog.Attr {
 }
 
 /*
-Round records current round number.
-*/
-func Round(round uint64) slog.Attr {
-	return slog.Uint64(RoundKey, round)
-}
-
-/*
 Data adds additional data field to the message.
 
 slog.GroupValue shouldn't be used as the data - in the ECS formatter all
@@ -78,6 +73,20 @@ associated to the logging call.
 */
 func UnitID(id []byte) slog.Attr {
 	return slog.String(UnitIDKey, fmt.Sprintf("%X", id))
+}
+
+/*
+Shard creates shard id/partition id attribute.
+
+Shard specific components (ie shard validator) should create logger which adds this
+attribute automatically, ie RootChain should use it when logging message specific to
+particular shard.
+*/
+func Shard(partition types.PartitionID, shard types.ShardID) slog.Attr {
+	return slog.Group("shard",
+		slog.Uint64("partition", uint64(partition)),
+		slog.String("id", shard.String()),
+	)
 }
 
 /*

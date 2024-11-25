@@ -59,7 +59,7 @@ func (m *Module) StartBlockFunc(blockGasLimit uint64) []func(blockNr uint64) err
 	return []func(blockNr uint64) error{
 		func(blockNr uint64) error {
 			// reset block gas limit
-			m.log.LogAttrs(context.Background(), logger.LevelTrace, fmt.Sprintf("previous block gas limit: %v, used %v", m.blockGasCounter.Gas(), blockGasLimit-m.blockGasCounter.Gas()), logger.Round(blockNr))
+			m.log.LogAttrs(context.Background(), logger.LevelTrace, fmt.Sprintf("start %d; previous block gas limit: %v, used %v", blockNr, m.blockGasCounter.Gas(), blockGasLimit-m.blockGasCounter.Gas()))
 			*m.blockGasCounter = core.GasPool(blockGasLimit)
 			return nil
 		},

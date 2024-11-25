@@ -60,6 +60,14 @@ type MeterTracerLogger struct {
 
 func (mtl MeterTracerLogger) Logger() *slog.Logger { return mtl.log }
 
+/*
+RoundLogger returns logger which adds Round attribute to each log record, the
+curRound callback is used to get the current round value.
+*/
+func (mtl MeterTracerLogger) RoundLogger(curRound func() uint64) *slog.Logger {
+	return slog.New(logger.NewRoundHandler(mtl.log.Handler(), curRound))
+}
+
 func (mtl MeterTracerLogger) Tracer(name string, options ...trace.TracerOption) trace.Tracer {
 	return mtl.mat.Tracer(name, options...)
 }

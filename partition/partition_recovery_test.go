@@ -308,7 +308,7 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_noPendingProposal_
 	ir := &types.InputRecord{
 		Version:         1,
 		Epoch:           0,
-		RoundNumber:     uc.GetRoundNumber()+5,
+		RoundNumber:     uc.GetRoundNumber() + 5,
 		Hash:            test.RandomBytes(32),
 		PreviousHash:    test.RandomBytes(32),
 		BlockHash:       test.RandomBytes(32),
@@ -320,6 +320,7 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_noPendingProposal_
 		ir,
 		uc.UnicitySeal.RootChainRoundNumber+1,
 	)
+	require.NoError(t, err)
 
 	// submit UC, node must start recovery as the submitted UC is not a successor of the committed UC
 	tp.SubmitUnicityCertificate(t, uc)
@@ -968,6 +969,7 @@ func TestNode_RecoverySimulateStorageFailsDuringBlockFinalizationOnUC(t *testing
 	require.Len(t, newBlock1.Transactions, 1)
 	// submit transaction
 	tx, err := newBlock1.Transactions[0].GetTransactionOrderV1()
+	require.NoError(t, err)
 	require.NoError(t, tp.SubmitTx(tx))
 	require.Eventually(t, func() bool {
 		events := tp.eh.GetEvents()
@@ -1046,6 +1048,7 @@ func TestNode_CertificationRequestNotSentWhenProposalStoreFails(t *testing.T) {
 	// mock error situation, every next write will fail with error
 	db.MockWriteError(fmt.Errorf("disk full"))
 	tx, err := newBlock1.Transactions[0].GetTransactionOrderV1()
+	require.NoError(t, err)
 	require.NoError(t, tp.SubmitTx(tx))
 	require.Eventually(t, func() bool {
 		events := tp.eh.GetEvents()

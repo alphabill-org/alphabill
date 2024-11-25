@@ -274,3 +274,44 @@ func (h *ABHandler) WithGroup(name string) slog.Handler {
 func (h *ABHandler) Handler() slog.Handler {
 	return h.handler
 }
+
+/*
+NewRoundHandler creates slog handler which adds "round" attribute to each log record
+by calling the provided callback.
+Meant to be used with components which do have concept of current round, ie shard
+validator or RootChain node.
+*/
+func NewRoundHandler(h slog.Handler, getRound func() uint64) *RoundHandler {
+	// Optimization: avoid chains of RoundHandler
+	if lh, ok := h.(*RoundHandler); ok {
+		h = lh.Handler()
+	}
+	return &RoundHandler{h, getRound}
+}
+
+type RoundHandler struct {
+	handler slog.Handler
+	round   func() uint64
+}
+
+func (h *RoundHandler) Handle(ctx context.Context, r slog.Record) error {
+	r.AddAttrs(slog.Uint64(RoundKey, h.round()))
+
+	return h.handler.Handle(ctx, r)
+}
+
+func (h *RoundHandler) Enabled(ctx context.Context, level slog.Level) bool {
+	return h.handler.Enabled(ctx, level)
+}
+
+func (h *RoundHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	return NewRoundHandler(h.handler.WithAttrs(attrs), h.round)
+}
+
+func (h *RoundHandler) WithGroup(name string) slog.Handler {
+	return NewRoundHandler(h.handler.WithGroup(name), h.round)
+}
+
+func (h *RoundHandler) Handler() slog.Handler {
+	return h.handler
+}

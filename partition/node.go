@@ -85,6 +85,7 @@ type (
 		Meter(name string, opts ...metric.MeterOption) metric.Meter
 		PrometheusRegisterer() prometheus.Registerer
 		Logger() *slog.Logger
+		RoundLogger(curRound func() uint64) *slog.Logger
 	}
 
 	// Node represents a member in the partition and implements an instance of a specific TransactionSystem. Partition
@@ -96,7 +97,7 @@ type (
 		// First UC for this node. The node is guaranteed to have blocks starting at fuc+1.
 		fuc *types.UnicityCertificate
 		// Latest UC this node has seen. Can be ahead of the committed UC during recovery.
-		luc                         atomic.Pointer[types.UnicityCertificate]
+		luc atomic.Pointer[types.UnicityCertificate]
 		// TR corresponding to the latest UC this node has seen (as referenced by luc.TRHash).
 		// Can be nil if latest UC was received with a block (recovery or block propagation protocols).
 		ltr                         atomic.Pointer[certification.TechnicalRecord]
@@ -183,11 +184,6 @@ func NewNode(
 			return nil, fmt.Errorf("failed to initialize state in proof indexer: %w", err)
 		}
 	}
-	proofIndexer := NewProofIndexer(
-		conf.hashAlgorithm,
-		conf.proofIndexConfig.store,
-		conf.proofIndexConfig.historyLen,
-		observe.Logger())
 
 	n := &Node{
 		configuration:               conf,
@@ -196,7 +192,6 @@ func NewNode(
 		unicityCertificateValidator: conf.unicityCertificateValidator,
 		blockProposalValidator:      conf.blockProposalValidator,
 		blockStore:                  conf.blockStore,
-		proofIndexer:                proofIndexer,
 		ownerIndexer:                conf.ownerIndexer,
 		t1event:                     make(chan struct{}), // do not buffer!
 		epochChangeEvent:            make(chan struct{}, 1),
@@ -205,9 +200,10 @@ func NewNode(
 		shardStore:                  shardStore,
 		network:                     network,
 		lastLedgerReqTime:           time.Time{},
-		log:                         observe.Logger(),
 		tracer:                      tracer,
 	}
+	n.log = observe.RoundLogger(n.currentRoundNumber)
+	n.proofIndexer = NewProofIndexer(conf.hashAlgorithm, conf.proofIndexConfig.store, conf.proofIndexConfig.historyLen, n.log)
 	n.resetProposal()
 	n.stopTxProcessor.Store(func() { /* init to NOP */ })
 	n.status.Store(initializing)
@@ -541,7 +537,7 @@ func (n *Node) loop(ctx context.Context) error {
 			n.log.Log(ctx, logger.LevelTrace, fmt.Sprintf("received %T", m), logger.Data(m))
 
 			if err := n.handleMessage(ctx, m); err != nil {
-				n.log.Warn(fmt.Sprintf("handling %T", m), logger.Error(err), logger.Round(n.currentRoundNumber()))
+				n.log.WarnContext(ctx, fmt.Sprintf("handling %T", m), logger.Error(err))
 			} else if _, ok := m.(*certification.CertificationResponse); ok {
 				lastUCReceived = time.Now()
 			} else if _, ok := m.(*types.Block); ok {
@@ -765,9 +761,7 @@ func (n *Node) updateLUC(ctx context.Context, uc *types.UnicityCertificate, tr *
 	}
 
 	if n.status.Load() != initializing {
-		n.log.DebugContext(ctx,
-			fmt.Sprintf("LUC:\n%s\n\nReceived UC:\n%s", printUC(luc), printUC(uc)),
-			logger.Round(n.currentRoundNumber()))
+		n.log.DebugContext(ctx, fmt.Sprintf("LUC:\n%s\n\nReceived UC:\n%s", printUC(luc), printUC(uc)))
 	}
 
 	// check for equivocation
@@ -791,15 +785,15 @@ func (n *Node) updateLUC(ctx context.Context, uc *types.UnicityCertificate, tr *
 		}
 		n.leader.Set(leaderPeerID)
 		n.ltr.Store(tr)
-		n.log.DebugContext(ctx, "updated LTR", logger.Round(tr.Round))
+		n.log.DebugContext(ctx, "updated LTR")
 	} else {
 		n.leader.Set(UnknownLeader)
 		n.ltr.Store(nil)
-		n.log.DebugContext(ctx, "missing LTR", logger.Round(uc.GetRoundNumber()))
+		n.log.DebugContext(ctx, "missing LTR")
 	}
 
 	n.luc.Store(uc)
-	n.log.DebugContext(ctx, "updated LUC", logger.Round(uc.GetRoundNumber()))
+	n.log.DebugContext(ctx, fmt.Sprintf("updated LUC; UC.Round: %d, RootRound: %d", uc.GetRoundNumber(), uc.GetRootRoundNumber()))
 	n.sendEvent(event.LatestUnicityCertificateUpdated, uc)
 
 	newEpoch := n.currentEpoch()
@@ -882,7 +876,7 @@ func (n *Node) handleCertificationResponse(ctx context.Context, cr *certificatio
 	}
 	ctx, span := n.tracer.Start(ctx, "node.handleCertificationResponse", trace.WithAttributes(attribute.Int64("round", int64(cr.Technical.Round))))
 	defer span.End()
-	n.log.InfoContext(ctx, fmt.Sprintf("handleCertificationResponse: Round %d, Leader %s", cr.Technical.Round, cr.Technical.Leader), logger.Round(n.currentRoundNumber()))
+	n.log.InfoContext(ctx, fmt.Sprintf("handleCertificationResponse: Round %d, Leader %s", cr.Technical.Round, cr.Technical.Leader))
 
 	if cr.Partition != n.PartitionID() || !cr.Shard.Equal(n.configuration.shardID) {
 		return fmt.Errorf("got CertificationResponse for a wrong shard %s - %s", cr.Partition, cr.Shard)
@@ -928,7 +922,7 @@ func (n *Node) handleUnicityCertificate(ctx context.Context, uc *types.UnicityCe
 
 	if uc.IsDuplicate(prevLUC) {
 		// Just ignore duplicates.
-		n.log.DebugContext(ctx, "duplicate UC (same root round)", logger.Round(uc.GetRootRoundNumber()))
+		n.log.DebugContext(ctx, fmt.Sprintf("duplicate UC (same root round %d)", uc.GetRootRoundNumber()))
 		if isInitialUC {
 			// If this was the first UC received by node, we can start a new round.
 			// Otherwise the round is already in progress.
@@ -1660,7 +1654,7 @@ func (n *Node) startProcessingTransactions(ctx context.Context) {
 	n.stopProcessingTransactions()
 
 	if n.IsValidator() && n.leader.IsLeader(UnknownLeader) {
-		n.log.Warn("unknown round leader", logger.Round(n.currentRoundNumber()))
+		n.log.WarnContext(ctx, "can't forward transactions - unknown round leader")
 		return
 	}
 

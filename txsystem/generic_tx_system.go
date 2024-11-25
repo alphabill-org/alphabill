@@ -42,6 +42,7 @@ type (
 	Observability interface {
 		Meter(name string, opts ...metric.MeterOption) metric.Meter
 		Logger() *slog.Logger
+		RoundLogger(curRound func() uint64) *slog.Logger
 	}
 )
 
@@ -68,10 +69,10 @@ func NewGenericTxSystem(pdr types.PartitionDescriptionRecord, shardID types.Shar
 		beginBlockFunctions: options.beginBlockFunctions,
 		endBlockFunctions:   options.endBlockFunctions,
 		handlers:            make(txtypes.TxExecutors),
-		log:                 observe.Logger(),
 		pr:                  options.predicateRunner,
 		fees:                options.feeCredit,
 	}
+	txs.log = observe.RoundLogger(txs.CurrentRound)
 	txs.beginBlockFunctions = append(txs.beginBlockFunctions, txs.pruneState)
 
 	for _, module := range modules {
@@ -160,7 +161,7 @@ func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (*types.Transactio
 		return nil, fmt.Errorf("error transaction snFees: %w", err)
 	}
 	// all transactions that get this far will go into bock even if they fail and cost is credited from user FCR
-	m.log.Debug(fmt.Sprintf("execute %d", tx.Type), logger.UnitID(tx.GetUnitID()), logger.Data(tx), logger.Round(m.currentRoundNumber))
+	m.log.Debug(fmt.Sprintf("execute %d", tx.Type), logger.UnitID(tx.GetUnitID()), logger.Data(tx))
 	// execute fee credit transactions
 	if m.fees.IsFeeCreditTx(tx) {
 		sm, err := m.executeFc(tx, exeCtx)
@@ -196,7 +197,7 @@ func (m *GenericTxSystem) doExecute(tx *types.TransactionOrder, exeCtx *txtypes.
 	defer func() {
 		// set the correct success indicator
 		if txExecErr != nil {
-			m.log.Warn("transaction execute failed", logger.Error(txExecErr), logger.UnitID(tx.GetUnitID()), logger.Round(m.currentRoundNumber))
+			m.log.Warn("transaction execute failed", logger.Error(txExecErr), logger.UnitID(tx.GetUnitID()))
 			// will set correct error status and clean up target units
 			txr.ServerMetadata.SetError(txExecErr)
 			// transaction execution failed. revert every change made by the transaction order

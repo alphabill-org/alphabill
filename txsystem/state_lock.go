@@ -121,7 +121,7 @@ func (m *GenericTxSystem) executeLockUnitState(tx *types.TransactionOrder, _ txt
 		if err = m.state.Apply(state.SetStateLock(targetUnit, txBytes)); err != nil {
 			return nil, fmt.Errorf("state lock: failed to lock the state: %w", err)
 		}
-		m.log.Debug("unit locked", logger.UnitID(targetUnit), logger.Data(tx), logger.Round(m.CurrentRound()))
+		m.log.Debug("unit locked", logger.UnitID(targetUnit), logger.Data(tx))
 	}
 	return &types.ServerMetadata{ActualFee: 1, TargetUnits: targetUnits, SuccessIndicator: types.TxStatusSuccessful}, nil
 }

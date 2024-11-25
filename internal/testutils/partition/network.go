@@ -130,7 +130,7 @@ func newRootPartition(t *testing.T, nofRootNodes uint8, nodePartitions []*NodePa
 	trustBaseNodes := make([]*types.NodeInfo, nofRootNodes)
 	var unicityTreeRootHash []byte
 	// generates keys and sorts them in lexical order - meaning root node 0 is the first leader
-	rootPeerCfg, err := createPeerConfs(nofRootNodes)
+	rootPeerCfg, _, err := createPeerConfs(nofRootNodes)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate encryption keypairs, %w", err)
 	}
@@ -258,7 +258,7 @@ func NewPartition(t *testing.T, nodeCount uint8, txSystemProvider func(trustBase
 		obs:          testobserve.NewFactory(t),
 	}
 	// create peer configurations
-	peerConfs, err := createPeerConfs(nodeCount)
+	peerConfs, _, err := createPeerConfs(nodeCount)
 	if err != nil {
 		return nil, err
 	}
@@ -411,7 +411,7 @@ func (a *AlphabillNetwork) createBootNodes(t *testing.T, ctx context.Context, ob
 	require.NoError(t, err)
 	bootNodes := make([]*network.Peer, nofBootNodes)
 	for i := 0; i < int(nofBootNodes); i++ {
-		peerConf, err := network.NewPeerConfiguration("/ip4/127.0.0.1/tcp/0", nil, encKeyPairs[i], nil, nil)
+		peerConf, err := network.NewPeerConfiguration("/ip4/127.0.0.1/tcp/0", nil, encKeyPairs[i], nil)
 		require.NoError(t, err)
 		bootNodes[i], err = network.NewPeer(ctx, peerConf, obs.DefaultLogger(), nil)
 		require.NoError(t, err)
@@ -717,33 +717,31 @@ func createSigners(count uint8) ([]abcrypto.Signer, error) {
 	return signers, nil
 }
 
-func createPeerConfs(count uint8) ([]*network.PeerConfiguration, error) {
+func createPeerConfs(count uint8) ([]*network.PeerConfiguration, peer.IDSlice, error) {
 	var peerConfs = make([]*network.PeerConfiguration, count)
 
 	// generate connection encryption key pairs
 	keyPairs, err := generateKeyPairs(count)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	var validators = make(peer.IDSlice, count)
-
 	for i := 0; i < int(count); i++ {
 		peerConfs[i], err = network.NewPeerConfiguration(
 			"/ip4/127.0.0.1/tcp/0",
 			nil,
 			keyPairs[i], // connection encryption key. The ID of the node is derived from this keypair.
 			nil,
-			validators, // Persistent peers
 		)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		validators[i] = peerConfs[i].ID
 	}
 	sort.Sort(validators)
 
-	return peerConfs, nil
+	return peerConfs, validators, nil
 }
 
 func generateKeyPairs(count uint8) ([]*network.PeerKeyPair, error) {

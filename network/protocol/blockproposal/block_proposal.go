@@ -8,6 +8,7 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/network/protocol/certification"
+	"github.com/libp2p/go-libp2p/core/peer"
 )
 
 var (
@@ -23,7 +24,7 @@ type BlockProposal struct {
 	_                  struct{} `cbor:",toarray"`
 	Partition          types.PartitionID
 	Shard              types.ShardID
-	NodeIdentifier     string
+	NodeIdentifier     peer.ID
 	UnicityCertificate *types.UnicityCertificate
 	Technical          certification.TechnicalRecord
 	Transactions       []*types.TransactionRecord

@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -34,6 +33,7 @@ import (
 	"github.com/alphabill-org/alphabill/network/protocol/replication"
 	"github.com/alphabill-org/alphabill/observability"
 	"github.com/alphabill-org/alphabill/partition/event"
+	"github.com/alphabill-org/alphabill/rootchain/partitions"
 	"github.com/alphabill-org/alphabill/txsystem"
 )
 
@@ -69,6 +69,11 @@ type (
 		ReceivedChannel() <-chan any
 
 		PublishBlock(ctx context.Context, block *types.Block) error
+		SubscribeToBlocks(ctx context.Context) error
+		UnsubscribeFromBlocks()
+		RegisterValidatorProtocols() error
+		UnregisterValidatorProtocols()
+
 		AddTransaction(ctx context.Context, tx *types.TransactionOrder) ([]byte, error)
 		ForwardTransactions(ctx context.Context, receiverFunc network.TxReceiver)
 		ProcessTransactions(ctx context.Context, txProcessor network.TxProcessor)
@@ -107,9 +112,10 @@ type (
 		ownerIndexer                *OwnerIndexer
 		stopTxProcessor             atomic.Value
 		t1event                     chan struct{}
+		epochChangeEvent            chan struct{}
 		peer                        *network.Peer
 		rootNodes                   peer.IDSlice
-		validatorNodes              peer.IDSlice
+		shardStore                  *shardStore
 		network                     ValidatorNetwork
 		eventCh                     chan event.Event
 		lastLedgerReqTime           time.Time
@@ -156,6 +162,16 @@ func NewNode(
 	if err != nil {
 		return nil, fmt.Errorf("invalid node configuration: %w", err)
 	}
+
+	shardStore := newShardStore(conf.shardStore, observe.Logger())
+	vaRecord := newVARFromGenesis(genesis)
+	if err := shardStore.StoreValidatorAssignmentRecord(vaRecord); err != nil {
+		return nil, fmt.Errorf("failed to store VAR created from partition genesis: %w", err)
+	}
+	if err := shardStore.LoadEpoch(vaRecord.EpochNumber); err != nil {
+		return nil, fmt.Errorf("failed to load epoch configuration: %w", err)
+	}
+
 	rn, err := conf.getRootNodes()
 	if err != nil {
 		return nil, fmt.Errorf("invalid configuration, root nodes: %w", err)
@@ -167,6 +183,12 @@ func NewNode(
 			return nil, fmt.Errorf("failed to initialize state in proof indexer: %w", err)
 		}
 	}
+	proofIndexer := NewProofIndexer(
+		conf.hashAlgorithm,
+		conf.proofIndexConfig.store,
+		conf.proofIndexConfig.historyLen,
+		observe.Logger())
+
 	n := &Node{
 		configuration:               conf,
 		transactionSystem:           txSystem,
@@ -174,12 +196,13 @@ func NewNode(
 		unicityCertificateValidator: conf.unicityCertificateValidator,
 		blockProposalValidator:      conf.blockProposalValidator,
 		blockStore:                  conf.blockStore,
-		proofIndexer:                NewProofIndexer(conf.hashAlgorithm, conf.proofIndexConfig.store, conf.proofIndexConfig.historyLen, observe.Logger()),
+		proofIndexer:                proofIndexer,
 		ownerIndexer:                conf.ownerIndexer,
 		t1event:                     make(chan struct{}), // do not buffer!
+		epochChangeEvent:            make(chan struct{}, 1),
 		eventHandler:                conf.eventHandler,
 		rootNodes:                   rn,
-		validatorNodes:              peerConf.Validators,
+		shardStore:                  shardStore,
 		network:                     network,
 		lastLedgerReqTime:           time.Time{},
 		log:                         observe.Logger(),
@@ -258,17 +281,17 @@ func (n *Node) initMetrics(observe Observability) (err error) {
 }
 
 func (n *Node) Run(ctx context.Context) error {
-	if n.IsValidatorNode() {
+	if n.IsValidator() {
 		// Validator nodes query for the latest UC from root. They retain the status
 		// 'initializing' until the first UC is received. Then they'll know the leader
 		// and can either start a new round or go into recovery.
-		n.sendHandshake(ctx)
+		n.startValidating(ctx)
 	} else {
 		// Non-validator nodes do not need to wait for the first UC to finish initialization.
 		// They can start processing new blocks and forwarding transactions as their normal
 		// operation mode immediately.
 		n.status.Store(normal)
-		go n.network.ForwardTransactions(ctx, n.leader.Get)
+		n.stopValidating(ctx)
 	}
 
 	g, ctx := errgroup.WithContext(ctx)
@@ -519,13 +542,15 @@ func (n *Node) loop(ctx context.Context) error {
 
 			if err := n.handleMessage(ctx, m); err != nil {
 				n.log.Warn(fmt.Sprintf("handling %T", m), logger.Error(err), logger.Round(n.currentRoundNumber()))
-			} else if _, ok := m.(*types.UnicityCertificate); ok {
+			} else if _, ok := m.(*certification.CertificationResponse); ok {
 				lastUCReceived = time.Now()
 			} else if _, ok := m.(*types.Block); ok {
 				lastBlockReceived = time.Now()
 			}
 		case <-n.t1event:
 			n.handleT1TimeoutEvent(ctx)
+		case <-n.epochChangeEvent:
+			n.handleEpochChangeEvent(ctx)
 		case <-ticker.C:
 			n.handleMonitoring(ctx, lastUCReceived, lastBlockReceived)
 		}
@@ -655,11 +680,11 @@ func (n *Node) handleBlockProposal(ctx context.Context, prop *blockproposal.Bloc
 	if prop == nil {
 		return blockproposal.ErrBlockProposalIsNil
 	}
-	nodeSignatureVerifier, err := n.configuration.GetSigningPublicKey(prop.NodeIdentifier)
-	if err != nil {
-		return fmt.Errorf("unknown node id, %w", err)
+	nodeSignatureVerifier := n.shardStore.Verifier(prop.NodeIdentifier)
+	if nodeSignatureVerifier == nil {
+		return fmt.Errorf("block proposal from unknown node %s", prop.NodeIdentifier.String())
 	}
-	if err = n.blockProposalValidator.Validate(prop, nodeSignatureVerifier); err != nil {
+	if err := n.blockProposalValidator.Validate(prop, nodeSignatureVerifier); err != nil {
 		return fmt.Errorf("block proposal validation failed, %w", err)
 	}
 
@@ -679,14 +704,14 @@ func (n *Node) handleBlockProposal(ctx context.Context, prop *blockproposal.Bloc
 		// either the other node received it faster from root or there must be some issue with root communication?
 		n.log.DebugContext(ctx, fmt.Sprintf("Received newer UC with root round %d via block proposal, LUC root round %d",
 			uc.GetRootRoundNumber(), luc.GetRootRoundNumber()))
-		if err = n.handleUnicityCertificate(ctx, uc, &prop.Technical); err != nil {
+		if err := n.handleUnicityCertificate(ctx, uc, &prop.Technical); err != nil {
 			return fmt.Errorf("block proposal UC handling failed: %w", err)
 		}
 	}
 
 	// Leader must be the author of the proposal
 	expectedLeader := n.leader.Get()
-	if expectedLeader == UnknownLeader || prop.NodeIdentifier != expectedLeader.String() {
+	if expectedLeader == UnknownLeader || prop.NodeIdentifier != expectedLeader {
 		return fmt.Errorf("expecting leader %v, leader in proposal: %v", expectedLeader, prop.NodeIdentifier)
 	}
 
@@ -711,7 +736,7 @@ func (n *Node) handleBlockProposal(ctx context.Context, prop *blockproposal.Bloc
 			return fmt.Errorf("processing transaction %X: %w", tx.Hash(n.configuration.hashAlgorithm), err)
 		}
 	}
-	if err = n.sendCertificationRequest(ctx, prop.NodeIdentifier); err != nil {
+	if err = n.sendCertificationRequest(ctx, prop.NodeIdentifier.String()); err != nil {
 		return fmt.Errorf("certification request send failed, %w", err)
 	}
 	return nil
@@ -758,6 +783,7 @@ func (n *Node) updateLUC(ctx context.Context, uc *types.UnicityCertificate, tr *
 		return nil
 	}
 
+	prevEpoch := n.currentEpoch()
 	if tr != nil {
 		leaderPeerID, err := peer.Decode(tr.Leader)
 		if err != nil {
@@ -775,6 +801,19 @@ func (n *Node) updateLUC(ctx context.Context, uc *types.UnicityCertificate, tr *
 	n.luc.Store(uc)
 	n.log.DebugContext(ctx, "updated LUC", logger.Round(uc.GetRoundNumber()))
 	n.sendEvent(event.LatestUnicityCertificateUpdated, uc)
+
+	newEpoch := n.currentEpoch()
+	// Either epoch has changed or we have not managed to load the correct configuration for the epoch yet
+	if prevEpoch != newEpoch || n.shardStore.LoadedEpoch() != newEpoch {
+		// Schedule epoch change. The handling of current message is finished with the old configuration.
+		// This might be problematic if epoch change is triggered by a TR in BlockProposal, which should
+		// be validated according to the new epoch configuration already.
+		select {
+		case n.epochChangeEvent <- struct{}{}:
+		default:
+		}
+
+	}
 
 	return nil
 }
@@ -798,7 +837,7 @@ func (n *Node) startNewRound(ctx context.Context) error {
 		}
 		n.leaderCnt.Add(ctx, 1)
 	}
-	n.startHandleOrForwardTransactions(ctx)
+	n.startProcessingTransactions(ctx)
 	n.sendEvent(event.NewRoundStarted, newRoundNumber)
 	return nil
 }
@@ -815,8 +854,8 @@ func (n *Node) startRecovery(ctx context.Context) {
 	n.status.Store(recovering)
 	n.revertState()
 	n.resetProposal()
-	if n.IsValidatorNode() {
-		n.stopForwardingOrHandlingTransactions()
+	if n.IsValidator() {
+		n.stopProcessingTransactions()
 	}
 
 	fromBlockNr := n.committedUC().GetRoundNumber() + 1
@@ -1027,7 +1066,12 @@ func (n *Node) handleT1TimeoutEvent(ctx context.Context) {
 	ctx, span := n.tracer.Start(ctx, "node.handleT1TimeoutEvent", trace.WithNewRoot(), trace.WithAttributes(n.attrRound()))
 	defer span.End()
 
-	n.stopForwardingOrHandlingTransactions()
+	if !n.IsValidator() {
+		n.log.InfoContext(ctx, "T1 timeout: node is non-validator")
+		return
+	}
+
+	n.stopProcessingTransactions()
 
 	if n.status.Load() == recovering {
 		n.log.InfoContext(ctx, "T1 timeout: node is recovering")
@@ -1049,6 +1093,23 @@ func (n *Node) handleT1TimeoutEvent(ctx context.Context) {
 	}
 }
 
+func (n *Node) handleEpochChangeEvent(ctx context.Context) {
+	wasValidator := n.IsValidator()
+	newEpoch := n.currentEpoch()
+
+	if err := n.shardStore.LoadEpoch(newEpoch); err != nil {
+		// Log the error and let the node continue with the old configuration
+		n.log.ErrorContext(ctx, fmt.Sprintf("failed to load configuration for epoch %d", newEpoch), logger.Error(err))
+	} else if wasValidator != n.IsValidator() {
+		// Configuration loaded for the new epoch, and our validator status changed
+		if wasValidator {
+			n.stopValidating(ctx)
+		} else {
+			n.startValidating(ctx)
+		}
+	}
+}
+
 // handleMonitoring - monitors root communication, if for no UC is
 // received for a long time then try and request one from root
 func (n *Node) handleMonitoring(ctx context.Context, lastUCReceived, lastBlockReceived time.Time) {
@@ -1057,7 +1118,7 @@ func (n *Node) handleMonitoring(ctx context.Context, lastUCReceived, lastBlockRe
 
 	// check if we have not heard from root validator for T2 timeout + 1 sec
 	// a new repeat UC must have been made by now (assuming root is fine) try and get it from other root nodes
-	if n.IsValidatorNode() && time.Since(lastUCReceived) > n.configuration.GetT2Timeout()+time.Second {
+	if n.IsValidator() && time.Since(lastUCReceived) > n.configuration.GetT2Timeout()+time.Second {
 		// query latest UC from root
 		n.sendHandshake(ctx)
 	}
@@ -1065,7 +1126,7 @@ func (n *Node) handleMonitoring(ctx context.Context, lastUCReceived, lastBlockRe
 	if n.status.Load() == recovering && time.Since(n.lastLedgerReqTime) > n.configuration.replicationConfig.timeout {
 		n.log.WarnContext(ctx, "Ledger replication timeout, repeat request")
 		n.sendLedgerReplicationRequest(ctx)
-	} else if !n.IsValidatorNode() && time.Since(lastBlockReceived) > n.configuration.blockSubscriptionTimeout {
+	} else if !n.IsValidator() && time.Since(lastBlockReceived) > n.configuration.blockSubscriptionTimeout {
 		// handle block timeout - no new blocks received
 		n.log.WarnContext(ctx, "Block subscription timeout, starting recovery")
 		n.startRecovery(ctx)
@@ -1212,7 +1273,7 @@ func (n *Node) handleLedgerReplicationResponse(ctx context.Context, lr *replicat
 
 	n.stopRecovery(ctx)
 
-	if n.IsValidatorNode() {
+	if n.IsValidator() {
 		if err := n.startNewRound(ctx); err != nil {
 			return err
 		}
@@ -1315,7 +1376,7 @@ func (n *Node) sendLedgerReplicationRequest(ctx context.Context) {
 	n.log.Log(ctx, logger.LevelTrace, "sending ledger replication request", logger.Data(req))
 
 	// TODO: should send to non-validators also
-	peers := n.validatorNodes
+	peers := n.Validators()
 	if len(peers) == 0 {
 		n.log.WarnContext(ctx, "Error sending ledger replication request, no peers")
 		return
@@ -1355,7 +1416,7 @@ func (n *Node) sendBlockProposal(ctx context.Context) error {
 	prop := &blockproposal.BlockProposal{
 		Partition:          n.configuration.GetPartitionIdentifier(),
 		Shard:              n.configuration.shardID,
-		NodeIdentifier:     nodeId.String(),
+		NodeIdentifier:     nodeId,
 		UnicityCertificate: n.luc.Load(),
 		Technical:          *ltr,
 		Transactions:       n.proposedTransactions,
@@ -1528,12 +1589,21 @@ func (n *Node) Peer() *network.Peer {
 	return n.peer
 }
 
-func (n *Node) ValidatorNodes() peer.IDSlice {
-	return n.validatorNodes
+func (n *Node) Validators() peer.IDSlice {
+	return n.shardStore.Validators()
 }
 
-func (n *Node) IsValidatorNode() bool {
-	return slices.Contains(n.validatorNodes, n.Peer().ID())
+func (n *Node) IsValidator() bool {
+	return n.shardStore.IsValidator(n.peer.ID())
+}
+
+func (n *Node) RegisterValidatorAssignmentRecord(v *partitions.ValidatorAssignmentRecord) error {
+	n.log.Info(fmt.Sprintf("Registering VAR for epoch %d", v.EpochNumber))
+	if err := n.shardStore.StoreValidatorAssignmentRecord(v); err != nil {
+		n.log.Error(fmt.Sprintf("Failed to register VAR for epoch %d", v.EpochNumber), logger.Error(err))
+		return err
+	}
+	return nil
 }
 
 func (n *Node) IsPermissionedMode() bool {
@@ -1565,7 +1635,7 @@ func (n *Node) GetTrustBase(epochNumber uint64) (types.RootTrustBase, error) {
 
 func (n *Node) FilterValidatorNodes(exclude peer.ID) []peer.ID {
 	var result []peer.ID
-	for _, v := range n.validatorNodes {
+	for _, v := range n.Validators() {
 		if v != exclude {
 			result = append(result, v)
 		}
@@ -1577,66 +1647,123 @@ func (n *Node) TransactionSystemState() txsystem.StateReader {
 	return n.transactionSystem.State()
 }
 
-func (n *Node) stopForwardingOrHandlingTransactions() {
+func (n *Node) stopProcessingTransactions() {
 	n.stopTxProcessor.Load().(func())()
+	n.stopTxProcessor.Store(func() {})
+
 }
 
-func (n *Node) startHandleOrForwardTransactions(ctx context.Context) {
+func (n *Node) startProcessingTransactions(ctx context.Context) {
 	ctx, span := n.tracer.Start(ctx, "node.startHandleOrForwardTransactions", trace.WithAttributes(n.attrRound()))
 	defer span.End()
 
-	n.stopForwardingOrHandlingTransactions()
+	n.stopProcessingTransactions()
 
-	leader := n.leader.Get()
-	if leader == UnknownLeader {
+	if n.IsValidator() && n.leader.IsLeader(UnknownLeader) {
 		n.log.Warn("unknown round leader", logger.Round(n.currentRoundNumber()))
 		return
 	}
 
 	txCtx, txCancel := context.WithCancel(ctx)
 	var wg sync.WaitGroup
-	wg.Add(2)
 
 	n.stopTxProcessor.Store(func() {
 		txCancel()
 		wg.Wait()
 	})
 
+	wg.Add(1)
 	go func() {
-		ctx, span := n.tracer.Start(txCtx, "node.processTransactions", trace.WithNewRoot(), trace.WithLinks(trace.LinkFromContext(txCtx)))
-		defer func() {
-			span.End()
-			wg.Done()
-		}()
+		processCtx := txCtx
+		receiverFunc := n.shardStore.RandomValidator
 
-		if leader == n.peer.ID() {
-			n.network.ProcessTransactions(ctx, n.process)
+		if n.IsValidator() {
+			ctx, span := n.tracer.Start(txCtx, "node.processTransactions", trace.WithNewRoot(), trace.WithLinks(trace.LinkFromContext(txCtx)))
+			processCtx = ctx
+			defer span.End()
+
+			// Validator knows the leader and can forward directly to it
+			receiverFunc = n.leader.Get
+		}
+
+		defer wg.Done()
+		if n.leader.IsLeader(n.peer.ID()) {
+			n.network.ProcessTransactions(processCtx, n.process)
 		} else {
-			n.network.ForwardTransactions(ctx, n.leader.Get)
+			n.network.ForwardTransactions(processCtx, receiverFunc)
 		}
 	}()
 
-	go func() {
-		defer wg.Done()
-		select {
-		case <-time.After(n.configuration.t1Timeout):
-			// Rather than call handleT1TimeoutEvent directly send signal to main
-			// loop - helps to avoid concurrency issues with (repeat) UC handling.
+	// Validator nodes only process/forward transactions until T1 timeout
+	if n.IsValidator() {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
 			select {
-			case n.t1event <- struct{}{}:
+			case <-time.After(n.configuration.t1Timeout):
+				// Rather than call handleT1TimeoutEvent directly send signal to main
+				// loop - helps to avoid concurrency issues with (repeat) UC handling.
+				select {
+				case n.t1event <- struct{}{}:
+				case <-txCtx.Done():
+				}
 			case <-txCtx.Done():
 			}
-		case <-txCtx.Done():
-		}
-	}()
+		}()
+	}
 }
 
 func (n *Node) attrRound() attribute.KeyValue {
 	return observability.Round(n.currentRoundNumber())
 }
 
+func (n *Node) startValidating(ctx context.Context) {
+	n.log.InfoContext(ctx, "Entering validator mode")
+
+	n.network.UnsubscribeFromBlocks()
+	if err := n.network.RegisterValidatorProtocols(); err != nil {
+		n.log.ErrorContext(ctx, "Failed to register validator protocols", logger.Error(err))
+	}
+	n.sendHandshake(ctx)
+	// Non-validator was processing/forwarding indefinitely
+	n.stopProcessingTransactions()
+}
+
+func (n *Node) stopValidating(ctx context.Context) {
+	n.log.InfoContext(ctx, "Entering non-validator mode")
+
+	if err := n.network.SubscribeToBlocks(ctx); err != nil {
+		n.log.ErrorContext(ctx, "Failed to subscribe to blocks", logger.Error(err))
+	}
+	n.network.UnregisterValidatorProtocols()
+	n.startProcessingTransactions(ctx)
+}
+
 func printUC(uc *types.UnicityCertificate) string {
 	return fmt.Sprintf("H:\t%X\nH':\t%X\nHb:\t%X\nfees:%d, round:%d, root round:%d",
 		uc.InputRecord.Hash, uc.InputRecord.PreviousHash, uc.InputRecord.BlockHash,
 		uc.InputRecord.SumOfEarnedFees, uc.GetRoundNumber(), uc.GetRootRoundNumber())
+}
+
+func newVARFromGenesis(genesis *genesis.PartitionGenesis) *partitions.ValidatorAssignmentRecord {
+	if genesis == nil {
+		return nil
+	}
+
+	validators := make([]partitions.NodeInfo, len(genesis.Keys))
+	for i, k := range genesis.Keys {
+		validators[i] = partitions.NodeInfo{
+			NodeID:  k.NodeIdentifier,
+			AuthKey: k.EncryptionPublicKey,
+			SigKey:  k.SigningPublicKey,
+		}
+	}
+
+	return &partitions.ValidatorAssignmentRecord{
+		NetworkID:   genesis.PartitionDescription.NetworkIdentifier,
+		PartitionID: genesis.PartitionDescription.PartitionIdentifier,
+		EpochNumber: genesis.Certificate.InputRecord.Epoch,
+		RoundNumber: genesis.Certificate.GetRoundNumber(),
+		Nodes:       validators,
+	}
 }

@@ -8,6 +8,7 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	"github.com/alphabill-org/alphabill/partition"
+	"github.com/alphabill-org/alphabill/rootchain/partitions"
 	"github.com/alphabill-org/alphabill/tree/avl"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -28,7 +29,8 @@ type (
 		GetTransactionRecordProof(ctx context.Context, hash []byte) (*types.TxRecordProof, error)
 		CurrentRoundNumber(ctx context.Context) (uint64, error)
 		TransactionSystemState() txsystem.StateReader
-		ValidatorNodes() peer.IDSlice
+		Validators() peer.IDSlice
+		RegisterValidatorAssignmentRecord(v *partitions.ValidatorAssignmentRecord) error
 		GetTrustBase(epochNumber uint64) (types.RootTrustBase, error)
 		IsPermissionedMode() bool
 		IsFeelessMode() bool

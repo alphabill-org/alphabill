@@ -176,7 +176,7 @@ func Test_StartSingleNode(t *testing.T) {
 		require.NoError(t, err)
 		moneyPeer, err := network.NewPeer(ctx, moneyPeerCfg, observe.Logger(), nil)
 		require.NoError(t, err)
-		moneyNode := &mockNode{money.DefaultPartitionID, moneyPeer, moneyPeer.Configuration().Validators}
+		moneyNode := &mockNode{money.DefaultPartitionID, moneyPeer, []peer.ID{moneyPeer.ID()}}
 		n, err := network.NewLibP2PValidatorNetwork(
 			context.Background(), moneyNode, network.DefaultValidatorNetworkOptions, observe)
 		require.NoError(t, err)
@@ -313,7 +313,7 @@ func Test_Start_2_DRCNodes(t *testing.T) {
 		require.NoError(t, err)
 		moneyPeer, err := network.NewPeer(ctx, moneyPeerCfg, observe.Logger(), nil)
 		require.NoError(t, err)
-		moneyNode := &mockNode{money.DefaultPartitionID, moneyPeer, moneyPeer.Configuration().Validators}
+		moneyNode := &mockNode{money.DefaultPartitionID, moneyPeer, []peer.ID{moneyPeer.ID()}}
 		n, err := network.NewLibP2PValidatorNetwork(
 			context.Background(), moneyNode, network.DefaultValidatorNetworkOptions, observe)
 		require.NoError(t, err)
@@ -363,7 +363,7 @@ func (mn *mockNode) Peer() *network.Peer {
 	return mn.peer
 }
 
-func (mn *mockNode) IsValidatorNode() bool {
+func (mn *mockNode) IsValidator() bool {
 	return slices.Contains(mn.validatorNodes, mn.peer.ID())
 }
 

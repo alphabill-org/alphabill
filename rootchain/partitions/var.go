@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
@@ -31,16 +32,16 @@ type (
 )
 
 // TODO partition genesis record should support multi-shard nodes i.e. currently we create one VAR per partition, but should create one VAR per shard
-func NewVARFromGenesis(pg *genesis.GenesisPartitionRecord) *ValidatorAssignmentRecord {
-	pdr := pg.PartitionDescription
-	uc := pg.Certificate
+func NewVARFromGenesis(gpr *genesis.GenesisPartitionRecord) *ValidatorAssignmentRecord {
+	pdr := gpr.PartitionDescription
+	uc := gpr.Certificate
 	return &ValidatorAssignmentRecord{
 		NetworkID:   pdr.NetworkIdentifier,
 		PartitionID: pdr.PartitionIdentifier,
 		ShardID:     uc.ShardTreeCertificate.Shard,
 		EpochNumber: uc.InputRecord.Epoch,
 		RoundNumber: uc.InputRecord.RoundNumber,
-		Nodes:       newVarNodesFromGenesisNodes(pg.Nodes),
+		Nodes:       newVarNodesFromGenesisNodes(gpr.Nodes),
 	}
 }
 
@@ -54,24 +55,27 @@ func NewVARNodeFromGenesisNode(pn *genesis.PartitionNode) NodeInfo {
 
 // Verify verifies the provided VAR extends the previous VAR.
 func (v *ValidatorAssignmentRecord) Verify(prev *ValidatorAssignmentRecord) error {
-	if prev == nil {
+	if prev == nil && v.EpochNumber != 0 {
 		return errors.New("previous var cannot be nil")
 	}
-	if v.NetworkID != prev.NetworkID {
-		return fmt.Errorf("invalid network id, provided %d previous %d", v.NetworkID, prev.NetworkID)
+	if prev != nil {
+		if v.NetworkID != prev.NetworkID {
+			return fmt.Errorf("invalid network id, provided %d previous %d", v.NetworkID, prev.NetworkID)
+		}
+		if v.PartitionID != prev.PartitionID {
+			return fmt.Errorf("invalid partition id, provided %d previous %d", v.PartitionID, prev.PartitionID)
+		}
+		if !v.ShardID.Equal(prev.ShardID) {
+			return fmt.Errorf("invalid shard id, provided \"0x%x\" previous \"0x%x\"", v.ShardID.Bytes(), prev.ShardID.Bytes())
+		}
+		if v.EpochNumber != prev.EpochNumber+1 {
+			return fmt.Errorf("invalid epoch number, provided %d previous %d", v.EpochNumber, prev.EpochNumber)
+		}
+		if v.RoundNumber <= prev.RoundNumber {
+			return fmt.Errorf("invalid shard round number, provided %d previous %d", v.RoundNumber, prev.RoundNumber)
+		}
 	}
-	if v.PartitionID != prev.PartitionID {
-		return fmt.Errorf("invalid partition id, provided %d previous %d", v.PartitionID, prev.PartitionID)
-	}
-	if !v.ShardID.Equal(prev.ShardID) {
-		return fmt.Errorf("invalid shard id, provided \"0x%x\" previous \"0x%x\"", v.ShardID.Bytes(), prev.ShardID.Bytes())
-	}
-	if v.EpochNumber != prev.EpochNumber+1 {
-		return fmt.Errorf("invalid epoch number, provided %d previous %d", v.EpochNumber, prev.EpochNumber)
-	}
-	if v.RoundNumber <= prev.RoundNumber {
-		return fmt.Errorf("invalid shard round number, provided %d previous %d", v.RoundNumber, prev.RoundNumber)
-	}
+
 	// verify the node ids are correctly calculated (no nodes in shard is considered valid)
 	for i, n := range v.Nodes {
 		if err := n.Verify(); err != nil {
@@ -83,16 +87,19 @@ func (v *ValidatorAssignmentRecord) Verify(prev *ValidatorAssignmentRecord) erro
 
 // Verify verifies the node id is derived from the auth key
 func (v *NodeInfo) Verify() error {
-	authKeyPublic, err := libp2pcrypto.UnmarshalSecp256k1PublicKey(v.AuthKey)
+	authKey, err := libp2pcrypto.UnmarshalSecp256k1PublicKey(v.AuthKey)
 	if err != nil {
 		return fmt.Errorf("unmarshal auth key: %w", err)
 	}
-	nodeID, err := peer.IDFromPublicKey(authKeyPublic)
+	nodeID, err := peer.IDFromPublicKey(authKey)
 	if err != nil {
 		return err
 	}
 	if nodeID.String() != v.NodeID {
 		return errors.New("node id is not hash of auth key")
+	}
+	if _, err := crypto.NewVerifierSecp256k1(v.SigKey); err != nil {
+		return fmt.Errorf("invalid sign key for node %s: %w", v.NodeID, err)
 	}
 	return nil
 }

@@ -27,6 +27,7 @@ type (
 		PrometheusRegisterer() prometheus.Registerer
 		Shutdown() error
 		Logger() *slog.Logger
+		RoundLogger(func() uint64) *slog.Logger
 	}
 
 	baseConfiguration struct {

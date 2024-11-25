@@ -93,6 +93,14 @@ func (o *Observability) Logger() *slog.Logger {
 	return log
 }
 
+func (o *Observability) RoundLogger(curRound func() uint64) *slog.Logger {
+	log, err := o.logF(nil)
+	if err != nil {
+		panic(fmt.Errorf("unexpectedly log builder returned error: %w", err))
+	}
+	return slog.New(logger.NewRoundHandler(log.Handler(), curRound))
+}
+
 func (o *Observability) Factory() Factory {
 	return Factory{
 		logF: o.logF,

@@ -15,6 +15,10 @@ import (
 	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 )
 
+type Observability interface {
+	RoundLogger(curRound func() uint64) *slog.Logger
+}
+
 type genericTransactionValidator func(ctx *TxValidationContext) error
 
 type TxValidationContext struct {
@@ -40,7 +44,7 @@ type TxSystem struct {
 	log                 *slog.Logger
 }
 
-func NewEVMTxSystem(networkID types.NetworkID, partitionID types.PartitionID, log *slog.Logger, opts ...Option) (*TxSystem, error) {
+func NewEVMTxSystem(networkID types.NetworkID, partitionID types.PartitionID, observe Observability, opts ...Option) (*TxSystem, error) {
 	options, err := defaultOptions()
 	if err != nil {
 		return nil, fmt.Errorf("default configuration: %w", err)
@@ -54,26 +58,25 @@ func NewEVMTxSystem(networkID types.NetworkID, partitionID types.PartitionID, lo
 	/*	if options.blockDB == nil {
 		return nil, errors.New("evm tx system init failed, block DB is nil")
 	}*/
-	evm, err := NewEVMModule(partitionID, options, log)
+	txs := &TxSystem{
+		networkID:         networkID,
+		partitionID:       partitionID,
+		hashAlgorithm:     options.hashAlgorithm,
+		state:             options.state,
+		endBlockFunctions: nil,
+		executors:         make(txtypes.TxExecutors),
+	}
+	txs.log = observe.RoundLogger(txs.CurrentBlockNumber)
+	evm, err := NewEVMModule(partitionID, options, txs.log)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load EVM module: %w", err)
 	}
-	fees, err := newFeeModule(partitionID, options, log)
+	fees, err := newFeeModule(partitionID, options, txs.log)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load EVM fee module: %w", err)
 	}
-	txs := &TxSystem{
-		networkID:           networkID,
-		partitionID:         partitionID,
-		hashAlgorithm:       options.hashAlgorithm,
-		state:               options.state,
-		beginBlockFunctions: evm.StartBlockFunc(options.blockGasLimit),
-		endBlockFunctions:   nil,
-		executors:           make(txtypes.TxExecutors),
-		genericTxValidators: []genericTransactionValidator{evm.GenericTransactionValidator(), fees.GenericTransactionValidator()},
-		log:                 log,
-	}
-	txs.beginBlockFunctions = append(txs.beginBlockFunctions, txs.pruneState)
+	txs.genericTxValidators = []genericTransactionValidator{evm.GenericTransactionValidator(), fees.GenericTransactionValidator()}
+	txs.beginBlockFunctions = append(evm.StartBlockFunc(options.blockGasLimit), txs.pruneState)
 	if err := txs.executors.Add(evm.TxHandlers()); err != nil {
 		return nil, fmt.Errorf("registering EVM executors: %w", err)
 	}
@@ -174,7 +177,7 @@ func (m *TxSystem) Execute(tx *types.TransactionOrder) (trx *types.TransactionRe
 		m.state.ReleaseToSavepoint(savepointID)
 	}()
 	// execute transaction
-	m.log.Debug(fmt.Sprintf("execute %d", tx.Type), logger.UnitID(tx.UnitID), logger.Data(tx), logger.Round(m.currentRoundNumber))
+	m.log.Debug(fmt.Sprintf("execute %d", tx.Type), logger.UnitID(tx.UnitID), logger.Data(tx))
 	trx.ServerMetadata, err = m.executors.ValidateAndExecute(tx, exeCtx)
 	if err != nil {
 		return nil, err

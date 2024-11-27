@@ -234,7 +234,7 @@ func TestExecutedBlock_GenerateCertificates(t *testing.T) {
 	}
 	// root hash does not match
 	certs, err := block.GenerateCertificates(commitQc)
-	require.ErrorContains(t, err, "commit of block round 2 failed, root hash mismatch")
+	require.ErrorContains(t, err, "root hash does not match hash in commit QC")
 	require.Nil(t, certs)
 	// make a correct qc
 	commitQc = &drctypes.QuorumCert{
@@ -252,7 +252,6 @@ func TestExecutedBlock_GenerateCertificates(t *testing.T) {
 	certs, err = block.GenerateCertificates(commitQc)
 	require.NoError(t, err)
 	require.Len(t, certs, 2)
-	require.NotNil(t, block.CommitQc)
 	si, ok := block.ShardInfo[partitionShard{partitionID1, types.ShardID{}.Key()}]
 	require.True(t, ok)
 	require.NotNil(t, si.LastCR)

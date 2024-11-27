@@ -153,16 +153,10 @@ func (x *BlockStore) ProcessQc(qc *drctypes.QuorumCert) ([]*certification.Certif
 		// NB! exception, no commit for genesis round
 		return nil, nil
 	}
-	// If the QC commits a state
-	// committed block becomes the new root and nodes to old root are removed
-	committedBlock, err := x.blockTree.Commit(qc)
+	// If the QC commits a state committed block becomes the new root
+	ucs, err := x.blockTree.Commit(qc)
 	if err != nil {
-		return nil, err
-	}
-	// generate certificates for all partitions that have changes in progress
-	ucs, err := committedBlock.GenerateCertificates(qc)
-	if err != nil {
-		return nil, fmt.Errorf("commit block failed to generate certificates for round %v: %w", committedBlock.GetRound(), err)
+		return nil, fmt.Errorf("committing new root block: %w", err)
 	}
 	return ucs, nil
 }

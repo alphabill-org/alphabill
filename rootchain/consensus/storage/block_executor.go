@@ -340,14 +340,12 @@ func (x *ExecutedBlock) GenerateCertificates(commitQc *rctypes.QuorumCert) ([]*c
 	}
 	rootHash := ut.RootHash()
 	// sanity check, data must not have changed, hence the root hash must still be the same
-	fmt.Printf("RootHash: %X\n", rootHash)
-	fmt.Printf("x.RootHash: %X\n", x.RootHash)
 	if !bytes.Equal(rootHash, x.RootHash) {
 		return nil, fmt.Errorf("root hash does not match previously calculated root hash")
 	}
 	// sanity check, if root hashes do not match then fall back to recovery
 	if !bytes.Equal(rootHash, commitQc.LedgerCommitInfo.Hash) {
-		return nil, fmt.Errorf("commit of block round %v failed, root hash mismatch", commitQc.VoteInfo.ParentRoundNumber)
+		return nil, fmt.Errorf("root hash does not match hash in commit QC")
 	}
 	// create UnicitySeal for pending certificates
 	uSeal := &types.UnicitySeal{
@@ -371,7 +369,6 @@ func (x *ExecutedBlock) GenerateCertificates(commitQc *rctypes.QuorumCert) ([]*c
 			return nil, fmt.Errorf("no SI for the shard %s - %s", cr.Partition, cr.Shard)
 		}
 	}
-	x.CommitQc = commitQc
 	return ucs, nil
 }
 

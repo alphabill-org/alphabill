@@ -143,6 +143,7 @@ func mockExecutedBlock(round, qcRound, qcParentRound uint64) *ExecutedBlock {
 			},
 		},
 		ShardInfo: shardStates{},
+		HashAlgo:  gocrypto.SHA256,
 	}
 }
 
@@ -578,6 +579,15 @@ func TestAddAndCommit(t *testing.T) {
 	b, err = bTree.FindBlock(genesis.RootRound + 3)
 	require.NoError(t, err)
 	require.Equal(t, genesis.RootRound+3, b.BlockData.Round)
+	// set block input data (mock blocks do not have it assigned) as without it
+	// commit creates empty unicity tree. As we do not have any shard marked as
+	// having changes Commit doesn't return any certificates.
+	b.CurrentIR = append(b.CurrentIR, &InputData{
+		Partition: 1,
+		IR:        &types.InputRecord{},
+		PDRHash:   zeroHash,
+	})
+	b.RootHash = hexToBytes("A94918C9BD373F56CDADDF2E17E3A7EDFD7960BDEC35272372AAD5E3880F43CA")
 
 	commitQc := &drctypes.QuorumCert{
 		VoteInfo: &drctypes.RoundInfo{
@@ -587,12 +597,12 @@ func TestAddAndCommit(t *testing.T) {
 		LedgerCommitInfo: &types.UnicitySeal{
 			Version:      1,
 			PreviousHash: []byte{1, 2, 3},
-			Hash:         zeroHash,
+			Hash:         b.RootHash,
 		},
 	}
-	cBlock, err := bTree.Commit(commitQc)
+	certs, err := bTree.Commit(commitQc)
 	require.NoError(t, err)
-	require.NotNil(t, cBlock)
+	require.Empty(t, certs)
 	newRoot := bTree.Root()
 	require.Equal(t, newRoot, b)
 	require.Len(t, bTree.roundToNode, 2)

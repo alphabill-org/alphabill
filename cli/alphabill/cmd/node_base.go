@@ -27,8 +27,8 @@ import (
 )
 
 const (
-	cmdFlagState           = "state"
-	cmdFlagTrustBaseFile   = "trust-base-file"
+	cmdFlagState         = "state"
+	cmdFlagTrustBaseFile = "trust-base-file"
 )
 
 type baseNodeConfiguration struct {
@@ -119,7 +119,7 @@ func run(ctx context.Context, name string, node *partition.Node, rpcServerConf *
 	return g.Wait()
 }
 
-func loadPeerConfiguration(keys *Keys, pg *genesis.PartitionGenesis, cfg *startNodeConfiguration) (*network.PeerConfiguration, error) {
+func loadPeerConfiguration(keys *Keys, cfg *startNodeConfiguration) (*network.PeerConfiguration, error) {
 	pair, err := keys.getEncryptionKeyPair()
 	if err != nil {
 		return nil, err
@@ -146,7 +146,7 @@ func createNode(ctx context.Context,
 		return nil, err
 	}
 	// Load network configuration. In testnet, we assume that all validators know the address of all other validators.
-	peerConf, err := loadPeerConfiguration(keys, pg, cfg)
+	peerConf, err := loadPeerConfiguration(keys, cfg)
 	if err != nil {
 		return nil, err
 	}

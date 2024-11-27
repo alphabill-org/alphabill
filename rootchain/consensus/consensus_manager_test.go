@@ -196,10 +196,6 @@ func TestIRChangeRequestFromRootValidator_RootTimeoutOnFirstRound(t *testing.T) 
 }
 
 func TestIRChangeRequestFromRootValidator_RootTimeout(t *testing.T) {
-	var lastProposalMsg *abdrc.ProposalMsg = nil
-	var lastVoteMsg *abdrc.VoteMsg = nil
-	var lastTimeoutMsg *abdrc.TimeoutMsg = nil
-
 	mockNet := testnetwork.NewRootMockNetwork()
 	cm, rootNode, partitionNodes, rg := initConsensusManager(t, mockNet)
 	ctx, ctxCancel := context.WithCancel(context.Background())
@@ -218,14 +214,14 @@ func TestIRChangeRequestFromRootValidator_RootTimeout(t *testing.T) {
 	require.NoError(t, irChReqMsg.Sign(rootNode.Signer))
 	testutils.MockValidatorNetReceives(t, mockNet, rootNode.PeerConf.ID, network.ProtocolRootIrChangeReq, irChReqMsg)
 	// As the node is the leader, next round will trigger a proposal
-	lastProposalMsg = testutils.MockAwaitMessage[*abdrc.ProposalMsg](t, mockNet, network.ProtocolRootProposal)
+	lastProposalMsg := testutils.MockAwaitMessage[*abdrc.ProposalMsg](t, mockNet, network.ProtocolRootProposal)
 	require.Equal(t, partitionID, lastProposalMsg.Block.Payload.Requests[0].Partition)
 	require.Equal(t, drctypes.Quorum, lastProposalMsg.Block.Payload.Requests[0].CertReason)
 	require.Len(t, lastProposalMsg.Block.Payload.Requests[0].Requests, 2)
 	// route the proposal back
 	testutils.MockValidatorNetReceives(t, mockNet, rootNode.PeerConf.ID, network.ProtocolRootProposal, lastProposalMsg)
 	// wait for the vote message
-	lastVoteMsg = testutils.MockAwaitMessage[*abdrc.VoteMsg](t, mockNet, network.ProtocolRootVote)
+	lastVoteMsg := testutils.MockAwaitMessage[*abdrc.VoteMsg](t, mockNet, network.ProtocolRootVote)
 	require.Equal(t, uint64(2), lastVoteMsg.VoteInfo.RoundNumber)
 	require.Equal(t, uint64(1), lastVoteMsg.VoteInfo.ParentRoundNumber)
 	require.Equal(t, uint64(0), lastVoteMsg.VoteInfo.Epoch)
@@ -249,7 +245,7 @@ func TestIRChangeRequestFromRootValidator_RootTimeout(t *testing.T) {
 	// simulate local timeout by calling the method -> race/hack accessing from different go routines not safe
 	cm.onLocalTimeout(ctx)
 	// await timeout vote
-	lastTimeoutMsg = testutils.MockAwaitMessage[*abdrc.TimeoutMsg](t, mockNet, network.ProtocolRootTimeout)
+	lastTimeoutMsg := testutils.MockAwaitMessage[*abdrc.TimeoutMsg](t, mockNet, network.ProtocolRootTimeout)
 	require.Equal(t, uint64(3), lastTimeoutMsg.Timeout.Round)
 	// route the timeout message back to trigger timeout certificate and new round
 	testutils.MockValidatorNetReceives(t, mockNet, rootNode.PeerConf.ID, network.ProtocolRootTimeout, lastTimeoutMsg)

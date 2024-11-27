@@ -1635,6 +1635,7 @@ func TestExecute_FailedTxInFeelessMode(t *testing.T) {
 	rootHashBefore := ss.Root()
 
 	u, err := txs.State().GetUnit(feeCreditID, false)
+	require.NoError(t, err)
 	fcrBefore, ok := u.Data().(*fc.FeeCreditRecord)
 	require.True(t, ok)
 
@@ -1645,11 +1646,13 @@ func TestExecute_FailedTxInFeelessMode(t *testing.T) {
 	require.EqualValues(t, 0, txr.ServerMetadata.ActualFee)
 
 	u, err = txs.State().GetUnit(feeCreditID, false)
+	require.NoError(t, err)
 	fcrAfter, ok := u.Data().(*fc.FeeCreditRecord)
 	require.True(t, ok)
 	require.Equal(t, fcrBefore.Balance, fcrAfter.Balance)
 
 	ss, err = txs.EndBlock()
+	require.NoError(t, err)
 	require.Equal(t, rootHashBefore, ss.Root())
 }
 

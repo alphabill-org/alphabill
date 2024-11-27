@@ -172,7 +172,7 @@ func Test_StartSingleNode(t *testing.T) {
 			Address:       "/ip4/127.0.0.1/tcp/26652",
 			AnnounceAddrs: []string{"/ip4/127.0.0.1/tcp/26652"},
 		}
-		moneyPeerCfg, err := loadPeerConfiguration(keys, pg, cfg)
+		moneyPeerCfg, err := loadPeerConfiguration(keys, cfg)
 		require.NoError(t, err)
 		moneyPeer, err := network.NewPeer(ctx, moneyPeerCfg, observe.Logger(), nil)
 		require.NoError(t, err)
@@ -309,7 +309,7 @@ func Test_Start_2_DRCNodes(t *testing.T) {
 		cfg := &startNodeConfiguration{
 			Address: "/ip4/127.0.0.1/tcp/26652",
 		}
-		moneyPeerCfg, err := loadPeerConfiguration(keys, pg, cfg)
+		moneyPeerCfg, err := loadPeerConfiguration(keys, cfg)
 		require.NoError(t, err)
 		moneyPeer, err := network.NewPeer(ctx, moneyPeerCfg, observe.Logger(), nil)
 		require.NoError(t, err)

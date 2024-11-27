@@ -318,7 +318,10 @@ func (s *State) CalculateRoot() (uint64, []byte, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 	sp := s.latestSavepoint()
-	sp.Commit()
+	err := sp.Commit()
+	if err != nil {
+		return 0, nil, fmt.Errorf("unable to commit savepoint: %w", err)
+	}
 	root := sp.Root()
 	if root == nil {
 		return 0, nil, nil

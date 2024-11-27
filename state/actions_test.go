@@ -4,7 +4,7 @@ import (
 	"crypto"
 	"testing"
 
-	hasherUtil "github.com/alphabill-org/alphabill-go-base/hash"
+	abhash "github.com/alphabill-org/alphabill-go-base/hash"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/util"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
@@ -53,12 +53,8 @@ func TestAdd(t *testing.T) {
 				data:   &TestData{Value: 123, OwnerPredicate: []byte{0x83, 0x00, 0x41, 0x01, 0xf6}},
 			},
 			initialState: NewEmptyState(),
-			expectedUnit: &Unit{
-				logs:                nil,
-				logsHash:            nil,
-				data:                &TestData{Value: 123},
-				subTreeSummaryValue: 123,
-				subTreeSummaryHash: hasherUtil.Sum(crypto.SHA256,
+			expectedUnit: func() *Unit {
+				subTreeSumHash, err := abhash.HashValues(crypto.SHA256,
 					[]byte{1},
 					nil, // h_s is nil (we do not have a log entry)
 					util.Uint64ToBytes(123),
@@ -66,8 +62,16 @@ func TestAdd(t *testing.T) {
 					make([]byte, 32),
 					util.Uint64ToBytes(0),
 					make([]byte, 32),
-				),
-			},
+				)
+				require.NoError(t, err)
+				return &Unit{
+					logs:                nil,
+					logsHash:            nil,
+					data:                &TestData{Value: 123},
+					subTreeSummaryValue: 123,
+					subTreeSummaryHash:  subTreeSumHash,
+				}
+			}(),
 		},
 	}
 	for _, tt := range tests {

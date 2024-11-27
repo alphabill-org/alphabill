@@ -232,7 +232,11 @@ func NewRootBlock(hash crypto.Hash, block *abdrc.CommittedBlock, orchestration O
 		if err != nil {
 			return nil, fmt.Errorf("loading partition %s genesis: %w", d.Partition, err)
 		}
-		if !bytes.Equal(d.PDRHash, pdr.Hash(crypto.SHA256)) {
+		pdrHash, err := pdr.Hash(crypto.SHA256)
+		if err != nil {
+			return nil, fmt.Errorf("calculating PDR hash: %w", err)
+		}
+		if !bytes.Equal(d.PDRHash, pdrHash) {
 			return nil, fmt.Errorf("calculated PDR hash doesn't match the value in block data for %s - %s", d.Partition, d.Shard)
 		}
 		irState[i] = &InputData{
@@ -336,6 +340,8 @@ func (x *ExecutedBlock) GenerateCertificates(commitQc *rctypes.QuorumCert) ([]*c
 	}
 	rootHash := ut.RootHash()
 	// sanity check, data must not have changed, hence the root hash must still be the same
+	fmt.Printf("RootHash: %X\n", rootHash)
+	fmt.Printf("x.RootHash: %X\n", x.RootHash)
 	if !bytes.Equal(rootHash, x.RootHash) {
 		return nil, fmt.Errorf("root hash does not match previously calculated root hash")
 	}

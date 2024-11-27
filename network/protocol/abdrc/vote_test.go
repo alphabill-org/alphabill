@@ -7,6 +7,7 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/types/hex"
+	testcertificates "github.com/alphabill-org/alphabill/internal/testutils/certificates"
 	"github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtb "github.com/alphabill-org/alphabill/internal/testutils/trustbase"
 	"github.com/alphabill-org/alphabill/rootchain/consensus/testutils"
@@ -92,11 +93,11 @@ func Test_VoteMsg_Verify(t *testing.T) {
 	rootTrust := testtb.NewTrustBaseFromVerifiers(t, map[string]crypto.Verifier{"1": v1, "2": v2, "3": v3})
 	commitQcInfo := testutils.NewDummyRootRoundInfo(votedRound - 2)
 	commitInfo := testutils.NewDummyCommitInfo(gocrypto.SHA256, commitQcInfo)
-	sig1, err := s1.SignBytes(commitInfo.Bytes())
+	sig1, err := s1.SignBytes(testcertificates.UnicitySealBytes(t, commitInfo))
 	require.NoError(t, err)
-	sig2, err := s2.SignBytes(commitInfo.Bytes())
+	sig2, err := s2.SignBytes(testcertificates.UnicitySealBytes(t, commitInfo))
 	require.NoError(t, err)
-	sig3, err := s3.SignBytes(commitInfo.Bytes())
+	sig3, err := s3.SignBytes(testcertificates.UnicitySealBytes(t, commitInfo))
 	require.NoError(t, err)
 
 	// valid vote obj - each test creates copy of it to make single field invalid

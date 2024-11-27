@@ -98,7 +98,10 @@ func NewDefaultUnicityCertificateValidator(
 	if trustBase == nil {
 		return nil, types.ErrRootValidatorInfoMissing
 	}
-	h := systemDescription.Hash(algorithm)
+	h, err := systemDescription.Hash(algorithm)
+	if err != nil {
+		return nil, fmt.Errorf("failed to hash system description: %w", err)
+	}
 	return &DefaultUnicityCertificateValidator{
 		partitionIdentifier:   systemDescription.PartitionIdentifier,
 		rootTrustBase:         trustBase,
@@ -123,7 +126,10 @@ func NewDefaultBlockProposalValidator(
 	if rootTrust == nil {
 		return nil, types.ErrRootValidatorInfoMissing
 	}
-	h := systemDescription.Hash(algorithm)
+	h, err := systemDescription.Hash(algorithm)
+	if err != nil {
+		return nil, fmt.Errorf("failed to hash system description: %w", err)
+	}
 	return &DefaultBlockProposalValidator{
 		partitionIdentifier:   systemDescription.PartitionIdentifier,
 		rootTrustBase:         rootTrust,

@@ -69,7 +69,10 @@ func (x *PartitionGenesis) IsValid(trustBase types.RootTrustBase, hashAlgorithm 
 	if x.Certificate == nil {
 		return ErrPartitionUnicityCertificateIsNil
 	}
-	sdrHash := x.PartitionDescription.Hash(hashAlgorithm)
+	sdrHash, err := x.PartitionDescription.Hash(hashAlgorithm)
+	if err != nil {
+		return fmt.Errorf("system description hash error, %w", err)
+	}
 	// validate all signatures against known root keys
 	if err := x.Certificate.Verify(trustBase, hashAlgorithm, x.PartitionDescription.PartitionIdentifier, sdrHash); err != nil {
 		return fmt.Errorf("invalid unicity certificate, %w", err)

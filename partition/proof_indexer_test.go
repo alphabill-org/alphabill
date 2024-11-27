@@ -52,7 +52,8 @@ func TestNewProofIndexer_history_2(t *testing.T) {
 		// verify tx index is not deleted
 		txo, err := txr.GetTransactionOrderV1()
 		require.NoError(t, err)
-		txoHash := txo.Hash(crypto.SHA256)
+		txoHash, err := txo.Hash(crypto.SHA256)
+		require.NoError(t, err)
 		var index *TxIndex
 		f, err := proofDB.Read(txoHash, &index)
 		require.NoError(t, err)
@@ -121,21 +122,24 @@ func TestNewProofIndexer_IndexBlock(t *testing.T) {
 	// check for tx proofs, tx proofs are not cleaned
 	txo, err := blockRound1.Block.Transactions[0].GetTransactionOrderV1()
 	require.NoError(t, err)
-	txHash := txo.Hash(crypto.SHA256)
+	txHash, err := txo.Hash(crypto.SHA256)
+	require.NoError(t, err)
 	idx, err := ReadTransactionIndex(proofDB, txHash)
 	require.NoError(t, err)
 	require.EqualValues(t, idx.TxOrderIndex, 0)
 	require.EqualValues(t, idx.RoundNumber, 1)
 	txo, err = blockRound2.Block.Transactions[0].GetTransactionOrderV1()
 	require.NoError(t, err)
-	txHash = txo.Hash(crypto.SHA256)
+	txHash, err = txo.Hash(crypto.SHA256)
+	require.NoError(t, err)
 	idx, err = ReadTransactionIndex(proofDB, txHash)
 	require.NoError(t, err)
 	require.EqualValues(t, idx.TxOrderIndex, 0)
 	require.EqualValues(t, idx.RoundNumber, 2)
 	txo, err = blockRound3.Block.Transactions[0].GetTransactionOrderV1()
 	require.NoError(t, err)
-	txHash = txo.Hash(crypto.SHA256)
+	txHash, err = txo.Hash(crypto.SHA256)
+	require.NoError(t, err)
 	idx, err = ReadTransactionIndex(proofDB, txHash)
 	require.NoError(t, err)
 	require.EqualValues(t, idx.TxOrderIndex, 0)
@@ -199,7 +203,8 @@ func TestNewProofIndexer_RunLoop(t *testing.T) {
 		for _, transaction := range blockRound1.Block.Transactions {
 			tx, err := transaction.GetTransactionOrderV1()
 			require.NoError(t, err)
-			oderHash := tx.Hash(crypto.SHA256)
+			oderHash, err := tx.Hash(crypto.SHA256)
+			require.NoError(t, err)
 			index := &struct {
 				RoundNumber  uint64
 				TxOrderIndex int
@@ -248,7 +253,8 @@ func TestNewProofIndexer_RunLoop(t *testing.T) {
 			// verify tx index is not deleted
 			tx, err := transaction.GetTransactionOrderV1()
 			require.NoError(t, err)
-			txoHash := tx.Hash(crypto.SHA256)
+			txoHash, err := tx.Hash(crypto.SHA256)
+			require.NoError(t, err)
 			var index *TxIndex
 			f, err := proofDB.Read(txoHash, &index)
 			require.NoError(t, err)

@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	abhash "github.com/alphabill-org/alphabill-go-base/hash"
 	"github.com/stretchr/testify/require"
 
 	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
@@ -506,8 +507,10 @@ func TestBillData_AddToHasher(t *testing.T) {
 	hasher.Write(res)
 	expectedHash := hasher.Sum(nil)
 	hasher.Reset()
-	require.NoError(t, bd.Write(hasher))
-	actualHash := hasher.Sum(nil)
+	abhasher := abhash.New(hasher)
+	bd.Write(abhasher)
+	actualHash, err := abhasher.Sum()
+	require.NoError(t, err)
 	require.Equal(t, expectedHash, actualHash)
 	// make sure all fields where serialized
 	var bdFormSerialized money.BillData

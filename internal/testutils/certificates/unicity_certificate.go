@@ -6,6 +6,8 @@ import (
 
 	"github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill/internal/testutils"
+	"github.com/stretchr/testify/require"
 )
 
 func CreateUnicityCertificate(
@@ -31,7 +33,7 @@ func CreateUnicityCertificate(
 	data := []*types.UnicityTreeData{{
 		Partition:     pdr.PartitionIdentifier,
 		ShardTreeRoot: sTree.RootHash(),
-		PDRHash:       pdr.Hash(gocrypto.SHA256),
+		PDRHash:       test.DoHash(t, pdr),
 	}}
 	ut, err := types.NewUnicityTree(gocrypto.SHA256, data)
 	if err != nil {
@@ -65,4 +67,11 @@ func createUnicitySeal(rootHash []byte, roundNumber uint64, previousRoundRootHas
 		PreviousHash:         previousRoundRootHash,
 		Hash:                 rootHash,
 	}
+}
+
+func UnicitySealBytes(t *testing.T, unicitySeal *types.UnicitySeal) []byte {
+	t.Helper()
+	h, err := unicitySeal.SigBytes()
+	require.NoError(t, err)
+	return h
 }

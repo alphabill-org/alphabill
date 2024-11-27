@@ -96,7 +96,11 @@ func (x *QuorumCert) Verify(tb types.RootTrustBase) error {
 		return fmt.Errorf("invalid commit info: %w", err)
 	}*/
 
-	if err, _ := tb.VerifyQuorumSignatures(x.LedgerCommitInfo.Bytes(), x.Signatures); err != nil {
+	bs, err := x.LedgerCommitInfo.SigBytes()
+	if err != nil {
+		return fmt.Errorf("failed to marshal ledger commit info: %w", err)
+	}
+	if err, _ := tb.VerifyQuorumSignatures(bs, x.Signatures); err != nil {
 		return fmt.Errorf("failed to verify quorum signatures: %w", err)
 	}
 	return nil

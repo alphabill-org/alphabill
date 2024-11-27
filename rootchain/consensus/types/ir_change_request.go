@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 
+	abhash "github.com/alphabill-org/alphabill-go-base/hash"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/util"
 	"github.com/alphabill-org/alphabill/network/protocol/certification"
@@ -102,10 +103,14 @@ func (x *IRChangeReq) Verify(tb RequestVerifier, luc *types.UnicityCertificate, 
 		// register node id
 		nodeIDs[req.NodeIdentifier] = struct{}{}
 		// get hash of IR and add to hash counter
-		hasher := crypto.SHA256.New()
+		hasher := abhash.New(crypto.SHA256.New())
 		req.InputRecord.AddToHasher(hasher)
-		count := hashCnt[string(hasher.Sum(nil))]
-		hashCnt[string(hasher.Sum(nil))] = count + 1
+		hash, err := hasher.Sum()
+		if err != nil {
+			return nil, fmt.Errorf("failed to calculate hash: %w", err)
+		}
+		count := hashCnt[string(hash)]
+		hashCnt[string(hash)] = count + 1
 	}
 	// match request type to proof
 	switch x.CertReason {

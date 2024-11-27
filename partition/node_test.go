@@ -661,12 +661,14 @@ func TestNode_GetTransactionRecord_OK(t *testing.T) {
 	tp.WaitHandshake(t)
 	require.NoError(t, tp.partition.startNewRound(context.Background()))
 	txo := testtransaction.NewTransactionOrder(t, testtransaction.WithTransactionType(21))
-	hash := txo.Hash(tp.partition.configuration.hashAlgorithm)
+	hash, err := txo.Hash(tp.partition.configuration.hashAlgorithm)
+	require.NoError(t, err)
 	require.NoError(t, tp.SubmitTx(txo))
 	testevent.ContainsEvent(t, tp.eh, event.TransactionProcessed)
 
 	txo2 := testtransaction.NewTransactionOrder(t, testtransaction.WithTransactionType(22))
-	hash2 := txo2.Hash(tp.partition.configuration.hashAlgorithm)
+	hash2, err := txo2.Hash(tp.partition.configuration.hashAlgorithm)
+	require.NoError(t, err)
 	require.NoError(t, tp.SubmitTxFromRPC(txo2))
 	testevent.ContainsEvent(t, tp.eh, event.TransactionProcessed)
 	tp.CreateBlock(t)
@@ -697,7 +699,8 @@ func TestNode_ProcessInvalidTxInFeelessMode(t *testing.T) {
 	require.NoError(t, tp.partition.startNewRound(context.Background()))
 
 	txo := testtransaction.NewTransactionOrder(t, testtransaction.WithTransactionType(99))
-	_ = txo.Hash(tp.partition.configuration.hashAlgorithm)
+	_, err = txo.Hash(tp.partition.configuration.hashAlgorithm)
+	require.NoError(t, err)
 	require.NoError(t, tp.SubmitTx(txo))
 	testevent.ContainsEvent(t, tp.eh, event.TransactionFailed)
 

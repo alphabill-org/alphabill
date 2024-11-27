@@ -620,14 +620,18 @@ func statusCodeOfTxError(err error) string {
 	}
 }
 
-func (n *Node) process(ctx context.Context, tx *types.TransactionOrder) (rErr error) {
+func (n *Node) process(ctx context.Context, tx *types.TransactionOrder) error {
 	trx, err := n.validateAndExecuteTx(ctx, tx, n.currentRoundNumber())
 	if err != nil || (n.IsFeelessMode() && trx.TxStatus() != types.TxStatusSuccessful) {
 		n.sendEvent(event.TransactionFailed, tx)
 		if err == nil {
 			err = trx.ServerMetadata.ErrDetail()
 		}
-		return fmt.Errorf("executing transaction %X: %w", tx.Hash(n.configuration.hashAlgorithm), err)
+		txHash, err2 := tx.Hash(n.configuration.hashAlgorithm)
+		if err2 != nil {
+			return fmt.Errorf("hashing transaction during execution: %w", err2)
+		}
+		return fmt.Errorf("executing transaction %X: %w", txHash, err)
 	}
 	n.proposedTransactions = append(n.proposedTransactions, trx)
 	n.sumOfEarnedFees += trx.GetActualFee()
@@ -729,7 +733,11 @@ func (n *Node) handleBlockProposal(ctx context.Context, prop *blockproposal.Bloc
 			return fmt.Errorf("failed to get transaction order: %w", err)
 		}
 		if err = n.process(ctx, txo); err != nil {
-			return fmt.Errorf("processing transaction %X: %w", tx.Hash(n.configuration.hashAlgorithm), err)
+			txHash, err2 := txo.Hash(n.configuration.hashAlgorithm)
+			if err2 != nil {
+				return fmt.Errorf("hashing transaction during processing: %w", err2)
+			}
+			return fmt.Errorf("processing transaction %X: %w", txHash, err)
 		}
 	}
 	if err = n.sendCertificationRequest(ctx, prop.NodeIdentifier.String()); err != nil {
@@ -931,7 +939,10 @@ func (n *Node) handleUnicityCertificate(ctx context.Context, uc *types.UnicityCe
 		return nil
 	}
 
-	if uc.IsRepeat(prevLUC) {
+	if b, err := uc.IsRepeat(prevLUC); b || err != nil {
+		if err != nil {
+			return fmt.Errorf("failed to check for repeat UC: %w", err)
+		}
 		// UC certifies the IR before pending block proposal ("repeat UC"). state is rolled back to previous state.
 		n.log.WarnContext(ctx, fmt.Sprintf("Reverting state tree on repeat certificate. UC IR hash: %X", uc.GetStateHash()))
 		n.revertState()
@@ -1293,7 +1304,11 @@ func (n *Node) handleBlock(ctx context.Context, b *types.Block) error {
 		return fmt.Errorf("failed to extract UC from block: %w", err)
 	}
 	algo := n.configuration.hashAlgorithm
-	if err := b.IsValid(algo, n.configuration.genesis.PartitionDescription.Hash(algo)); err != nil {
+	pdrHash, err := n.configuration.genesis.PartitionDescription.Hash(algo)
+	if err != nil {
+		return fmt.Errorf("failed to hash partition description: %w", err)
+	}
+	if err := b.IsValid(algo, pdrHash); err != nil {
 		// sends invalid blocks, do not trust the response and try again
 		return fmt.Errorf("invalid block for round %v: %w", blockUC.GetRoundNumber(), err)
 	}
@@ -1564,7 +1579,10 @@ func (n *Node) GetTransactionRecordProof(ctx context.Context, txoHash []byte) (*
 	if err != nil {
 		return nil, fmt.Errorf("unable to extract transaction order from the block: %w", err)
 	}
-	h := txo.Hash(n.configuration.hashAlgorithm)
+	h, err := txo.Hash(n.configuration.hashAlgorithm)
+	if err != nil {
+		return nil, fmt.Errorf("unable to hash transaction order: %w", err)
+	}
 	if !bytes.Equal(h, txoHash) {
 		return nil, errors.New("transaction index is invalid: hash mismatch")
 	}

@@ -16,7 +16,9 @@ import (
 
 func addQCSignature(t *testing.T, qc *drctypes.QuorumCert, author string, signer crypto.Signer) {
 	t.Helper()
-	sig, err := signer.SignBytes(qc.LedgerCommitInfo.Bytes())
+	bs, err := qc.LedgerCommitInfo.SigBytes()
+	require.NoError(t, err)
+	sig, err := signer.SignBytes(bs)
 	require.NoError(t, err)
 	qc.Signatures[author] = sig
 }

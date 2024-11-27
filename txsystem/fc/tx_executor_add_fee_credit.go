@@ -53,7 +53,10 @@ func (f *FeeCreditModule) validateAddFC(tx *types.TransactionOrder, attr *fc.Add
 	if createFC {
 		// if the target does not exist,
 		// the identifier must agree with the owner predicate
-		fcrID := f.NewFeeCreditRecordID(tx.UnitID, attr.FeeCreditOwnerPredicate, transAttr.LatestAdditionTime)
+		fcrID, err := f.NewFeeCreditRecordID(tx.UnitID, attr.FeeCreditOwnerPredicate, transAttr.LatestAdditionTime)
+		if err != nil {
+			return fmt.Errorf("failed to create fee credit record id: %w", err)
+		}
 		if !fcrID.Eq(tx.UnitID) {
 			return fmt.Errorf("tx.unitID is not equal to expected fee credit record id (hash of owner predicate), tx.UnitID=%s expected.fcrID=%s", tx.UnitID, fcrID)
 		}
@@ -154,8 +157,11 @@ func getTransferFC(addFeeCreditProof *types.TxRecordProof) (*fc.TransferFeeCredi
 	return transferAttributes, nil
 }
 
-func (f *FeeCreditModule) NewFeeCreditRecordID(unitID []byte, ownerPredicate []byte, timeout uint64) types.UnitID {
-	unitPart := fc.NewFeeCreditRecordUnitPart(ownerPredicate, timeout)
+func (f *FeeCreditModule) NewFeeCreditRecordID(unitID []byte, ownerPredicate []byte, timeout uint64) (types.UnitID, error) {
+	unitPart, err := fc.NewFeeCreditRecordUnitPart(ownerPredicate, timeout)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create fee credit record unit part: %w", err)
+	}
 	unitIdLen := len(unitPart) + len(f.feeCreditRecordUnitType)
-	return types.NewUnitID(unitIdLen, unitID, unitPart, f.feeCreditRecordUnitType)
+	return types.NewUnitID(unitIdLen, unitID, unitPart, f.feeCreditRecordUnitType), nil
 }

@@ -175,7 +175,10 @@ func NewRootGenesis(
 		if err = partition.IsValid(); err != nil {
 			return nil, nil, fmt.Errorf("invalid partition record: %w", err)
 		}
-		sdrh := partition.PartitionDescription.Hash(c.hashAlgorithm)
+		sdrh, err := partition.PartitionDescription.Hash(c.hashAlgorithm)
+		if err != nil {
+			return nil, nil, fmt.Errorf("calculating partition %s description hash: %w", partitionID, err)
+		}
 		// if partition is valid then conversion cannot fail
 		sdrhs[partition.PartitionDescription.PartitionIdentifier] = sdrh
 

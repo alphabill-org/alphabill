@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/alphabill-org/alphabill-go-base/types/hex"
+	testcertificates "github.com/alphabill-org/alphabill/internal/testutils/certificates"
 	testpartition "github.com/alphabill-org/alphabill/rootchain/partitions/testutils"
 	p2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -396,7 +397,8 @@ func TestIRChangeRequestFromRootValidator(t *testing.T) {
 	require.NoError(t, err)
 	trustBase, err := rg.GenerateTrustBase()
 	require.NoError(t, err)
-	sdrh := rg.Partitions[0].GetSystemDescriptionRecord().Hash(gocrypto.SHA256)
+	sdrh, err := rg.Partitions[0].GetSystemDescriptionRecord().Hash(gocrypto.SHA256)
+	require.NoError(t, err)
 	require.NoError(t, result.Verify(trustBase, gocrypto.SHA256, partitionID, sdrh))
 
 	// root will continue and next proposal is also triggered by the same QC
@@ -504,7 +506,7 @@ func Test_ConsensusManager_onVoteMsg(t *testing.T) {
 			LedgerCommitInfo: commitInfo,
 			Signatures:       map[string]hex.Bytes{},
 		}
-		cib := commitInfo.Bytes()
+		cib := testcertificates.UnicitySealBytes(t, commitInfo)
 		for _, cm := range cms {
 			sig, err := cm.safety.signer.SignBytes(cib)
 			require.NoError(t, err)

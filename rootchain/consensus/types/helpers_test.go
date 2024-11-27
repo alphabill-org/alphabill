@@ -8,6 +8,7 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	"github.com/alphabill-org/alphabill/internal/testutils"
+	testcertificates "github.com/alphabill-org/alphabill/internal/testutils/certificates"
 	p2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
@@ -95,7 +96,7 @@ func (sb structBuilder) QC(t *testing.T, round uint64) *QuorumCert {
 		Signatures:       map[string]hex.Bytes{},
 	}
 
-	cib := commitInfo.Bytes()
+	cib := testcertificates.UnicitySealBytes(t, commitInfo)
 	for k, v := range sb.signers {
 		sig, err := v.SignBytes(cib)
 		require.NoError(t, err)

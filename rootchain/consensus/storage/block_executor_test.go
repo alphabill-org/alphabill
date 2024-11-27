@@ -169,7 +169,7 @@ func TestExecutedBlock_Extend(t *testing.T) {
 }
 
 func TestExecutedBlock_GenerateCertificates(t *testing.T) {
-	rh, err := hex.DecodeString("9bdcae38e946dee158e5beff151dcac9e180a485b657d5d4cf4af346be58f3c7")
+	rh, err := hex.DecodeString("385E6A58F21F1299B92438B736E97A9DCBE792673C8A7391B5005E38A7F0017C")
 	require.NoError(t, err)
 	block := &ExecutedBlock{
 		BlockData: &drctypes.BlockData{

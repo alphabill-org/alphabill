@@ -49,7 +49,10 @@ func (x *GenesisPartitionRecord) IsValid(trustBase types.RootTrustBase, hashAlgo
 		return fmt.Errorf("invalid partition nodes: %w", err)
 	}
 	partitionIdentifier := x.PartitionDescription.PartitionIdentifier
-	systemDescriptionHash := x.PartitionDescription.Hash(hashAlgorithm)
+	systemDescriptionHash, err := x.PartitionDescription.Hash(hashAlgorithm)
+	if err != nil {
+		return fmt.Errorf("system description hash error: %w", err)
+	}
 	if err := x.Certificate.Verify(trustBase, hashAlgorithm, partitionIdentifier, systemDescriptionHash); err != nil {
 		return fmt.Errorf("invalid unicity certificate: %w", err)
 	}

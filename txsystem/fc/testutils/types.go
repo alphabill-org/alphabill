@@ -13,13 +13,13 @@ import (
 
 func NewFeeCreditRecordID(t *testing.T, signer abcrypto.Signer) types.UnitID {
 	ownerPredicate := NewP2pkhPredicate(t, signer)
-	unitPart := fc.NewFeeCreditRecordUnitPart(ownerPredicate, latestAdditionTime)
+	unitPart, err := fc.NewFeeCreditRecordUnitPart(ownerPredicate, latestAdditionTime)
+	require.NoError(t, err)
 	return money.NewFeeCreditRecordID(nil, unitPart)
 }
 
 func NewFeeCreditRecordIDAlwaysTrue() types.UnitID {
-	ownerPredicate := templates.AlwaysTrueBytes()
-	unitPart := fc.NewFeeCreditRecordUnitPart(ownerPredicate, latestAdditionTime)
+	unitPart, _ := fc.NewFeeCreditRecordUnitPart(templates.AlwaysTrueBytes(), latestAdditionTime)
 	return money.NewFeeCreditRecordID(nil, unitPart)
 }
 

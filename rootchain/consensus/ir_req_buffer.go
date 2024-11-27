@@ -59,7 +59,10 @@ func (x *IrReqBuffer) Add(round uint64, irChReq *drctypes.IRChangeReq, ver IRCha
 		if irChangeReq.Reason != newIrChReq.Reason {
 			return fmt.Errorf("equivocating request for partition %s, reason has changed", partitionID)
 		}
-		if types.EqualIR(irChangeReq.InputRecord, newIrChReq.InputRecord) {
+		if b, err := types.EqualIR(irChangeReq.InputRecord, newIrChReq.InputRecord); b || err != nil {
+			if err != nil {
+				return fmt.Errorf("failed to compare IRs, %w", err)
+			}
 			// duplicate already stored
 			x.log.Debug("duplicate IR change request, ignored", logger.Shard(partitionID, irChReq.Shard))
 			return nil

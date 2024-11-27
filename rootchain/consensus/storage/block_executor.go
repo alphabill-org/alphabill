@@ -341,7 +341,7 @@ func (x *ExecutedBlock) GenerateCertificates(commitQc *rctypes.QuorumCert) ([]*c
 	}
 	// sanity check, if root hashes do not match then fall back to recovery
 	if !bytes.Equal(rootHash, commitQc.LedgerCommitInfo.Hash) {
-		return nil, fmt.Errorf("commit of block round %v failed, root hash mismatch", commitQc.VoteInfo.ParentRoundNumber)
+		return nil, fmt.Errorf("root hash does not match hash in commit QC")
 	}
 	// create UnicitySeal for pending certificates
 	uSeal := &types.UnicitySeal{
@@ -365,7 +365,6 @@ func (x *ExecutedBlock) GenerateCertificates(commitQc *rctypes.QuorumCert) ([]*c
 			return nil, fmt.Errorf("no SI for the shard %s - %s", cr.Partition, cr.Shard)
 		}
 	}
-	x.CommitQc = commitQc
 	return ucs, nil
 }
 

@@ -10,6 +10,13 @@ import (
 	"slices"
 	"time"
 
+	"github.com/libp2p/go-libp2p/core/peer"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/trace"
+	"golang.org/x/sync/errgroup"
+
 	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/types/hex"
@@ -22,24 +29,9 @@ import (
 	"github.com/alphabill-org/alphabill/rootchain/consensus/storage"
 	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
 	"github.com/alphabill-org/alphabill/rootchain/partitions"
-	"github.com/libp2p/go-libp2p/core/peer"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
-	"go.opentelemetry.io/otel/metric"
-	"go.opentelemetry.io/otel/trace"
-	"golang.org/x/sync/errgroup"
 )
 
-// how long to wait before repeating status request
-const statusReqShelfLife = 800 * time.Millisecond
-
 type (
-	recoveryInfo struct {
-		toRound    uint64
-		triggerMsg any
-		sent       time.Time // when the status request was created/sent
-	}
-
 	RootNet interface {
 		Send(ctx context.Context, msg any, receivers ...peer.ID) error
 		ReceivedChannel() <-chan any
@@ -99,9 +91,8 @@ type (
 		// the votes. voteBuffer maps author id to vote, so we do not buffer same vote
 		// multiple times (votes are buffered for single round only)
 		voteBuffer map[string]*abdrc.VoteMsg
-		// when set (ie not nil) CM is in recovery mode, trying to get into the same
-		// state as other CMs
-		recovery *recoveryInfo
+		// whether the CM is in recovery mode, trying to get into the same state as other CMs
+		recovery *recoveryState
 
 		log    *slog.Logger
 		tracer trace.Tracer
@@ -189,6 +180,7 @@ func NewConsensusManager(
 		irReqVerifier:  reqVerifier,
 		t2Timeouts:     t2TimeoutGen,
 		voteBuffer:     make(map[string]*abdrc.VoteMsg),
+		recovery:       &recoveryState{},
 		log:            log,
 		tracer:         observe.Tracer("cm.distributed"),
 	}
@@ -283,6 +275,10 @@ func leaderSelector(rg *genesis.RootGenesis) (ls Leader, err error) {
 func (x *ConsensusManager) RequestCertification(ctx context.Context, cr IRChangeRequest) error {
 	ctx, span := x.tracer.Start(ctx, "ConsensusManager.RequestCertification")
 	defer span.End()
+
+	if x.recovery.InRecovery() {
+		return fmt.Errorf("node is in recovery: %s", x.recovery)
+	}
 
 	select {
 	case <-ctx.Done():
@@ -714,9 +710,8 @@ func (x *ConsensusManager) onProposalMsg(ctx context.Context, proposal *abdrc.Pr
 	x.replayVoteBuffer(ctx)
 	// if everything goes fine, but the node is in recovery state, then clear it
 	// most likely ended up here because proposal was late and votes arrived before
-	if x.recovery != nil {
-		x.log.DebugContext(ctx, fmt.Sprintf("clearing recovery state on proposal: %s", x.recovery.String()))
-		x.recovery = nil
+	if x.recovery.Clear() != nil {
+		x.log.DebugContext(ctx, "clearing recovery state on proposal")
 	}
 	return nil
 }
@@ -905,8 +900,8 @@ func (x *ConsensusManager) processNewRoundEvent(ctx context.Context) {
 }
 
 func (x *ConsensusManager) onStateReq(ctx context.Context, req *abdrc.StateRequestMsg) error {
-	if x.recovery != nil {
-		return fmt.Errorf("node is in recovery: %s", x.recovery.String())
+	if x.recovery.InRecovery() {
+		return fmt.Errorf("node is in recovery: %s", x.recovery)
 	}
 	peerID, err := peer.Decode(req.NodeId)
 	if err != nil {
@@ -925,16 +920,16 @@ func (x *ConsensusManager) onStateReq(ctx context.Context, req *abdrc.StateReque
 func (x *ConsensusManager) onStateResponse(ctx context.Context, rsp *abdrc.StateMsg) error {
 	ctx, span := x.tracer.Start(ctx, "ConsensusManager.onStateResponse")
 	defer span.End()
-	x.log.LogAttrs(ctx, logger.LevelTrace, "received state response", logger.Data(x.recovery))
-	if x.recovery == nil {
+	x.log.LogAttrs(ctx, logger.LevelTrace, "received state response; recoveryState: "+x.recovery.String())
+	if !x.recovery.InRecovery() {
 		// we do send out multiple state recovery request so do not return error when we ignore the ones after successful recovery...
 		return nil
 	}
 	if err := rsp.Verify(x.params.HashAlgorithm, x.trustBase); err != nil {
 		return fmt.Errorf("recovery response verification failed: %w", err)
 	}
-	if err := rsp.CanRecoverToRound(x.recovery.toRound); err != nil {
-		return fmt.Errorf("state message not suitable for recovery to round %d: %w", x.recovery.toRound, err)
+	if err := rsp.CanRecoverToRound(x.recovery.ToRound()); err != nil {
+		return fmt.Errorf("state message not suitable for recovery: %w", err)
 	}
 	// sort blocks by round
 	slices.SortFunc(rsp.BlockData, func(a, b *drctypes.BlockData) int {
@@ -977,8 +972,7 @@ func (x *ConsensusManager) onStateResponse(ctx context.Context, rsp *abdrc.State
 	x.t2Timeouts = t2TimeoutGen
 	// exit recovery status and replay buffered messages
 	x.log.DebugContext(ctx, "completed recovery")
-	triggerMsg := x.recovery.triggerMsg
-	x.recovery = nil
+	triggerMsg := x.recovery.Clear()
 	// in the "DiemBFT v4" pseudocode the process_certificate_qc first calls
 	// leaderSelector.Update and after that pacemaker.AdvanceRound - we do it the
 	// other way around as otherwise current leader goes out of sync with peers...
@@ -1032,48 +1026,16 @@ func (x *ConsensusManager) sendRecoveryRequests(ctx context.Context, triggerMsg 
 	ctx, span := x.tracer.Start(ctx, "ConsensusManager.sendRecoveryRequests")
 	defer span.End()
 
-	info, signatures, err := msgToRecoveryInfo(triggerMsg)
+	signatures, err := x.recovery.Set(triggerMsg)
 	if err != nil {
-		return fmt.Errorf("failed to extract recovery info: %w", err)
+		return err
 	}
-	if x.recovery != nil && x.recovery.toRound >= info.toRound && time.Since(x.recovery.sent) < statusReqShelfLife {
-		return fmt.Errorf("already in recovery to round %d, ignoring request to recover to round %d", x.recovery.toRound, info.toRound)
-	}
-
-	// set recovery status - when send fails we won't check did we fail to send to just one peer or
-	// to all of them... if we completely failed to send (or recovery just fails) we'll (re)enter to
-	// recovery status with higher destination round (when receiving proposal or vote for the next
-	// round) or after current request "times out"...
-	x.recovery = info
 
 	if err = x.net.Send(ctx, &abdrc.StateRequestMsg{NodeId: x.id.String()},
 		selectRandomNodeIdsFromSignatureMap(signatures, 2)...); err != nil {
 		return fmt.Errorf("failed to send recovery request: %w", err)
 	}
 	return nil
-}
-
-func msgToRecoveryInfo(msg any) (info *recoveryInfo, signatures map[string]hex.Bytes, err error) {
-	info = &recoveryInfo{triggerMsg: msg, sent: time.Now()}
-
-	switch mt := msg.(type) {
-	case *abdrc.ProposalMsg:
-		info.toRound = mt.Block.Qc.GetRound()
-		signatures = mt.Block.Qc.Signatures
-	case *abdrc.VoteMsg:
-		info.toRound = mt.HighQc.GetRound()
-		signatures = mt.HighQc.Signatures
-	case *abdrc.TimeoutMsg:
-		info.toRound = mt.Timeout.HighQc.VoteInfo.RoundNumber
-		signatures = mt.Timeout.HighQc.Signatures
-	case *drctypes.QuorumCert:
-		info.toRound = mt.GetParentRound()
-		signatures = mt.Signatures
-	default:
-		return nil, nil, fmt.Errorf("unknown message type, cannot be used for recovery: %T", mt)
-	}
-
-	return info, signatures, nil
 }
 
 /*
@@ -1102,6 +1064,9 @@ func selectRandomNodeIdsFromSignatureMap(m map[string]hex.Bytes, count int) (nod
 }
 
 func (x *ConsensusManager) ShardInfo(partition types.PartitionID, shard types.ShardID) (*storage.ShardInfo, error) {
+	if x.recovery.InRecovery() {
+		return nil, fmt.Errorf("node is in recovery: %s", x.recovery)
+	}
 	return x.blockStore.ShardInfo(partition, shard)
 }
 
@@ -1120,13 +1085,6 @@ func (x *ConsensusManager) updateQCMetrics(ctx context.Context, qc *drctypes.Quo
 	for nodeID := range qc.Signatures {
 		x.qcVoters.Add(ctx, 1, metric.WithAttributeSet(attribute.NewSet(attribute.String("node.id", nodeID))))
 	}
-}
-
-func (ri *recoveryInfo) String() string {
-	if ri == nil {
-		return "<nil>"
-	}
-	return fmt.Sprintf("toRound: %d trigger %T @ %s", ri.toRound, ri.triggerMsg, ri.sent)
 }
 
 // "constant" (ie without variable part) attribute sets for observability

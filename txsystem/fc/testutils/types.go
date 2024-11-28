@@ -18,8 +18,9 @@ func NewFeeCreditRecordID(t *testing.T, signer abcrypto.Signer) types.UnitID {
 	return money.NewFeeCreditRecordID(nil, unitPart)
 }
 
-func NewFeeCreditRecordIDAlwaysTrue() types.UnitID {
-	unitPart, _ := fc.NewFeeCreditRecordUnitPart(templates.AlwaysTrueBytes(), latestAdditionTime)
+func NewFeeCreditRecordIDAlwaysTrue(t *testing.T) types.UnitID {
+	unitPart, err := fc.NewFeeCreditRecordUnitPart(templates.AlwaysTrueBytes(), latestAdditionTime)
+	require.NoError(t, err)
 	return money.NewFeeCreditRecordID(nil, unitPart)
 }
 

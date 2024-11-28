@@ -699,8 +699,6 @@ func TestNode_ProcessInvalidTxInFeelessMode(t *testing.T) {
 	require.NoError(t, tp.partition.startNewRound(context.Background()))
 
 	txo := testtransaction.NewTransactionOrder(t, testtransaction.WithTransactionType(99))
-	_, err = txo.Hash(tp.partition.configuration.hashAlgorithm)
-	require.NoError(t, err)
 	require.NoError(t, tp.SubmitTx(txo))
 	testevent.ContainsEvent(t, tp.eh, event.TransactionFailed)
 

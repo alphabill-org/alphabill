@@ -9,7 +9,6 @@ import (
 	"io"
 	"time"
 
-	abhash "github.com/alphabill-org/alphabill-go-base/hash"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/logger"
 	"github.com/alphabill-org/alphabill/network/protocol/blockproposal"
@@ -178,11 +177,9 @@ func (n *validatorNetwork) initGossipSub(ctx context.Context, partitionID types.
 	// for validators not to join the mesh and just publish to the topic (fan-out).
 	n.gsTopicBlock, err = gs.Join(topic, pubsub.WithTopicMessageIdFn(
 		func(msg *pubsub_pb.Message) string {
-			hasher := abhash.New(crypto.SHA256.New())
+			hasher := crypto.SHA256.New()
 			hasher.Write(msg.Data)
-			var h []byte
-			h, err = hasher.Sum()
-			return hex.EncodeToString(h)
+			return hex.EncodeToString(hasher.Sum(nil))
 		}),
 	)
 	if err != nil {

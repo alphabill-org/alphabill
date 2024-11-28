@@ -7,6 +7,7 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/types/hex"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testcertificates "github.com/alphabill-org/alphabill/internal/testutils/certificates"
 	"github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtb "github.com/alphabill-org/alphabill/internal/testutils/trustbase"
@@ -37,7 +38,7 @@ func TestVoteMsg_AddSignature(t *testing.T) {
 			name: "Sign ok",
 			fields: fields{
 				VoteInfo:         voteInfo,
-				LedgerCommitInfo: &types.UnicitySeal{Version: 1, PreviousHash: voteInfo.Hash(gocrypto.SHA256)},
+				LedgerCommitInfo: &types.UnicitySeal{Version: 1, PreviousHash: test.DoHash(t, voteInfo)},
 				HighQc:           &drctypes.QuorumCert{},
 				Author:           "test",
 			},
@@ -92,7 +93,7 @@ func Test_VoteMsg_Verify(t *testing.T) {
 	s3, v3 := testsig.CreateSignerAndVerifier(t)
 	rootTrust := testtb.NewTrustBaseFromVerifiers(t, map[string]crypto.Verifier{"1": v1, "2": v2, "3": v3})
 	commitQcInfo := testutils.NewDummyRootRoundInfo(votedRound - 2)
-	commitInfo := testutils.NewDummyCommitInfo(gocrypto.SHA256, commitQcInfo)
+	commitInfo := testutils.NewDummyCommitInfo(t, gocrypto.SHA256, commitQcInfo)
 	sig1, err := s1.SignBytes(testcertificates.UnicitySealBytes(t, commitInfo))
 	require.NoError(t, err)
 	sig2, err := s2.SignBytes(testcertificates.UnicitySealBytes(t, commitInfo))
@@ -104,11 +105,13 @@ func Test_VoteMsg_Verify(t *testing.T) {
 	validVoteMsg := func(t *testing.T) *VoteMsg {
 		t.Helper()
 		voteMsgInfo := testutils.NewDummyRootRoundInfo(votedRound)
+		h, err := voteMsgInfo.Hash(gocrypto.SHA256)
+		require.NoError(t, err)
 		vote := &VoteMsg{
 			VoteInfo: voteMsgInfo,
 			LedgerCommitInfo: &types.UnicitySeal{
 				Version:      1,
-				PreviousHash: voteMsgInfo.Hash(gocrypto.SHA256),
+				PreviousHash: h,
 			},
 			HighQc: &drctypes.QuorumCert{
 				VoteInfo:         commitQcInfo,

@@ -61,6 +61,7 @@ var roundInfo = &drctypes.RoundInfo{
 var pg = func() []*genesis.GenesisPartitionRecord {
 	sdr1Hash, _ := sdr1.Hash(gocrypto.SHA256)
 	sdr2Hash, _ := sdr2.Hash(gocrypto.SHA256)
+	r1hash, _ := roundInfo.Hash(gocrypto.SHA256)
 	return []*genesis.GenesisPartitionRecord{
 		{
 			Version: 1,
@@ -78,7 +79,7 @@ var pg = func() []*genesis.GenesisPartitionRecord {
 					RootChainRoundNumber: roundInfo.RoundNumber,
 					Hash:                 roundInfo.CurrentRootHash,
 					Timestamp:            roundInfo.Timestamp,
-					PreviousHash:         roundInfo.Hash(gocrypto.SHA256),
+					PreviousHash:         r1hash,
 					Signatures:           map[string]basehex.Bytes{},
 				},
 			},
@@ -108,7 +109,7 @@ var pg = func() []*genesis.GenesisPartitionRecord {
 					RootChainRoundNumber: roundInfo.RoundNumber,
 					Hash:                 roundInfo.CurrentRootHash,
 					Timestamp:            roundInfo.Timestamp,
-					PreviousHash:         roundInfo.Hash(gocrypto.SHA256),
+					PreviousHash:         r1hash,
 					Signatures:           map[string]basehex.Bytes{},
 				},
 			},
@@ -405,11 +406,13 @@ func TestNewBlockTreeFromDbChain3Blocks(t *testing.T) {
 		ParentRoundNumber: 1,
 		CurrentRootHash:   gBlock.RootHash,
 	}
+	h2, err := voteInfoB2.Hash(gocrypto.SHA256)
+	require.NoError(t, err)
 	qcBlock2 := &drctypes.QuorumCert{
 		VoteInfo: voteInfoB2,
 		LedgerCommitInfo: &types.UnicitySeal{
 			Version:      1,
-			PreviousHash: voteInfoB2.Hash(gocrypto.SHA256),
+			PreviousHash: h2,
 			Hash:         gBlock.RootHash,
 		},
 	}
@@ -468,11 +471,13 @@ func TestNewBlockTreeFromRecovery(t *testing.T) {
 		ParentRoundNumber: 1,
 		CurrentRootHash:   gBlock.RootHash,
 	}
+	h2, err := voteInfoB2.Hash(gocrypto.SHA256)
+	require.NoError(t, err)
 	qcBlock2 := &drctypes.QuorumCert{
 		VoteInfo: voteInfoB2,
 		LedgerCommitInfo: &types.UnicitySeal{
 			Version:      1,
-			PreviousHash: voteInfoB2.Hash(gocrypto.SHA256),
+			PreviousHash: h2,
 			Hash:         gBlock.RootHash,
 		},
 	}

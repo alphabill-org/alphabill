@@ -225,11 +225,15 @@ func NewRootGenesis(
 			ParentRoundNumber: 0,
 			CurrentRootHash:   rootHash,
 		}
+		h, err := roundMeta.Hash(crypto.SHA256)
+		if err != nil {
+			return nil, fmt.Errorf("round info hash error: %w", err)
+		}
 		uSeal := &types.UnicitySeal{
 			Version:              1,
 			RootChainRoundNumber: genesis.RootRound,
 			Timestamp:            types.GenesisTime,
-			PreviousHash:         roundMeta.Hash(crypto.SHA256),
+			PreviousHash:         h,
 			Hash:                 rootHash,
 		}
 		return uSeal, uSeal.Sign(c.peerID, c.signer)

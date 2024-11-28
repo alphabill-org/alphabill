@@ -32,12 +32,16 @@ func NewQuorumCertificateFromVote(voteInfo *RoundInfo, commitInfo *types.Unicity
 	}
 }
 
-func NewQuorumCertificate(voteInfo *RoundInfo, commitHash []byte) *QuorumCert {
+func NewQuorumCertificate(voteInfo *RoundInfo, commitHash []byte) (*QuorumCert, error) {
+	ph, err := voteInfo.Hash(gocrypto.SHA256)
+	if err != nil {
+		return nil, fmt.Errorf("failed to hash vote info: %w", err)
+	}
 	return &QuorumCert{
 		VoteInfo:         voteInfo,
-		LedgerCommitInfo: &types.UnicitySeal{Version: 1, PreviousHash: voteInfo.Hash(gocrypto.SHA256), Hash: commitHash},
+		LedgerCommitInfo: &types.UnicitySeal{Version: 1, PreviousHash: ph, Hash: commitHash},
 		Signatures:       map[string]hex.Bytes{},
-	}
+	}, nil
 }
 
 func (x *QuorumCert) GetRound() uint64 {
@@ -88,7 +92,11 @@ func (x *QuorumCert) Verify(tb types.RootTrustBase) error {
 		return fmt.Errorf("invalid quorum certificate: %w", err)
 	}
 	// check vote info hash
-	if !bytes.Equal(x.VoteInfo.Hash(gocrypto.SHA256), x.LedgerCommitInfo.PreviousHash) {
+	h, err := x.VoteInfo.Hash(gocrypto.SHA256)
+	if err != nil {
+		return fmt.Errorf("failed to hash vote info: %w", err)
+	}
+	if !bytes.Equal(h, x.LedgerCommitInfo.PreviousHash) {
 		return fmt.Errorf("vote info hash verification failed")
 	}
 	/* todo: call LedgerCommitInfo.Verify but first refactor it so that it takes quorum param?

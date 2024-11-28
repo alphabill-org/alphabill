@@ -32,13 +32,15 @@ func TestTimeoutCert_Add(t *testing.T) {
 		Epoch:             0,
 		Timestamp:         1670314583523,
 		CurrentRootHash:   test.RandomBytes(32)}
+	h, err := voteInfo.Hash(gocrypto.SHA256)
+	require.NoError(t, err)
 	timeoutCert := &TimeoutCert{
 		Timeout: &Timeout{
 			Epoch: 0,
 			Round: 10,
 			HighQc: &QuorumCert{
 				VoteInfo:         voteInfo,
-				LedgerCommitInfo: &types.UnicitySeal{Version: 1, PreviousHash: voteInfo.Hash(gocrypto.SHA256)},
+				LedgerCommitInfo: &types.UnicitySeal{Version: 1, PreviousHash: h},
 				Signatures:       map[string]hex.Bytes{"1": {1, 2, 1}},
 			},
 		},
@@ -49,12 +51,11 @@ func TestTimeoutCert_Add(t *testing.T) {
 		Round: 10,
 		HighQc: &QuorumCert{
 			VoteInfo:         voteInfo,
-			LedgerCommitInfo: &types.UnicitySeal{Version: 1, PreviousHash: voteInfo.Hash(gocrypto.SHA256)},
+			LedgerCommitInfo: &types.UnicitySeal{Version: 1, PreviousHash: h},
 			Signatures:       map[string]hex.Bytes{"1": {1, 2, 1}, "2": {1, 2, 3}, "3": {1, 2, 3}},
 		},
 	}
-	err := timeoutCert.Add("1", t1, []byte{0, 1, 2})
-	require.NoError(t, err)
+	require.NoError(t, timeoutCert.Add("1", t1, []byte{0, 1, 2}))
 	require.Equal(t, []string{"1"}, timeoutCert.GetAuthors())
 	require.Equal(t, timeoutCert.Timeout.HighQc.VoteInfo.RoundNumber, voteInfo.RoundNumber)
 	// Add a new timeout vote, but with lower round
@@ -64,12 +65,14 @@ func TestTimeoutCert_Add(t *testing.T) {
 		Epoch:             0,
 		Timestamp:         1670314583523,
 		CurrentRootHash:   test.RandomBytes(32)}
+	h, err = voteInfo.Hash(gocrypto.SHA256)
+	require.NoError(t, err)
 	t2 := &Timeout{
 		Epoch: 0,
 		Round: 10,
 		HighQc: &QuorumCert{
 			VoteInfo:         voteInfo,
-			LedgerCommitInfo: &types.UnicitySeal{Version: 1, PreviousHash: voteInfo.Hash(gocrypto.SHA256)},
+			LedgerCommitInfo: &types.UnicitySeal{Version: 1, PreviousHash: h},
 			Signatures:       map[string]hex.Bytes{"1": {1, 2, 1}, "2": {1, 2, 3}, "3": {1, 2, 3}},
 		},
 	}
@@ -85,12 +88,14 @@ func TestTimeoutCert_Add(t *testing.T) {
 		Epoch:             0,
 		Timestamp:         1670314583523,
 		CurrentRootHash:   test.RandomBytes(32)}
+	h, err = voteInfo.Hash(gocrypto.SHA256)
+	require.NoError(t, err)
 	t3 := &Timeout{
 		Epoch: 0,
 		Round: 10,
 		HighQc: &QuorumCert{
 			VoteInfo:         voteInfo,
-			LedgerCommitInfo: &types.UnicitySeal{Version: 1, PreviousHash: voteInfo.Hash(gocrypto.SHA256)},
+			LedgerCommitInfo: &types.UnicitySeal{Version: 1, PreviousHash: h},
 			Signatures:       map[string]hex.Bytes{"1": {1, 2, 1}, "2": {1, 2, 3}, "3": {1, 2, 3}},
 		},
 	}
@@ -110,7 +115,7 @@ func TestTimeoutCert_Add(t *testing.T) {
 		Round: timeoutCert.Timeout.Round + 1,
 		HighQc: &QuorumCert{
 			VoteInfo:         voteInfo,
-			LedgerCommitInfo: &types.UnicitySeal{Version: 1, PreviousHash: voteInfo.Hash(gocrypto.SHA256)},
+			LedgerCommitInfo: &types.UnicitySeal{Version: 1, PreviousHash: h},
 			Signatures:       map[string]hex.Bytes{"1": {1, 2, 1}, "2": {1, 2, 3}, "3": {1, 2, 3}},
 		},
 	}

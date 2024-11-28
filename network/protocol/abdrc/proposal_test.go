@@ -65,7 +65,7 @@ func TestProposalMsg_IsValid(t *testing.T) {
 					Payload:   &drctypes.Payload{},
 					Qc: &drctypes.QuorumCert{
 						VoteInfo:         testutils.NewDummyRootRoundInfo(7),
-						LedgerCommitInfo: testutils.NewDummyCommitInfo(gocrypto.SHA256, testutils.NewDummyRootRoundInfo(7)),
+						LedgerCommitInfo: testutils.NewDummyCommitInfo(t, gocrypto.SHA256, testutils.NewDummyRootRoundInfo(7)),
 						Signatures:       map[string]hex.Bytes{"test": {0, 1, 2, 3}},
 					},
 				},
@@ -83,7 +83,7 @@ func TestProposalMsg_IsValid(t *testing.T) {
 					Payload:   &drctypes.Payload{},
 					Qc: &drctypes.QuorumCert{
 						VoteInfo:         testutils.NewDummyRootRoundInfo(5),
-						LedgerCommitInfo: testutils.NewDummyCommitInfo(gocrypto.SHA256, testutils.NewDummyRootRoundInfo(5)),
+						LedgerCommitInfo: testutils.NewDummyCommitInfo(t, gocrypto.SHA256, testutils.NewDummyRootRoundInfo(5)),
 						Signatures:       map[string]hex.Bytes{"test": {0, 1, 2, 3}},
 					},
 				},
@@ -117,6 +117,8 @@ func TestProposalMsg_IsValid(t *testing.T) {
 
 func TestProposalMsg_Sign_SignerIsNil(t *testing.T) {
 	prevRoundInfo := &drctypes.RoundInfo{RoundNumber: 8}
+	h, err := prevRoundInfo.Hash(gocrypto.SHA256)
+	require.NoError(t, err)
 	proposeMsg := &ProposalMsg{
 		Block: &drctypes.BlockData{
 			Author:    "1",
@@ -126,7 +128,7 @@ func TestProposalMsg_Sign_SignerIsNil(t *testing.T) {
 			Payload:   &drctypes.Payload{},
 			Qc: &drctypes.QuorumCert{
 				VoteInfo:         prevRoundInfo,
-				LedgerCommitInfo: &types.UnicitySeal{Version: 1, PreviousHash: prevRoundInfo.Hash(gocrypto.SHA256)},
+				LedgerCommitInfo: &types.UnicitySeal{Version: 1, PreviousHash: h},
 				Signatures:       map[string]hex.Bytes{"1": {1, 2, 3}},
 			},
 		},
@@ -137,7 +139,8 @@ func TestProposalMsg_Sign_SignerIsNil(t *testing.T) {
 
 func TestProposalMsg_Sign_InvalidBlock(t *testing.T) {
 	qcInfo := &drctypes.RoundInfo{RoundNumber: 8}
-
+	h, err := qcInfo.Hash(gocrypto.SHA256)
+	require.NoError(t, err)
 	proposeMsg := &ProposalMsg{
 		Block: &drctypes.BlockData{
 			Author:    "1",
@@ -147,7 +150,7 @@ func TestProposalMsg_Sign_InvalidBlock(t *testing.T) {
 			Payload:   &drctypes.Payload{},
 			Qc: &drctypes.QuorumCert{
 				VoteInfo:         qcInfo,
-				LedgerCommitInfo: &types.UnicitySeal{Version: 1, PreviousHash: qcInfo.Hash(gocrypto.SHA256)},
+				LedgerCommitInfo: &types.UnicitySeal{Version: 1, PreviousHash: h},
 				Signatures:       map[string]hex.Bytes{"1": {1, 2, 3}},
 			},
 		},
@@ -159,7 +162,8 @@ func TestProposalMsg_Sign_InvalidBlock(t *testing.T) {
 
 func TestProposalMsg_Sign_Ok(t *testing.T) {
 	qcInfo := testutils.NewDummyRootRoundInfo(9)
-
+	h, err := qcInfo.Hash(gocrypto.SHA256)
+	require.NoError(t, err)
 	proposeMsg := &ProposalMsg{
 		Block: &drctypes.BlockData{
 			Author:    "1",
@@ -169,7 +173,7 @@ func TestProposalMsg_Sign_Ok(t *testing.T) {
 			Payload:   &drctypes.Payload{},
 			Qc: &drctypes.QuorumCert{
 				VoteInfo:         qcInfo,
-				LedgerCommitInfo: &types.UnicitySeal{Version: 1, PreviousHash: qcInfo.Hash(gocrypto.SHA256)},
+				LedgerCommitInfo: &types.UnicitySeal{Version: 1, PreviousHash: h},
 				Signatures:       map[string]hex.Bytes{"1": {1, 2, 3}},
 			},
 		},
@@ -188,7 +192,8 @@ func TestProposalMsg_Verify(t *testing.T) {
 	validProposal := func(t *testing.T) *ProposalMsg {
 		t.Helper()
 		voteInfo := testutils.NewDummyRootRoundInfo(9)
-		lastRoundQc := drctypes.NewQuorumCertificate(voteInfo, nil)
+		lastRoundQc, err := drctypes.NewQuorumCertificate(voteInfo, nil)
+		require.NoError(t, err)
 		addQCSignature(t, lastRoundQc, "1", s1)
 		addQCSignature(t, lastRoundQc, "2", s2)
 		addQCSignature(t, lastRoundQc, "3", s3)
@@ -244,9 +249,11 @@ func TestProposalMsg_Verify_OkWithTc(t *testing.T) {
 	s3, v3 := testsig.CreateSignerAndVerifier(t)
 	rootTrust := testtb.NewTrustBaseFromVerifiers(t, map[string]crypto.Verifier{"1": v1, "2": v2, "3": v3})
 	lastRoundVoteInfo := testutils.NewDummyRootRoundInfo(8)
+	h, err := lastRoundVoteInfo.Hash(gocrypto.SHA256)
+	require.NoError(t, err)
 	lastRoundQc := &drctypes.QuorumCert{
 		VoteInfo:         lastRoundVoteInfo,
-		LedgerCommitInfo: &types.UnicitySeal{Version: 1, PreviousHash: lastRoundVoteInfo.Hash(gocrypto.SHA256)},
+		LedgerCommitInfo: &types.UnicitySeal{Version: 1, PreviousHash: h},
 		Signatures:       map[string]hex.Bytes{},
 	}
 	addQCSignature(t, lastRoundQc, "1", s1)

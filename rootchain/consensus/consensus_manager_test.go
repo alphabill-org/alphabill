@@ -496,7 +496,7 @@ func Test_ConsensusManager_onVoteMsg(t *testing.T) {
 	makeVoteMsg := func(t *testing.T, cms []*ConsensusManager, round uint64) *abdrc.VoteMsg {
 		t.Helper()
 		qcRoundInfo := abdrctu.NewDummyRootRoundInfo(round - 2)
-		commitInfo := abdrctu.NewDummyCommitInfo(gocrypto.SHA256, qcRoundInfo)
+		commitInfo := abdrctu.NewDummyCommitInfo(t, gocrypto.SHA256, qcRoundInfo)
 		highQc := &drctypes.QuorumCert{
 			VoteInfo:         qcRoundInfo,
 			LedgerCommitInfo: commitInfo,
@@ -510,11 +510,13 @@ func Test_ConsensusManager_onVoteMsg(t *testing.T) {
 		}
 
 		voteRoundInfo := abdrctu.NewDummyRootRoundInfo(round)
+		h, err := voteRoundInfo.Hash(gocrypto.SHA256)
+		require.NoError(t, err)
 		voteMsg := &abdrc.VoteMsg{
 			VoteInfo: voteRoundInfo,
 			LedgerCommitInfo: &types.UnicitySeal{
 				Version:      1,
-				PreviousHash: voteRoundInfo.Hash(gocrypto.SHA256),
+				PreviousHash: h,
 			},
 			HighQc: highQc,
 			Author: cms[0].id.String(),

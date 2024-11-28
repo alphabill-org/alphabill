@@ -54,7 +54,10 @@ func (x *VoteMsg) Verify(tb types.RootTrustBase) error {
 		return fmt.Errorf("vote from '%s' ledger commit info (unicity seal) is missing", x.Author)
 	}
 	// Verify hash of vote info
-	hash := x.VoteInfo.Hash(gocrypto.SHA256)
+	hash, err := x.VoteInfo.Hash(gocrypto.SHA256)
+	if err != nil {
+		return fmt.Errorf("vote from '%s' vote info hash error: %w", x.Author, err)
+	}
 	if !bytes.Equal(hash, x.LedgerCommitInfo.PreviousHash) {
 		return fmt.Errorf("vote from '%s' vote info hash does not match hash in commit info", x.Author)
 	}

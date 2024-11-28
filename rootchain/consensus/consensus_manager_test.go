@@ -393,7 +393,7 @@ func TestIRChangeRequestFromRootValidator(t *testing.T) {
 	require.NoError(t, err)
 	trustBase, err := rg.GenerateTrustBase()
 	require.NoError(t, err)
-	sdrh, err := rg.Partitions[0].GetSystemDescriptionRecord().Hash(gocrypto.SHA256)
+	sdrh, err := rg.Partitions[0].GetPartitionDescriptionRecord().Hash(gocrypto.SHA256)
 	require.NoError(t, err)
 	require.NoError(t, result.Verify(trustBase, gocrypto.SHA256, partitionID, sdrh))
 

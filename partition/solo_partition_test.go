@@ -110,7 +110,7 @@ func newSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, v
 	// root state
 	var certs = make(map[types.PartitionID]*types.UnicityCertificate)
 	for _, partition := range rootGenesis.Partitions {
-		certs[partition.GetSystemDescriptionRecord().GetPartitionIdentifier()] = partition.Certificate
+		certs[partition.GetPartitionDescriptionRecord().GetPartitionIdentifier()] = partition.Certificate
 	}
 
 	net := testnetwork.NewMockNetwork(t)

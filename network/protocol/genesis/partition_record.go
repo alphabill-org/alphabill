@@ -19,7 +19,7 @@ type PartitionRecord struct {
 	Validators           []*PartitionNode                  `json:"validators"`
 }
 
-func (x *PartitionRecord) GetSystemDescriptionRecord() *types.PartitionDescriptionRecord {
+func (x *PartitionRecord) GetPartitionDescriptionRecord() *types.PartitionDescriptionRecord {
 	if x == nil {
 		return nil
 	}

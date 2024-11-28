@@ -191,6 +191,7 @@ func NewGenesisBlock(hash crypto.Hash, pg []*genesis.GenesisPartitionRecord, orc
 
 	return &ExecutedBlock{
 		BlockData: &rctypes.BlockData{
+			Version:   1,
 			Author:    "genesis",
 			Round:     genesis.RootRound,
 			Epoch:     0,

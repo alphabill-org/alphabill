@@ -393,7 +393,10 @@ func MergeRootGenesisFiles(rootGenesis []*genesis.RootGenesis) (*genesis.RootGen
 	if err := rg.IsValid(); err != nil {
 		return nil, nil, fmt.Errorf("invalid root genesis input: %w", err)
 	}
-	consensusBytes := rg.Root.Consensus.Bytes()
+	consensusBytes, err := rg.Root.Consensus.SigBytes()
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get consensus bytes: %w", err)
+	}
 	nodeIds := map[string]struct{}{}
 	for _, v := range rg.Root.RootValidators {
 		nodeIds[v.NodeIdentifier] = struct{}{}
@@ -405,7 +408,11 @@ func MergeRootGenesisFiles(rootGenesis []*genesis.RootGenesis) (*genesis.RootGen
 		}
 		// Check consensus parameters are same by comparing serialized bytes
 		// Should probably write a compare method instead of comparing serialized struct
-		if !bytes.Equal(consensusBytes, appendGen.Root.Consensus.Bytes()) {
+		appendConsensusBytes, err := appendGen.Root.Consensus.SigBytes()
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to get append consensus bytes: %w", err)
+		}
+		if !bytes.Equal(consensusBytes, appendConsensusBytes) {
 			return nil, nil, errors.New("not compatible root genesis files, consensus is different")
 		}
 		// append consensus signatures

@@ -6,7 +6,6 @@ import (
 
 	abhash "github.com/alphabill-org/alphabill-go-base/hash"
 	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill-go-base/util"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/stretchr/testify/require"
 )
@@ -57,10 +56,10 @@ func TestAdd(t *testing.T) {
 				subTreeSumHash, err := abhash.HashValues(crypto.SHA256,
 					[]byte{1},
 					nil, // h_s is nil (we do not have a log entry)
-					util.Uint64ToBytes(123),
-					util.Uint64ToBytes(0),
+					123,
+					0,
 					make([]byte, 32),
-					util.Uint64ToBytes(0),
+					0,
 					make([]byte, 32),
 				)
 				require.NoError(t, err)

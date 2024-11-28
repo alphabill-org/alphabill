@@ -229,6 +229,11 @@ func TestIrChangeReqMsg_bytes(t *testing.T) {
 		},
 		Signature: []byte{1, 2, 4},
 	}
-	var expected = []byte{'t', 'e', 's', 't', 0, 0, 0, 1, 0, 0, 0, 2}
-	require.Equal(t, expected, msg.bytes())
+	msgCopy := *msg
+	msgCopy.Signature = nil
+	expected, err := types.Cbor.Marshal(msgCopy)
+	require.NoError(t, err)
+	msgBytes, err := msg.bytes()
+	require.NoError(t, err)
+	require.Equal(t, expected, msgBytes)
 }

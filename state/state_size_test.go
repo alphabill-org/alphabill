@@ -13,7 +13,7 @@ import (
 )
 
 func Test_stateSize(t *testing.T) {
-	t.Skip("different approach for calculating state size is needed")
+	t.Skip("different approach for calculating state size is needed (AB-1789)")
 
 	t.Run("empty state", func(t *testing.T) {
 		s := NewEmptyState()

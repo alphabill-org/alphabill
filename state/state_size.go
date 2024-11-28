@@ -14,7 +14,7 @@ func (ss *stateSize) Traverse(n *avl.Node[types.UnitID, *Unit]) error {
 		return nil
 	}
 
-	// TODO: reimplement this
+	// TODO: reimplement this AB-1789
 	// hackish way to get Data size - we implement Hash interface and
 	// let the Data to write itself into the "hasher"
 	//n.Value().Data().Write(ss)

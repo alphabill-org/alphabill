@@ -4,7 +4,8 @@ import (
 	"crypto"
 	"errors"
 	"fmt"
-	"hash"
+
+	abhash "github.com/alphabill-org/alphabill-go-base/hash"
 )
 
 var ErrInvalidKeyLength = errors.New("invalid key length")
@@ -12,14 +13,14 @@ var ErrInvalidKeyLength = errors.New("invalid key length")
 type (
 	SMT struct {
 		keyLength int
-		hasher    hash.Hash
+		hasher    abhash.Hasher
 		root      *node
 		zeroHash  []byte
 	}
 
 	Data interface {
 		Key() []byte
-		AddToHasher(hasher hash.Hash)
+		AddToHasher(hasher abhash.Hasher)
 	}
 
 	node struct {
@@ -31,7 +32,7 @@ type (
 )
 
 // New creates a new sparse merkle tree.
-func New(hasher hash.Hash, keyLength int, data []Data) (*SMT, error) {
+func New(hasher abhash.Hasher, keyLength int, data []Data) (*SMT, error) {
 	zeroHash := make([]byte, hasher.Size())
 	root, err := createSMT(&node{}, 0, keyLength*8, data, hasher, zeroHash)
 	if err != nil {
@@ -97,8 +98,9 @@ func CalculatePathRoot(path [][]byte, leafHash []byte, key []byte, hashAlgorithm
 	if len(leafHash) != hashAlgorithm.Size() {
 		return nil, fmt.Errorf("invalid leaf hash length: leaf length=%v, hash length=%v", len(leafHash), hashAlgorithm.Size())
 	}
-	hasher := hashAlgorithm.New()
+	hasher := abhash.New(hashAlgorithm.New())
 	h := leafHash
+	var err error
 	pathLength := len(path)
 	for i := 0; i < pathLength; i++ {
 		pathItem := path[i]
@@ -109,7 +111,10 @@ func CalculatePathRoot(path [][]byte, leafHash []byte, key []byte, hashAlgorithm
 			hasher.Write(h)
 			hasher.Write(pathItem)
 		}
-		h = hasher.Sum(nil)
+		h, err = hasher.Sum()
+		if err != nil {
+			return nil, fmt.Errorf("hashing path: %w", err)
+		}
 		hasher.Reset()
 	}
 	return h, nil
@@ -153,17 +158,21 @@ func (s *SMT) output(node *node, prefix string, isTail bool, str *string) {
 	}
 }
 
-func createSMT(p *node, position int, maxPositionSize int, data []Data, hasher hash.Hash, zeroHash []byte) (*node, error) {
+func createSMT(p *node, position int, maxPositionSize int, data []Data, hasher abhash.Hasher, zeroHash []byte) (*node, error) {
 	if len(data) == 0 {
 		// Zero hash
 		p.hash = zeroHash
 		return p, nil
 	}
+	var err error
 	if position == maxPositionSize {
 		// leaf
 		d := data[0]
 		d.AddToHasher(hasher)
-		p.hash = hasher.Sum(nil)
+		p.hash, err = hasher.Sum()
+		if err != nil {
+			return nil, fmt.Errorf("hashing leaf data: %w", err)
+		}
 		p.data = d
 		hasher.Reset()
 		return p, nil
@@ -184,7 +193,6 @@ func createSMT(p *node, position int, maxPositionSize int, data []Data, hasher h
 		}
 	}
 	position++
-	var err error
 	p.left, err = createSMT(&node{}, position, maxPositionSize, leftData, hasher, zeroHash)
 	if err != nil {
 		return nil, err
@@ -195,7 +203,10 @@ func createSMT(p *node, position int, maxPositionSize int, data []Data, hasher h
 	}
 	hasher.Write(p.left.hash)
 	hasher.Write(p.right.hash)
-	p.hash = hasher.Sum(nil)
+	p.hash, err = hasher.Sum()
+	if err != nil {
+		return nil, fmt.Errorf("hashing data: %w", err)
+	}
 	hasher.Reset()
 	return p, nil
 }

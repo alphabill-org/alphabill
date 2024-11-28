@@ -3,9 +3,9 @@ package smt
 import (
 	"crypto"
 	"crypto/sha256"
-	"hash"
 	"testing"
 
+	abhash "github.com/alphabill-org/alphabill-go-base/hash"
 	"github.com/stretchr/testify/require"
 )
 
@@ -21,42 +21,45 @@ func (t *TestData) Value() []byte {
 	return t.value
 }
 
-func (t *TestData) AddToHasher(hasher hash.Hash) {
+func (t *TestData) AddToHasher(hasher abhash.Hasher) {
 	hasher.Write(t.value)
 }
 
 func TestNewSMTWithoutData(t *testing.T) {
-	smt, err := New(sha256.New(), 4, []Data{})
+	smt, err := New(abhash.New(sha256.New()), 4, []Data{})
 	require.NoError(t, err)
 	require.NotNil(t, smt)
 }
 
 func TestNewSMTWithInvalidKeyLength(t *testing.T) {
 	values := []Data{&TestData{value: []byte{0x00, 0xFF}}}
-	_, err := New(sha256.New(), 1, values)
+	_, err := New(abhash.New(sha256.New()), 1, values)
 	require.ErrorIs(t, err, ErrInvalidKeyLength)
 }
 
 func TestNewSMTWithData(t *testing.T) {
 	values := []Data{&TestData{value: []byte{0x00, 0xFF}}}
-	smt, err := New(sha256.New(), 2, values)
+	smt, err := New(abhash.New(sha256.New()), 2, values)
 	require.NoError(t, err)
 	require.NotNil(t, smt)
-	hasher := sha256.New()
+	hasher := abhash.New(sha256.New())
 	values[0].AddToHasher(hasher)
-	valueHash := hasher.Sum(nil)
+	valueHash, err := hasher.Sum()
+	require.NoError(t, err)
 	zeroHash := make([]byte, hasher.Size())
 	hasher.Reset()
 	for i := 0; i < 8; i++ {
 		hasher.Write(zeroHash)
 		hasher.Write(valueHash)
-		valueHash = hasher.Sum(nil)
+		valueHash, err = hasher.Sum()
+		require.NoError(t, err)
 		hasher.Reset()
 	}
 	for i := 0; i < 8; i++ {
 		hasher.Write(valueHash)
 		hasher.Write(zeroHash)
-		valueHash = hasher.Sum(nil)
+		valueHash, err = hasher.Sum()
+		require.NoError(t, err)
 		hasher.Reset()
 	}
 	require.Equal(t, valueHash, smt.root.hash)
@@ -68,17 +71,18 @@ func TestBuildSMTAndGetAllAuthPaths(t *testing.T) {
 		values = append(values, &TestData{[]byte{i}})
 	}
 	values = append(values, &TestData{[]byte{0xFF}})
-	smt, err := New(sha256.New(), 1, values)
+	smt, err := New(abhash.New(sha256.New()), 1, values)
 	require.NoError(t, err)
 	smtRoot := smt.GetRootHash()
-	hasher := sha256.New()
+	hasher := abhash.New(sha256.New())
 	for _, v := range values {
 		path, data, err := smt.GetAuthPath(v.Key())
 		require.NoError(t, err)
 		require.Equal(t, v, data)
 		require.NotNil(t, path)
 		v.AddToHasher(hasher)
-		leaf := hasher.Sum(nil)
+		leaf, err := hasher.Sum()
+		require.NoError(t, err)
 		hasher.Reset()
 		pathRoot, err := CalculatePathRoot(path, leaf, v.Key(), crypto.SHA256)
 		require.NoError(t, err)
@@ -90,7 +94,7 @@ func TestGetAuthPath(t *testing.T) {
 	key := []byte{0x00, 0x00, 0x00, 0x00}
 	key2 := []byte{0x00, 0x00, 0x00, 0x01}
 	values := []Data{&TestData{value: key}, &TestData{value: key2}}
-	smt, err := New(sha256.New(), 4, values)
+	smt, err := New(abhash.New(sha256.New()), 4, values)
 	require.NoError(t, err)
 
 	// key 1
@@ -116,7 +120,7 @@ func TestPrettyPrint(t *testing.T) {
 	key := []byte{0x45, 0x32, 0x45, 0x32}
 	key2 := []byte{0x00, 0xA2, 0x45, 0x32}
 	values := []Data{&TestData{value: key}, &TestData{value: key2}}
-	smt, _ := New(sha256.New(), 4, values)
+	smt, _ := New(abhash.New(sha256.New()), 4, values)
 	require.NotZero(t, len(smt.PrettyPrint()))
 }
 
@@ -141,7 +145,7 @@ func TestCalculateRoot_KeyIsNil(t *testing.T) {
 func TestGetAuthPath_DataNotPresent(t *testing.T) {
 	key := []byte{0x11, 0x12}
 	var values []Data
-	smt, err := New(sha256.New(), 2, values)
+	smt, err := New(abhash.New(sha256.New()), 2, values)
 	require.NoError(t, err)
 	path, data, err := smt.GetAuthPath(key)
 	require.NoError(t, err)
@@ -150,7 +154,8 @@ func TestGetAuthPath_DataNotPresent(t *testing.T) {
 }
 
 func dataHash(d Data) []byte {
-	hasher := sha256.New()
+	hasher := abhash.New(sha256.New())
 	d.AddToHasher(hasher)
-	return hasher.Sum(nil)
+	h, _ := hasher.Sum()
+	return h
 }

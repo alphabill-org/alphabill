@@ -874,6 +874,7 @@ func (x *ConsensusManager) processNewRoundEvent(ctx context.Context) {
 	}
 	proposalMsg := &abdrc.ProposalMsg{
 		Block: &drctypes.BlockData{
+			Version:   1,
 			Author:    x.id.String(),
 			Round:     round,
 			Epoch:     0,

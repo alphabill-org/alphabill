@@ -177,6 +177,12 @@ func TestStateMsg_Verify(t *testing.T) {
 	)
 
 	validStateMsg := func() StateMsg {
+		h4, err := r4vInfo.Hash(crypto.SHA256)
+		require.NoError(t, err)
+		h5, err := r5vInfo.Hash(crypto.SHA256)
+		require.NoError(t, err)
+		h6, err := r6vInfo.Hash(crypto.SHA256)
+		require.NoError(t, err)
 		return StateMsg{
 			CommittedHead: &CommittedBlock{
 				ShardInfo: []ShardInfo{{
@@ -194,7 +200,7 @@ func TestStateMsg_Verify(t *testing.T) {
 						FeeHash:  []byte{0xF, 0xE, 0xE},
 					},
 					IR:      headIR,
-					PDRHash: pdr.Hash(crypto.SHA256),
+					PDRHash: test.DoHash(t, &pdr),
 				}},
 				Block: &rctypes.BlockData{
 					Round:   5,
@@ -203,7 +209,7 @@ func TestStateMsg_Verify(t *testing.T) {
 						VoteInfo: r4vInfo,
 						LedgerCommitInfo: &types.UnicitySeal{
 							Version:      1,
-							PreviousHash: r4vInfo.Hash(crypto.SHA256),
+							PreviousHash: h4,
 							Signatures:   map[string]hex.Bytes{"test": test.RandomBytes(65)},
 						},
 						Signatures: map[string]hex.Bytes{"test": test.RandomBytes(65)},
@@ -213,7 +219,7 @@ func TestStateMsg_Verify(t *testing.T) {
 					VoteInfo: r5vInfo,
 					LedgerCommitInfo: &types.UnicitySeal{
 						Version:      1,
-						PreviousHash: r5vInfo.Hash(crypto.SHA256),
+						PreviousHash: h5,
 						Signatures:   map[string]hex.Bytes{"test": test.RandomBytes(65)},
 					},
 					Signatures: map[string]hex.Bytes{"test": test.RandomBytes(65)},
@@ -222,7 +228,7 @@ func TestStateMsg_Verify(t *testing.T) {
 					VoteInfo: r6vInfo,
 					LedgerCommitInfo: &types.UnicitySeal{
 						Version:      1,
-						PreviousHash: r6vInfo.Hash(crypto.SHA256),
+						PreviousHash: h6,
 						Signatures:   map[string]hex.Bytes{"test": test.RandomBytes(65)},
 					},
 					Signatures: map[string]hex.Bytes{"test": test.RandomBytes(65)},
@@ -235,7 +241,7 @@ func TestStateMsg_Verify(t *testing.T) {
 					VoteInfo: r5vInfo,
 					LedgerCommitInfo: &types.UnicitySeal{
 						Version:              1,
-						PreviousHash:         r5vInfo.Hash(crypto.SHA256),
+						PreviousHash:         h5,
 						RootChainRoundNumber: 5,
 						Hash:                 test.RandomBytes(32),
 						Signatures:           map[string]hex.Bytes{"test": test.RandomBytes(65)},
@@ -341,7 +347,7 @@ func TestRecoveryBlock_IsValid(t *testing.T) {
 					StatHash: []byte{5},
 					FeeHash:  []byte{0xF, 0xE, 0xE},
 				},
-				PDRHash: pdr.Hash(crypto.SHA256),
+				PDRHash: test.DoHash(t, &pdr),
 			}},
 			Qc:       &rctypes.QuorumCert{},
 			CommitQc: &rctypes.QuorumCert{},

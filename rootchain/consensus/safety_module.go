@@ -141,8 +141,12 @@ func (s *SafetyModule) MakeVote(block *drctypes.BlockData, execStateID []byte, h
 		ParentRoundNumber: block.Qc.VoteInfo.RoundNumber,
 		CurrentRootHash:   execStateID,
 	}
+	h, err := voteInfo.Hash(gocrypto.SHA256)
+	if err != nil {
+		return nil, fmt.Errorf("failed to hash vote info: %w", err)
+	}
 	// Create ledger commit info, the signed part of vote
-	ledgerCommitInfo := s.constructCommitInfo(block, voteInfo.Hash(gocrypto.SHA256))
+	ledgerCommitInfo := s.constructCommitInfo(block, h)
 	voteMsg := &abdrc.VoteMsg{
 		VoteInfo:         voteInfo,
 		LedgerCommitInfo: ledgerCommitInfo,

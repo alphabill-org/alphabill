@@ -25,7 +25,7 @@ func TestPacemaker_AdvanceRoundQC(t *testing.T) {
 
 	// record vote
 	require.Nil(t, pacemaker.GetVoted())
-	vote := NewDummyVote("test", 7, []byte{2, 2, 2, 2})
+	vote := NewDummyVote(t, "test", 7, []byte{2, 2, 2, 2})
 	pacemaker.SetVoted(vote)
 	require.Equal(t, vote, pacemaker.GetVoted())
 
@@ -35,14 +35,16 @@ func TestPacemaker_AdvanceRoundQC(t *testing.T) {
 
 	// old QC
 	voteInfo := NewDummyVoteInfo(4, []byte{0, 1, 2, 3})
-	staleQc := types.NewQuorumCertificate(voteInfo, nil)
+	staleQc, err := types.NewQuorumCertificate(voteInfo, nil)
+	require.NoError(t, err)
 	require.False(t, pacemaker.AdvanceRoundQC(ctx, staleQc))
 	require.NotNil(t, pacemaker.GetVoted())
 	require.EqualValues(t, lastCommittedRound+1, pacemaker.GetCurrentRound())
 
 	// ok QC
 	voteInfo = NewDummyVoteInfo(8, []byte{1, 2, 3, 4})
-	qc := types.NewQuorumCertificate(voteInfo, nil)
+	qc, err := types.NewQuorumCertificate(voteInfo, nil)
+	require.NoError(t, err)
 	require.True(t, pacemaker.AdvanceRoundQC(ctx, qc))
 	require.Equal(t, pacemaker.GetCurrentRound(), uint64(9))
 	require.Nil(t, pacemaker.GetVoted(), "expected vote to be reset when view changes")
@@ -58,14 +60,15 @@ func TestPacemaker_AdvanceRoundTC(t *testing.T) {
 	require.Equal(t, pacemaker.GetCurrentRound(), lastCommittedRound+1)
 
 	// record a vote in current round
-	vote := NewDummyVote("test", 7, []byte{2, 2, 2, 2})
+	vote := NewDummyVote(t, "test", 7, []byte{2, 2, 2, 2})
 	pacemaker.SetVoted(vote)
 	pacemaker.AdvanceRoundTC(ctx, nil)
 	// no change
 	require.Equal(t, lastCommittedRound+1, pacemaker.GetCurrentRound())
 	require.Equal(t, vote, pacemaker.GetVoted())
 	voteInfo := NewDummyVoteInfo(4, []byte{0, 1, 2, 3})
-	staleQc := types.NewQuorumCertificate(voteInfo, nil)
+	staleQc, err := types.NewQuorumCertificate(voteInfo, nil)
+	require.NoError(t, err)
 	staleTc := NewDummyTc(4, staleQc)
 	pacemaker.AdvanceRoundTC(ctx, staleTc)
 	require.NotNil(t, pacemaker.GetVoted())
@@ -73,7 +76,8 @@ func TestPacemaker_AdvanceRoundTC(t *testing.T) {
 	require.Equal(t, pacemaker.GetCurrentRound(), lastCommittedRound+1)
 	// create a valid qc for current
 	voteInfo = NewDummyVoteInfo(pacemaker.GetCurrentRound()-1, []byte{0, 1, 2, 3})
-	qc := types.NewQuorumCertificate(voteInfo, nil)
+	qc, err := types.NewQuorumCertificate(voteInfo, nil)
+	require.NoError(t, err)
 	tc := NewDummyTc(pacemaker.GetCurrentRound(), qc)
 	pacemaker.AdvanceRoundTC(ctx, tc)
 	require.Equal(t, pacemaker.GetCurrentRound(), lastCommittedRound+2)
@@ -82,7 +86,8 @@ func TestPacemaker_AdvanceRoundTC(t *testing.T) {
 	require.Nil(t, pacemaker.GetVoted())
 	// Now advance with qc for round 7
 	voteInfo = NewDummyVoteInfo(pacemaker.GetCurrentRound(), []byte{0, 1, 2, 3})
-	qc = types.NewQuorumCertificate(voteInfo, nil)
+	qc, err = types.NewQuorumCertificate(voteInfo, nil)
+	require.NoError(t, err)
 	require.True(t, pacemaker.AdvanceRoundQC(ctx, qc))
 	// now also last round TC is reset
 	require.Nil(t, pacemaker.LastRoundTC())
@@ -98,7 +103,7 @@ func TestPacemaker_RegisterVote(t *testing.T) {
 		pacemaker.Reset(context.Background(), 5, nil, nil)
 		require.EqualValues(t, 6, pacemaker.GetCurrentRound())
 
-		vote := NewDummyVote("node1", 6, []byte{2, 2, 2, 2})
+		vote := NewDummyVote(t, "node1", 6, []byte{2, 2, 2, 2})
 		qc, mature, err := pacemaker.RegisterVote(vote, quorum)
 		require.NoError(t, err)
 		require.False(t, mature)
@@ -117,12 +122,12 @@ func TestPacemaker_RegisterVote(t *testing.T) {
 		pacemaker.Reset(context.Background(), 5, nil, nil)
 		require.EqualValues(t, 6, pacemaker.GetCurrentRound())
 
-		vote := NewDummyVote("node1", 5, []byte{2, 2, 2, 2})
+		vote := NewDummyVote(t, "node1", 5, []byte{2, 2, 2, 2})
 		qc, _, err := pacemaker.RegisterVote(vote, quorum)
 		require.EqualError(t, err, `received vote is for round 5, current round is 6`)
 		require.Nil(t, qc)
 
-		vote = NewDummyVote("node1", 7, []byte{2, 2, 2, 2})
+		vote = NewDummyVote(t, "node1", 7, []byte{2, 2, 2, 2})
 		qc, _, err = pacemaker.RegisterVote(vote, quorum)
 		require.EqualError(t, err, `received vote is for round 7, current round is 6`)
 		require.Nil(t, qc)
@@ -136,19 +141,19 @@ func TestPacemaker_RegisterVote(t *testing.T) {
 		pacemaker.Reset(context.Background(), lastCommittedRound, nil, nil)
 		require.Equal(t, lastCommittedRound+1, pacemaker.GetCurrentRound())
 
-		vote := NewDummyVote("node1", 7, []byte{2, 2, 2, 2})
+		vote := NewDummyVote(t, "node1", 7, []byte{2, 2, 2, 2})
 		qc, mature, err := pacemaker.RegisterVote(vote, quorum)
 		require.NoError(t, err)
 		require.False(t, mature)
 		require.Nil(t, qc)
 
-		vote = NewDummyVote("node2", 7, []byte{2, 2, 2, 2})
+		vote = NewDummyVote(t, "node2", 7, []byte{2, 2, 2, 2})
 		qc, mature, err = pacemaker.RegisterVote(vote, quorum)
 		require.NoError(t, err)
 		require.False(t, mature)
 		require.Nil(t, qc)
 
-		vote = NewDummyVote("node3", 7, []byte{2, 2, 2, 2})
+		vote = NewDummyVote(t, "node3", 7, []byte{2, 2, 2, 2})
 		require.NotNil(t, vote)
 		qc, mature, err = pacemaker.RegisterVote(vote, quorum)
 		require.NoError(t, err)
@@ -166,7 +171,8 @@ func TestPacemaker_RegisterTimeoutVote(t *testing.T) {
 	pacemaker.Reset(context.Background(), lastCommittedRound, nil, nil)
 	require.Equal(t, pacemaker.GetCurrentRound(), lastCommittedRound+1)
 	voteInfo := NewDummyVoteInfo(5, []byte{0, 1, 2, 3})
-	hQc := types.NewQuorumCertificate(voteInfo, nil)
+	hQc, err := types.NewQuorumCertificate(voteInfo, nil)
+	require.NoError(t, err)
 	vote := NewDummyTimeoutVote(hQc, 6, "node1")
 	tc, err := pacemaker.RegisterTimeoutVote(context.Background(), vote, quorum)
 	require.NoError(t, err)
@@ -502,7 +508,8 @@ func TestPacemaker_startNewRound(t *testing.T) {
 		// register TO vote with quorum condition which allow no faulty nodes - this means
 		// that quorum for the round is not possible anymore and PM should go to TO status.
 		// timeout event should be in the event channel right away
-		qcRound1 := types.NewQuorumCertificate(NewDummyVoteInfo(1, []byte{0, 1, 1}), nil)
+		qcRound1, err := types.NewQuorumCertificate(NewDummyVoteInfo(1, []byte{0, 1, 1}), nil)
+		require.NoError(t, err)
 		timeoutVoteMsg := NewDummyTimeoutVote(qcRound1, 4, "node1")
 		tc, err := pacemaker.RegisterTimeoutVote(context.Background(), timeoutVoteMsg, NewDummyQuorum(3, 0))
 		require.NoError(t, err)

@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	abhash "github.com/alphabill-org/alphabill-go-base/hash"
 	"github.com/stretchr/testify/require"
 
 	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
@@ -157,7 +158,7 @@ func TestNewTxSystem_RecoveredState(t *testing.T) {
 func TestExecute_TransferOk(t *testing.T) {
 	rmaTree, txSystem, _ := createStateAndTxSystem(t)
 	_, data := getBill(t, rmaTree, initialBill.ID)
-	fcrID := testutils.NewFeeCreditRecordIDAlwaysTrue()
+	fcrID := testutils.NewFeeCreditRecordIDAlwaysTrue(t)
 
 	transferOk, _, _ := createBillTransfer(t, initialBill.ID, fcrID, initialBill.Value, templates.AlwaysFalseBytes(), 0)
 	roundNumber := uint64(10)
@@ -187,7 +188,7 @@ func TestExecute_Split2WayOk(t *testing.T) {
 	_, initBillData := getBill(t, rmaTree, initialBill.ID)
 	var remaining uint64 = 10
 	amount := initialBill.Value - remaining
-	fcrID := testutils.NewFeeCreditRecordIDAlwaysTrue()
+	fcrID := testutils.NewFeeCreditRecordIDAlwaysTrue(t)
 	splitOk, splitAttr, _ := createSplit(t, initialBill.ID, fcrID, []*money.TargetUnit{{Amount: amount, OwnerPredicate: templates.AlwaysTrueBytes()}}, initBillData.Counter)
 	roundNumber := uint64(1)
 	err = txSystem.BeginBlock(roundNumber)
@@ -241,7 +242,7 @@ func TestExecute_SplitNWayOk(t *testing.T) {
 	_, initBillData := getBill(t, rmaTree, initialBill.ID)
 	remaining := initialBill.Value
 	amount := uint64(10)
-	fcrID := testutils.NewFeeCreditRecordIDAlwaysTrue()
+	fcrID := testutils.NewFeeCreditRecordIDAlwaysTrue(t)
 
 	var targetUnits []*money.TargetUnit
 	for i := 0; i < 10; i++ {
@@ -300,7 +301,7 @@ func TestExecuteTransferDC_OK(t *testing.T) {
 	_, initialBillData := getBill(t, rmaTree, initialBill.ID)
 	var remaining uint64 = 10
 	amount := initialBill.Value - remaining
-	fcrID := testutils.NewFeeCreditRecordIDAlwaysTrue()
+	fcrID := testutils.NewFeeCreditRecordIDAlwaysTrue(t)
 	splitOk, _, _ := createSplit(t, initialBill.ID, fcrID, []*money.TargetUnit{{Amount: amount, OwnerPredicate: templates.AlwaysTrueBytes()}}, initialBillData.Counter)
 	roundNumber := uint64(10)
 	err := txSystem.BeginBlock(roundNumber)
@@ -334,7 +335,7 @@ func TestExecuteTransferDC_OK(t *testing.T) {
 func TestExecute_SwapOk(t *testing.T) {
 	s, txSystem, signer := createStateAndTxSystem(t)
 	_, initBillData := getBill(t, s, initialBill.ID)
-	fcrID := testutils.NewFeeCreditRecordIDAlwaysTrue()
+	fcrID := testutils.NewFeeCreditRecordIDAlwaysTrue(t)
 
 	// create new bill with swap tx so that we have something to swap
 	remaining := uint64(99)
@@ -432,7 +433,7 @@ func TestExecute_SwapOk(t *testing.T) {
 
 func TestExecute_LockAndUnlockOk(t *testing.T) {
 	rmaTree, txSystem, _ := createStateAndTxSystem(t)
-	fcrID := testutils.NewFeeCreditRecordIDAlwaysTrue()
+	fcrID := testutils.NewFeeCreditRecordIDAlwaysTrue(t)
 	lockTx, _, _ := createLockTx(t, initialBill.ID, fcrID, 0)
 
 	roundNumber := uint64(10)
@@ -506,8 +507,10 @@ func TestBillData_AddToHasher(t *testing.T) {
 	hasher.Write(res)
 	expectedHash := hasher.Sum(nil)
 	hasher.Reset()
-	require.NoError(t, bd.Write(hasher))
-	actualHash := hasher.Sum(nil)
+	abhasher := abhash.New(hasher)
+	bd.Write(abhasher)
+	actualHash, err := abhasher.Sum()
+	require.NoError(t, err)
 	require.Equal(t, expectedHash, actualHash)
 	// make sure all fields where serialized
 	var bdFormSerialized money.BillData
@@ -522,7 +525,7 @@ func TestEndBlock_DustBillsAreRemoved(t *testing.T) {
 	remaining := initBillData.Value
 	var splitBillIDs = make([]types.UnitID, 10)
 	counter := initBillData.Counter
-	fcrID := testutils.NewFeeCreditRecordIDAlwaysTrue()
+	fcrID := testutils.NewFeeCreditRecordIDAlwaysTrue(t)
 	for i := 0; i < 10; i++ {
 		remaining--
 		splitOk, _, _ := createSplit(t, initialBill.ID, fcrID, []*money.TargetUnit{{Amount: 1, OwnerPredicate: templates.AlwaysTrueBytes()}}, counter)
@@ -667,7 +670,7 @@ func TestEndBlock_FeesConsolidation(t *testing.T) {
 func TestRegisterData_RevertSplit(t *testing.T) {
 	rmaTree, txSystem, _ := createStateAndTxSystem(t)
 	_, initBillData := getBill(t, rmaTree, initialBill.ID)
-	fcrID := testutils.NewFeeCreditRecordIDAlwaysTrue()
+	fcrID := testutils.NewFeeCreditRecordIDAlwaysTrue(t)
 
 	vdState, err := txSystem.StateSummary()
 	require.NoError(t, err)
@@ -699,7 +702,7 @@ func TestRegisterData_RevertTransDC(t *testing.T) {
 	unitBearer := bytes.Clone(initBillData.OwnerPredicate)
 	vdState, err := txSystem.StateSummary()
 	require.NoError(t, err)
-	fcrID := testutils.NewFeeCreditRecordIDAlwaysTrue()
+	fcrID := testutils.NewFeeCreditRecordIDAlwaysTrue(t)
 
 	transDC, _, _ := createDCTransfer(t, initialBill.ID, fcrID, initialBill.Value, initBillData.Counter, test.RandomBytes(32), 0)
 	require.NoError(t, err)
@@ -872,7 +875,7 @@ func TestExecute_AddFeeCreditWithLocking_OK(t *testing.T) {
 	err := txSystem.BeginBlock(1)
 	require.NoError(t, err)
 	signer, _ := testsig.CreateSignerAndVerifier(t)
-	fcrID := testutils.NewFeeCreditRecordIDAlwaysTrue()
+	fcrID := testutils.NewFeeCreditRecordIDAlwaysTrue(t)
 
 	// lock fee credit record
 	lockFCAttr := testutils.NewLockFCAttr(testutils.WithLockFCCounter(0))
@@ -1067,7 +1070,7 @@ func createStateAndTxSystem(t *testing.T) (*state.State, *txsystem.GenericTxSyst
 	s := genesisStateWithUC(t, initialBill, sdrs)
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	trustBase := testtb.NewTrustBase(t, verifier)
-	fcrID := testutils.NewFeeCreditRecordIDAlwaysTrue()
+	fcrID := testutils.NewFeeCreditRecordIDAlwaysTrue(t)
 
 	mss, err := NewTxSystem(
 		*sdrs[0],

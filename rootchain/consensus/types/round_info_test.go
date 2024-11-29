@@ -2,14 +2,12 @@ package types
 
 import (
 	gocrypto "crypto"
-	"reflect"
 	"testing"
 
-	"github.com/alphabill-org/alphabill-go-base/util"
 	"github.com/stretchr/testify/require"
 )
 
-func TestRoundInfo_Bytes(t *testing.T) {
+func TestRoundInfo_MarshalCBOR(t *testing.T) {
 	x := &RoundInfo{
 		RoundNumber:       4,
 		Epoch:             1,
@@ -17,14 +15,14 @@ func TestRoundInfo_Bytes(t *testing.T) {
 		ParentRoundNumber: 3,
 		CurrentRootHash:   make([]byte, 32),
 	}
-	serialized := make([]byte, 0, 4*8+32)
-	serialized = append(serialized, util.Uint64ToBytes(x.RoundNumber)...)
-	serialized = append(serialized, util.Uint64ToBytes(x.Epoch)...)
-	serialized = append(serialized, util.Uint64ToBytes(x.Timestamp)...)
-	serialized = append(serialized, util.Uint64ToBytes(x.ParentRoundNumber)...)
-	serialized = append(serialized, x.CurrentRootHash...)
-	buf := x.Bytes()
-	require.True(t, reflect.DeepEqual(buf, serialized))
+	bs, err := x.MarshalCBOR()
+	require.NoError(t, err)
+	require.NotNil(t, bs)
+
+	y := new(RoundInfo)
+	err = y.UnmarshalCBOR(bs)
+	require.NoError(t, err)
+	require.Equal(t, x, y)
 }
 
 func TestRoundInfo_GetParentRound(t *testing.T) {
@@ -49,7 +47,9 @@ func TestRoundInfo_Hash(t *testing.T) {
 		ParentRoundNumber: 3,
 		CurrentRootHash:   make([]byte, 32),
 	}
-	require.NotNil(t, x.Hash(gocrypto.SHA256))
+	h, err := x.Hash(gocrypto.SHA256)
+	require.NoError(t, err)
+	require.NotNil(t, h)
 }
 
 func TestRoundInfo_IsValid(t *testing.T) {

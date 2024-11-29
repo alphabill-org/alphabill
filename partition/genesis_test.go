@@ -11,7 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill-go-base/crypto"
-	"github.com/alphabill-org/alphabill-go-base/hash"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
@@ -124,7 +123,7 @@ func TestNewGenesisPartitionNode_Ok(t *testing.T) {
 	ir := blockCertificationRequestRequest.InputRecord
 	expectedHash := hex.Bytes(make([]byte, 32))
 	require.Equal(t, expectedHash, ir.Hash)
-	require.Equal(t, calculateBlockHash(pdr.PartitionIdentifier, nil, true), ir.BlockHash)
+	require.Equal(t, zeroHash, ir.BlockHash)
 	require.Equal(t, zeroHash, ir.PreviousHash)
 }
 
@@ -139,22 +138,4 @@ func createPartitionNode(t *testing.T, nodeSigningKey crypto.Signer, authKey []b
 	)
 	require.NoError(t, err)
 	return pn
-}
-
-func calculateBlockHash(partitionIdentifier types.PartitionID, previousHash []byte, isEmpty bool) hex.Bytes {
-	// blockhash = hash(header_hash, raw_txs_hash, mt_root_hash)
-	hasher := gocrypto.SHA256.New()
-	if isEmpty {
-		return zeroHash
-	}
-	hasher.Write(partitionIdentifier.Bytes())
-	hasher.Write(previousHash)
-	headerHash := hasher.Sum(nil)
-
-	hasher.Reset()
-	txsHash := hasher.Sum(nil)
-
-	treeHash := make([]byte, gocrypto.SHA256.Size())
-
-	return hash.Sum(gocrypto.SHA256, headerHash, txsHash, treeHash)
 }

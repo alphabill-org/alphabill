@@ -26,11 +26,14 @@ func TestConsensusParams_HashSignaturesAreIgnored(t *testing.T) {
 		Signatures:          make(map[string]hex.Bytes),
 	}
 	// calc hash
-	cBytes := x.Bytes()
+	cBytes, err := x.SigBytes()
+	require.NoError(t, err)
 	// modify signatures
 	x.Signatures["1"] = []byte{0, 1}
 	// hash must still be the same
-	require.Equal(t, cBytes, x.Bytes())
+	cBytes2, err := x.SigBytes()
+	require.NoError(t, err)
+	require.Equal(t, cBytes, cBytes2)
 }
 
 // Probably too pointless, maybe remove
@@ -43,16 +46,14 @@ func TestConsensusParams_HashFieldsIncluded(t *testing.T) {
 		HashAlgorithm:       hashAlgo,
 		Signatures:          map[string]hex.Bytes{},
 	}
-	// serialized form
-	serialized := []byte{
-		0, 0, 0, 1, // version as uint32
-		0, 0, 0, 4, // total 4 nodes as uint32
-		0, 0, 0x03, 0x84, // block rate 900 as uint32
-		0, 0, 0x27, 0x10, // local timeout 10000 as uint32
-		0, 0, 0, 5, // hash algorithm SHA256 as uint32
-	}
-	// require hash not equal
-	require.Equal(t, serialized, x.Bytes())
+	sigBytes, err := x.SigBytes()
+	require.NoError(t, err)
+
+	x.Signatures = nil
+	serialized, err := x.MarshalCBOR()
+	require.NoError(t, err)
+
+	require.Equal(t, sigBytes, serialized)
 }
 
 func TestConsensusParams_IsValid(t *testing.T) {
@@ -205,10 +206,10 @@ func TestVerify_VerifierIsNil(t *testing.T) {
 func TestConsensusParams_Nil(t *testing.T) {
 	var x *ConsensusParams = nil
 	require.ErrorIs(t, x.IsValid(), ErrConsensusParamsIsNil)
-	require.Empty(t, x.Bytes())
+	_, err := x.SigBytes()
+	require.ErrorIs(t, err, ErrConsensusParamsIsNil)
 	sig, ver := testsig.CreateSignerAndVerifier(t)
 	require.ErrorIs(t, x.Sign("1", sig), ErrConsensusParamsIsNil)
 	tb := map[string]crypto.Verifier{"1": ver}
 	require.ErrorIs(t, x.Verify(tb), ErrConsensusParamsIsNil)
-
 }

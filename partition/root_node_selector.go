@@ -51,7 +51,11 @@ func rootNodesSelector(luc *types.UnicityCertificate, nodes peer.IDSlice, upToNo
 		return nodes, nil
 	}
 	chosen := make(peer.IDSlice, 0, upToNodes)
-	index := int(big.NewInt(0).Mod(big.NewInt(0).SetBytes(luc.Hash(gocrypto.SHA256)), big.NewInt(int64(nodeCnt))).Int64())
+	lucHash, err := luc.Hash(gocrypto.SHA256)
+	if err != nil {
+		return nil, fmt.Errorf("failed to hash UC: %w", err)
+	}
+	index := int(big.NewInt(0).Mod(big.NewInt(0).SetBytes(lucHash), big.NewInt(int64(nodeCnt))).Int64())
 	// choose upToNodes from index
 	idx := index
 	for {

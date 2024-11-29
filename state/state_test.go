@@ -4,9 +4,9 @@ import (
 	"bytes"
 	"crypto"
 	"fmt"
-	"hash"
 	"testing"
 
+	abhash "github.com/alphabill-org/alphabill-go-base/hash"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/util"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
@@ -33,13 +33,8 @@ type TestData struct {
 	OwnerPredicate []byte
 }
 
-func (t *TestData) Write(hasher hash.Hash) error {
-	res, err := types.Cbor.Marshal(t)
-	if err != nil {
-		return fmt.Errorf("test data serialization error: %w", err)
-	}
-	_, err = hasher.Write(res)
-	return err
+func (t *TestData) Write(hasher abhash.Hasher) {
+	hasher.Write(t)
 }
 
 func (t *TestData) SummaryValueInput() uint64 {
@@ -483,7 +478,8 @@ func TestCreateAndVerifyStateProofs_CreateUnits(t *testing.T) {
 		stateProof, err := s.CreateUnitStateProof(id, 0)
 		require.NoError(t, err)
 
-		proofOutputHash, sum := stateProof.CalculateSateTreeOutput(s.hashAlgorithm)
+		proofOutputHash, sum, err := stateProof.CalculateStateTreeOutput(s.hashAlgorithm)
+		require.NoError(t, err)
 		require.Equal(t, summaryValue, sum, "invalid summary value for unit %v: got %d, expected %d", id, sum, summaryValue)
 		require.Equal(t, stateRootHash, proofOutputHash, "invalid chain output hash for unit %v: got %X, expected %X", id, proofOutputHash, stateRootHash)
 	}
@@ -498,14 +494,16 @@ func TestCreateAndVerifyStateProofs_UpdateUnits(t *testing.T) {
 		stateProof, err := s.CreateUnitStateProof(id, 0)
 		require.NoError(t, err)
 
-		proofOutputHash, sum := stateProof.CalculateSateTreeOutput(s.hashAlgorithm)
+		proofOutputHash, sum, err := stateProof.CalculateStateTreeOutput(s.hashAlgorithm)
+		require.NoError(t, err)
 		require.Equal(t, summaryValue, sum, "invalid summary value for unit %v: got %d, expected %d", id, sum, summaryValue)
 		require.Equal(t, stateRootHash, proofOutputHash, "invalid chain output hash for unit %v: got %X, expected %X", id, proofOutputHash, stateRootHash)
 
 		stateProof, err = s.CreateUnitStateProof(id, 1)
 		require.NoError(t, err)
 
-		proofOutputHash, sum = stateProof.CalculateSateTreeOutput(s.hashAlgorithm)
+		proofOutputHash, sum, err = stateProof.CalculateStateTreeOutput(s.hashAlgorithm)
+		require.NoError(t, err)
 		require.Equal(t, summaryValue, sum, "invalid summary value for unit %v: got %d, expected %d", id, sum, summaryValue)
 		require.Equal(t, stateRootHash, proofOutputHash, "invalid chain output hash for unit %v: got %X, expected %X", id, proofOutputHash, stateRootHash)
 	}
@@ -526,14 +524,16 @@ func TestCreateAndVerifyStateProofs_UpdateAndPruneUnits(t *testing.T) {
 		stateProof, err := s.CreateUnitStateProof(id, 0)
 		require.NoError(t, err)
 
-		proofOutputHash, sum := stateProof.CalculateSateTreeOutput(s.hashAlgorithm)
+		proofOutputHash, sum, err := stateProof.CalculateStateTreeOutput(s.hashAlgorithm)
+		require.NoError(t, err)
 		require.Equal(t, summaryValue, sum, "invalid summary value for unit %v: got %d, expected %d", id, sum, summaryValue)
 		require.Equal(t, stateRootHash, proofOutputHash, "invalid chain output hash for unit %v: got %X, expected %X", id, proofOutputHash, stateRootHash)
 
 		stateProof, err = s.CreateUnitStateProof(id, 1)
 		require.NoError(t, err)
 
-		proofOutputHash, sum = stateProof.CalculateSateTreeOutput(s.hashAlgorithm)
+		proofOutputHash, sum, err = stateProof.CalculateStateTreeOutput(s.hashAlgorithm)
+		require.NoError(t, err)
 		require.Equal(t, summaryValue, sum, "invalid summary value for unit %v: got %d, expected %d", id, sum, summaryValue)
 		require.Equal(t, stateRootHash, proofOutputHash, "invalid chain output hash for unit %v: got %X, expected %X", id, proofOutputHash, stateRootHash)
 	}
@@ -831,19 +831,14 @@ type pruneUnitData struct {
 	O []byte
 }
 
-func (p *pruneUnitData) Hash(hashAlgo crypto.Hash) []byte {
-	hasher := hashAlgo.New()
-	_ = p.Write(hasher)
-	return hasher.Sum(nil)
+func (p *pruneUnitData) Hash(hashAlgo crypto.Hash) ([]byte, error) {
+	hasher := abhash.New(hashAlgo.New())
+	p.Write(hasher)
+	return hasher.Sum()
 }
 
-func (p *pruneUnitData) Write(hasher hash.Hash) error {
-	res, err := types.Cbor.Marshal(p)
-	if err != nil {
-		return fmt.Errorf("unit data encode error: %w", err)
-	}
-	_, err = hasher.Write(res)
-	return err
+func (p *pruneUnitData) Write(hasher abhash.Hasher) {
+	hasher.Write(p)
 }
 
 func (p *pruneUnitData) SummaryValueInput() uint64 {
@@ -873,8 +868,7 @@ func createSerializedState(t *testing.T, s *State, h *header, checksum uint32) *
 	require.NoError(t, encoder.Encode(h))
 
 	ss := newStateSerializer(encoder.Encode, s.hashAlgorithm)
-	s.committedTree.Traverse(ss)
-	require.NoError(t, ss.err)
+	require.NoError(t, s.committedTree.Traverse(ss))
 
 	if checksum == 0 {
 		checksum = crc32Writer.Sum()

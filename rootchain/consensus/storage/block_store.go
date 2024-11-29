@@ -166,8 +166,14 @@ func (x *BlockStore) Add(block *drctypes.BlockData, verifier IRChangeReqVerifier
 	// verify that block for the round does not exist yet
 	// if block already exists, then check that it is the same block by comparing block hash
 	if b, err := x.blockTree.FindBlock(block.GetRound()); err == nil && b != nil {
-		b1h := b.BlockData.Hash(crypto.SHA256)
-		b2h := block.Hash(crypto.SHA256)
+		b1h, err := b.BlockData.Hash(crypto.SHA256)
+		if err != nil {
+			return nil, fmt.Errorf("add block failed: cannot compute existing block's hash: %w", err)
+		}
+		b2h, err := block.Hash(crypto.SHA256)
+		if err != nil {
+			return nil, fmt.Errorf("add block failed: cannot compute block's hash %w", err)
+		}
 		// ignore if it is the same block, recovery may have added it when state was duplicated
 		if bytes.Equal(b1h, b2h) {
 			return b.RootHash, nil

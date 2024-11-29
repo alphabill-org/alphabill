@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt"
 
+	abhash "github.com/alphabill-org/alphabill-go-base/hash"
 	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill-go-base/util"
 )
 
 type (
@@ -32,14 +32,19 @@ func AddUnit(id types.UnitID, data types.UnitData) Action {
 		d := copyData(data)
 
 		unitDataSummaryValue := d.SummaryValueInput()
-		hasher := hashAlgorithm.New()
+		hasher := abhash.New(hashAlgorithm.New())
+		// 4.10.1: h = H(ι, ⊥, V; 0H, V0; 0H, V0)
 		hasher.Write(id)
-		hasher.Write(util.Uint64ToBytes(unitDataSummaryValue))
+		hasher.Write(nil)
+		hasher.Write(unitDataSummaryValue)
 		hasher.Write(make([]byte, hashAlgorithm.Size()))
-		hasher.Write(util.Uint64ToBytes(0))
+		hasher.Write(uint64(0))
 		hasher.Write(make([]byte, hashAlgorithm.Size()))
-		hasher.Write(util.Uint64ToBytes(0))
-		subTreeSummaryHash := hasher.Sum(nil)
+		hasher.Write(uint64(0))
+		subTreeSummaryHash, err := hasher.Sum()
+		if err != nil {
+			return fmt.Errorf("add unit: unable to calculate subtree summary hash: %w", err)
+		}
 		u := &Unit{
 			logs:                []*Log{},
 			data:                d,
@@ -62,14 +67,19 @@ func AddUnitWithLock(id types.UnitID, data types.UnitData, l []byte) Action {
 		d := copyData(data)
 
 		unitDataSummaryValue := d.SummaryValueInput()
-		hasher := hashAlgorithm.New()
+		hasher := abhash.New(hashAlgorithm.New())
+		// 4.10.1: h = H(ι, ⊥, V; 0H, V0; 0H, V0)
 		hasher.Write(id)
-		hasher.Write(util.Uint64ToBytes(unitDataSummaryValue))
+		hasher.Write(nil)
+		hasher.Write(unitDataSummaryValue)
 		hasher.Write(make([]byte, hashAlgorithm.Size()))
-		hasher.Write(util.Uint64ToBytes(0))
+		hasher.Write(uint64(0))
 		hasher.Write(make([]byte, hashAlgorithm.Size()))
-		hasher.Write(util.Uint64ToBytes(0))
-		subTreeSummaryHash := hasher.Sum(nil)
+		hasher.Write(uint64(0))
+		subTreeSummaryHash, err := hasher.Sum()
+		if err != nil {
+			return fmt.Errorf("add unit: unable to calculate subtree summary hash: %w", err)
+		}
 		u := &Unit{
 			logs:                []*Log{},
 			data:                d,

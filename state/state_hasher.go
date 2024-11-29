@@ -3,9 +3,9 @@ package state
 import (
 	"crypto"
 
+	abhash "github.com/alphabill-org/alphabill-go-base/hash"
 	"github.com/alphabill-org/alphabill-go-base/tree/mt"
 	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill-go-base/util"
 	"github.com/alphabill-org/alphabill/tree/avl"
 )
 
@@ -22,21 +22,28 @@ func newStateHasher(hashAlgorithm crypto.Hash) *stateHasher {
 
 // Traverse visits changed nodes in the state tree and recalculates a new root hash of the state tree.
 // Executed when the State.Commit function is called.
-func (p *stateHasher) Traverse(n *avl.Node[types.UnitID, *Unit]) {
+func (p *stateHasher) Traverse(n *avl.Node[types.UnitID, *Unit]) error {
 	if n == nil || (n.Clean() && n.Value().summaryCalculated) {
-		return
+		return nil
 	}
 	var left = n.Left()
 	var right = n.Right()
-	p.Traverse(left)
-	p.Traverse(right)
+	if err := p.Traverse(left); err != nil {
+		return err
+	}
+	if err := p.Traverse(right); err != nil {
+		return err
+	}
 
 	unit := n.Value()
 
 	// h_s - calculate state log root hash
 	// Skip this step if state has been recovered from file and logsHash is already present.
 	if unit.logsHash == nil {
-		merkleTree := mt.New(p.hashAlgorithm, unit.logs)
+		merkleTree, err := mt.New(p.hashAlgorithm, unit.logs)
+		if err != nil {
+			return err
+		}
 		unit.logsHash = merkleTree.GetRootHash()
 	}
 
@@ -52,16 +59,21 @@ func (p *stateHasher) Traverse(n *avl.Node[types.UnitID, *Unit]) {
 	unit.subTreeSummaryValue = unitDataSummaryInputValue + leftSummary + rightSummary
 
 	// h - subtree summary hash
-	hasher := p.hashAlgorithm.New()
+	hasher := abhash.New(p.hashAlgorithm.New())
 	hasher.Write(n.Key())
 	hasher.Write(unit.logsHash)
-	hasher.Write(util.Uint64ToBytes(unit.subTreeSummaryValue))
+	hasher.Write(unit.subTreeSummaryValue)
 	hasher.Write(getSubTreeSummaryHash(left))
-	hasher.Write(util.Uint64ToBytes(leftSummary))
+	hasher.Write(leftSummary)
 	hasher.Write(getSubTreeSummaryHash(right))
-	hasher.Write(util.Uint64ToBytes(rightSummary))
+	hasher.Write(rightSummary)
 
-	unit.subTreeSummaryHash = hasher.Sum(nil)
+	var err error
+	unit.subTreeSummaryHash, err = hasher.Sum()
+	if err != nil {
+		return err
+	}
 	unit.summaryCalculated = true
 	p.SetClean(n)
+	return nil
 }

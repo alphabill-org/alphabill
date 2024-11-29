@@ -1,13 +1,13 @@
 package types
 
 import (
-	"bytes"
 	gocrypto "crypto"
 	"errors"
 	"fmt"
 
+	abhash "github.com/alphabill-org/alphabill-go-base/hash"
+	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/types/hex"
-	"github.com/alphabill-org/alphabill-go-base/util"
 )
 
 var (
@@ -18,7 +18,8 @@ var (
 )
 
 type RoundInfo struct {
-	_                 struct{}  `cbor:",toarray"`
+	_                 struct{} `cbor:",toarray"`
+	Version           types.ABVersion
 	RoundNumber       uint64    `json:"rootChainRoundNumber"`
 	Epoch             uint64    `json:"rootEpoch"`
 	Timestamp         uint64    `json:"timestamp"`
@@ -40,20 +41,10 @@ func (x *RoundInfo) GetParentRound() uint64 {
 	return 0
 }
 
-func (x *RoundInfo) Hash(hash gocrypto.Hash) []byte {
-	hasher := hash.New()
-	hasher.Write(x.Bytes())
-	return hasher.Sum(nil)
-}
-
-func (x *RoundInfo) Bytes() []byte {
-	var b bytes.Buffer
-	b.Write(util.Uint64ToBytes(x.RoundNumber))
-	b.Write(util.Uint64ToBytes(x.Epoch))
-	b.Write(util.Uint64ToBytes(x.Timestamp))
-	b.Write(util.Uint64ToBytes(x.ParentRoundNumber))
-	b.Write(x.CurrentRootHash)
-	return b.Bytes()
+func (x *RoundInfo) Hash(hash gocrypto.Hash) ([]byte, error) {
+	hasher := abhash.New(hash.New())
+	hasher.Write(x)
+	return hasher.Sum()
 }
 
 func (x *RoundInfo) IsValid() error {
@@ -73,4 +64,27 @@ func (x *RoundInfo) IsValid() error {
 		return errRoundCreationTimeNotSet
 	}
 	return nil
+}
+
+func (x *RoundInfo) GetVersion() types.ABVersion {
+	if x == nil || x.Version == 0 {
+		return 1
+	}
+	return x.Version
+}
+
+func (x *RoundInfo) MarshalCBOR() ([]byte, error) {
+	type alias RoundInfo
+	if x.Version == 0 {
+		x.Version = x.GetVersion()
+	}
+	return types.Cbor.MarshalTaggedValue(types.RootPartitionRoundInfoTag, (*alias)(x))
+}
+
+func (x *RoundInfo) UnmarshalCBOR(data []byte) error {
+	type alias RoundInfo
+	if err := types.Cbor.UnmarshalTaggedValue(types.RootPartitionRoundInfoTag, data, (*alias)(x)); err != nil {
+		return err
+	}
+	return types.EnsureVersion(x, x.Version, 1)
 }

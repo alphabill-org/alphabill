@@ -45,11 +45,12 @@ func TestAdd_KeyExists_RightChild(t *testing.T) {
 	require.Equal(t, int64(15), tree.root.value.total)
 }
 
-func (*IntTreeTraverser) Traverse(n *Node[IntKey, *Int64Value]) {
+func (*IntTreeTraverser) Traverse(n *Node[IntKey, *Int64Value]) error {
 	if n == nil || n.clean {
-		return
+		return nil
 	}
 	sum(n)
+	return nil
 }
 
 func TestAdd_KeyExists_LeftChild(t *testing.T) {

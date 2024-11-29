@@ -19,7 +19,7 @@ type PartitionRecord struct {
 	Validators           []*PartitionNode                  `json:"validators"`
 }
 
-func (x *PartitionRecord) GetSystemDescriptionRecord() *types.PartitionDescriptionRecord {
+func (x *PartitionRecord) GetPartitionDescriptionRecord() *types.PartitionDescriptionRecord {
 	if x == nil {
 		return nil
 	}
@@ -38,6 +38,7 @@ func (x *PartitionRecord) IsValid() error {
 	}
 	id := x.GetPartitionIdentifier()
 	var irBytes []byte
+	var err error
 	for _, node := range x.Validators {
 		if err := node.IsValid(); err != nil {
 			return fmt.Errorf("validators list error, %w", err)
@@ -48,15 +49,22 @@ func (x *PartitionRecord) IsValid() error {
 		// Input record of different validator nodes must match
 		// remember first
 		if irBytes == nil {
-			irBytes = node.BlockCertificationRequest.InputRecord.Bytes()
+			irBytes, err = node.BlockCertificationRequest.InputRecord.Bytes()
+			if err != nil {
+				return fmt.Errorf("partition id %s node %v input record error: %w", id, node.BlockCertificationRequest.NodeIdentifier, err)
+			}
 			continue
 		}
 		// more than one node, compare input record to fist node record
-		if !bytes.Equal(irBytes, node.BlockCertificationRequest.InputRecord.Bytes()) {
+		nextIrBytes, err := node.BlockCertificationRequest.InputRecord.Bytes()
+		if err != nil {
+			return fmt.Errorf("partition id %s node %v input record error: %w", id, node.BlockCertificationRequest.NodeIdentifier, err)
+		}
+		if !bytes.Equal(irBytes, nextIrBytes) {
 			return fmt.Errorf("partition id %s node %v input record is different", id, node.BlockCertificationRequest.NodeIdentifier)
 		}
 	}
-	if err := nodesUnique(x.Validators); err != nil {
+	if err = nodesUnique(x.Validators); err != nil {
 		return fmt.Errorf("validator list error, %w", err)
 	}
 	return nil

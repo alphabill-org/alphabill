@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	abhash "github.com/alphabill-org/alphabill-go-base/hash"
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
@@ -48,7 +49,7 @@ func TestIRChangeReqMsg_IsValid(t *testing.T) {
 	})
 }
 
-func TestIRChangeReqMsg_BytesHash(t *testing.T) {
+func TestIRChangeReqMsg_Marshal(t *testing.T) {
 	ircr := &IRChangeReq{
 		Partition:  1,
 		CertReason: QuorumNotPossible,
@@ -72,24 +73,20 @@ func TestIRChangeReqMsg_BytesHash(t *testing.T) {
 			},
 		},
 	}
-	irHasher := crypto.SHA256.New()
-	irHasher.Write(ircr.Bytes())
+	irHasher := abhash.New(crypto.SHA256.New())
+	irHasher.Write(ircr)
+	hash, err := irHasher.Sum()
+	require.NoError(t, err)
 
-	expectedHash := crypto.SHA256.New()
-	expectedHash.Write([]byte{
-		0, 0, 0, 1, // 4 byte Partition identifier of IRChangeReqMsg
-		0, 0, 0, 1, // cert reason quorum not possible
-		// Start of the BlockCertificationRequest
-		0, 0, 0, 1, // 4 byte partition identifier
-		128,                                            // empty shard ID
-		'1',                                            // node identifier - string is encoded without '/0'
-		0, 1, 2, 3, 4, 5, 6, 7, 0, 0, 0, 0, 0, 0, 0, 3, // prev. hash, hash, block hash, summary value, round number
-		0, 0, 0, 0, 0, 0, 0, 6, // IR.Timestamp
-		0, 0, 0, 0, 0, 0, 0, 4, // block size
-		0, 0, 0, 0, 0, 0, 0, 5, // state size
-		// Is serialized without signature
-	})
-	require.Equal(t, expectedHash.Sum(nil), irHasher.Sum(nil))
+	bs, err := types.Cbor.Marshal(ircr)
+	require.NoError(t, err)
+	hshr := crypto.SHA256.New()
+	hshr.Write(bs)
+	require.Equal(t, hash, hshr.Sum(nil))
+
+	ircr2 := &IRChangeReq{}
+	require.NoError(t, types.Cbor.Unmarshal(bs, ircr2))
+	require.Equal(t, ircr, ircr2)
 }
 
 func Test_IRChangeReq_Verify(t *testing.T) {

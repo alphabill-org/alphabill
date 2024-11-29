@@ -140,7 +140,10 @@ func (p *ProofIndexer) create(ctx context.Context, block *types.Block, roundNumb
 		if err != nil {
 			return fmt.Errorf("unable to get transaction order: %w", err)
 		}
-		txoHash := txo.Hash(p.hashAlgorithm)
+		txoHash, err := txo.Hash(p.hashAlgorithm)
+		if err != nil {
+			return fmt.Errorf("unable to hash transaction order: %w", err)
+		}
 		if err = dbTx.Write(txoHash, &TxIndex{
 			RoundNumber:  roundNumber,
 			TxOrderIndex: i,
@@ -149,7 +152,10 @@ func (p *ProofIndexer) create(ctx context.Context, block *types.Block, roundNumb
 		}
 
 		// generate and store unit proofs for all updated units
-		txrHash := tx.Hash(p.hashAlgorithm)
+		txrHash, err := tx.Hash(p.hashAlgorithm)
+		if err != nil {
+			return fmt.Errorf("unable to hash transaction record: %w", err)
+		}
 		for _, unitID := range tx.TargetUnits() {
 			var unit *state.Unit
 			unit, err = stateReader.GetUnit(unitID, true)

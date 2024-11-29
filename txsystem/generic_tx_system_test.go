@@ -2,12 +2,11 @@ package txsystem
 
 import (
 	"errors"
-	"fmt"
-	"hash"
 	"math"
 	"testing"
 	"time"
 
+	abhash "github.com/alphabill-org/alphabill-go-base/hash"
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
@@ -30,14 +29,10 @@ type MockData struct {
 	OwnerPredicate []byte
 }
 
-func (t *MockData) Write(hasher hash.Hash) error {
-	res, err := types.Cbor.Marshal(t)
-	if err != nil {
-		return fmt.Errorf("test data serialization error: %w", err)
-	}
-	_, err = hasher.Write(res)
-	return err
+func (t *MockData) Write(hasher abhash.Hasher) {
+	hasher.Write(t)
 }
+
 func (t *MockData) SummaryValueInput() uint64 {
 	return t.Value
 }

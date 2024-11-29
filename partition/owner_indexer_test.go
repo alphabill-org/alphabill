@@ -2,9 +2,9 @@ package partition
 
 import (
 	"bytes"
-	"hash"
 	"testing"
 
+	abhash "github.com/alphabill-org/alphabill-go-base/hash"
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
@@ -201,7 +201,7 @@ type mockUnitData struct {
 	ownerPredicate []byte
 }
 
-func (m mockUnitData) Write(hash.Hash) error { return nil }
+func (m mockUnitData) Write(hasher abhash.Hasher) { hasher.Write(m.ownerPredicate) }
 
 func (m mockUnitData) SummaryValueInput() uint64 {
 	return 0

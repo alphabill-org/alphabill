@@ -191,6 +191,7 @@ func NewGenesisBlock(hash crypto.Hash, pg []*genesis.GenesisPartitionRecord, orc
 
 	return &ExecutedBlock{
 		BlockData: &rctypes.BlockData{
+			Version:   1,
 			Author:    "genesis",
 			Round:     genesis.RootRound,
 			Epoch:     0,
@@ -232,7 +233,11 @@ func NewRootBlock(hash crypto.Hash, block *abdrc.CommittedBlock, orchestration O
 		if err != nil {
 			return nil, fmt.Errorf("loading partition %s genesis: %w", d.Partition, err)
 		}
-		if !bytes.Equal(d.PDRHash, pdr.Hash(crypto.SHA256)) {
+		pdrHash, err := pdr.Hash(crypto.SHA256)
+		if err != nil {
+			return nil, fmt.Errorf("calculating PDR hash: %w", err)
+		}
+		if !bytes.Equal(d.PDRHash, pdrHash) {
 			return nil, fmt.Errorf("calculated PDR hash doesn't match the value in block data for %s - %s", d.Partition, d.Shard)
 		}
 		irState[i] = &InputData{

@@ -1,13 +1,11 @@
 package abdrc
 
 import (
-	"bytes"
 	"fmt"
 
 	"github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/types/hex"
-	"github.com/alphabill-org/alphabill-go-base/util"
 	abdrc "github.com/alphabill-org/alphabill/rootchain/consensus/types"
 )
 
@@ -41,7 +39,11 @@ func (x *IrChangeReqMsg) Sign(signer crypto.Signer) error {
 	if err := x.IsValid(); err != nil {
 		return fmt.Errorf("ir change request msg not valid: %w", err)
 	}
-	signature, err := signer.SignBytes(x.bytes())
+	bs, err := x.bytes()
+	if err != nil {
+		return fmt.Errorf("failed to marshal ir change request msg: %w", err)
+	}
+	signature, err := signer.SignBytes(bs)
 	if err != nil {
 		return fmt.Errorf("failed to sign ir change request: %w", err)
 	}
@@ -53,16 +55,18 @@ func (x *IrChangeReqMsg) Verify(tb types.RootTrustBase) error {
 	if err := x.IsValid(); err != nil {
 		return fmt.Errorf("ir change request msg not valid: %w", err)
 	}
-	if _, err := tb.VerifySignature(x.bytes(), x.Signature, x.Author); err != nil {
+	bs, err := x.bytes()
+	if err != nil {
+		return fmt.Errorf("failed to marshal ir change request msg: %w", err)
+	}
+	if _, err := tb.VerifySignature(bs, x.Signature, x.Author); err != nil {
 		return fmt.Errorf("signature verification failed: %w", err)
 	}
 	return nil
 }
 
-func (x *IrChangeReqMsg) bytes() []byte {
-	var b bytes.Buffer
-	b.Write([]byte(x.Author))
-	b.Write(x.IrChangeReq.Partition.Bytes())
-	b.Write(util.Uint32ToBytes(uint32(x.IrChangeReq.CertReason)))
-	return b.Bytes()
+func (x *IrChangeReqMsg) bytes() ([]byte, error) {
+	xCopy := *x
+	xCopy.Signature = nil
+	return types.Cbor.Marshal(xCopy)
 }

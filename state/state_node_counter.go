@@ -10,13 +10,19 @@ func NewStateNodeCounter() *stateNodeCounter {
 	return &stateNodeCounter{}
 }
 
-func (s *stateNodeCounter) Traverse(n *node) {
+func (s *stateNodeCounter) Traverse(n *node) error {
 	if n == nil {
-		return
+		return nil
 	}
-	s.Traverse(n.Left())
-	s.Traverse(n.Right())
+	if err := s.Traverse(n.Left()); err != nil {
+		return err
+	}
+	if err := s.Traverse(n.Right()); err != nil {
+		return err
+	}
+
 	s.nodeCount++
+	return nil
 }
 
 func (s *stateNodeCounter) NodeCount() uint64 {

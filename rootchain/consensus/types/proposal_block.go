@@ -1,14 +1,13 @@
 package types
 
 import (
-	"bytes"
 	gocrypto "crypto"
 	"errors"
 	"fmt"
 	"strings"
 
+	abhash "github.com/alphabill-org/alphabill-go-base/hash"
 	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill-go-base/util"
 )
 
 var (
@@ -18,6 +17,7 @@ var (
 
 type BlockData struct {
 	_         struct{} `cbor:",toarray"`
+	Version   types.ABVersion
 	Author    string   `json:"author"` // NodeIdentifier of the proposer
 	Round     uint64   `json:"round"`  // Root round number
 	Epoch     uint64   `json:"epoch"`  // Epoch to establish valid configuration
@@ -32,18 +32,6 @@ type BlockData struct {
 type Payload struct {
 	_        struct{}       `cbor:",toarray"`
 	Requests []*IRChangeReq `json:"requests"` // IR change requests with quorum or no quorum possible
-}
-
-// Bytes serializes entire struct.
-func (x *Payload) Bytes() []byte {
-	var b bytes.Buffer
-	if x == nil {
-		return nil
-	}
-	for _, r := range x.Requests {
-		b.Write(r.Bytes())
-	}
-	return b.Bytes()
 }
 
 func (x *Payload) IsValid() error {
@@ -103,25 +91,15 @@ func (x *BlockData) Verify(tb types.RootTrustBase) error {
 	return nil
 }
 
-func (x *BlockData) Hash(algo gocrypto.Hash) []byte {
-	hasher := algo.New()
-	hasher.Write(x.Bytes())
-	return hasher.Sum(nil)
+func (x *BlockData) Hash(algo gocrypto.Hash) ([]byte, error) {
+	hasher := abhash.New(algo.New())
+	hasher.Write(x)
+	return hasher.Sum()
 }
 
 // Bytes serializes entire struct for hash calculation.
-func (x *BlockData) Bytes() []byte {
-	var b bytes.Buffer
-	// Block ID is defined as block hash, so hence it is not included
-	b.Write([]byte(x.Author))
-	b.Write(util.Uint64ToBytes(x.Round))
-	b.Write(util.Uint64ToBytes(x.Epoch))
-	b.Write(util.Uint64ToBytes(x.Timestamp))
-	b.Write(x.Payload.Bytes())
-	// From QC signatures (in the alphabetical order of signer ID!) must be included
-	// Genesis block does not have a QC
-	b.Write(x.Qc.SignatureBytes())
-	return b.Bytes()
+func (x *BlockData) Bytes() ([]byte, error) {
+	return x.MarshalCBOR()
 }
 
 func (x *BlockData) GetRound() uint64 {
@@ -148,4 +126,27 @@ func (x *BlockData) String() string {
 		changed = append(changed, req.String())
 	}
 	return fmt.Sprintf("round: %v, time: %v, payload: %s", x.Round, x.Timestamp, strings.Join(changed, ", "))
+}
+
+func (x *BlockData) GetVersion() types.ABVersion {
+	if x == nil || x.Version == 0 {
+		return 1
+	}
+	return x.Version
+}
+
+func (x *BlockData) MarshalCBOR() ([]byte, error) {
+	type alias BlockData
+	if x.Version == 0 {
+		x.Version = x.GetVersion()
+	}
+	return types.Cbor.MarshalTaggedValue(types.RootPartitionBlockDataTag, (*alias)(x))
+}
+
+func (x *BlockData) UnmarshalCBOR(data []byte) error {
+	type alias BlockData
+	if err := types.Cbor.UnmarshalTaggedValue(types.RootPartitionBlockDataTag, data, (*alias)(x)); err != nil {
+		return err
+	}
+	return types.EnsureVersion(x, x.Version, 1)
 }

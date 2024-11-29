@@ -1,9 +1,9 @@
 package fc
 
 import (
-	"hash"
 	"testing"
 
+	abhash "github.com/alphabill-org/alphabill-go-base/hash"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/state"
@@ -23,7 +23,7 @@ type testData struct {
 	_ struct{} `cbor:",toarray"`
 }
 
-func (t *testData) Write(hasher hash.Hash) error { return nil }
+func (t *testData) Write(hasher abhash.Hasher) { hasher.Write(t) }
 func (t *testData) SummaryValueInput() uint64 {
 	return 0
 }

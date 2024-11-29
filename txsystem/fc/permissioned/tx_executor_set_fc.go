@@ -49,7 +49,10 @@ func (f *FeeCreditModule) validateSetFC(tx *types.TransactionOrder, attr *permis
 		}
 	} else {
 		// verify unit id is correctly calculated
-		fcrID := f.NewFeeCreditRecordID(unitID, attr.OwnerPredicate, tx.Timeout())
+		fcrID, err := f.NewFeeCreditRecordID(unitID, attr.OwnerPredicate, tx.Timeout())
+		if err != nil {
+			return fmt.Errorf("failed to create fee credit record id: %w", err)
+		}
 		if !fcrID.Eq(unitID) {
 			return fmt.Errorf("tx.unitID is not equal to expected fee credit record id (hash of fee credit owner predicate and tx.timeout), txUnitID=%s expectedUnitID=%s", unitID, fcrID)
 		}
@@ -87,8 +90,11 @@ func (f *FeeCreditModule) executeSetFC(tx *types.TransactionOrder, attr *permiss
 	}, nil
 }
 
-func (f *FeeCreditModule) NewFeeCreditRecordID(unitID []byte, ownerPredicate []byte, timeout uint64) types.UnitID {
-	unitPart := fc.NewFeeCreditRecordUnitPart(ownerPredicate, timeout)
+func (f *FeeCreditModule) NewFeeCreditRecordID(unitID []byte, ownerPredicate []byte, timeout uint64) (types.UnitID, error) {
+	unitPart, err := fc.NewFeeCreditRecordUnitPart(ownerPredicate, timeout)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create fee credit record unit part: %w", err)
+	}
 	unitIdLen := len(unitPart) + len(f.feeCreditRecordUnitType)
-	return types.NewUnitID(unitIdLen, unitID, unitPart, f.feeCreditRecordUnitType)
+	return types.NewUnitID(unitIdLen, unitID, unitPart, f.feeCreditRecordUnitType), nil
 }

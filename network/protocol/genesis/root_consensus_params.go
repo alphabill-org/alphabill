@@ -1,7 +1,6 @@
 package genesis
 
 import (
-	"bytes"
 	gocrypto "crypto"
 	"errors"
 	"fmt"
@@ -9,7 +8,6 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/types/hex"
-	"github.com/alphabill-org/alphabill-go-base/util"
 )
 
 var (
@@ -67,18 +65,13 @@ func (x *ConsensusParams) IsValid() error {
 	return nil
 }
 
-func (x *ConsensusParams) Bytes() []byte {
-	var b bytes.Buffer
-	// self is nil?
+func (x *ConsensusParams) SigBytes() ([]byte, error) {
 	if x == nil {
-		return b.Bytes()
+		return nil, ErrConsensusParamsIsNil
 	}
-	b.Write(util.Uint32ToBytes(x.GetVersion()))
-	b.Write(util.Uint32ToBytes(x.TotalRootValidators))
-	b.Write(util.Uint32ToBytes(x.BlockRateMs))
-	b.Write(util.Uint32ToBytes(x.ConsensusTimeoutMs))
-	b.Write(util.Uint32ToBytes(x.HashAlgorithm))
-	return b.Bytes()
+	xx := *x
+	xx.Signatures = nil
+	return xx.MarshalCBOR()
 }
 
 func (x *ConsensusParams) Sign(id string, signer crypto.Signer) error {
@@ -88,7 +81,11 @@ func (x *ConsensusParams) Sign(id string, signer crypto.Signer) error {
 	if signer == nil {
 		return ErrSignerIsNil
 	}
-	signature, err := signer.SignBytes(x.Bytes())
+	bs, err := x.SigBytes()
+	if err != nil {
+		return fmt.Errorf("failed to marshal consensus params %w", err)
+	}
+	signature, err := signer.SignBytes(bs)
 	if err != nil {
 		return fmt.Errorf("failed to sign consensus params %w", err)
 	}
@@ -119,8 +116,12 @@ func (x *ConsensusParams) Verify(verifiers map[string]crypto.Verifier) error {
 		if !f {
 			return fmt.Errorf("consensus parameters signed by unknown validator: %v", id)
 		}
-		err := ver.VerifyBytes(sig, x.Bytes())
+		bs, err := x.SigBytes()
 		if err != nil {
+			return fmt.Errorf("failed to marshal consensus params %w", err)
+		}
+
+		if err := ver.VerifyBytes(sig, bs); err != nil {
 			return fmt.Errorf("consensus parameters signature verification error: %w", err)
 		}
 	}

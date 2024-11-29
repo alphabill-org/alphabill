@@ -341,8 +341,14 @@ func (n *validatorNetwork) ForwardTransactions(ctx context.Context, receiverFunc
 			openStreams = append(openStreams, stream)
 		}
 
+		txHash, err := tx.Hash(n.txBuffer.HashAlgorithm())
+		if err != nil {
+			n.log.WarnContext(ctx, "hashing tx", logger.Error(err), logger.UnitID(tx.UnitID))
+			addToMetric("err.hash")
+			continue
+		}
 		n.log.DebugContext(ctx,
-			fmt.Sprintf("forward tx %X to %v", tx.Hash(n.txBuffer.HashAlgorithm()), receiver),
+			fmt.Sprintf("forward tx %X to %v", txHash, receiver),
 			logger.UnitID(tx.UnitID))
 
 		data, err := serializeMsg(tx)

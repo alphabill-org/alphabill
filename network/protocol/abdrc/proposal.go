@@ -54,7 +54,11 @@ func (x *ProposalMsg) Verify(tb types.RootTrustBase) error {
 	if err := x.Block.Verify(tb); err != nil {
 		return fmt.Errorf("block verification failed: %w", err)
 	}
-	if _, err := tb.VerifySignature(x.Block.Bytes(), x.Signature, x.Block.Author); err != nil {
+	bb, err := x.Block.Bytes()
+	if err != nil {
+		return fmt.Errorf("block serialization failed: %w", err)
+	}
+	if _, err := tb.VerifySignature(bb, x.Signature, x.Block.Author); err != nil {
 		return fmt.Errorf("signature verification failed: %w", err)
 	}
 
@@ -76,7 +80,10 @@ func (x *ProposalMsg) Sign(signer crypto.Signer) error {
 	}
 
 	// Sign block hash
-	hash := x.Block.Hash(gocrypto.SHA256)
+	hash, err := x.Block.Hash(gocrypto.SHA256)
+	if err != nil {
+		return fmt.Errorf("block hash failed: %w", err)
+	}
 	signature, err := signer.SignHash(hash)
 	if err != nil {
 		return fmt.Errorf("sign failed: %w", err)

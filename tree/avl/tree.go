@@ -19,7 +19,7 @@ type (
 
 	// Traverser is an interface to traverse Tree.
 	Traverser[K Key[K], V Value[V]] interface {
-		Traverse(n *Node[K, V])
+		Traverse(n *Node[K, V]) error
 	}
 
 	// PostOrderCommitTraverser is a Traverser that visits all non-clean nodes and
@@ -68,8 +68,8 @@ func (t *Tree[K, V]) IsClean() bool {
 }
 
 // Commit saves the changes made to the tree.
-func (t *Tree[K, V]) Commit() {
-	t.traverser.Traverse(t.root)
+func (t *Tree[K, V]) Commit() error {
+	return t.traverser.Traverse(t.root)
 }
 
 func (t *Tree[K, V]) Root() *Node[K, V] {
@@ -77,20 +77,25 @@ func (t *Tree[K, V]) Root() *Node[K, V] {
 }
 
 // Traverse traverses the given tree with the given traverser. Does nothing if the given traverser is nil.
-func (t *Tree[K, V]) Traverse(traverser Traverser[K, V]) {
+func (t *Tree[K, V]) Traverse(traverser Traverser[K, V]) error {
 	if traverser == nil {
-		return
+		return nil
 	}
-	traverser.Traverse(t.root)
+	return traverser.Traverse(t.root)
 }
 
-func (p *PostOrderCommitTraverser[K, V]) Traverse(n *Node[K, V]) {
+func (p *PostOrderCommitTraverser[K, V]) Traverse(n *Node[K, V]) error {
 	if n == nil || n.clean {
-		return
+		return nil
 	}
-	p.Traverse(n.left)
-	p.Traverse(n.right)
+	if err := p.Traverse(n.left); err != nil {
+		return err
+	}
+	if err := p.Traverse(n.right); err != nil {
+		return err
+	}
 	p.SetClean(n)
+	return nil
 }
 
 func (p *PostOrderCommitTraverser[K, V]) SetClean(n *Node[K, V]) {

@@ -31,7 +31,6 @@ type (
 	stateSerializer struct {
 		encode        func(any) error
 		hashAlgorithm crypto.Hash
-		err           error
 	}
 )
 
@@ -42,39 +41,41 @@ func newStateSerializer(encoder func(any) error, hashAlgorithm crypto.Hash) *sta
 	}
 }
 
-func (s *stateSerializer) Traverse(n *avl.Node[types.UnitID, *Unit]) {
-	if n == nil || s.err != nil {
-		return
+func (s *stateSerializer) Traverse(n *avl.Node[types.UnitID, *Unit]) error {
+	if n == nil {
+		return nil
 	}
 
-	s.Traverse(n.Left())
-	s.Traverse(n.Right())
-	s.WriteNode(n)
+	if err := s.Traverse(n.Left()); err != nil {
+		return err
+	}
+	if err := s.Traverse(n.Right()); err != nil {
+		return err
+	}
+
+	return s.WriteNode(n)
 }
 
-func (s *stateSerializer) WriteNode(n *avl.Node[types.UnitID, *Unit]) {
-	if s.err != nil {
-		return
-	}
-
+func (s *stateSerializer) WriteNode(n *avl.Node[types.UnitID, *Unit]) error {
 	unit := n.Value()
 	logSize := len(unit.logs)
 	if logSize == 0 {
-		s.err = fmt.Errorf("unit state log is empty")
+		return fmt.Errorf("unit state log is empty")
 	}
 
 	latestLog := unit.logs[logSize-1]
 	unitDataBytes, err := types.Cbor.Marshal(latestLog.NewUnitData)
 	if err != nil {
-		s.err = fmt.Errorf("unable to encode unit data: %w", err)
-		return
+		return fmt.Errorf("unable to encode unit data: %w", err)
 	}
 
-	merkleTree := mt.New(s.hashAlgorithm, unit.logs)
+	merkleTree, err := mt.New(s.hashAlgorithm, unit.logs)
+	if err != nil {
+		return fmt.Errorf("unable to create Merkle tree: %w", err)
+	}
 	unitTreePath, err := merkleTree.GetMerklePath(logSize - 1)
 	if err != nil {
-		s.err = fmt.Errorf("unable to extract unit tree path: %w", err)
-		return
+		return fmt.Errorf("unable to extract unit tree path: %w", err)
 	}
 
 	nr := &nodeRecord{
@@ -86,7 +87,7 @@ func (s *stateSerializer) WriteNode(n *avl.Node[types.UnitID, *Unit]) {
 		HasRight:           n.Right() != nil,
 	}
 	if err = s.encode(nr); err != nil {
-		s.err = fmt.Errorf("unable to encode node record: %w", err)
-		return
+		return fmt.Errorf("unable to encode node record: %w", err)
 	}
+	return nil
 }

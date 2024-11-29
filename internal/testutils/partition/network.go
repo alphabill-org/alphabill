@@ -620,7 +620,7 @@ func PartitionInitReady(t *testing.T, part *NodePartition) func() bool {
 func WaitTxProof(t *testing.T, part *NodePartition, txOrder *types.TransactionOrder) (*types.TxRecordProof, error) {
 	t.Helper()
 	var txRecordProof *types.TxRecordProof
-	txHash := txOrder.Hash(crypto.SHA256)
+	txHash := test.DoHash(t, txOrder)
 	ok := test.Eventually(func() bool {
 		for _, n := range part.Nodes {
 			txRecProof, err := n.GetTransactionRecordProof(context.Background(), txHash)
@@ -643,10 +643,10 @@ func WaitUnitProof(t *testing.T, part *NodePartition, ID types.UnitID, txOrder *
 	var (
 		unitProof *types.UnitDataAndProof
 	)
-	txOrderHash := txOrder.Hash(crypto.SHA256)
+	txHash := test.DoHash(t, txOrder)
 	if ok := test.Eventually(func() bool {
 		for _, n := range part.Nodes {
-			unitDataAndProof, err := partition.ReadUnitProofIndex(n.proofDB, ID, txOrderHash)
+			unitDataAndProof, err := partition.ReadUnitProofIndex(n.proofDB, ID, txHash)
 			if err != nil {
 				continue
 			}

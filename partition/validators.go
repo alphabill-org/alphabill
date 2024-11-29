@@ -88,19 +88,22 @@ func (dtv *DefaultTxValidator) Validate(tx *types.TransactionOrder, currentRound
 
 // NewDefaultUnicityCertificateValidator creates a new instance of default UnicityCertificateValidator.
 func NewDefaultUnicityCertificateValidator(
-	systemDescription *types.PartitionDescriptionRecord,
+	partitionDescription *types.PartitionDescriptionRecord,
 	trustBase types.RootTrustBase,
 	algorithm gocrypto.Hash,
 ) (UnicityCertificateValidator, error) {
-	if err := systemDescription.IsValid(); err != nil {
+	if err := partitionDescription.IsValid(); err != nil {
 		return nil, err
 	}
 	if trustBase == nil {
 		return nil, types.ErrRootValidatorInfoMissing
 	}
-	h := systemDescription.Hash(algorithm)
+	h, err := partitionDescription.Hash(algorithm)
+	if err != nil {
+		return nil, fmt.Errorf("failed to hash partition description: %w", err)
+	}
 	return &DefaultUnicityCertificateValidator{
-		partitionIdentifier:   systemDescription.PartitionIdentifier,
+		partitionIdentifier:   partitionDescription.PartitionIdentifier,
 		rootTrustBase:         trustBase,
 		systemDescriptionHash: h,
 		algorithm:             algorithm,
@@ -113,19 +116,22 @@ func (ucv *DefaultUnicityCertificateValidator) Validate(uc *types.UnicityCertifi
 
 // NewDefaultBlockProposalValidator creates a new instance of default BlockProposalValidator.
 func NewDefaultBlockProposalValidator(
-	systemDescription *types.PartitionDescriptionRecord,
+	partitionDescription *types.PartitionDescriptionRecord,
 	rootTrust types.RootTrustBase,
 	algorithm gocrypto.Hash,
 ) (BlockProposalValidator, error) {
-	if err := systemDescription.IsValid(); err != nil {
+	if err := partitionDescription.IsValid(); err != nil {
 		return nil, err
 	}
 	if rootTrust == nil {
 		return nil, types.ErrRootValidatorInfoMissing
 	}
-	h := systemDescription.Hash(algorithm)
+	h, err := partitionDescription.Hash(algorithm)
+	if err != nil {
+		return nil, fmt.Errorf("failed to hash partition description: %w", err)
+	}
 	return &DefaultBlockProposalValidator{
-		partitionIdentifier:   systemDescription.PartitionIdentifier,
+		partitionIdentifier:   partitionDescription.PartitionIdentifier,
 		rootTrustBase:         rootTrust,
 		systemDescriptionHash: h,
 		algorithm:             algorithm,

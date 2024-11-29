@@ -106,22 +106,26 @@ func TestNewBlockStoreFromDB_MultipleRoots(t *testing.T) {
 	require.NoError(t, storeGenesisInit(gocrypto.SHA256, pg, db, orchestration))
 	// create second root
 	vInfo9 := &drctypes.RoundInfo{RoundNumber: 9, ParentRoundNumber: 8}
+	h9, err := vInfo9.Hash(gocrypto.SHA256)
+	require.NoError(t, err)
 	b10 := fakeBlock(10, &drctypes.QuorumCert{
 		VoteInfo: vInfo9,
 		LedgerCommitInfo: &types.UnicitySeal{
 			Version:      1,
-			PreviousHash: vInfo9.Hash(gocrypto.SHA256),
+			PreviousHash: h9,
 			Hash:         test.RandomBytes(32),
 		},
 	})
 	require.NoError(t, db.Write(blockKey(b10.GetRound()), b10))
 
 	vInfo8 := &drctypes.RoundInfo{RoundNumber: 8, ParentRoundNumber: 7}
+	h8, err := vInfo8.Hash(gocrypto.SHA256)
+	require.NoError(t, err)
 	b9 := fakeBlock(9, &drctypes.QuorumCert{
 		VoteInfo: vInfo8,
 		LedgerCommitInfo: &types.UnicitySeal{
 			Version:              1,
-			PreviousHash:         vInfo8.Hash(gocrypto.SHA256),
+			PreviousHash:         h8,
 			RootChainRoundNumber: 8,
 			Hash:                 test.RandomBytes(32),
 		},
@@ -130,11 +134,13 @@ func TestNewBlockStoreFromDB_MultipleRoots(t *testing.T) {
 	require.NoError(t, db.Write(blockKey(b9.GetRound()), b9))
 
 	vInfo7 := &drctypes.RoundInfo{RoundNumber: 7, ParentRoundNumber: 6}
+	h7, err := vInfo7.Hash(gocrypto.SHA256)
+	require.NoError(t, err)
 	b8 := fakeBlock(8, &drctypes.QuorumCert{
 		VoteInfo: vInfo7,
 		LedgerCommitInfo: &types.UnicitySeal{
 			Version:              1,
-			PreviousHash:         vInfo7.Hash(gocrypto.SHA256),
+			PreviousHash:         h7,
 			RootChainRoundNumber: 7,
 			Hash:                 test.RandomBytes(32),
 		},

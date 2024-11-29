@@ -37,7 +37,7 @@ func TestValidateSetFC(t *testing.T) {
 	// common default values used in each test
 	fcrOwnerPredicate := templates.NewP2pkh256BytesFromKey(userPubKey)
 	timeout := uint64(10)
-	fcrID := newFeeCreditRecordID(fcrOwnerPredicate, fcrUnitType, timeout)
+	fcrID := newFeeCreditRecordID(t, fcrOwnerPredicate, fcrUnitType, timeout)
 
 	t.Run("FeeCreditRecordID is not nil", func(t *testing.T) {
 		tx, attr, authProof, err := newSetFeeCreditTx(adminKeySigner, partitionID, fcrID, fcrOwnerPredicate, nil, timeout, []byte{1}, nil)
@@ -56,7 +56,7 @@ func TestValidateSetFC(t *testing.T) {
 	t.Run("Invalid unit type byte", func(t *testing.T) {
 		// create new fcrID with invalid type byte
 		fcrUnitType := []byte{2}
-		fcrID := newFeeCreditRecordID(fcrOwnerPredicate, fcrUnitType, timeout)
+		fcrID := newFeeCreditRecordID(t, fcrOwnerPredicate, fcrUnitType, timeout)
 		tx, attr, authProof, err := newSetFeeCreditTx(adminKeySigner, partitionID, fcrID, fcrOwnerPredicate, nil, timeout, nil, nil)
 		require.NoError(t, err)
 		err = m.validateSetFC(tx, attr, authProof, testctx.NewMockExecutionContext())
@@ -165,7 +165,7 @@ func TestExecuteSetFC(t *testing.T) {
 	// create tx
 	fcrOwnerPredicate := templates.NewP2pkh256BytesFromKey(userPubKey)
 	timeout := uint64(10)
-	fcrID := newFeeCreditRecordID(fcrOwnerPredicate, fcrUnitType, timeout)
+	fcrID := newFeeCreditRecordID(t, fcrOwnerPredicate, fcrUnitType, timeout)
 
 	tx, attr, authProof, err := newSetFeeCreditTx(adminKeySigner, partitionID, fcrID, fcrOwnerPredicate, nil, timeout, nil, nil)
 	require.NoError(t, err)
@@ -196,8 +196,9 @@ func TestExecuteSetFC(t *testing.T) {
 	require.EqualValues(t, fcrOwnerPredicate, fcr.OwnerPredicate)
 }
 
-func newFeeCreditRecordID(ownerPredicate []byte, fcrUnitType []byte, timeout uint64) types.UnitID {
-	unitPart := fc.NewFeeCreditRecordUnitPart(ownerPredicate, timeout)
+func newFeeCreditRecordID(t *testing.T, ownerPredicate []byte, fcrUnitType []byte, timeout uint64) types.UnitID {
+	unitPart, err := fc.NewFeeCreditRecordUnitPart(ownerPredicate, timeout)
+	require.NoError(t, err)
 	return types.NewUnitID(33, nil, unitPart, fcrUnitType)
 }
 

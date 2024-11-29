@@ -5,6 +5,7 @@ import (
 	"crypto"
 	"fmt"
 
+	abhash "github.com/alphabill-org/alphabill-go-base/hash"
 	"github.com/alphabill-org/alphabill-go-base/types"
 )
 
@@ -96,23 +97,25 @@ func (l *Log) Clone() *Log {
 	}
 }
 
-func (l *Log) Hash(algorithm crypto.Hash) []byte {
-	hasher := algorithm.New()
+func (l *Log) Hash(algorithm crypto.Hash) ([]byte, error) {
+	hasher := abhash.New(algorithm.New())
 	if l.NewUnitData != nil {
-		// todo: change Hash interface to allow errors
-		_ = l.NewUnitData.Write(hasher)
+		l.NewUnitData.Write(hasher)
 	}
 	// @todo: AB-1609 add delete round "nd"
 	if l.NewStateLockTx != nil {
 		hasher.Write(l.NewStateLockTx)
 	}
 	//y_j
-	dataHash := hasher.Sum(nil)
+	dataHash, err := hasher.Sum()
+	if err != nil {
+		return nil, fmt.Errorf("failed to hash log data: %w", err)
+	}
 	hasher.Reset()
 	hasher.Write(l.UnitLedgerHeadHash)
 	hasher.Write(dataHash)
 	// z_j
-	return hasher.Sum(nil)
+	return hasher.Sum()
 }
 
 func (u *Unit) latestUnitData() types.UnitData {

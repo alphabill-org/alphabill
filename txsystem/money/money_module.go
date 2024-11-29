@@ -42,7 +42,7 @@ func NewMoneyModule(networkID types.NetworkID, partitionID types.PartitionID, op
 		partitionID:         partitionID,
 		trustBase:           options.trustBase,
 		hashAlgorithm:       options.hashAlgorithm,
-		feeCreditTxRecorder: newFeeCreditTxRecorder(options.state, partitionID, options.systemDescriptionRecords),
+		feeCreditTxRecorder: newFeeCreditTxRecorder(options.state, partitionID, options.partitionDescriptionRecords),
 		dustCollector:       NewDustCollector(options.state),
 		execPredicate:       predicates.NewPredicateRunner(options.exec),
 	}

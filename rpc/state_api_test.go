@@ -5,11 +5,10 @@ import (
 	"context"
 	"crypto"
 	"errors"
-	"fmt"
-	"hash"
 	"io"
 	"testing"
 
+	abhash "github.com/alphabill-org/alphabill-go-base/hash"
 	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
@@ -238,19 +237,14 @@ type unitData struct {
 	O []byte
 }
 
-func (ud *unitData) Hash(hashAlgo crypto.Hash) []byte {
-	hasher := hashAlgo.New()
-	_ = ud.Write(hasher)
-	return hasher.Sum(nil)
+func (ud *unitData) Hash(hashAlgo crypto.Hash) ([]byte, error) {
+	hasher := abhash.New(hashAlgo.New())
+	ud.Write(hasher)
+	return hasher.Sum()
 }
 
-func (ud *unitData) Write(hasher hash.Hash) error {
-	res, err := types.Cbor.Marshal(ud)
-	if err != nil {
-		return fmt.Errorf("unit data encode error: %w", err)
-	}
-	_, err = hasher.Write(res)
-	return err
+func (ud *unitData) Write(hasher abhash.Hasher) {
+	hasher.Write(ud)
 }
 
 func (ud *unitData) SummaryValueInput() uint64 {
@@ -298,10 +292,8 @@ func (mn *MockNode) SubmitTx(_ context.Context, tx *types.TransactionOrder) ([]b
 	if bytes.Equal(tx.UnitID, failingUnitID) {
 		return nil, errors.New("failed")
 	}
-	if tx != nil {
-		mn.transactions = append(mn.transactions, tx)
-	}
-	return tx.Hash(crypto.SHA256), nil
+	mn.transactions = append(mn.transactions, tx)
+	return tx.Hash(crypto.SHA256)
 }
 
 func (mn *MockNode) GetBlock(_ context.Context, blockNumber uint64) (*types.Block, error) {

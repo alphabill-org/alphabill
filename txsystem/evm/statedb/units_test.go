@@ -5,6 +5,7 @@ import (
 	"math/big"
 	"testing"
 
+	abhash "github.com/alphabill-org/alphabill-go-base/hash"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/holiman/uint256"
 
@@ -40,8 +41,10 @@ func TestStateObject_Write(t *testing.T) {
 	hasher.Write(res)
 	expectedHash := hasher.Sum(nil)
 	hasher.Reset()
-	require.NoError(t, so.Write(hasher))
-	actualHash := hasher.Sum(nil)
+	abhasher := abhash.New(hasher)
+	so.Write(abhasher)
+	actualHash, err := abhasher.Sum()
+	require.NoError(t, err)
 	require.Equal(t, expectedHash, actualHash)
 	// make sure all fields where serialized
 	var soFormSerialized StateObject

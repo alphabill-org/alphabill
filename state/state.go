@@ -7,7 +7,7 @@ import (
 	"io"
 	"sync"
 
-	"github.com/alphabill-org/alphabill-go-base/hash"
+	abhash "github.com/alphabill-org/alphabill-go-base/hash"
 	"github.com/alphabill-org/alphabill-go-base/tree/mt"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/util"
@@ -131,7 +131,10 @@ func readNodeRecords(decoder *cbor.Decoder, unitDataConstructor UnitDataConstruc
 			UnitLedgerHeadHash: nodeRecord.UnitLedgerHeadHash,
 			NewUnitData:        unitData,
 		}
-		logsHash := mt.EvalMerklePath(nodeRecord.UnitTreePath, latestLog, hashAlgorithm)
+		logsHash, err := mt.EvalMerklePath(nodeRecord.UnitTreePath, latestLog, hashAlgorithm)
+		if err != nil {
+			return nil, fmt.Errorf("unable to evaluate merkle path: %w", err)
+		}
 
 		unit := &Unit{logsHash: logsHash}
 		if len(nodeRecord.UnitTreePath) > 0 {
@@ -207,10 +210,13 @@ func (s *State) AddUnitLog(id types.UnitID, transactionRecordHash []byte) error 
 	}
 	if logsCount == 0 {
 		// newly created unit
-		l.UnitLedgerHeadHash = hash.Sum(s.hashAlgorithm, nil, transactionRecordHash)
+		l.UnitLedgerHeadHash, err = abhash.HashValues(s.hashAlgorithm, nil, transactionRecordHash)
 	} else {
 		// a pre-existing unit
-		l.UnitLedgerHeadHash = hash.Sum(s.hashAlgorithm, unit.logs[logsCount-1].UnitLedgerHeadHash, transactionRecordHash)
+		l.UnitLedgerHeadHash, err = abhash.HashValues(s.hashAlgorithm, unit.logs[logsCount-1].UnitLedgerHeadHash, transactionRecordHash)
+	}
+	if err != nil {
+		return fmt.Errorf("unable to hash unit ledger head: %w", err)
 	}
 	unit.logs = append(unit.logs, l)
 	return s.latestSavepoint().Update(id, unit)
@@ -312,7 +318,10 @@ func (s *State) CalculateRoot() (uint64, []byte, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 	sp := s.latestSavepoint()
-	sp.Commit()
+	err := sp.Commit()
+	if err != nil {
+		return 0, nil, fmt.Errorf("unable to commit savepoint: %w", err)
+	}
 	root := sp.Root()
 	if root == nil {
 		return 0, nil, nil
@@ -332,17 +341,15 @@ func (s *State) Prune() error {
 	defer s.mutex.Unlock()
 	sp := s.latestSavepoint()
 	pruner := newStatePruner(sp)
-	sp.Traverse(pruner)
-	return pruner.Err()
+	return sp.Traverse(pruner)
 }
 
 func (s *State) Size() (uint64, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	ss := stateSize{}
-	s.latestSavepoint().Traverse(&ss)
-	return ss.size, ss.err
+	ss := &stateSize{}
+	return ss.size, s.latestSavepoint().Traverse(ss)
 }
 
 // Serialize writes the current committed state to the given writer.
@@ -366,7 +373,9 @@ func (s *State) Serialize(writer io.Writer, committed bool) error {
 
 	// Add node record count to header
 	snc := NewStateNodeCounter()
-	tree.Traverse(snc)
+	if err := tree.Traverse(snc); err != nil {
+		return fmt.Errorf("unable to count node records: %w", err)
+	}
 	header.NodeRecordCount = snc.NodeCount()
 
 	// Write header
@@ -376,8 +385,8 @@ func (s *State) Serialize(writer io.Writer, committed bool) error {
 
 	// Write node records
 	ss := newStateSerializer(encoder.Encode, s.hashAlgorithm)
-	if tree.Traverse(ss); ss.err != nil {
-		return fmt.Errorf("unable to write node records: %w", ss.err)
+	if err := tree.Traverse(ss); err != nil {
+		return fmt.Errorf("unable to write node records: %w", err)
 	}
 
 	// Write checksum (as a fixed length byte array for easier decoding)
@@ -440,26 +449,31 @@ func (s *State) HashAlgorithm() crypto.Hash {
 	return s.hashAlgorithm
 }
 
-func (s *State) Traverse(traverser avl.Traverser[types.UnitID, *Unit]) {
+func (s *State) Traverse(traverser avl.Traverser[types.UnitID, *Unit]) error {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
-	s.committedTree.Traverse(traverser)
+	return s.committedTree.Traverse(traverser)
 }
 
 func (s *State) createUnitTreeCert(unit *Unit, logIndex int) (*types.UnitTreeCert, error) {
-	merkle := mt.New(s.hashAlgorithm, unit.logs)
+	merkle, err := mt.New(s.hashAlgorithm, unit.logs)
+	if err != nil {
+		return nil, fmt.Errorf("unable to create merkle tree: %w", err)
+	}
 	path, err := merkle.GetMerklePath(logIndex)
 	if err != nil {
 		return nil, err
 	}
 	l := unit.logs[logIndex]
-	dataHasher := s.hashAlgorithm.New()
-	if err = l.NewUnitData.Write(dataHasher); err != nil {
-		return nil, fmt.Errorf("add to hasher error: %w", err)
+	dataHasher := abhash.New(s.hashAlgorithm.New())
+	l.NewUnitData.Write(dataHasher)
+	h, err := dataHasher.Sum()
+	if err != nil {
+		return nil, fmt.Errorf("unable to hash unit data: %w", err)
 	}
 	return &types.UnitTreeCert{
 		TransactionRecordHash: l.TxRecordHash,
-		UnitDataHash:          dataHasher.Sum(nil),
+		UnitDataHash:          h,
 		Path:                  path,
 	}, nil
 }

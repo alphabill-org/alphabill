@@ -2,7 +2,7 @@ name: docker
 
 on:
   push:
-    branches: ["main", "AB-1783-CborHashing"]
+    branches: ["main"]
     tags: ["*"]
   pull_request:
     branches: ["main"]

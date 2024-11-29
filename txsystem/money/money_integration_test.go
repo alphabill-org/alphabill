@@ -77,7 +77,7 @@ func TestPartition_Ok(t *testing.T) {
 
 	// create fee credit for initial bill transfer
 	signer, _ := testsig.CreateSignerAndVerifier(t)
-	fcrID := testutils.NewFeeCreditRecordIDAlwaysTrue()
+	fcrID := testutils.NewFeeCreditRecordIDAlwaysTrue(t)
 	transferFC := testutils.NewTransferFC(t, signer,
 		testutils.NewTransferFCAttr(t, signer,
 			testutils.WithCounter(0),
@@ -210,7 +210,7 @@ func TestPartition_SwapDCOk(t *testing.T) {
 
 	// create fee credit for initial bill transfer
 	signer, _ := testsig.CreateSignerAndVerifier(t)
-	fcrID := testutils.NewFeeCreditRecordIDAlwaysTrue()
+	fcrID := testutils.NewFeeCreditRecordIDAlwaysTrue(t)
 	transferFC := testutils.NewTransferFC(t, signer,
 		testutils.NewTransferFCAttr(t, signer,
 			testutils.WithCounter(0),

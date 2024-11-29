@@ -6,6 +6,7 @@ import (
 
 	"github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types/hex"
+	testcertificates "github.com/alphabill-org/alphabill/internal/testutils/certificates"
 	"github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtb "github.com/alphabill-org/alphabill/internal/testutils/trustbase"
 	"github.com/alphabill-org/alphabill/rootchain/consensus/testutils"
@@ -160,7 +161,7 @@ func TestTimeoutMsg_IsValid(t *testing.T) {
 					Epoch: 0,
 					HighQc: &types.QuorumCert{
 						VoteInfo:         testutils.NewDummyRootRoundInfo(9),
-						LedgerCommitInfo: testutils.NewDummyCommitInfo(gocrypto.SHA256, testutils.NewDummyRootRoundInfo(9)),
+						LedgerCommitInfo: testutils.NewDummyCommitInfo(t, gocrypto.SHA256, testutils.NewDummyRootRoundInfo(9)),
 						Signatures:       map[string]hex.Bytes{"1": {0, 1, 2, 3}},
 					},
 				},
@@ -194,7 +195,7 @@ func TestTimeoutMsg_Sign(t *testing.T) {
 			Epoch: 0,
 			HighQc: &types.QuorumCert{
 				VoteInfo:         testutils.NewDummyRootRoundInfo(9),
-				LedgerCommitInfo: testutils.NewDummyCommitInfo(gocrypto.SHA256, testutils.NewDummyRootRoundInfo(9)),
+				LedgerCommitInfo: testutils.NewDummyCommitInfo(t, gocrypto.SHA256, testutils.NewDummyRootRoundInfo(9)),
 				Signatures:       map[string]hex.Bytes{"1": {0, 1, 2, 3}},
 			},
 		},
@@ -215,12 +216,12 @@ func TestVoteMsg_PureTimeoutVoteVerifyOk(t *testing.T) {
 	s3, v3 := testsig.CreateSignerAndVerifier(t)
 	rootTrust := testtb.NewTrustBaseFromVerifiers(t, map[string]crypto.Verifier{"1": v1, "2": v2, "3": v3})
 	commitQcInfo := testutils.NewDummyRootRoundInfo(votedRound - 1)
-	commitInfo := testutils.NewDummyCommitInfo(gocrypto.SHA256, commitQcInfo)
-	sig1, err := s1.SignBytes(commitInfo.Bytes())
+	commitInfo := testutils.NewDummyCommitInfo(t, gocrypto.SHA256, commitQcInfo)
+	sig1, err := s1.SignBytes(testcertificates.UnicitySealBytes(t, commitInfo))
 	require.NoError(t, err)
-	sig2, err := s2.SignBytes(commitInfo.Bytes())
+	sig2, err := s2.SignBytes(testcertificates.UnicitySealBytes(t, commitInfo))
 	require.NoError(t, err)
-	sig3, err := s3.SignBytes(commitInfo.Bytes())
+	sig3, err := s3.SignBytes(testcertificates.UnicitySealBytes(t, commitInfo))
 	require.NoError(t, err)
 	highQc := &types.QuorumCert{
 		VoteInfo:         commitQcInfo,

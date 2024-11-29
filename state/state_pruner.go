@@ -5,7 +5,6 @@ import "bytes"
 type (
 	statePruner struct {
 		prunedTree *tree
-		err        error
 	}
 )
 
@@ -13,21 +12,21 @@ func newStatePruner(prunedTree *tree) *statePruner {
 	return &statePruner{prunedTree: prunedTree}
 }
 
-func (s *statePruner) Traverse(n *node) {
-	if n == nil || s.err != nil {
-		return
+func (s *statePruner) Traverse(n *node) error {
+	if n == nil {
+		return nil
 	}
-	s.Traverse(n.Left())
-	s.Traverse(n.Right())
-
-	if s.err != nil {
-		return
+	if err := s.Traverse(n.Left()); err != nil {
+		return err
+	}
+	if err := s.Traverse(n.Right()); err != nil {
+		return err
 	}
 
 	unit := n.Value()
 	logSize := len(unit.logs)
 	if logSize <= 1 {
-		return
+		return nil
 	}
 
 	latestLog := unit.logs[logSize-1]
@@ -37,9 +36,5 @@ func (s *statePruner) Traverse(n *node) {
 		UnitLedgerHeadHash: bytes.Clone(latestLog.UnitLedgerHeadHash),
 		NewUnitData:        copyData(unit.Data()),
 	}}
-	s.err = s.prunedTree.Update(n.Key(), clonedUnit)
-}
-
-func (s *statePruner) Err() error {
-	return s.err
+	return s.prunedTree.Update(n.Key(), clonedUnit)
 }

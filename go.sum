@@ -19,8 +19,8 @@ github.com/ainvaltin/httpsrv v0.3.1 h1:E7Oq7hpmYUDFh7olry6MFQTQwXEdaqMMOrzrgGZxi
 github.com/ainvaltin/httpsrv v0.3.1/go.mod h1:hsvXrOXgWiWfGSYUCRRBlBYKPwLM1WWzGuqhp8dEcDY=
 github.com/allegro/bigcache v1.2.1-0.20190218064605-e24eb225f156 h1:eMwmnE/GDgah4HI848JfFxHt+iPb26b4zyfspmqY0/8=
 github.com/allegro/bigcache v1.2.1-0.20190218064605-e24eb225f156/go.mod h1:Cb/ax3seSYIx7SuZdm2G2xzfwmv3TPSk2ucNfQESPXM=
-github.com/alphabill-org/alphabill-go-base v0.5.0-rc1.0.20241121085635-3acb26ee6061 h1:X1qgpAGH2TN1W418E0PB8GG0jz+i6tOM7ni7DQpPOQo=
-github.com/alphabill-org/alphabill-go-base v0.5.0-rc1.0.20241121085635-3acb26ee6061/go.mod h1:suFRAqNyqufV5QWUKXQ+WceOFoZjb7OojP75bLSrcpE=
+github.com/alphabill-org/alphabill-go-base v0.5.0-rc1.0.20241128171558-63d4f182e7d4 h1:W7AO0cloJzePuZptkEm2syB1aLOAT5BqTYlVDUlM4tw=
+github.com/alphabill-org/alphabill-go-base v0.5.0-rc1.0.20241128171558-63d4f182e7d4/go.mod h1:suFRAqNyqufV5QWUKXQ+WceOFoZjb7OojP75bLSrcpE=
 github.com/anmitsu/go-shlex v0.0.0-20161002113705-648efa622239/go.mod h1:2FmKhYUyUczH0OGQWaF5ceTx0UBShxjsH6f8oGKYe2c=
 github.com/benbjohnson/clock v1.1.0/go.mod h1:J11/hYXuz8f4ySSvYwY0FKfm+ezbsZBKZxNJlLklBHA=
 github.com/benbjohnson/clock v1.3.0/go.mod h1:J11/hYXuz8f4ySSvYwY0FKfm+ezbsZBKZxNJlLklBHA=

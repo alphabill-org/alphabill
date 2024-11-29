@@ -35,6 +35,20 @@ func Test_BlockCertificationRequest_IsValid(t *testing.T) {
 		require.NoError(t, bcr.IsValid(verifier))
 	})
 
+	t.Run("bytes - ok", func(t *testing.T) {
+		bcr := validBCR(t)
+		require.NoError(t, bcr.IsValid(verifier))
+
+		bs, err := bcr.Bytes()
+		require.NoError(t, err)
+
+		bcr2 := *bcr
+		bcr2.Signature = nil
+		bs2, err := types.Cbor.Marshal(bcr2)
+		require.NoError(t, err)
+		require.Equal(t, bs, bs2)
+	})
+
 	t.Run("request is nil", func(t *testing.T) {
 		var brc *BlockCertificationRequest
 		require.ErrorIs(t, brc.IsValid(verifier), ErrBlockCertificationRequestIsNil)

@@ -14,13 +14,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alphabill-org/alphabill-go-base/types/hex"
+	testcertificates "github.com/alphabill-org/alphabill/internal/testutils/certificates"
+	testpartition "github.com/alphabill-org/alphabill/rootchain/partitions/testutils"
 	p2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	p2ptest "github.com/libp2p/go-libp2p/core/test"
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testnetwork "github.com/alphabill-org/alphabill/internal/testutils/network"
 	testobservability "github.com/alphabill-org/alphabill/internal/testutils/observability"
@@ -35,7 +37,6 @@ import (
 	abdrctu "github.com/alphabill-org/alphabill/rootchain/consensus/testutils"
 	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
 	rootgenesis "github.com/alphabill-org/alphabill/rootchain/genesis"
-	testpartition "github.com/alphabill-org/alphabill/rootchain/partitions/testutils"
 	"github.com/alphabill-org/alphabill/rootchain/testutils"
 )
 
@@ -392,7 +393,8 @@ func TestIRChangeRequestFromRootValidator(t *testing.T) {
 	require.NoError(t, err)
 	trustBase, err := rg.GenerateTrustBase()
 	require.NoError(t, err)
-	sdrh := rg.Partitions[0].GetSystemDescriptionRecord().Hash(gocrypto.SHA256)
+	sdrh, err := rg.Partitions[0].GetPartitionDescriptionRecord().Hash(gocrypto.SHA256)
+	require.NoError(t, err)
 	require.NoError(t, result.Verify(trustBase, gocrypto.SHA256, partitionID, sdrh))
 
 	// root will continue and next proposal is also triggered by the same QC
@@ -494,13 +496,13 @@ func Test_ConsensusManager_onVoteMsg(t *testing.T) {
 	makeVoteMsg := func(t *testing.T, cms []*ConsensusManager, round uint64) *abdrc.VoteMsg {
 		t.Helper()
 		qcRoundInfo := abdrctu.NewDummyRootRoundInfo(round - 2)
-		commitInfo := abdrctu.NewDummyCommitInfo(gocrypto.SHA256, qcRoundInfo)
+		commitInfo := abdrctu.NewDummyCommitInfo(t, gocrypto.SHA256, qcRoundInfo)
 		highQc := &drctypes.QuorumCert{
 			VoteInfo:         qcRoundInfo,
 			LedgerCommitInfo: commitInfo,
 			Signatures:       map[string]hex.Bytes{},
 		}
-		cib := commitInfo.Bytes()
+		cib := testcertificates.UnicitySealBytes(t, commitInfo)
 		for _, cm := range cms {
 			sig, err := cm.safety.signer.SignBytes(cib)
 			require.NoError(t, err)
@@ -508,11 +510,13 @@ func Test_ConsensusManager_onVoteMsg(t *testing.T) {
 		}
 
 		voteRoundInfo := abdrctu.NewDummyRootRoundInfo(round)
+		h, err := voteRoundInfo.Hash(gocrypto.SHA256)
+		require.NoError(t, err)
 		voteMsg := &abdrc.VoteMsg{
 			VoteInfo: voteRoundInfo,
 			LedgerCommitInfo: &types.UnicitySeal{
 				Version:      1,
-				PreviousHash: voteRoundInfo.Hash(gocrypto.SHA256),
+				PreviousHash: h,
 			},
 			HighQc: highQc,
 			Author: cms[0].id.String(),

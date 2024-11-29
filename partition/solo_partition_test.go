@@ -110,7 +110,7 @@ func newSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, v
 	// root state
 	var certs = make(map[types.PartitionID]*types.UnicityCertificate)
 	for _, partition := range rootGenesis.Partitions {
-		certs[partition.GetSystemDescriptionRecord().GetPartitionIdentifier()] = partition.Certificate
+		certs[partition.GetPartitionDescriptionRecord().GetPartitionIdentifier()] = partition.Certificate
 	}
 
 	net := testnetwork.NewMockNetwork(t)
@@ -125,16 +125,16 @@ func newSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, v
 	require.NoError(t, err)
 	partitionGenesis[0].Keys = []*genesis.PublicKeyInfo{
 		&genesis.PublicKeyInfo{
-			NodeIdentifier: fakeValidatorID.String(),
-			SigningPublicKey: fakeValidatorPubKeyRaw,
+			NodeIdentifier:      fakeValidatorID.String(),
+			SigningPublicKey:    fakeValidatorPubKeyRaw,
 			EncryptionPublicKey: fakeValidatorPubKeyRaw,
 		},
 	}
 	if validator {
 		partitionGenesis[0].Keys = append(partitionGenesis[0].Keys,
 			&genesis.PublicKeyInfo{
-				NodeIdentifier: peerConf.ID.String(),
-				SigningPublicKey: peerConf.KeyPair.PublicKey,
+				NodeIdentifier:      peerConf.ID.String(),
+				SigningPublicKey:    peerConf.KeyPair.PublicKey,
 				EncryptionPublicKey: peerConf.KeyPair.PublicKey,
 			})
 	}
@@ -239,7 +239,6 @@ func (sn *SingleNodePartition) ReceiveCertResponseSameEpoch(t *testing.T, ir *ty
 	sn.ReceiveCertResponse(t, ir, rootRoundNumber, ir.Epoch)
 }
 
-
 func (sn *SingleNodePartition) ReceiveCertResponseWithEpoch(t *testing.T, ir *types.InputRecord, rootRoundNumber uint64, epoch uint64) {
 	sn.ReceiveCertResponse(t, ir, rootRoundNumber, epoch)
 }
@@ -324,7 +323,10 @@ func (sn *SingleNodePartition) CreateUnicityCertificate(ir *types.InputRecord, r
 	}
 
 	pdr := sn.nodeDeps.genesis.PartitionDescription
-	pdrHash := pdr.Hash(gocrypto.SHA256)
+	pdrHash, err := pdr.Hash(gocrypto.SHA256)
+	if err != nil {
+		return nil, nil, fmt.Errorf("calculating PDR hash: %w", err)
+	}
 	sTree, err := types.CreateShardTree(pdr.Shards, []types.ShardTreeInput{{Shard: types.ShardID{}, IR: ir, TRHash: trHash}}, gocrypto.SHA256)
 	if err != nil {
 		return nil, nil, fmt.Errorf("creating shard tree: %w", err)
@@ -375,7 +377,10 @@ func (sn *SingleNodePartition) CreateUnicityCertificateTR(ir *types.InputRecord,
 	}
 
 	pdr := sn.nodeDeps.genesis.PartitionDescription
-	pdrHash := pdr.Hash(gocrypto.SHA256)
+	pdrHash, err := pdr.Hash(gocrypto.SHA256)
+	if err != nil {
+		return nil, tr, fmt.Errorf("calculating PDR hash: %w", err)
+	}
 	sTree, err := types.CreateShardTree(pdr.Shards, []types.ShardTreeInput{{Shard: types.ShardID{}, IR: ir, TRHash: trHash}}, gocrypto.SHA256)
 	if err != nil {
 		return nil, tr, fmt.Errorf("creating shard tree: %w", err)
@@ -488,7 +493,6 @@ func createPeerConfiguration(t *testing.T) *network.PeerConfiguration {
 
 	pubKeyBytes, err := pubKey.Raw()
 	require.NoError(t, err)
-
 
 	peerConf, err := network.NewPeerConfiguration(
 		"/ip4/127.0.0.1/tcp/0",

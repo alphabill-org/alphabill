@@ -226,8 +226,15 @@ func (m *GenericTxSystem) doExecute(tx *types.TransactionOrder, exeCtx *txtypes.
 
 		// update unit log's
 		for _, targetID := range txr.ServerMetadata.TargetUnits {
+			txrHash, err := txr.Hash(m.hashAlgorithm)
+			if err != nil {
+				m.state.RollbackToSavepoint(savepointID)
+				txr = nil
+				retErr = fmt.Errorf("hashing transaction record: %w", err)
+				return
+			}
 			// add log for each target unit
-			if err := m.state.AddUnitLog(targetID, txr.Hash(m.hashAlgorithm)); err != nil {
+			if err := m.state.AddUnitLog(targetID, txrHash); err != nil {
 				// If the unit log update fails, the Tx must not be added to block - there is no way to provide full ledger.
 				// The problem is that a lot of work has been done. If this can be triggered externally, it will become
 				// an attack vector.
@@ -308,7 +315,11 @@ func (m *GenericTxSystem) executeFc(tx *types.TransactionOrder, exeCtx *txtypes.
 		TransactionOrder: txBytes,
 		ServerMetadata:   sm,
 	}
-	trHash := trx.Hash(m.hashAlgorithm)
+	trHash, err := trx.Hash(m.hashAlgorithm)
+	if err != nil {
+		m.state.RollbackToSavepoint(savepointID)
+		return nil, fmt.Errorf("hashing transaction record: %w", err)
+	}
 	// update unit log's
 	for _, targetID := range sm.TargetUnits {
 		// add log for each target unit

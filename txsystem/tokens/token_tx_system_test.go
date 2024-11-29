@@ -2,14 +2,13 @@ package tokens
 
 import (
 	"fmt"
-	"hash"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 
 	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
-	hasherUtil "github.com/alphabill-org/alphabill-go-base/hash"
+	abhash "github.com/alphabill-org/alphabill-go-base/hash"
 	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/tokens"
@@ -166,10 +165,10 @@ func TestExecuteDefineNFT_InheritanceChainWithP2PKHPredicates(t *testing.T) {
 	childSigner, childPublicKey := createSigner(t)
 
 	// only parent2 can create subtypes from parent1
-	parent1SubTypeCreationPredicate := templates.NewP2pkh256BytesFromKeyHash(hasherUtil.Sum256(parent2PubKey))
+	parent1SubTypeCreationPredicate := templates.NewP2pkh256BytesFromKeyHash(abhash.Sum256(parent2PubKey))
 
 	// parent2 and child together can create a subtype because SubTypeCreationPredicate are concatenated (ownerProof must contain both signatures)
-	parent2SubTypeCreationPredicate := templates.NewP2pkh256BytesFromKeyHash(hasherUtil.Sum256(childPublicKey))
+	parent2SubTypeCreationPredicate := templates.NewP2pkh256BytesFromKeyHash(abhash.Sum256(childPublicKey))
 
 	txs, _ := newTokenTxSystem(t)
 
@@ -1720,7 +1719,7 @@ func defineNFTAndMintToken(t *testing.T, txs *txsystem.GenericTxSystem, nftTypeI
 
 type mockUnitData struct{}
 
-func (m mockUnitData) Write(hash.Hash) error { return nil }
+func (m mockUnitData) Write(hasher abhash.Hasher) { hasher.Write(&m) }
 
 func (m mockUnitData) SummaryValueInput() uint64 {
 	return 0

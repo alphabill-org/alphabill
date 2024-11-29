@@ -28,7 +28,11 @@ func (x *VoteMsg) Sign(signer crypto.Signer) error {
 	if len(x.LedgerCommitInfo.PreviousHash) < 1 {
 		return fmt.Errorf("invalid round info hash")
 	}
-	signature, err := signer.SignBytes(x.LedgerCommitInfo.Bytes())
+	bs, err := x.LedgerCommitInfo.SigBytes()
+	if err != nil {
+		return fmt.Errorf("failed to marshal unicity seal: %w", err)
+	}
+	signature, err := signer.SignBytes(bs)
 	if err != nil {
 		return fmt.Errorf("failed to sign vote: %w", err)
 	}
@@ -50,7 +54,10 @@ func (x *VoteMsg) Verify(tb types.RootTrustBase) error {
 		return fmt.Errorf("vote from '%s' ledger commit info (unicity seal) is missing", x.Author)
 	}
 	// Verify hash of vote info
-	hash := x.VoteInfo.Hash(gocrypto.SHA256)
+	hash, err := x.VoteInfo.Hash(gocrypto.SHA256)
+	if err != nil {
+		return fmt.Errorf("vote from '%s' vote info hash error: %w", x.Author, err)
+	}
 	if !bytes.Equal(hash, x.LedgerCommitInfo.PreviousHash) {
 		return fmt.Errorf("vote from '%s' vote info hash does not match hash in commit info", x.Author)
 	}
@@ -60,7 +67,11 @@ func (x *VoteMsg) Verify(tb types.RootTrustBase) error {
 	if err := x.HighQc.Verify(tb); err != nil {
 		return fmt.Errorf("vote from '%s' high QC error: %w", x.Author, err)
 	}
-	if _, err := tb.VerifySignature(x.LedgerCommitInfo.Bytes(), x.Signature, x.Author); err != nil {
+	bs, err := x.LedgerCommitInfo.SigBytes()
+	if err != nil {
+		return fmt.Errorf("failed to marshal unicity seal: %w", err)
+	}
+	if _, err := tb.VerifySignature(bs, x.Signature, x.Author); err != nil {
 		return fmt.Errorf("vote from '%s' signature verification error: %w", x.Author, err)
 	}
 	return nil

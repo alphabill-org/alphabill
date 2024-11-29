@@ -76,7 +76,10 @@ func (x *IRChangeReqVerifier) VerifyIRChangeReq(round uint64, irChReq *drctypes.
 	// verify that there are no pending changes in the pipeline for any of the updated partitions
 	if ir := x.state.IsChangeInProgress(irChReq.Partition, irChReq.Shard); ir != nil {
 		// If the same change is already in progress then report duplicate error
-		if types.EqualIR(inputRecord, ir) {
+		if b, err := types.EqualIR(inputRecord, ir); b || err != nil {
+			if err != nil {
+				return nil, fmt.Errorf("comparing input records: %w", err)
+			}
 			return nil, ErrDuplicateChangeReq
 		}
 		return nil, fmt.Errorf("add state failed: partition %s has pending changes in pipeline", irChReq.Partition)
@@ -85,11 +88,15 @@ func (x *IRChangeReqVerifier) VerifyIRChangeReq(round uint64, irChReq *drctypes.
 	if round < luc.UnicitySeal.RootChainRoundNumber {
 		return nil, fmt.Errorf("current round %v is in the past, LUC round %v", round, luc.UnicitySeal.RootChainRoundNumber)
 	}
+	pdrHash, err := pdr.Hash(x.params.HashAlgorithm)
+	if err != nil {
+		return nil, fmt.Errorf("hashing partition description: %w", err)
+	}
 	return &storage.InputData{
 		Partition: irChReq.Partition,
 		Shard:     irChReq.Shard,
 		IR:        inputRecord,
-		PDRHash:   pdr.Hash(x.params.HashAlgorithm),
+		PDRHash:   pdrHash,
 	}, nil
 }
 

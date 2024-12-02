@@ -32,6 +32,7 @@ EOT
   done
   return 0
 }
+
 # generate bootstrap parameter from key file and port
 function generate_boot_node() {
     local keyf=$1
@@ -71,7 +72,7 @@ case $1 in
     ;;
   tokens-enterprise)
     cmd="tokens-genesis"
-    home="testab/tokens_enterprise"
+    home="testab/tokens-enterprise"
     ;;
   *)
     echo "error: unknown partition $1" >&2
@@ -200,8 +201,8 @@ local rpcPort=0
       ;;
     tokens-enterprise)
       cmd="tokens"
-      home="testab/tokens_enterprise"
-      key_files="testab/tokens_enterprise[0-9]*/tokens/keys.json"
+      home="testab/tokens-enterprise"
+      key_files="testab/tokens-enterprise[0-9]*/tokens/keys.json"
       genesis_file="testab/rootchain1/rootchain/partition-genesis-5.json"
       aPort=31666
       rpcPort=31866
@@ -241,6 +242,9 @@ local rpcPort=0
 function start_non_validator_partition_nodes() {
   partition=$1
   count=$2
+  extraFlags=$3
+  partitionType=$partition
+
   home="testab/$partition-non-validator"
   trust_base_file="testab/root-trust-base.json"
 
@@ -248,22 +252,29 @@ function start_non_validator_partition_nodes() {
 
   # Set up partition specific variables
   case $partition in
-      money)
-          partitionGenesis="testab/rootchain1/rootchain/partition-genesis-1.json"
-          p2pPort=36666
-          rpcPort=36866
-          sdrFlags="-c testab/money-pdr.json"
-          sdrFlags+=" --partition-description=$PWD/testab/money-pdr.json"
+    money)
+      partitionGenesis="testab/rootchain1/rootchain/partition-genesis-1.json"
+      p2pPort=36666
+      rpcPort=36866
+      sdrFlags="-c testab/money-pdr.json"
+      sdrFlags+=" --partition-description=$PWD/testab/money-pdr.json"
 
-          [ -f testab/evm-pdr.json ] && sdrFlags+=" -c testab/evm-pdr.json"
-          [ -f testab/tokens-pdr.json ] && sdrFlags+=" -c testab/tokens-pdr.json"
-          ;;
-      tokens)
-          partitionGenesis="testab/rootchain1/rootchain/partition-genesis-2.json"
-          p2pPort=38666
-          rpcPort=38866
-          sdrFlags="--partition-description=$PWD/testab/tokens-pdr.json"
-          ;;
+      [ -f testab/evm-pdr.json ] && sdrFlags+=" -c testab/evm-pdr.json"
+      [ -f testab/tokens-pdr.json ] && sdrFlags+=" -c testab/tokens-pdr.json"
+      ;;
+    tokens)
+      partitionGenesis="testab/rootchain1/rootchain/partition-genesis-2.json"
+      p2pPort=38666
+      rpcPort=38866
+      sdrFlags="--partition-description=$PWD/testab/tokens-pdr.json"
+      ;;
+    tokens-enterprise)
+      partitionType=tokens
+      partitionGenesis="testab/rootchain1/rootchain/partition-genesis-5.json"
+      p2pPort=41666
+      rpcPort=41866
+      sdrFlags="--partition-description=$PWD/testab/tokens-pdr.json"
+      ;;
   esac
 
   # create bootnodes
@@ -272,7 +283,7 @@ function start_non_validator_partition_nodes() {
   # Start non-validator partition nodes
   for i in $(seq $count); do
     if [[ ! -d ${home}$i ]]; then
-      build/alphabill $partition-genesis --home ${home}$i -g $sdrFlags
+      build/alphabill $partitionType-genesis --home ${home}$i -g $sdrFlags $extraFlags
       generate_log_configuration ${home}$i
     fi
 
@@ -287,19 +298,19 @@ function start_non_validator_partition_nodes() {
     fi
 
     echo "starting non-validator $partition node" $i "($rpcServerAddress)"
-    build/alphabill $partition \
+    build/alphabill $partitionType \
       --home ${home}$i \
-      --db ${home}$i/$partition/blocks.db \
-      --shard-db ${home}$i/$partition/shard.db \
-      --tx-db ${home}$i/$partition/tx.db \
-      --key-file ${home}$i/$partition/keys.json \
+      --db ${home}$i/$partitionType/blocks.db \
+      --shard-db ${home}$i/$partitionType/shard.db \
+      --tx-db ${home}$i/$partitionType/tx.db \
+      --key-file ${home}$i/$partitionType/keys.json \
       --genesis $partitionGenesis \
       --trust-base-file $trust_base_file \
-      --state ${home}$i/$partition/node-genesis-state.cbor \
+      --state ${home}$i/$partitionType/node-genesis-state.cbor \
       --address "/ip4/127.0.0.1/tcp/$p2pPort" \
       --bootnodes="$bootNodes" \
       --rpc-server-address $rpcServerAddress \
-      >> ${home}$i/$partition/$partition.log 2>&1 &
+      >> ${home}$i/$partitionType/$partitionType.log 2>&1 &
     ((p2pPort=p2pPort+1))
     ((rpcPort=rpcPort+1))
   done

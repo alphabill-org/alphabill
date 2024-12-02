@@ -557,7 +557,7 @@ func TestCreateAndVerifyStateProofs_CreateUnitProof(t *testing.T) {
 		data := &types.StateUnitData{
 			Data: unitData,
 		}
-		require.NoError(t, types.VerifyUnitStateProof(proof, crypto.SHA256, data, &alwaysValid{}))
+		require.NoError(t, proof.Verify(crypto.SHA256, data, &alwaysValid{}))
 	})
 	t.Run("unit not found", func(t *testing.T) {
 		s, _, _ := prepareState(t)

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"time"
 
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -201,6 +202,10 @@ func (c *moneyGenesisConfig) getPDRs() ([]*types.PartitionDescriptionRecord, err
 			pdrs = append(pdrs, pdr)
 		}
 	}
+	// Sort, so that we don't generate a different state if CLI param order differs
+	sort.Slice(pdrs, func(i, j int) bool {
+		return pdrs[i].PartitionIdentifier < pdrs[j].PartitionIdentifier
+	})
 	return pdrs, nil
 }
 

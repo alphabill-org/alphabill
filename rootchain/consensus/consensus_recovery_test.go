@@ -9,12 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alphabill-org/alphabill-go-base/types/hex"
-	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/stretchr/testify/require"
-
 	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	abtypes "github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	testobservability "github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/alphabill-org/alphabill/logger"
 	"github.com/alphabill-org/alphabill/network"
@@ -25,7 +22,9 @@ import (
 	"github.com/alphabill-org/alphabill/rootchain/consensus/leader"
 	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
 	rootgenesis "github.com/alphabill-org/alphabill/rootchain/genesis"
-	"github.com/alphabill-org/alphabill/rootchain/partitions"
+	testpartition "github.com/alphabill-org/alphabill/rootchain/partitions/testutils"
+	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/stretchr/testify/require"
 )
 
 func Test_ConsensusManager_sendRecoveryRequests(t *testing.T) {
@@ -40,13 +39,13 @@ func Test_ConsensusManager_sendRecoveryRequests(t *testing.T) {
 	tracer := observe.Tracer("")
 
 	t.Run("invalid input msg type", func(t *testing.T) {
-		cm := &ConsensusManager{tracer: tracer}
+		cm := &ConsensusManager{tracer: tracer, recovery: &recoveryState{}}
 		err := cm.sendRecoveryRequests(context.Background(), "foobar")
 		require.EqualError(t, err, `failed to extract recovery info: unknown message type, cannot be used for recovery: string`)
 	})
 
 	t.Run("already in recovery status", func(t *testing.T) {
-		cm := &ConsensusManager{recovery: &recoveryInfo{toRound: 42, sent: time.Now()}, tracer: tracer}
+		cm := &ConsensusManager{recovery: &recoveryState{triggerMsg: &abdrc.TimeoutMsg{}, toRound: 42, sent: time.Now()}, tracer: tracer}
 
 		toMsg := &abdrc.TimeoutMsg{
 			Author: "16Uiu2HAm2qoNCweXVbxXPHAQxdJnEXEYYQ1bRfBwEi6nUhZMhWxD",
@@ -96,7 +95,7 @@ func Test_ConsensusManager_sendRecoveryRequests(t *testing.T) {
 			id:  nodeID,
 			net: nw.Connect(nodeID),
 			// init the sent time so is is older than limit
-			recovery: &recoveryInfo{toRound: toMsg.Timeout.GetHqcRound(), sent: time.Now().Add(-statusReqShelfLife)},
+			recovery: &recoveryState{triggerMsg: toMsg, toRound: toMsg.Timeout.GetHqcRound(), sent: time.Now().Add(-statusReqShelfLife)},
 			tracer:   tracer,
 		}
 
@@ -136,7 +135,7 @@ func Test_ConsensusManager_sendRecoveryRequests(t *testing.T) {
 		nodeID, _, _, _ := generatePeerData(t)
 		authID, _, _, _ := generatePeerData(t)
 		nw := newMockNetwork(t)
-		cm := &ConsensusManager{id: nodeID, net: nw.Connect(nodeID), tracer: tracer}
+		cm := &ConsensusManager{id: nodeID, net: nw.Connect(nodeID), tracer: tracer, recovery: &recoveryState{}}
 
 		// single signature by the author so only that node should receive the request
 		toMsg := &abdrc.TimeoutMsg{
@@ -189,19 +188,19 @@ func Test_msgToRecoveryInfo(t *testing.T) {
 	t.Parallel()
 
 	t.Run("invalid input", func(t *testing.T) {
-		info, sig, err := msgToRecoveryInfo(nil)
-		require.Empty(t, info)
+		round, sig, err := msgToRecoveryInfo(nil)
+		require.Empty(t, round)
 		require.Empty(t, sig)
 		require.EqualError(t, err, `unknown message type, cannot be used for recovery: <nil>`)
 
-		info, sig, err = msgToRecoveryInfo(42)
-		require.Empty(t, info)
+		round, sig, err = msgToRecoveryInfo(42)
+		require.Empty(t, round)
 		require.Empty(t, sig)
 		require.EqualError(t, err, `unknown message type, cannot be used for recovery: int`)
 
 		var msg = struct{ s string }{""}
-		info, sig, err = msgToRecoveryInfo(msg)
-		require.Empty(t, info)
+		round, sig, err = msgToRecoveryInfo(msg)
+		require.Empty(t, round)
 		require.Empty(t, sig)
 		require.EqualError(t, err, `unknown message type, cannot be used for recovery: struct { s string }`)
 	})
@@ -218,44 +217,40 @@ func Test_msgToRecoveryInfo(t *testing.T) {
 		var tests = []struct {
 			name       string
 			input      any
-			info       *recoveryInfo
+			toRound    uint64
 			signatures map[string]hex.Bytes
 		}{
 			{
 				name:       "proposal message",
 				input:      proposalMsg,
-				info:       &recoveryInfo{toRound: proposalMsg.Block.Qc.GetRound(), triggerMsg: proposalMsg},
+				toRound:    proposalMsg.Block.Qc.GetRound(),
 				signatures: signatures,
 			},
 			{
 				name:       "vote message",
 				input:      voteMsg,
-				info:       &recoveryInfo{toRound: voteMsg.HighQc.GetRound(), triggerMsg: voteMsg},
+				toRound:    voteMsg.HighQc.GetRound(),
 				signatures: signatures,
 			},
 			{
 				name:       "timeout message",
 				input:      toMsg,
-				info:       &recoveryInfo{toRound: toMsg.Timeout.GetHqcRound(), triggerMsg: toMsg},
+				toRound:    toMsg.Timeout.GetHqcRound(),
 				signatures: signatures,
 			},
 			{
 				name:       "quorum certificate",
 				input:      quorumCert,
-				info:       &recoveryInfo{toRound: quorumCert.GetParentRound(), triggerMsg: quorumCert},
+				toRound:    quorumCert.GetParentRound(),
 				signatures: signatures,
 			},
 		}
 
 		for _, tc := range tests {
 			t.Run(tc.name, func(t *testing.T) {
-				info, sig, err := msgToRecoveryInfo(tc.input)
+				round, sig, err := msgToRecoveryInfo(tc.input)
 				require.NoError(t, err)
-				// check that the info created by func has sent time assigned
-				// but then zero it so that the equality check would not fail
-				require.False(t, info.sent.IsZero())
-				info.sent = time.Time{}
-				require.Equal(t, tc.info, info)
+				require.Equal(t, tc.toRound, round)
 				require.Equal(t, tc.signatures, sig)
 			})
 		}
@@ -779,7 +774,7 @@ func createConsensusManagers(t *testing.T, count int, partitionRecs []*genesis.P
 		nodeID, err := peer.Decode(v.NodeIdentifier)
 		require.NoError(t, err)
 
-		cm, err := NewConsensusManager(nodeID, rootG, trustBase, partitions.NewOrchestration(rootG), nw.Connect(nodeID), signers[v.NodeIdentifier], observability.WithLogger(observe, observe.Logger().With(logger.NodeID(nodeID))))
+		cm, err := NewConsensusManager(nodeID, rootG, trustBase, testpartition.NewOrchestration(t, rootG), nw.Connect(nodeID), signers[v.NodeIdentifier], observability.WithLogger(observe, observe.Logger().With(logger.NodeID(nodeID))))
 		require.NoError(t, err)
 		cms = append(cms, cm)
 	}

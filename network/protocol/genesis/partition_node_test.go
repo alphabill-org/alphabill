@@ -114,7 +114,6 @@ func TestPartitionNodeIsValid(t *testing.T) {
 			Timestamp:    types.NewTimestamp(),
 			RoundNumber:  1,
 		},
-		RootRoundNumber: 1,
 	}
 	require.NoError(t, req.Sign(signer))
 	pn := &PartitionNode{

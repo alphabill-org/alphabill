@@ -9,8 +9,11 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	testcerts "github.com/alphabill-org/alphabill/internal/testutils/certificates"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/internal/testutils/trustbase"
+	"github.com/alphabill-org/alphabill/network/protocol/certification"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
 )
 
@@ -18,11 +21,12 @@ const partitionIdentifier types.PartitionID = 1
 
 func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 	_, nodeVerifier := testsig.CreateSignerAndVerifier(t)
-	_, trustBase := testsig.CreateSignerAndVerifier(t)
+	ucSigner, trustBase := testsig.CreateSignerAndVerifier(t)
 	type fields struct {
 		PartitionIdentifier types.PartitionID
-		NodeIdentifier      string
+		NodeIdentifier      peer.ID
 		UnicityCertificate  *types.UnicityCertificate
+		TechnicalRecord     certification.TechnicalRecord
 		Transactions        []*types.TransactionRecord
 	}
 	type args struct {
@@ -33,11 +37,22 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 		systemDescriptionHash []byte
 	}
 
+	pdr := &types.PartitionDescriptionRecord{
+		PartitionIdentifier: partitionIdentifier,
+	}
+	tr := certification.TechnicalRecord{
+		Round:    1,
+		Epoch:    1,
+		Leader:   "anyone",
+		StatHash: []byte{0},
+		FeeHash:  []byte{0},
+	}
+
 	tests := []struct {
 		name    string
 		fields  fields
 		args    args
-		wantErr error
+		wantErr string
 	}{
 		{
 			name: "node signature verifier is nil",
@@ -53,7 +68,7 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 				partitionIdentifier:   partitionIdentifier,
 				systemDescriptionHash: test.RandomBytes(32),
 			},
-			wantErr: ErrNodeVerifierIsNil,
+			wantErr: ErrNodeVerifierIsNil.Error(),
 		},
 		{
 			name: "uc trust base verifier is nil",
@@ -69,7 +84,7 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 				partitionIdentifier:   partitionIdentifier,
 				systemDescriptionHash: test.RandomBytes(32),
 			},
-			wantErr: ErrTrustBaseIsNil,
+			wantErr: ErrTrustBaseIsNil.Error(),
 		},
 		{
 			name: "invalid partition identifier",
@@ -85,7 +100,7 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 				partitionIdentifier:   2,
 				systemDescriptionHash: test.RandomBytes(32),
 			},
-			wantErr: ErrInvalidPartitionIdentifier,
+			wantErr: ErrInvalidPartitionIdentifier.Error(),
 		},
 		{
 			name: "block proposer id is missing",
@@ -100,7 +115,7 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 				partitionIdentifier:   partitionIdentifier,
 				systemDescriptionHash: test.RandomBytes(32),
 			},
-			wantErr: errBlockProposerIDMissing,
+			wantErr: errBlockProposerIDMissing.Error(),
 		},
 		{
 			name: "uc is nil",
@@ -117,7 +132,33 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 				partitionIdentifier:   partitionIdentifier,
 				systemDescriptionHash: test.RandomBytes(32),
 			},
-			wantErr: types.ErrUnicityCertificateIsNil,
+			wantErr: types.ErrUnicityCertificateIsNil.Error(),
+		},
+		{
+			name: "tr hash mismatch",
+			fields: fields{
+				PartitionIdentifier: partitionIdentifier,
+				NodeIdentifier:      "1",
+				UnicityCertificate: testcerts.CreateUnicityCertificate(
+					t, ucSigner, &types.InputRecord{
+						Version:      1,
+						PreviousHash: test.RandomBytes(32),
+						Hash:         test.RandomBytes(32),
+						BlockHash:    test.RandomBytes(32),
+						SummaryValue: test.RandomBytes(32),
+						Timestamp:    1,
+					}, pdr, 1, []byte{0}, make([]byte, 32)),
+				TechnicalRecord: tr,
+				Transactions:    []*types.TransactionRecord{},
+			},
+			args: args{
+				nodeSignatureVerifier: nodeVerifier,
+				ucTrustBase:           trustbase.NewTrustBaseFromVerifiers(t, map[string]crypto.Verifier{"test": trustBase}),
+				algorithm:             gocrypto.SHA256,
+				partitionIdentifier:   partitionIdentifier,
+				systemDescriptionHash: test.DoHash(t, pdr),
+			},
+			wantErr: "hash mismatch",
 		},
 	}
 	for _, tt := range tests {
@@ -126,10 +167,11 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 				Partition:          tt.fields.PartitionIdentifier,
 				NodeIdentifier:     tt.fields.NodeIdentifier,
 				UnicityCertificate: tt.fields.UnicityCertificate,
+				Technical:          tt.fields.TechnicalRecord,
 				Transactions:       tt.fields.Transactions,
 			}
 			err := bp.IsValid(tt.args.nodeSignatureVerifier, tt.args.ucTrustBase, tt.args.algorithm, tt.args.partitionIdentifier, tt.args.systemDescriptionHash)
-			require.ErrorIs(t, err, tt.wantErr)
+			require.ErrorContains(t, err, tt.wantErr)
 		})
 	}
 }

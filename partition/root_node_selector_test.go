@@ -71,16 +71,16 @@ func Test_rootNodesSelector(t *testing.T) {
 }
 
 func Test_randomNodeSelector(t *testing.T) {
-	t.Run("root node list is nil", func(t *testing.T) {
+	t.Run("node list is nil", func(t *testing.T) {
 		var nodes peer.IDSlice = nil
 		rootNodes, err := randomNodeSelector(nodes, 3)
-		require.ErrorContains(t, err, "root node list is empty")
+		require.ErrorContains(t, err, "node list is empty")
 		require.Nil(t, rootNodes)
 	})
-	t.Run("root node list is empty", func(t *testing.T) {
+	t.Run("node list is empty", func(t *testing.T) {
 		var nodes peer.IDSlice
 		rootNodes, err := randomNodeSelector(nodes, 3)
-		require.ErrorContains(t, err, "root node list is empty")
+		require.ErrorContains(t, err, "node list is empty")
 		require.Nil(t, rootNodes)
 	})
 	t.Run("select 0 nodes", func(t *testing.T) {

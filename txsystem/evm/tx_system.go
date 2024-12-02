@@ -15,6 +15,10 @@ import (
 	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 )
 
+type Observability interface {
+	RoundLogger(curRound func() uint64) *slog.Logger
+}
+
 type genericTransactionValidator func(ctx *TxValidationContext) error
 
 type TxValidationContext struct {
@@ -40,7 +44,7 @@ type TxSystem struct {
 	log                 *slog.Logger
 }
 
-func NewEVMTxSystem(networkID types.NetworkID, partitionID types.PartitionID, log *slog.Logger, opts ...Option) (*TxSystem, error) {
+func NewEVMTxSystem(networkID types.NetworkID, partitionID types.PartitionID, observe Observability, opts ...Option) (*TxSystem, error) {
 	options, err := defaultOptions()
 	if err != nil {
 		return nil, fmt.Errorf("default configuration: %w", err)
@@ -54,26 +58,25 @@ func NewEVMTxSystem(networkID types.NetworkID, partitionID types.PartitionID, lo
 	/*	if options.blockDB == nil {
 		return nil, errors.New("evm tx system init failed, block DB is nil")
 	}*/
-	evm, err := NewEVMModule(partitionID, options, log)
+	txs := &TxSystem{
+		networkID:         networkID,
+		partitionID:       partitionID,
+		hashAlgorithm:     options.hashAlgorithm,
+		state:             options.state,
+		endBlockFunctions: nil,
+		executors:         make(txtypes.TxExecutors),
+	}
+	txs.log = observe.RoundLogger(txs.CurrentBlockNumber)
+	evm, err := NewEVMModule(partitionID, options, txs.log)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load EVM module: %w", err)
 	}
-	fees, err := newFeeModule(partitionID, options, log)
+	fees, err := newFeeModule(partitionID, options, txs.log)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load EVM fee module: %w", err)
 	}
-	txs := &TxSystem{
-		networkID:           networkID,
-		partitionID:         partitionID,
-		hashAlgorithm:       options.hashAlgorithm,
-		state:               options.state,
-		beginBlockFunctions: evm.StartBlockFunc(options.blockGasLimit),
-		endBlockFunctions:   nil,
-		executors:           make(txtypes.TxExecutors),
-		genericTxValidators: []genericTransactionValidator{evm.GenericTransactionValidator(), fees.GenericTransactionValidator()},
-		log:                 log,
-	}
-	txs.beginBlockFunctions = append(txs.beginBlockFunctions, txs.pruneState)
+	txs.genericTxValidators = []genericTransactionValidator{evm.GenericTransactionValidator(), fees.GenericTransactionValidator()}
+	txs.beginBlockFunctions = append(evm.StartBlockFunc(options.blockGasLimit), txs.pruneState)
 	if err := txs.executors.Add(evm.TxHandlers()); err != nil {
 		return nil, fmt.Errorf("registering EVM executors: %w", err)
 	}
@@ -132,7 +135,7 @@ func (m *TxSystem) pruneState(roundNo uint64) error {
 	return m.state.Prune()
 }
 
-func (m *TxSystem) Execute(tx *types.TransactionOrder) (trx *types.TransactionRecord, err error) {
+func (m *TxSystem) Execute(tx *types.TransactionOrder) (txr *types.TransactionRecord, err error) {
 	exeCtx := &TxValidationContext{
 		Tx:          tx,
 		state:       m.state,
@@ -149,7 +152,7 @@ func (m *TxSystem) Execute(tx *types.TransactionOrder) (trx *types.TransactionRe
 	if err != nil {
 		return nil, fmt.Errorf("transaction order serialization error: %w", err)
 	}
-	trx = &types.TransactionRecord{
+	txr = &types.TransactionRecord{
 		Version:          1,
 		TransactionOrder: txBytes,
 	}
@@ -161,10 +164,14 @@ func (m *TxSystem) Execute(tx *types.TransactionOrder) (trx *types.TransactionRe
 			return
 		}
 
-		for _, targetID := range trx.ServerMetadata.TargetUnits {
+		for _, targetID := range txr.ServerMetadata.TargetUnits {
 			// add log for each target unit
-			err := m.state.AddUnitLog(targetID, trx.Hash(m.hashAlgorithm))
+			txrHash, err := txr.Hash(m.hashAlgorithm)
 			if err != nil {
+				m.state.RollbackToSavepoint(savepointID)
+				return
+			}
+			if err := m.state.AddUnitLog(targetID, txrHash); err != nil {
 				m.state.RollbackToSavepoint(savepointID)
 				return
 			}
@@ -174,12 +181,12 @@ func (m *TxSystem) Execute(tx *types.TransactionOrder) (trx *types.TransactionRe
 		m.state.ReleaseToSavepoint(savepointID)
 	}()
 	// execute transaction
-	m.log.Debug(fmt.Sprintf("execute %d", tx.Type), logger.UnitID(tx.UnitID), logger.Data(tx), logger.Round(m.currentRoundNumber))
-	trx.ServerMetadata, err = m.executors.ValidateAndExecute(tx, exeCtx)
+	m.log.Debug(fmt.Sprintf("execute %d", tx.Type), logger.UnitID(tx.UnitID), logger.Data(tx))
+	txr.ServerMetadata, err = m.executors.ValidateAndExecute(tx, exeCtx)
 	if err != nil {
 		return nil, err
 	}
-	return trx, err
+	return txr, err
 }
 
 func (m *TxSystem) EndBlock() (txsystem.StateSummary, error) {

@@ -29,7 +29,6 @@ import (
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/observability"
 	"github.com/alphabill-org/alphabill/partition/event"
-	consensustypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
 	rootgenesis "github.com/alphabill-org/alphabill/rootchain/genesis"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
@@ -78,7 +77,7 @@ func newSingleNonValidatorNodePartition(t *testing.T, txSystem txsystem.Transact
 }
 
 func newSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, validator bool, nodeOptions ...NodeOption) *SingleNodePartition {
-	peerConf := createPeerConfiguration(t, validator)
+	peerConf := createPeerConfiguration(t)
 	pdr := types.PartitionDescriptionRecord{Version: 1, NetworkIdentifier: 5, PartitionIdentifier: 0x01010101, TypeIdLen: 8, UnitIdLen: 256, T2Timeout: 2500 * time.Millisecond}
 	// node genesis
 	nodeSigner, _ := testsig.CreateSignerAndVerifier(t)
@@ -111,10 +110,34 @@ func newSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, v
 	// root state
 	var certs = make(map[types.PartitionID]*types.UnicityCertificate)
 	for _, partition := range rootGenesis.Partitions {
-		certs[partition.GetSystemDescriptionRecord().GetPartitionIdentifier()] = partition.Certificate
+		certs[partition.GetPartitionDescriptionRecord().GetPartitionIdentifier()] = partition.Certificate
 	}
 
 	net := testnetwork.NewMockNetwork(t)
+
+	// Create a fake validator, so that network 'send' requests don't fail
+	_, fakeValidatorPubKey, err := p2pcrypto.GenerateSecp256k1Key(rand.Reader)
+	require.NoError(t, err)
+	fakeValidatorID, err := peer.IDFromPublicKey(fakeValidatorPubKey)
+	require.NoError(t, err)
+
+	fakeValidatorPubKeyRaw, err := fakeValidatorPubKey.Raw()
+	require.NoError(t, err)
+	partitionGenesis[0].Keys = []*genesis.PublicKeyInfo{
+		&genesis.PublicKeyInfo{
+			NodeIdentifier:      fakeValidatorID.String(),
+			SigningPublicKey:    fakeValidatorPubKeyRaw,
+			EncryptionPublicKey: fakeValidatorPubKeyRaw,
+		},
+	}
+	if validator {
+		partitionGenesis[0].Keys = append(partitionGenesis[0].Keys,
+			&genesis.PublicKeyInfo{
+				NodeIdentifier:      peerConf.ID.String(),
+				SigningPublicKey:    peerConf.KeyPair.PublicKey,
+				EncryptionPublicKey: peerConf.KeyPair.PublicKey,
+			})
+	}
 
 	// allows restarting the node
 	deps := &partitionStartupDependencies{
@@ -212,11 +235,19 @@ func (sn *SingleNodePartition) SubmitTxFromRPC(tx *types.TransactionOrder) error
 	return err
 }
 
+func (sn *SingleNodePartition) ReceiveCertResponseSameEpoch(t *testing.T, ir *types.InputRecord, rootRoundNumber uint64) {
+	sn.ReceiveCertResponse(t, ir, rootRoundNumber, ir.Epoch)
+}
+
+func (sn *SingleNodePartition) ReceiveCertResponseWithEpoch(t *testing.T, ir *types.InputRecord, rootRoundNumber uint64, epoch uint64) {
+	sn.ReceiveCertResponse(t, ir, rootRoundNumber, epoch)
+}
+
 /*
 ReceiveCertResponse builds UC and TR based on given input and "sends" them as CertificationResponse to the node.
 */
-func (sn *SingleNodePartition) ReceiveCertResponse(t *testing.T, ir *types.InputRecord, roundNumber uint64) {
-	uc, tr, err := sn.CreateUnicityCertificateTR(ir, roundNumber)
+func (sn *SingleNodePartition) ReceiveCertResponse(t *testing.T, ir *types.InputRecord, rootRoundNumber uint64, epoch uint64) {
+	uc, tr, err := sn.CreateUnicityCertificateTR(ir, rootRoundNumber, epoch)
 	if err != nil {
 		t.Fatalf("creating UC and TR: %v", err)
 	}
@@ -281,25 +312,28 @@ func (sn *SingleNodePartition) SubmitBlockProposal(prop *blockproposal.BlockProp
 	sn.mockNet.Receive(prop)
 }
 
-func (sn *SingleNodePartition) CreateUnicityCertificate(ir *types.InputRecord, roundNumber uint64) (*types.UnicityCertificate, error) {
+func (sn *SingleNodePartition) CreateUnicityCertificate(ir *types.InputRecord, roundNumber uint64) (*types.UnicityCertificate, *certification.TechnicalRecord, error) {
 	tr, err := rootgenesis.TechnicalRecord(ir, []string{sn.nodeDeps.peerConf.ID.String()})
 	if err != nil {
-		return nil, fmt.Errorf("creating TechnicalRecord: %w", err)
+		return nil, nil, fmt.Errorf("creating TechnicalRecord: %w", err)
 	}
 	trHash, err := tr.Hash()
 	if err != nil {
-		return nil, fmt.Errorf("calculating TechnicalRecord hash: %w", err)
+		return nil, nil, fmt.Errorf("calculating TechnicalRecord hash: %w", err)
 	}
 
 	pdr := sn.nodeDeps.genesis.PartitionDescription
-	pdrHash := pdr.Hash(gocrypto.SHA256)
+	pdrHash, err := pdr.Hash(gocrypto.SHA256)
+	if err != nil {
+		return nil, nil, fmt.Errorf("calculating PDR hash: %w", err)
+	}
 	sTree, err := types.CreateShardTree(pdr.Shards, []types.ShardTreeInput{{Shard: types.ShardID{}, IR: ir, TRHash: trHash}}, gocrypto.SHA256)
 	if err != nil {
-		return nil, fmt.Errorf("creating shard tree: %w", err)
+		return nil, nil, fmt.Errorf("creating shard tree: %w", err)
 	}
 	stCert, err := sTree.Certificate(types.ShardID{})
 	if err != nil {
-		return nil, fmt.Errorf("creating shard tree certificate: %w", err)
+		return nil, nil, fmt.Errorf("creating shard tree certificate: %w", err)
 	}
 
 	data := []*types.UnicityTreeData{{
@@ -309,16 +343,16 @@ func (sn *SingleNodePartition) CreateUnicityCertificate(ir *types.InputRecord, r
 	}}
 	ut, err := types.NewUnicityTree(gocrypto.SHA256, data)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	rootHash := ut.RootHash()
 	unicitySeal, err := sn.createUnicitySeal(roundNumber, rootHash)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	cert, err := ut.Certificate(pdr.PartitionIdentifier)
 	if err != nil {
-		return nil, fmt.Errorf("creating UnicityTreeCertificate: %w", err)
+		return nil, nil, fmt.Errorf("creating UnicityTreeCertificate: %w", err)
 	}
 
 	return &types.UnicityCertificate{
@@ -328,11 +362,12 @@ func (sn *SingleNodePartition) CreateUnicityCertificate(ir *types.InputRecord, r
 		ShardTreeCertificate:   stCert,
 		UnicityTreeCertificate: cert,
 		UnicitySeal:            unicitySeal,
-	}, nil
+	}, &tr, nil
 }
 
-func (sn *SingleNodePartition) CreateUnicityCertificateTR(ir *types.InputRecord, roundNumber uint64) (*types.UnicityCertificate, certification.TechnicalRecord, error) {
+func (sn *SingleNodePartition) CreateUnicityCertificateTR(ir *types.InputRecord, rootRoundNumber uint64, epoch uint64) (*types.UnicityCertificate, certification.TechnicalRecord, error) {
 	tr, err := rootgenesis.TechnicalRecord(ir, []string{sn.nodeDeps.peerConf.ID.String()})
+	tr.Epoch = epoch
 	if err != nil {
 		return nil, tr, fmt.Errorf("creating TechnicalRecord: %w", err)
 	}
@@ -342,7 +377,10 @@ func (sn *SingleNodePartition) CreateUnicityCertificateTR(ir *types.InputRecord,
 	}
 
 	pdr := sn.nodeDeps.genesis.PartitionDescription
-	pdrHash := pdr.Hash(gocrypto.SHA256)
+	pdrHash, err := pdr.Hash(gocrypto.SHA256)
+	if err != nil {
+		return nil, tr, fmt.Errorf("calculating PDR hash: %w", err)
+	}
 	sTree, err := types.CreateShardTree(pdr.Shards, []types.ShardTreeInput{{Shard: types.ShardID{}, IR: ir, TRHash: trHash}}, gocrypto.SHA256)
 	if err != nil {
 		return nil, tr, fmt.Errorf("creating shard tree: %w", err)
@@ -362,7 +400,7 @@ func (sn *SingleNodePartition) CreateUnicityCertificateTR(ir *types.InputRecord,
 		return nil, tr, err
 	}
 	rootHash := ut.RootHash()
-	unicitySeal, err := sn.createUnicitySeal(roundNumber, rootHash)
+	unicitySeal, err := sn.createUnicitySeal(rootRoundNumber, rootHash)
 	if err != nil {
 		return nil, tr, err
 	}
@@ -419,10 +457,11 @@ func (sn *SingleNodePartition) CreateBlock(t *testing.T) {
 func (sn *SingleNodePartition) IssueBlockUC(t *testing.T) *types.UnicityCertificate {
 	req := sn.mockNet.SentMessages(network.ProtocolBlockCertification)[0].Message.(*certification.BlockCertificationRequest)
 	sn.mockNet.ResetSentMessages(network.ProtocolBlockCertification)
-	luc, found := sn.certs[req.Partition]
-	require.True(t, found)
-	require.NoError(t, consensustypes.CheckBlockCertificationRequest(req, luc))
-	uc, err := sn.CreateUnicityCertificate(req.InputRecord, sn.rootRound+1)
+	ver, err := sn.nodeConf.signer.Verifier()
+	require.NoError(t, err)
+	require.NoError(t, req.IsValid(ver))
+	rootRound := sn.partition.luc.Load().GetRootRoundNumber()
+	uc, _, err := sn.CreateUnicityCertificate(req.InputRecord, rootRound+1)
 	require.NoError(t, err)
 	// update state
 	sn.rootRound = uc.UnicitySeal.RootChainRoundNumber
@@ -432,6 +471,7 @@ func (sn *SingleNodePartition) IssueBlockUC(t *testing.T) *types.UnicityCertific
 
 func (sn *SingleNodePartition) SubmitT1Timeout(t *testing.T) {
 	sn.eh.Reset()
+	sn.mockNet.ResetSentMessages(network.ProtocolBlockCertification)
 	sn.partition.handleT1TimeoutEvent(context.Background())
 	require.Eventually(t, func() bool {
 		return len(sn.mockNet.SentMessages(network.ProtocolBlockCertification)) == 1
@@ -444,13 +484,7 @@ func (sn *SingleNodePartition) SubmitMonitorTimeout(t *testing.T) {
 	sn.partition.handleMonitoring(context.Background(), time.Now().Add(-3*sn.nodeConf.GetT2Timeout()), time.Now())
 }
 
-func createPeerConfiguration(t *testing.T, validator bool) *network.PeerConfiguration {
-	// fake validator, so that network 'send' requests don't fail
-	_, fakeValidatorPubKey, err := p2pcrypto.GenerateSecp256k1Key(rand.Reader)
-	require.NoError(t, err)
-	fakeValidatorID, err := peer.IDFromPublicKey(fakeValidatorPubKey)
-	require.NoError(t, err)
-
+func createPeerConfiguration(t *testing.T) *network.PeerConfiguration {
 	privKey, pubKey, err := p2pcrypto.GenerateSecp256k1Key(rand.Reader)
 	require.NoError(t, err)
 
@@ -460,24 +494,13 @@ func createPeerConfiguration(t *testing.T, validator bool) *network.PeerConfigur
 	pubKeyBytes, err := pubKey.Raw()
 	require.NoError(t, err)
 
-	peerID, err := peer.IDFromPublicKey(pubKey)
-	require.NoError(t, err)
-
-	validators := []peer.ID{fakeValidatorID}
-	if validator {
-		validators = append(validators, peerID)
-	}
-
 	peerConf, err := network.NewPeerConfiguration(
 		"/ip4/127.0.0.1/tcp/0",
 		nil,
 		&network.PeerKeyPair{PublicKey: pubKeyBytes, PrivateKey: privKeyBytes},
 		nil,
-		// Need to also add peerID to make it a validator node.
-		validators,
 	)
 	require.NoError(t, err)
-
 	return peerConf
 }
 

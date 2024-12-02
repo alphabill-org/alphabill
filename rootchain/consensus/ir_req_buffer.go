@@ -59,13 +59,15 @@ func (x *IrReqBuffer) Add(round uint64, irChReq *drctypes.IRChangeReq, ver IRCha
 		if irChangeReq.Reason != newIrChReq.Reason {
 			return fmt.Errorf("equivocating request for partition %s, reason has changed", partitionID)
 		}
-		if types.EqualIR(irChangeReq.InputRecord, newIrChReq.InputRecord) {
+		if b, err := types.EqualIR(irChangeReq.InputRecord, newIrChReq.InputRecord); b || err != nil {
+			if err != nil {
+				return fmt.Errorf("failed to compare IRs, %w", err)
+			}
 			// duplicate already stored
-			x.log.Debug("Duplicate IR change request, ignored", logger.Round(round))
+			x.log.Debug("duplicate IR change request, ignored", logger.Shard(partitionID, irChReq.Shard))
 			return nil
 		}
-		// At this point it is not possible to cast blame, so just log and ignore
-		x.log.Debug(fmt.Sprintf("equivocating request for partition %s", partitionID), logger.Round(round), logger.Data(newIrChReq.Req), logger.Data(irChangeReq))
+		// At this point it is not possible to cast blame, so just return error and ignore
 		return fmt.Errorf("equivocating request for partition %s", partitionID)
 	}
 	// Insert first valid request received and compare the others received against it
@@ -90,20 +92,20 @@ func (x *IrReqBuffer) GeneratePayload(round uint64, timeouts []types.PartitionID
 		// if there is a request for the same partition (same id) in buffer (prefer progress to timeout) or
 		// if there is a change already in the pipeline for this partition id
 		if x.IsChangeInBuffer(id) || inProgress(id, types.ShardID{}) != nil {
-			x.log.Debug(fmt.Sprintf("T2 timeout request ignored, partition %s has pending change in progress", id))
+			x.log.Debug(fmt.Sprintf("T2 timeout request ignored, partition %s has pending change in progress", id), logger.Shard(id, types.ShardID{}))
 			continue
 		}
-		x.log.Debug(fmt.Sprintf("partition %s request T2 timeout", id), logger.Round(round))
+		x.log.Debug(fmt.Sprintf("partition %s request T2 timeout", id), logger.Shard(id, types.ShardID{}))
 		payload.Requests = append(payload.Requests, &drctypes.IRChangeReq{
 			Partition:  id,
 			CertReason: drctypes.T2Timeout,
 		})
 	}
 	for _, req := range x.irChgReqBuffer {
-		if inProgress(req.Req.Partition, types.ShardID{}) != nil {
+		if inProgress(req.Req.Partition, req.Req.Shard) != nil {
 			// if there is a pending block with the partition id in progress then do not propose a change
 			// before last has been certified
-			x.log.Debug(fmt.Sprintf("partition %s request ignored, pending change in pipeline", req.Req.Partition))
+			x.log.Debug(fmt.Sprintf("partition %s request ignored, pending change in pipeline", req.Req.Partition), logger.Shard(req.Req.Partition, req.Req.Shard))
 			continue
 		}
 		payload.Requests = append(payload.Requests, req.Req)

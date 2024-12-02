@@ -6,25 +6,26 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum/go-ethereum/accounts/abi"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/tracing"
+	evmcrypto "github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/params"
+	"github.com/holiman/uint256"
+	"github.com/stretchr/testify/require"
+
 	"github.com/alphabill-org/alphabill-go-base/hash"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/evm"
 	"github.com/alphabill-org/alphabill-go-base/types"
-	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
-	"github.com/ethereum/go-ethereum/core/tracing"
-
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
+	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	testpartition "github.com/alphabill-org/alphabill/internal/testutils/partition"
 	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/txsystem/evm/statedb"
-	"github.com/ethereum/go-ethereum/accounts/abi"
-	"github.com/ethereum/go-ethereum/common"
-	evmcrypto "github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/params"
-	"github.com/holiman/uint256"
-	"github.com/stretchr/testify/require"
+	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
 )
 
 // contract Counter {
@@ -70,7 +71,7 @@ func TestEVMPartition_DeployAndCallContract(t *testing.T) {
 		system, err := NewEVMTxSystem(
 			pdr.NetworkIdentifier,
 			pdr.PartitionIdentifier,
-			logger.New(t),
+			observability.Default(t),
 			WithBlockDB(blockDB),
 			WithState(genesisState),
 		) // 1 ETH
@@ -79,7 +80,7 @@ func TestEVMPartition_DeployAndCallContract(t *testing.T) {
 	}, pdr, genesisState)
 	require.NoError(t, err)
 
-	network, err := testpartition.NewAlphabillPartition([]*testpartition.NodePartition{evmPartition})
+	network, err := testpartition.NewAlphabillPartition(t, []*testpartition.NodePartition{evmPartition})
 	require.NoError(t, err)
 	require.NoError(t, network.Start(t))
 	defer network.WaitClose(t)
@@ -142,7 +143,7 @@ func TestEVMPartition_Revert_test(t *testing.T) {
 	blockDB, err := memorydb.New()
 	require.NoError(t, err)
 	genesisState := newGenesisState(t, from, big.NewInt(oneEth))
-	system, err := NewEVMTxSystem(networkIdentifier, partitionIdentifier, logger.New(t), WithBlockDB(blockDB), WithState(genesisState)) // 1 ETH
+	system, err := NewEVMTxSystem(networkIdentifier, partitionIdentifier, observability.Default(t), WithBlockDB(blockDB), WithState(genesisState)) // 1 ETH
 	require.NoError(t, err)
 
 	// Simulate round 1

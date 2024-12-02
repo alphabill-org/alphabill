@@ -1,14 +1,12 @@
 package cmd
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
-	"sort"
 	"time"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
@@ -24,15 +22,13 @@ import (
 	"github.com/alphabill-org/alphabill/rpc"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
-	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/spf13/cobra"
 	"golang.org/x/sync/errgroup"
 )
 
 const (
-	BoltBlockStoreFileName = "blocks.db"
-	cmdFlagState           = "state"
-	cmdFlagTrustBaseFile   = "trust-base-file"
+	cmdFlagState         = "state"
+	cmdFlagTrustBaseFile = "trust-base-file"
 )
 
 type baseNodeConfiguration struct {
@@ -47,6 +43,7 @@ type startNodeConfiguration struct {
 	TrustBaseFile                   string
 	KeyFile                         string
 	DbFile                          string
+	ShardConfigurationDbFile        string
 	TxIndexerDBFile                 string
 	WithOwnerIndex                  bool
 	LedgerReplicationMaxBlocksFetch uint64
@@ -122,38 +119,16 @@ func run(ctx context.Context, name string, node *partition.Node, rpcServerConf *
 	return g.Wait()
 }
 
-func loadPeerConfiguration(keys *Keys, pg *genesis.PartitionGenesis, cfg *startNodeConfiguration) (*network.PeerConfiguration, error) {
+func loadPeerConfiguration(keys *Keys, cfg *startNodeConfiguration) (*network.PeerConfiguration, error) {
 	pair, err := keys.getEncryptionKeyPair()
 	if err != nil {
 		return nil, err
 	}
-	peerID, err := peer.IDFromPublicKey(keys.EncryptionPrivateKey.GetPublic())
-	if err != nil {
-		return nil, err
-	}
-	validatorIdentifiers := make(peer.IDSlice, len(pg.Keys))
-	for i, k := range pg.Keys {
-		if peerID.String() == k.NodeIdentifier {
-			if !bytes.Equal(pair.PublicKey, k.EncryptionPublicKey) {
-				return nil, fmt.Errorf("invalid encryption key: expected %X, got %X", pair.PublicKey, k.EncryptionPublicKey)
-			}
-		}
-		nodeID, err := network.NodeIDFromPublicKeyBytes(k.EncryptionPublicKey)
-		if err != nil {
-			return nil, fmt.Errorf("invalid encryption key: %X", k.EncryptionPublicKey)
-		}
-		if nodeID.String() != k.NodeIdentifier {
-			return nil, fmt.Errorf("invalid nodeID/encryption key combination: %s", nodeID)
-		}
-		validatorIdentifiers[i] = nodeID
-	}
-	sort.Sort(validatorIdentifiers)
-
 	bootNodes, err := getBootStrapNodes(cfg.BootStrapAddresses)
 	if err != nil {
 		return nil, fmt.Errorf("boot nodes parameter error: %w", err)
 	}
-	return network.NewPeerConfiguration(cfg.Address, cfg.AnnounceAddrs, pair, bootNodes, validatorIdentifiers)
+	return network.NewPeerConfiguration(cfg.Address, cfg.AnnounceAddrs, pair, bootNodes)
 }
 
 func createNode(ctx context.Context,
@@ -171,7 +146,7 @@ func createNode(ctx context.Context,
 		return nil, err
 	}
 	// Load network configuration. In testnet, we assume that all validators know the address of all other validators.
-	peerConf, err := loadPeerConfiguration(keys, pg, cfg)
+	peerConf, err := loadPeerConfiguration(keys, cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -184,9 +159,14 @@ func createNode(ctx context.Context,
 			return nil, err
 		}
 	}
+	shardStore, err := initStore(cfg.ShardConfigurationDbFile)
+	if err != nil {
+		return nil, err
+	}
 
 	options := []partition.NodeOption{
 		partition.WithBlockStore(blockStore),
+		partition.WithShardStore(shardStore),
 		partition.WithReplicationParams(cfg.LedgerReplicationMaxBlocksFetch, cfg.LedgerReplicationMaxBlocks, cfg.LedgerReplicationMaxTx, time.Duration(cfg.LedgerReplicationTimeoutMs)*time.Millisecond),
 		partition.WithProofIndex(proofStore, 20), // TODO history size!
 		partition.WithOwnerIndex(ownerIndexer),
@@ -251,8 +231,9 @@ func addCommonNodeConfigurationFlags(nodeCmd *cobra.Command, config *startNodeCo
 	nodeCmd.Flags().StringVarP(&config.StateFile, cmdFlagState, "s", "", fmt.Sprintf("path to the state file : $AB_HOME/%s/node-genesis-state.cbor)", partitionSuffix))
 	nodeCmd.Flags().StringVarP(&config.TrustBaseFile, cmdFlagTrustBaseFile, "t", "", "path to the root trust base file : $AB_HOME/root-trust-base.json)")
 	nodeCmd.Flags().StringVar(&config.BootStrapAddresses, rootBootStrapNodesCmdFlag, "", "comma separated list of bootstrap root node addresses id@libp2p-multiaddress-format")
-	nodeCmd.Flags().StringVarP(&config.DbFile, "db", "f", "", fmt.Sprintf("path to the database file (default: $AB_HOME/%s/%s)", partitionSuffix, BoltBlockStoreFileName))
-	nodeCmd.Flags().StringVarP(&config.TxIndexerDBFile, "tx-db", "", "", "path to the transaction indexer database file")
+	nodeCmd.Flags().StringVarP(&config.DbFile, "db", "f", "", "path to the block database file; in-memory database is used if not set")
+	nodeCmd.Flags().StringVarP(&config.ShardConfigurationDbFile, "shard-db", "", "", "path to the shard configuration database file; in-memory database is used if not set")
+	nodeCmd.Flags().StringVarP(&config.TxIndexerDBFile, "tx-db", "", "", "path to the transaction indexer database file; in-memory database is used if not set")
 	nodeCmd.Flags().BoolVar(&config.WithOwnerIndex, "with-owner-index", true, "enable/disable owner indexer")
 	nodeCmd.Flags().Uint64Var(&config.LedgerReplicationMaxBlocksFetch, "ledger-replication-max-blocks-fetch", 1000, "maximum number of blocks to query in a single replication request")
 	nodeCmd.Flags().Uint64Var(&config.LedgerReplicationMaxBlocks, "ledger-replication-max-blocks", 1000, "maximum number of blocks to return in a single replication response")

@@ -73,15 +73,25 @@ func genTrustBaseRunFunc(config *genTrustBaseConfig) error {
 	}
 	// create trust base from each root genesis file, and verify they match
 	var trustBase *types.RootTrustBaseV1
+	var trustBaseBytes []byte
 	for _, rg := range rgs {
 		tb, err := rg.GenerateTrustBase(types.WithQuorumThreshold(config.QuorumThreshold))
 		if err != nil {
 			return fmt.Errorf("failed to generate trust base from root genesis: %w", err)
 		}
-		if trustBase == nil {
+		if trustBaseBytes == nil {
+			trustBaseBytes, err = tb.SigBytes()
+			if err != nil {
+				return fmt.Errorf("failed to marshal first trust base: %w", err)
+			}
 			trustBase = tb
+			continue
 		}
-		if !bytes.Equal(tb.SigBytes(), trustBase.SigBytes()) {
+		currentTbBytes, err := tb.SigBytes()
+		if err != nil {
+			return fmt.Errorf("failed to marshal trust base: %w", err)
+		}
+		if !bytes.Equal(trustBaseBytes, currentTbBytes) {
 			return errors.New("generated trust base files from each root genesis file does not match")
 		}
 	}

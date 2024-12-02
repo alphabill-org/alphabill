@@ -5,11 +5,10 @@ import (
 	"context"
 	"crypto"
 	"errors"
-	"fmt"
-	"hash"
 	"io"
 	"testing"
 
+	abhash "github.com/alphabill-org/alphabill-go-base/hash"
 	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
@@ -23,6 +22,7 @@ import (
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtxsystem "github.com/alphabill-org/alphabill/internal/testutils/txsystem"
 	"github.com/alphabill-org/alphabill/network"
+	"github.com/alphabill-org/alphabill/rootchain/partitions"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
 )
@@ -237,19 +237,14 @@ type unitData struct {
 	O []byte
 }
 
-func (ud *unitData) Hash(hashAlgo crypto.Hash) []byte {
-	hasher := hashAlgo.New()
-	_ = ud.Write(hasher)
-	return hasher.Sum(nil)
+func (ud *unitData) Hash(hashAlgo crypto.Hash) ([]byte, error) {
+	hasher := abhash.New(hashAlgo.New())
+	ud.Write(hasher)
+	return hasher.Sum()
 }
 
-func (ud *unitData) Write(hasher hash.Hash) error {
-	res, err := types.Cbor.Marshal(ud)
-	if err != nil {
-		return fmt.Errorf("unit data encode error: %w", err)
-	}
-	_, err = hasher.Write(res)
-	return err
+func (ud *unitData) Write(hasher abhash.Hasher) {
+	hasher.Write(ud)
 }
 
 func (ud *unitData) SummaryValueInput() uint64 {
@@ -297,10 +292,8 @@ func (mn *MockNode) SubmitTx(_ context.Context, tx *types.TransactionOrder) ([]b
 	if bytes.Equal(tx.UnitID, failingUnitID) {
 		return nil, errors.New("failed")
 	}
-	if tx != nil {
-		mn.transactions = append(mn.transactions, tx)
-	}
-	return tx.Hash(crypto.SHA256), nil
+	mn.transactions = append(mn.transactions, tx)
+	return tx.Hash(crypto.SHA256)
 }
 
 func (mn *MockNode) GetBlock(_ context.Context, blockNumber uint64) (*types.Block, error) {
@@ -322,7 +315,7 @@ func (mn *MockNode) LatestBlockNumber() (uint64, error) {
 	return mn.maxBlockNumber, nil
 }
 
-func (mn *MockNode) GetLatestRoundNumber(_ context.Context) (uint64, error) {
+func (mn *MockNode) CurrentRoundNumber(_ context.Context) (uint64, error) {
 	if mn.err != nil {
 		return 0, mn.err
 	}
@@ -341,8 +334,12 @@ func (mn *MockNode) Peer() *network.Peer {
 	return nil
 }
 
-func (mn *MockNode) ValidatorNodes() peer.IDSlice {
+func (mn *MockNode) Validators() peer.IDSlice {
 	return []peer.ID{}
+}
+
+func (mn *MockNode) RegisterValidatorAssignmentRecord(v *partitions.ValidatorAssignmentRecord) error {
+	return nil
 }
 
 func (mn *MockNode) SerializeState(writer io.Writer) error {

@@ -29,14 +29,14 @@ type RootGenesis struct {
 	Partitions []*GenesisPartitionRecord `json:"partitions"`
 }
 
-type SystemDescriptionRecordGetter interface {
-	GetSystemDescriptionRecord() *types.PartitionDescriptionRecord
+type PartitionDescriptionRecordGetter interface {
+	GetPartitionDescriptionRecord() *types.PartitionDescriptionRecord
 }
 
-func CheckPartitionPartitionIdentifiersUnique[T SystemDescriptionRecordGetter](records []T) error {
+func CheckPartitionPartitionIdentifiersUnique[T PartitionDescriptionRecordGetter](records []T) error {
 	ids := make(map[types.PartitionID]struct{}, len(records))
 	for _, rec := range records {
-		record := rec.GetSystemDescriptionRecord()
+		record := rec.GetPartitionDescriptionRecord()
 		if _, f := ids[record.PartitionIdentifier]; f {
 			return fmt.Errorf("duplicated partition identifier: %s", record.PartitionIdentifier)
 		}
@@ -195,4 +195,13 @@ func (x *RootGenesis) MarshalCBOR() ([]byte, error) {
 func (x *RootGenesis) UnmarshalCBOR(data []byte) error {
 	type alias RootGenesis
 	return types.Cbor.UnmarshalTaggedValue(types.RootGenesisTag, data, (*alias)(x))
+}
+
+func (x *RootGenesis) GetPartitionGenesis(partitionID types.PartitionID) (*GenesisPartitionRecord, error) {
+	for _, pg := range x.Partitions {
+		if pg.PartitionDescription.PartitionIdentifier == partitionID {
+			return pg, nil
+		}
+	}
+	return nil, fmt.Errorf("partition %q not found in root genesis", partitionID)
 }

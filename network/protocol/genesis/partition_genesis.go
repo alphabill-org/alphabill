@@ -64,14 +64,17 @@ func (x *PartitionGenesis) IsValid(trustBase types.RootTrustBase, hashAlgorithm 
 		return types.ErrSystemDescriptionIsNil
 	}
 	if err := x.PartitionDescription.IsValid(); err != nil {
-		return fmt.Errorf("invalid system decsrition record, %w", err)
+		return fmt.Errorf("invalid partition description record, %w", err)
 	}
 	if x.Certificate == nil {
 		return ErrPartitionUnicityCertificateIsNil
 	}
-	sdrHash := x.PartitionDescription.Hash(hashAlgorithm)
+	pdrHash, err := x.PartitionDescription.Hash(hashAlgorithm)
+	if err != nil {
+		return fmt.Errorf("partition description hash error, %w", err)
+	}
 	// validate all signatures against known root keys
-	if err := x.Certificate.Verify(trustBase, hashAlgorithm, x.PartitionDescription.PartitionIdentifier, sdrHash); err != nil {
+	if err := x.Certificate.Verify(trustBase, hashAlgorithm, x.PartitionDescription.PartitionIdentifier, pdrHash); err != nil {
 		return fmt.Errorf("invalid unicity certificate, %w", err)
 	}
 	// UC Seal must be signed by all validators

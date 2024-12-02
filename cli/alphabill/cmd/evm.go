@@ -106,14 +106,14 @@ func runEvmNode(ctx context.Context, cfg *evmConfiguration) error {
 		return fmt.Errorf("failed to calculate nodeID: %w", err)
 	}
 
-	log := cfg.Base.observe.Logger().With(logger.NodeID(nodeID))
+	log := cfg.Base.observe.Logger().With(logger.NodeID(nodeID), logger.Shard(pg.PartitionDescription.PartitionIdentifier, types.ShardID{}))
 	obs := observability.WithLogger(cfg.Base.observe, log)
 
 	partitionID := pg.PartitionDescription.GetPartitionIdentifier()
 	txs, err := evm.NewEVMTxSystem(
 		pg.PartitionDescription.GetNetworkIdentifier(),
 		partitionID,
-		log,
+		obs,
 		evm.WithBlockGasLimit(params.BlockGasLimit),
 		evm.WithGasPrice(params.GasUnitPrice),
 		evm.WithBlockDB(blockStore),

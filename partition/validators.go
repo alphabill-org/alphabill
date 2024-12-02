@@ -14,7 +14,7 @@ type (
 	// TxValidator is used to validate generic transactions (e.g. timeouts, partition identifiers, etc.). This validator
 	// should not contain transaction system specific validation logic.
 	TxValidator interface {
-		Validate(tx *types.TransactionOrder, latestBlockNumber uint64) error
+		Validate(tx *types.TransactionOrder, currentRoundNumber uint64) error
 	}
 
 	// UnicityCertificateValidator is used to validate certificates.UnicityCertificate.
@@ -65,7 +65,7 @@ func NewDefaultTxValidator(partitionIdentifier types.PartitionID) (TxValidator, 
 	}, nil
 }
 
-func (dtv *DefaultTxValidator) Validate(tx *types.TransactionOrder, latestBlockNumber uint64) error {
+func (dtv *DefaultTxValidator) Validate(tx *types.TransactionOrder, currentRoundNumber uint64) error {
 	if tx == nil {
 		return errors.New("transaction is nil")
 	}
@@ -74,9 +74,9 @@ func (dtv *DefaultTxValidator) Validate(tx *types.TransactionOrder, latestBlockN
 		return fmt.Errorf("expected %s, got %s: %w", dtv.partitionIdentifier, tx.PartitionID, errInvalidPartitionIdentifier)
 	}
 
-	if tx.Timeout() <= latestBlockNumber {
+	if tx.Timeout() < currentRoundNumber {
 		// transaction is expired
-		return fmt.Errorf("transaction timeout round is %d, current round is %d: %w", tx.Timeout(), latestBlockNumber, ErrTxTimeout)
+		return fmt.Errorf("transaction timeout round is %d, current round is %d: %w", tx.Timeout(), currentRoundNumber, ErrTxTimeout)
 	}
 
 	if n := len(tx.ReferenceNumber()); n > 32 {
@@ -88,19 +88,22 @@ func (dtv *DefaultTxValidator) Validate(tx *types.TransactionOrder, latestBlockN
 
 // NewDefaultUnicityCertificateValidator creates a new instance of default UnicityCertificateValidator.
 func NewDefaultUnicityCertificateValidator(
-	systemDescription *types.PartitionDescriptionRecord,
+	partitionDescription *types.PartitionDescriptionRecord,
 	trustBase types.RootTrustBase,
 	algorithm gocrypto.Hash,
 ) (UnicityCertificateValidator, error) {
-	if err := systemDescription.IsValid(); err != nil {
+	if err := partitionDescription.IsValid(); err != nil {
 		return nil, err
 	}
 	if trustBase == nil {
 		return nil, types.ErrRootValidatorInfoMissing
 	}
-	h := systemDescription.Hash(algorithm)
+	h, err := partitionDescription.Hash(algorithm)
+	if err != nil {
+		return nil, fmt.Errorf("failed to hash partition description: %w", err)
+	}
 	return &DefaultUnicityCertificateValidator{
-		partitionIdentifier:   systemDescription.PartitionIdentifier,
+		partitionIdentifier:   partitionDescription.PartitionIdentifier,
 		rootTrustBase:         trustBase,
 		systemDescriptionHash: h,
 		algorithm:             algorithm,
@@ -113,19 +116,22 @@ func (ucv *DefaultUnicityCertificateValidator) Validate(uc *types.UnicityCertifi
 
 // NewDefaultBlockProposalValidator creates a new instance of default BlockProposalValidator.
 func NewDefaultBlockProposalValidator(
-	systemDescription *types.PartitionDescriptionRecord,
+	partitionDescription *types.PartitionDescriptionRecord,
 	rootTrust types.RootTrustBase,
 	algorithm gocrypto.Hash,
 ) (BlockProposalValidator, error) {
-	if err := systemDescription.IsValid(); err != nil {
+	if err := partitionDescription.IsValid(); err != nil {
 		return nil, err
 	}
 	if rootTrust == nil {
 		return nil, types.ErrRootValidatorInfoMissing
 	}
-	h := systemDescription.Hash(algorithm)
+	h, err := partitionDescription.Hash(algorithm)
+	if err != nil {
+		return nil, fmt.Errorf("failed to hash partition description: %w", err)
+	}
 	return &DefaultBlockProposalValidator{
-		partitionIdentifier:   systemDescription.PartitionIdentifier,
+		partitionIdentifier:   partitionDescription.PartitionIdentifier,
 		rootTrustBase:         rootTrust,
 		systemDescriptionHash: h,
 		algorithm:             algorithm,

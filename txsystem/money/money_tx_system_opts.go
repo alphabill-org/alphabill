@@ -13,11 +13,11 @@ import (
 
 type (
 	Options struct {
-		state                    *state.State
-		hashAlgorithm            crypto.Hash
-		trustBase                types.RootTrustBase
-		systemDescriptionRecords []*types.PartitionDescriptionRecord
-		exec                     predicates.PredicateExecutor
+		state                       *state.State
+		hashAlgorithm               crypto.Hash
+		trustBase                   types.RootTrustBase
+		partitionDescriptionRecords []*types.PartitionDescriptionRecord
+		exec                        predicates.PredicateExecutor
 	}
 
 	Option func(*Options)
@@ -55,7 +55,7 @@ func WithHashAlgorithm(hashAlgorithm crypto.Hash) Option {
 
 func WithPartitionDescriptionRecords(records []*types.PartitionDescriptionRecord) Option {
 	return func(g *Options) {
-		g.systemDescriptionRecords = records
+		g.partitionDescriptionRecords = records
 	}
 }
 

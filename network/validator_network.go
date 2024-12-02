@@ -72,17 +72,18 @@ type (
 	node interface {
 		PartitionID() types.PartitionID
 		Peer() *Peer
-		IsValidatorNode() bool
+		IsValidator() bool
 	}
 
 	validatorNetwork struct {
 		*LibP2PNetwork
-		node                node
-		txBuffer            *txbuffer.TxBuffer
-		txFwdBy             metric.Int64Counter
-		txFwdTo             metric.Int64Counter
-		gsTopicBlock        *pubsub.Topic
-		gsSubscriptionBlock *pubsub.Subscription
+		node                 node
+		txBuffer             *txbuffer.TxBuffer
+		txFwdBy              metric.Int64Counter
+		txFwdTo              metric.Int64Counter
+		gsTopicBlock         *pubsub.Topic
+		gsSubscriptionBlock  *pubsub.Subscription
+		gsCancelHandleBlocks context.CancelFunc
 	}
 )
 
@@ -122,25 +123,21 @@ func NewLibP2PValidatorNetwork(ctx context.Context, node node, opts ValidatorNet
 			timeout:    opts.LedgerReplicationResponseTimeout,
 			msgType:    replication.LedgerReplicationResponse{},
 		},
-	}
-	if node.IsValidatorNode() {
-		sendProtocolDescriptions = append(sendProtocolDescriptions,
-			sendProtocolDescription{
-				protocolID: ProtocolBlockProposal,
-				timeout:    opts.BlockProposalTimeout,
-				msgType:    blockproposal.BlockProposal{},
-			},
-			sendProtocolDescription{
-				protocolID: ProtocolBlockCertification,
-				timeout:    opts.BlockCertificationTimeout,
-				msgType:    certification.BlockCertificationRequest{},
-			},
-			sendProtocolDescription{
-				protocolID: ProtocolHandshake,
-				timeout:    opts.HandshakeTimeout,
-				msgType:    handshake.Handshake{},
-			},
-		)
+		{
+			protocolID: ProtocolBlockProposal,
+			timeout:    opts.BlockProposalTimeout,
+			msgType:    blockproposal.BlockProposal{},
+		},
+		{
+			protocolID: ProtocolBlockCertification,
+			timeout:    opts.BlockCertificationTimeout,
+			msgType:    certification.BlockCertificationRequest{},
+		},
+		{
+			protocolID: ProtocolHandshake,
+			timeout:    opts.HandshakeTimeout,
+			msgType:    handshake.Handshake{},
+		},
 	}
 	if err = n.registerSendProtocols(sendProtocolDescriptions); err != nil {
 		return nil, fmt.Errorf("registering send protocols: %w", err)
@@ -155,22 +152,6 @@ func NewLibP2PValidatorNetwork(ctx context.Context, node node, opts ValidatorNet
 			protocolID: ProtocolLedgerReplicationResp,
 			typeFn:     func() any { return &replication.LedgerReplicationResponse{} },
 		},
-	}
-	if node.IsValidatorNode() {
-		receiveProtocolDescriptions = append(receiveProtocolDescriptions,
-			receiveProtocolDescription{
-				protocolID: ProtocolBlockProposal,
-				typeFn:     func() any { return &blockproposal.BlockProposal{} },
-			},
-			receiveProtocolDescription{
-				protocolID: ProtocolInputForward,
-				handler:    n.handleTransactions,
-			},
-			receiveProtocolDescription{
-				protocolID: ProtocolUnicityCertificates,
-				typeFn:     func() any { return &certification.CertificationResponse{} },
-			},
-		)
 	}
 	if err = n.registerReceiveProtocols(receiveProtocolDescriptions); err != nil {
 		return nil, fmt.Errorf("registering receive protocols: %w", err)
@@ -205,15 +186,6 @@ func (n *validatorNetwork) initGossipSub(ctx context.Context, partitionID types.
 		return err
 	}
 
-	// Only non-validators subscribe to receive new blocks
-	if !n.node.IsValidatorNode() {
-		n.log.InfoContext(ctx, fmt.Sprintf("Subscribing to gossipsub topic %s", topic))
-		n.gsSubscriptionBlock, err = n.gsTopicBlock.Subscribe()
-		if err != nil {
-			return fmt.Errorf("subscribing to topic '%s': %w", topic, err)
-		}
-		go n.handleBlocks(ctx)
-	}
 	return nil
 }
 
@@ -243,6 +215,56 @@ func (n *validatorNetwork) AddTransaction(ctx context.Context, tx *types.Transac
 	return n.txBuffer.Add(ctx, tx)
 }
 
+func (n *validatorNetwork) SubscribeToBlocks(ctx context.Context) error {
+	n.log.InfoContext(ctx, fmt.Sprintf("Subscribing to gossipsub topic %s", n.gsTopicBlock))
+
+	sub, err := n.gsTopicBlock.Subscribe()
+	if err != nil {
+		return fmt.Errorf("subscribing to topic '%s': %w", n.gsTopicBlock, err)
+	}
+	n.gsSubscriptionBlock = sub
+
+	ctx, n.gsCancelHandleBlocks = context.WithCancel(ctx)
+	go n.handleBlocks(ctx)
+
+	return nil
+}
+
+func (n *validatorNetwork) UnsubscribeFromBlocks() {
+	if n.gsSubscriptionBlock == nil {
+		return
+	}
+	n.log.Info(fmt.Sprintf("Unsubscribing from gossipsub topic %s", n.gsTopicBlock))
+
+	n.gsSubscriptionBlock.Cancel()
+	n.gsSubscriptionBlock = nil
+	n.gsCancelHandleBlocks()
+}
+
+func (n *validatorNetwork) RegisterValidatorProtocols() error {
+	receiveProtocols := []receiveProtocolDescription{
+		{
+			protocolID: ProtocolBlockProposal,
+			typeFn:     func() any { return &blockproposal.BlockProposal{} },
+		},
+		{
+			protocolID: ProtocolInputForward,
+			handler:    n.handleTransactions,
+		},
+		{
+			protocolID: ProtocolUnicityCertificates,
+			typeFn:     func() any { return &certification.CertificationResponse{} },
+		},
+	}
+	return n.registerReceiveProtocols(receiveProtocols)
+}
+
+func (n *validatorNetwork) UnregisterValidatorProtocols() {
+	n.self.RemoveProtocolHandler(ProtocolBlockProposal)
+	n.self.RemoveProtocolHandler(ProtocolInputForward)
+	n.self.RemoveProtocolHandler(ProtocolUnicityCertificates)
+}
+
 func (n *validatorNetwork) PublishBlock(ctx context.Context, block *types.Block) error {
 	blockBytes, err := types.Cbor.Marshal(block)
 	if err != nil {
@@ -269,7 +291,7 @@ func (n *validatorNetwork) ProcessTransactions(ctx context.Context, txProcessor 
 
 func (n *validatorNetwork) ForwardTransactions(ctx context.Context, receiverFunc TxReceiver) {
 	receiver := receiverFunc()
-	if n.node.IsValidatorNode() {
+	if n.node.IsValidator() {
 		var span trace.Span
 		ctx, span = n.tracer.Start(ctx, "validatorNetwork.ForwardTransactions",
 			trace.WithAttributes(attribute.Stringer("receiver", receiver)))
@@ -319,8 +341,14 @@ func (n *validatorNetwork) ForwardTransactions(ctx context.Context, receiverFunc
 			openStreams = append(openStreams, stream)
 		}
 
+		txHash, err := tx.Hash(n.txBuffer.HashAlgorithm())
+		if err != nil {
+			n.log.WarnContext(ctx, "hashing tx", logger.Error(err), logger.UnitID(tx.UnitID))
+			addToMetric("err.hash")
+			continue
+		}
 		n.log.DebugContext(ctx,
-			fmt.Sprintf("forward tx %X to %v", tx.Hash(n.txBuffer.HashAlgorithm()), receiver),
+			fmt.Sprintf("forward tx %X to %v", txHash, receiver),
 			logger.UnitID(tx.UnitID))
 
 		data, err := serializeMsg(tx)
@@ -374,8 +402,8 @@ func (n *validatorNetwork) handleBlocks(ctx context.Context) {
 	for {
 		msg, err := n.gsSubscriptionBlock.Next(ctx)
 		if err != nil {
-			n.log.WarnContext(ctx, "getting block from topic", logger.Error(err))
-			continue
+			n.log.DebugContext(ctx, "block handling stopped", logger.Error(err))
+			return
 		}
 
 		block := &types.Block{}

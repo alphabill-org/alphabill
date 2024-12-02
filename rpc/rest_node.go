@@ -1,12 +1,14 @@
 package rpc
 
 import (
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/logger"
+	"github.com/alphabill-org/alphabill/rootchain/partitions"
 	"github.com/gorilla/mux"
 )
 
@@ -15,7 +17,8 @@ func NodeEndpoints(node partitionNode, obs Observability) RegistrarFunc {
 		log := obs.Logger()
 
 		// get the state file
-		r.HandleFunc("/state", getState(node, log))
+		r.HandleFunc("/state", getState(node, log)).Methods("GET")
+		r.HandleFunc("/configurations", putVar(node.RegisterValidatorAssignmentRecord)).Methods("PUT")
 	}
 }
 
@@ -34,5 +37,23 @@ func getState(node partitionNode, log *slog.Logger) http.HandlerFunc {
 			}
 			return
 		}
+	}
+}
+
+func putVar(registerVAR func(v *partitions.ValidatorAssignmentRecord) error) http.HandlerFunc {
+	return func(w http.ResponseWriter, request *http.Request) {
+		defer request.Body.Close()
+		v := &partitions.ValidatorAssignmentRecord{}
+		if err := json.NewDecoder(request.Body).Decode(&v); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			fmt.Fprintf(w, "failed to parse validator assignment record: %v", err)
+			return
+		}
+		if err := registerVAR(v); err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			fmt.Fprintf(w, "failed to register validator assignment record: %v", err)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
 	}
 }

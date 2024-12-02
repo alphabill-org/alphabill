@@ -28,19 +28,15 @@ func TestBlockDataHash(t *testing.T) {
 			Signatures:       map[string]hex.Bytes{"1": {1, 2, 3}, "2": {1, 2, 4}, "3": {1, 2, 5}},
 		},
 	}
-	serializedBlock := []byte{
-		't', 'e', 's', 't',
-		0, 0, 0, 0, 0, 0, 0, 2,
-		0, 0, 0, 0, 0, 0, 0, 0,
-		0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
-		// Empty payload
-		1, 2, 3, // "1" QC signature (in alphabetical order)
-		1, 2, 4, // "2" QC signature
-		1, 2, 5, // "3" QC signature
-	}
+
+	serializedBlock, err := types.Cbor.Marshal(block)
+	require.NoError(t, err)
 	expected := sha256.Sum256(serializedBlock)
-	hash := block.Hash(crypto.SHA256)
+
+	hash, err := block.Hash(crypto.SHA256)
+	require.NoError(t, err)
 	require.NotNil(t, hash)
+
 	require.Equal(t, expected[:], hash)
 }
 

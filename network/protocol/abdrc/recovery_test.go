@@ -13,6 +13,7 @@ import (
 	testcertificates "github.com/alphabill-org/alphabill/internal/testutils/certificates"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtb "github.com/alphabill-org/alphabill/internal/testutils/trustbase"
+	"github.com/alphabill-org/alphabill/network/protocol/certification"
 	rctypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
 )
 
@@ -172,22 +173,34 @@ func TestStateMsg_Verify(t *testing.T) {
 		&pdr,
 		1,
 		make([]byte, 32),
+		make([]byte, 32),
 	)
 
 	validStateMsg := func() StateMsg {
+		h4, err := r4vInfo.Hash(crypto.SHA256)
+		require.NoError(t, err)
+		h5, err := r5vInfo.Hash(crypto.SHA256)
+		require.NoError(t, err)
+		h6, err := r6vInfo.Hash(crypto.SHA256)
+		require.NoError(t, err)
 		return StateMsg{
 			CommittedHead: &CommittedBlock{
 				ShardInfo: []ShardInfo{{
 					Partition:     1,
-					Round:         5,
 					PrevEpochStat: []byte{0, 0, 0, 0, 0},
 					PrevEpochFees: []byte{0xF, 0xE, 0xE, 5},
 					RootHash:      test.RandomBytes(32),
 					Fees:          map[string]uint64{"A": 0},
-					Leader:        "leader id",
 					UC:            *uc,
-					IR:            headIR,
-					PDRHash:       pdr.Hash(crypto.SHA256),
+					TR: certification.TechnicalRecord{
+						Round:    5,
+						Epoch:    1,
+						Leader:   "A",
+						StatHash: []byte{5},
+						FeeHash:  []byte{0xF, 0xE, 0xE},
+					},
+					IR:      headIR,
+					PDRHash: test.DoHash(t, &pdr),
 				}},
 				Block: &rctypes.BlockData{
 					Round:   5,
@@ -196,7 +209,7 @@ func TestStateMsg_Verify(t *testing.T) {
 						VoteInfo: r4vInfo,
 						LedgerCommitInfo: &types.UnicitySeal{
 							Version:      1,
-							PreviousHash: r4vInfo.Hash(crypto.SHA256),
+							PreviousHash: h4,
 							Signatures:   map[string]hex.Bytes{"test": test.RandomBytes(65)},
 						},
 						Signatures: map[string]hex.Bytes{"test": test.RandomBytes(65)},
@@ -206,7 +219,7 @@ func TestStateMsg_Verify(t *testing.T) {
 					VoteInfo: r5vInfo,
 					LedgerCommitInfo: &types.UnicitySeal{
 						Version:      1,
-						PreviousHash: r5vInfo.Hash(crypto.SHA256),
+						PreviousHash: h5,
 						Signatures:   map[string]hex.Bytes{"test": test.RandomBytes(65)},
 					},
 					Signatures: map[string]hex.Bytes{"test": test.RandomBytes(65)},
@@ -215,7 +228,7 @@ func TestStateMsg_Verify(t *testing.T) {
 					VoteInfo: r6vInfo,
 					LedgerCommitInfo: &types.UnicitySeal{
 						Version:      1,
-						PreviousHash: r6vInfo.Hash(crypto.SHA256),
+						PreviousHash: h6,
 						Signatures:   map[string]hex.Bytes{"test": test.RandomBytes(65)},
 					},
 					Signatures: map[string]hex.Bytes{"test": test.RandomBytes(65)},
@@ -228,7 +241,7 @@ func TestStateMsg_Verify(t *testing.T) {
 					VoteInfo: r5vInfo,
 					LedgerCommitInfo: &types.UnicitySeal{
 						Version:              1,
-						PreviousHash:         r5vInfo.Hash(crypto.SHA256),
+						PreviousHash:         h5,
 						RootChainRoundNumber: 5,
 						Hash:                 test.RandomBytes(32),
 						Signatures:           map[string]hex.Bytes{"test": test.RandomBytes(65)},
@@ -299,6 +312,7 @@ func TestRecoveryBlock_IsValid(t *testing.T) {
 		&pdr,
 		1,
 		make([]byte, 32),
+		make([]byte, 32),
 	)
 	validBlock := func() CommittedBlock {
 		return CommittedBlock{
@@ -320,15 +334,20 @@ func TestRecoveryBlock_IsValid(t *testing.T) {
 			},
 			ShardInfo: []ShardInfo{{
 				Partition:     1,
-				Round:         5,
 				PrevEpochStat: []byte{0, 0, 0, 0, 0},
 				PrevEpochFees: []byte{0xF, 0xE, 0xE, 5},
 				RootHash:      test.RandomBytes(32),
 				Fees:          map[string]uint64{"A": 10},
-				Leader:        "777",
 				UC:            *uc,
 				IR:            headIR,
-				PDRHash:       pdr.Hash(crypto.SHA256),
+				TR: certification.TechnicalRecord{
+					Round:    5,
+					Epoch:    1,
+					Leader:   "A",
+					StatHash: []byte{5},
+					FeeHash:  []byte{0xF, 0xE, 0xE},
+				},
+				PDRHash: test.DoHash(t, &pdr),
 			}},
 			Qc:       &rctypes.QuorumCert{},
 			CommitQc: &rctypes.QuorumCert{},
@@ -342,6 +361,12 @@ func TestRecoveryBlock_IsValid(t *testing.T) {
 		r := validBlock()
 		r.ShardInfo = nil
 		require.ErrorContains(t, r.IsValid(), "missing ShardInfo")
+	})
+
+	t.Run("invalid ShardInfo", func(t *testing.T) {
+		r := validBlock()
+		r.ShardInfo[0].Partition = 0
+		require.ErrorContains(t, r.IsValid(), "invalid ShardInfo[00000000 - ]: missing partition id")
 	})
 
 	t.Run("input record state is nil", func(t *testing.T) {

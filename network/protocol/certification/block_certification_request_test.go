@@ -24,7 +24,6 @@ func Test_BlockCertificationRequest_IsValid(t *testing.T) {
 				RoundNumber:  1,
 				Timestamp:    types.NewTimestamp(),
 			},
-			RootRoundNumber: 1,
 		}
 
 		require.NoError(t, bcr.Sign(signer))
@@ -34,6 +33,20 @@ func Test_BlockCertificationRequest_IsValid(t *testing.T) {
 	t.Run("valid", func(t *testing.T) {
 		bcr := validBCR(t)
 		require.NoError(t, bcr.IsValid(verifier))
+	})
+
+	t.Run("bytes - ok", func(t *testing.T) {
+		bcr := validBCR(t)
+		require.NoError(t, bcr.IsValid(verifier))
+
+		bs, err := bcr.Bytes()
+		require.NoError(t, err)
+
+		bcr2 := *bcr
+		bcr2.Signature = nil
+		bs2, err := types.Cbor.Marshal(bcr2)
+		require.NoError(t, err)
+		require.Equal(t, bs, bs2)
 	})
 
 	t.Run("request is nil", func(t *testing.T) {
@@ -95,15 +108,4 @@ func TestBlockCertificationRequest_GetIRRound(t *testing.T) {
 	require.EqualValues(t, 0, req.IRRound())
 	req.InputRecord = &types.InputRecord{Version: 1, RoundNumber: 10}
 	require.EqualValues(t, 10, req.IRRound())
-}
-
-func TestBlockCertificationRequest_RootRound(t *testing.T) {
-	var req *BlockCertificationRequest = nil
-	require.EqualValues(t, 0, req.RootRound())
-	req = &BlockCertificationRequest{
-		Partition:       1,
-		NodeIdentifier:  "1",
-		RootRoundNumber: 11,
-	}
-	require.EqualValues(t, 11, req.RootRound())
 }

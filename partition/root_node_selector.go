@@ -16,12 +16,12 @@ const defaultNofRootNodes = 2
 func randomNodeSelector(nodes peer.IDSlice, upToNodes int) (peer.IDSlice, error) {
 	nodeCnt := len(nodes)
 	if nodeCnt < 1 {
-		return nil, fmt.Errorf("root node list is empty")
+		return nil, fmt.Errorf("node list is empty")
 	}
 	if upToNodes == 0 {
 		return nil, fmt.Errorf("invalid parameter, number of nodes to select is 0")
 	}
-	// optimization for wanting more nodes than in the root node list - there is not enough to choose from
+	// optimization for wanting more nodes than in the node list - there is not enough to choose from
 	if upToNodes >= nodeCnt {
 		return nodes, nil
 	}
@@ -51,7 +51,11 @@ func rootNodesSelector(luc *types.UnicityCertificate, nodes peer.IDSlice, upToNo
 		return nodes, nil
 	}
 	chosen := make(peer.IDSlice, 0, upToNodes)
-	index := int(big.NewInt(0).Mod(big.NewInt(0).SetBytes(luc.Hash(gocrypto.SHA256)), big.NewInt(int64(nodeCnt))).Int64())
+	lucHash, err := luc.Hash(gocrypto.SHA256)
+	if err != nil {
+		return nil, fmt.Errorf("failed to hash UC: %w", err)
+	}
+	index := int(big.NewInt(0).Mod(big.NewInt(0).SetBytes(lucHash), big.NewInt(int64(nodeCnt))).Int64())
 	// choose upToNodes from index
 	idx := index
 	for {

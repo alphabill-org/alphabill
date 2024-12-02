@@ -69,7 +69,7 @@ func TestPartition_Ok(t *testing.T) {
 		return system
 	}, pdr, s)
 	require.NoError(t, err)
-	abNet, err := testpartition.NewAlphabillPartition([]*testpartition.NodePartition{moneyPrt})
+	abNet, err := testpartition.NewAlphabillPartition(t, []*testpartition.NodePartition{moneyPrt})
 
 	require.NoError(t, err)
 	require.NoError(t, abNet.Start(t))
@@ -77,7 +77,7 @@ func TestPartition_Ok(t *testing.T) {
 
 	// create fee credit for initial bill transfer
 	signer, _ := testsig.CreateSignerAndVerifier(t)
-	fcrID := testutils.NewFeeCreditRecordIDAlwaysTrue()
+	fcrID := testutils.NewFeeCreditRecordIDAlwaysTrue(t)
 	transferFC := testutils.NewTransferFC(t, signer,
 		testutils.NewTransferFCAttr(t, signer,
 			testutils.WithCounter(0),
@@ -203,14 +203,14 @@ func TestPartition_SwapDCOk(t *testing.T) {
 		return system
 	}, pdr, txsState)
 	require.NoError(t, err)
-	abNet, err := testpartition.NewAlphabillPartition([]*testpartition.NodePartition{moneyPrt})
+	abNet, err := testpartition.NewAlphabillPartition(t, []*testpartition.NodePartition{moneyPrt})
 	require.NoError(t, err)
 	require.NoError(t, abNet.Start(t))
 	defer abNet.WaitClose(t)
 
 	// create fee credit for initial bill transfer
 	signer, _ := testsig.CreateSignerAndVerifier(t)
-	fcrID := testutils.NewFeeCreditRecordIDAlwaysTrue()
+	fcrID := testutils.NewFeeCreditRecordIDAlwaysTrue(t)
 	transferFC := testutils.NewTransferFC(t, signer,
 		testutils.NewTransferFCAttr(t, signer,
 			testutils.WithCounter(0),

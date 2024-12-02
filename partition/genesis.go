@@ -110,7 +110,7 @@ func NewNodeGenesis(state *state.State, pdr types.PartitionDescriptionRecord, op
 		Hash:         hash,
 		RoundNumber:  pg.PartitionRoundNumber,
 		SummaryValue: util.Uint64ToBytes(summaryValue),
-		Timestamp:    types.NewTimestamp(),
+		Timestamp:    types.GenesisTime,
 	}
 	// create genesis block
 	ucBytes, err := types.Cbor.Marshal(&types.UnicityCertificate{
@@ -138,10 +138,9 @@ func NewNodeGenesis(state *state.State, pdr types.PartitionDescriptionRecord, op
 	id := c.peerID.String()
 	// Protocol request
 	blockCertificationRequest := &certification.BlockCertificationRequest{
-		Partition:       pdr.PartitionIdentifier,
-		NodeIdentifier:  id,
-		InputRecord:     gIR,
-		RootRoundNumber: pg.RootRoundNumber,
+		Partition:      pdr.PartitionIdentifier,
+		NodeIdentifier: id,
+		InputRecord:    gIR,
 	}
 	if err := blockCertificationRequest.Sign(c.signer); err != nil {
 		return nil, err

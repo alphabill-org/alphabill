@@ -13,6 +13,7 @@ import (
 	"github.com/alphabill-org/alphabill/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
+	"github.com/alphabill-org/alphabill/rootchain/partitions"
 )
 
 type (
@@ -31,7 +32,8 @@ type (
 
 	Orchestration interface {
 		ShardEpoch(partition types.PartitionID, shard types.ShardID, round uint64) (uint64, error)
-		ShardConfig(partition types.PartitionID, shard types.ShardID, epoch uint64) (*genesis.GenesisPartitionRecord, error)
+		ShardConfig(partition types.PartitionID, shard types.ShardID, epoch uint64) (*partitions.ValidatorAssignmentRecord, error)
+		PartitionDescription(partition types.PartitionID, epoch uint64) (*types.PartitionDescriptionRecord, error)
 	}
 )
 
@@ -151,16 +153,10 @@ func (x *BlockStore) ProcessQc(qc *drctypes.QuorumCert) ([]*certification.Certif
 		// NB! exception, no commit for genesis round
 		return nil, nil
 	}
-	// If the QC commits a state
-	// committed block becomes the new root and nodes to old root are removed
-	committedBlock, err := x.blockTree.Commit(qc)
+	// If the QC commits a state committed block becomes the new root
+	ucs, err := x.blockTree.Commit(qc)
 	if err != nil {
-		return nil, err
-	}
-	// generate certificates for all partitions that have changes in progress
-	ucs, err := committedBlock.GenerateCertificates(qc)
-	if err != nil {
-		return nil, fmt.Errorf("commit block failed to generate certificates for round %v: %w", committedBlock.GetRound(), err)
+		return nil, fmt.Errorf("committing new root block: %w", err)
 	}
 	return ucs, nil
 }
@@ -170,8 +166,14 @@ func (x *BlockStore) Add(block *drctypes.BlockData, verifier IRChangeReqVerifier
 	// verify that block for the round does not exist yet
 	// if block already exists, then check that it is the same block by comparing block hash
 	if b, err := x.blockTree.FindBlock(block.GetRound()); err == nil && b != nil {
-		b1h := b.BlockData.Hash(crypto.SHA256)
-		b2h := block.Hash(crypto.SHA256)
+		b1h, err := b.BlockData.Hash(crypto.SHA256)
+		if err != nil {
+			return nil, fmt.Errorf("add block failed: cannot compute existing block's hash: %w", err)
+		}
+		b2h, err := block.Hash(crypto.SHA256)
+		if err != nil {
+			return nil, fmt.Errorf("add block failed: cannot compute block's hash %w", err)
+		}
 		// ignore if it is the same block, recovery may have added it when state was duplicated
 		if bytes.Equal(b1h, b2h) {
 			return b.RootHash, nil
@@ -190,7 +192,7 @@ func (x *BlockStore) Add(block *drctypes.BlockData, verifier IRChangeReqVerifier
 	}
 	// append new block
 	if err = x.blockTree.Add(exeBlock); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("adding block to the tree: %w", err)
 	}
 	return exeBlock.RootHash, nil
 }
@@ -237,24 +239,8 @@ func (x *BlockStore) ShardInfo(partition types.PartitionID, shard types.ShardID)
 	return nil, fmt.Errorf("no shard info found for {%s : %s}", partition, shard)
 }
 
-func (x *BlockStore) GetState() *abdrc.StateMsg {
-	pendingBlocks := x.blockTree.GetAllUncommittedNodes()
-	pending := make([]*drctypes.BlockData, len(pendingBlocks))
-	for i, b := range pendingBlocks {
-		pending[i] = b.BlockData
-	}
-
-	committedBlock := x.blockTree.Root()
-
-	return &abdrc.StateMsg{
-		CommittedHead: &abdrc.CommittedBlock{
-			ShardInfo: toRecoveryShardInfo(committedBlock),
-			Block:     committedBlock.BlockData,
-			Qc:        committedBlock.Qc,
-			CommitQc:  committedBlock.CommitQc,
-		},
-		BlockData: pending,
-	}
+func (x *BlockStore) GetState() (*abdrc.StateMsg, error) {
+	return x.blockTree.CurrentState()
 }
 
 /*
@@ -273,30 +259,4 @@ func (x *BlockStore) StoreLastVote(vote any) error {
 // ReadLastVote returns last sent vote message by this node
 func (x *BlockStore) ReadLastVote() (any, error) {
 	return ReadVote(x.storage)
-}
-
-func toRecoveryShardInfo(data *ExecutedBlock) []abdrc.ShardInfo {
-	si := make([]abdrc.ShardInfo, len(data.ShardInfo))
-	idx := 0
-	for k, v := range data.ShardInfo {
-		si[idx].Partition = k.partition
-		si[idx].Shard = v.LastCR.Shard
-		si[idx].Round = v.Round
-		si[idx].Epoch = v.Epoch
-		si[idx].RootHash = v.RootHash
-		si[idx].PrevEpochStat = v.PrevEpochStat
-		si[idx].Stat = v.Stat
-		si[idx].PrevEpochFees = v.PrevEpochFees
-		si[idx].Fees = v.Fees
-		si[idx].Leader = v.Leader
-		si[idx].UC = v.LastCR.UC
-		si[idx].TR = v.LastCR.Technical
-		if ir := data.CurrentIR.Find(k.partition); ir != nil {
-			si[idx].IR = ir.IR
-			si[idx].IRTR = ir.Technical
-			si[idx].PDRHash = ir.PDRHash
-		}
-		idx++
-	}
-	return si
 }

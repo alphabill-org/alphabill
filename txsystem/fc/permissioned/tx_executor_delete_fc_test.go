@@ -37,7 +37,7 @@ func TestValidateDeleteFCR(t *testing.T) {
 	// common default values used in each test
 	fcrOwnerPredicate := templates.NewP2pkh256BytesFromKey(userPubKey)
 	timeout := uint64(10)
-	fcrID := newFeeCreditRecordID(fcrOwnerPredicate, fcrUnitType, timeout)
+	fcrID := newFeeCreditRecordID(t, fcrOwnerPredicate, fcrUnitType, timeout)
 
 	t.Run("ok", func(t *testing.T) {
 		tx, attr, authProof, err := newDeleteFeeTx(adminKeySigner, partitionID, fcrID, timeout, nil, nil)
@@ -65,7 +65,7 @@ func TestValidateDeleteFCR(t *testing.T) {
 	t.Run("Invalid unit type byte", func(t *testing.T) {
 		// create new fcrID with invalid type byte
 		fcrUnitType := []byte{2}
-		fcrID := newFeeCreditRecordID(fcrOwnerPredicate, fcrUnitType, timeout)
+		fcrID := newFeeCreditRecordID(t, fcrOwnerPredicate, fcrUnitType, timeout)
 		tx, attr, authProof, err := newDeleteFeeTx(adminKeySigner, partitionID, fcrID, timeout, nil, nil)
 		require.NoError(t, err)
 		err = m.validateDeleteFC(tx, attr, authProof, testctx.NewMockExecutionContext())
@@ -122,7 +122,7 @@ func TestExecuteDeleteFCR(t *testing.T) {
 	// add unit to state tree
 	fcrOwnerPredicate := templates.NewP2pkh256BytesFromKey(userPubKey)
 	timeout := uint64(10)
-	fcrID := newFeeCreditRecordID(fcrOwnerPredicate, fcrUnitType, timeout)
+	fcrID := newFeeCreditRecordID(t, fcrOwnerPredicate, fcrUnitType, timeout)
 	err = stateTree.Apply(state.AddUnit(fcrID, &fc.FeeCreditRecord{}))
 	require.NoError(t, err)
 

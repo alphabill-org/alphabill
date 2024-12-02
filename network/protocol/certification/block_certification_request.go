@@ -1,14 +1,12 @@
 package certification
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 
 	"github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/types/hex"
-	"github.com/alphabill-org/alphabill-go-base/util"
 )
 
 var (
@@ -19,15 +17,14 @@ var (
 )
 
 type BlockCertificationRequest struct {
-	_               struct{}           `cbor:",toarray"`
-	Partition       types.PartitionID  `json:"partitionIdentifier"`
-	Shard           types.ShardID      `json:"shardIdentifier"`
-	NodeIdentifier  string             `json:"nodeIdentifier"`
-	InputRecord     *types.InputRecord `json:"inputRecord"`
-	RootRoundNumber uint64             `json:"rootRoundNumber"` // latest known RC's round number (AB-1155)
-	BlockSize       uint64             `json:"blockSize"`
-	StateSize       uint64             `json:"stateSize"`
-	Signature       hex.Bytes          `json:"signature"`
+	_              struct{}           `cbor:",toarray"`
+	Partition      types.PartitionID  `json:"partitionIdentifier"`
+	Shard          types.ShardID      `json:"shardIdentifier"`
+	NodeIdentifier string             `json:"nodeIdentifier"`
+	InputRecord    *types.InputRecord `json:"inputRecord"`
+	BlockSize      uint64             `json:"blockSize"`
+	StateSize      uint64             `json:"stateSize"`
+	Signature      hex.Bytes          `json:"signature"`
 }
 
 func (x *BlockCertificationRequest) IRRound() uint64 {
@@ -42,13 +39,6 @@ func (x *BlockCertificationRequest) IRPreviousHash() []byte {
 		return nil
 	}
 	return x.InputRecord.PreviousHash
-}
-
-func (x *BlockCertificationRequest) RootRound() uint64 {
-	if x == nil {
-		return 0
-	}
-	return x.RootRoundNumber
 }
 
 func (x *BlockCertificationRequest) IsValid(v crypto.Verifier) error {
@@ -67,7 +57,11 @@ func (x *BlockCertificationRequest) IsValid(v crypto.Verifier) error {
 	if err := x.InputRecord.IsValid(); err != nil {
 		return fmt.Errorf("invalid input record: %w", err)
 	}
-	if err := v.VerifyBytes(x.Signature, x.Bytes()); err != nil {
+	bs, err := x.Bytes()
+	if err != nil {
+		return fmt.Errorf("failed to marshal block certification request, %w", err)
+	}
+	if err := v.VerifyBytes(x.Signature, bs); err != nil {
 		return fmt.Errorf("signature verification: %w", err)
 	}
 	return nil
@@ -77,7 +71,11 @@ func (x *BlockCertificationRequest) Sign(signer crypto.Signer) error {
 	if signer == nil {
 		return errors.New("signer is nil")
 	}
-	signature, err := signer.SignBytes(x.Bytes())
+	bs, err := x.Bytes()
+	if err != nil {
+		return fmt.Errorf("failed to marshal block certification request, %w", err)
+	}
+	signature, err := signer.SignBytes(bs)
 	if err != nil {
 		return fmt.Errorf("sign error, %w", err)
 	}
@@ -85,18 +83,7 @@ func (x *BlockCertificationRequest) Sign(signer crypto.Signer) error {
 	return nil
 }
 
-func (x *BlockCertificationRequest) Bytes() []byte {
-	var b bytes.Buffer
-	b.Write(x.Partition.Bytes())
-	b.Write(x.Shard.Bytes())
-	b.WriteString(x.NodeIdentifier)
-	b.Write(x.InputRecord.PreviousHash)
-	b.Write(x.InputRecord.Hash)
-	b.Write(x.InputRecord.BlockHash)
-	b.Write(x.InputRecord.SummaryValue)
-	b.Write(util.Uint64ToBytes(x.InputRecord.RoundNumber))
-	b.Write(util.Uint64ToBytes(x.RootRoundNumber))
-	b.Write(util.Uint64ToBytes(x.BlockSize))
-	b.Write(util.Uint64ToBytes(x.StateSize))
-	return b.Bytes()
+func (x BlockCertificationRequest) Bytes() ([]byte, error) {
+	x.Signature = nil
+	return types.Cbor.Marshal(x)
 }

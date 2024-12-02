@@ -71,16 +71,17 @@ type NodePartition struct {
 
 type partitionNode struct {
 	*partition.Node
-	dbFile       string
-	idxFile      string
-	peerConf     *network.PeerConfiguration
-	signer       abcrypto.Signer
-	genesis      *genesis.PartitionNode
-	EventHandler *testevent.TestEventHandler
-	confOpts     []partition.NodeOption
-	proofDB      keyvaluedb.KeyValueDB
-	cancel       context.CancelFunc
-	done         chan error
+	dbFile            string
+	idxFile           string
+	orchestrationFile string
+	peerConf          *network.PeerConfiguration
+	signer            abcrypto.Signer
+	genesis           *genesis.PartitionNode
+	EventHandler      *testevent.TestEventHandler
+	confOpts          []partition.NodeOption
+	proofDB           keyvaluedb.KeyValueDB
+	cancel            context.CancelFunc
+	done              chan error
 }
 
 type rootNode struct {
@@ -89,6 +90,7 @@ type rootNode struct {
 	genesis    *genesis.RootGenesis
 	peerConf   *network.PeerConfiguration
 	addr       []multiaddr.Multiaddr
+	homeDir    string
 
 	cancel context.CancelFunc
 	done   chan error
@@ -118,7 +120,7 @@ func getGenesisFiles(nodePartitions []*NodePartition) []*genesis.PartitionNode {
 }
 
 // newRootPartition creates new root partition, requires node partitions with genesis files
-func newRootPartition(nofRootNodes uint8, nodePartitions []*NodePartition) (*RootPartition, error) {
+func newRootPartition(t *testing.T, nofRootNodes uint8, nodePartitions []*NodePartition) (*RootPartition, error) {
 	rootSigners, err := createSigners(nofRootNodes)
 	if err != nil {
 		return nil, fmt.Errorf("create signer failed, %w", err)
@@ -128,7 +130,7 @@ func newRootPartition(nofRootNodes uint8, nodePartitions []*NodePartition) (*Roo
 	trustBaseNodes := make([]*types.NodeInfo, nofRootNodes)
 	var unicityTreeRootHash []byte
 	// generates keys and sorts them in lexical order - meaning root node 0 is the first leader
-	rootPeerCfg, err := createPeerConfs(nofRootNodes)
+	rootPeerCfg, _, err := createPeerConfs(nofRootNodes)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate encryption keypairs, %w", err)
 	}
@@ -158,6 +160,7 @@ func newRootPartition(nofRootNodes uint8, nodePartitions []*NodePartition) (*Roo
 			genesis:    rg,
 			RootSigner: rootSigners[i],
 			peerConf:   peerCfg,
+			homeDir:    t.TempDir(),
 		}
 		trustBaseNodes[i] = types.NewNodeInfo(peerCfg.ID.String(), 1, verifier)
 		for _, p := range rg.Partitions {
@@ -219,7 +222,11 @@ func (r *RootPartition) start(ctx context.Context, bootNodes []peer.AddrInfo, ro
 			return fmt.Errorf("failed to init consensus network, %w", err)
 		}
 
-		cm, err := consensus.NewConsensusManager(rootPeer.ID(), r.rcGenesis, r.TrustBase, partitions.NewOrchestration(r.rcGenesis), rootConsensusNet, rn.RootSigner, obs)
+		orchestration, err := partitions.NewOrchestration(r.rcGenesis, filepath.Join(rn.homeDir, "orchestration.db"))
+		if err != nil {
+			return fmt.Errorf("failed to init orchestration: %w", err)
+		}
+		cm, err := consensus.NewConsensusManager(rootPeer.ID(), r.rcGenesis, r.TrustBase, orchestration, rootConsensusNet, rn.RootSigner, obs)
 		if err != nil {
 			return fmt.Errorf("consensus manager initialization failed, %w", err)
 		}
@@ -251,7 +258,7 @@ func NewPartition(t *testing.T, nodeCount uint8, txSystemProvider func(trustBase
 		obs:          testobserve.NewFactory(t),
 	}
 	// create peer configurations
-	peerConfs, err := createPeerConfs(nodeCount)
+	peerConfs, _, err := createPeerConfs(nodeCount)
 	if err != nil {
 		return nil, err
 	}
@@ -361,12 +368,12 @@ func (n *NodePartition) startNode(ctx context.Context, pn *partitionNode) error 
 	return nil
 }
 
-func NewAlphabillPartition(nodePartitions []*NodePartition) (*AlphabillNetwork, error) {
+func NewAlphabillPartition(t *testing.T, nodePartitions []*NodePartition) (*AlphabillNetwork, error) {
 	if len(nodePartitions) < 1 {
 		return nil, fmt.Errorf("no node partitions set, it makes no sense to start with only root")
 	}
 	// create root node(s)
-	rootPartition, err := newRootPartition(1, nodePartitions)
+	rootPartition, err := newRootPartition(t, 1, nodePartitions)
 	if err != nil {
 		return nil, err
 	}
@@ -380,12 +387,12 @@ func NewAlphabillPartition(nodePartitions []*NodePartition) (*AlphabillNetwork, 
 	}, nil
 }
 
-func NewMultiRootAlphabillPartition(nofRootNodes uint8, nodePartitions []*NodePartition) (*AlphabillNetwork, error) {
+func NewMultiRootAlphabillPartition(t *testing.T, nofRootNodes uint8, nodePartitions []*NodePartition) (*AlphabillNetwork, error) {
 	if len(nodePartitions) < 1 {
 		return nil, fmt.Errorf("no node partitions set, it makes no sense to start with only root")
 	}
 	// create root node(s)
-	rootPartition, err := newRootPartition(nofRootNodes, nodePartitions)
+	rootPartition, err := newRootPartition(t, nofRootNodes, nodePartitions)
 	if err != nil {
 		return nil, err
 	}
@@ -404,7 +411,7 @@ func (a *AlphabillNetwork) createBootNodes(t *testing.T, ctx context.Context, ob
 	require.NoError(t, err)
 	bootNodes := make([]*network.Peer, nofBootNodes)
 	for i := 0; i < int(nofBootNodes); i++ {
-		peerConf, err := network.NewPeerConfiguration("/ip4/127.0.0.1/tcp/0", nil, encKeyPairs[i], nil, nil)
+		peerConf, err := network.NewPeerConfiguration("/ip4/127.0.0.1/tcp/0", nil, encKeyPairs[i], nil)
 		require.NoError(t, err)
 		bootNodes[i], err = network.NewPeer(ctx, peerConf, obs.DefaultLogger(), nil)
 		require.NoError(t, err)
@@ -613,7 +620,7 @@ func PartitionInitReady(t *testing.T, part *NodePartition) func() bool {
 func WaitTxProof(t *testing.T, part *NodePartition, txOrder *types.TransactionOrder) (*types.TxRecordProof, error) {
 	t.Helper()
 	var txRecordProof *types.TxRecordProof
-	txHash := txOrder.Hash(crypto.SHA256)
+	txHash := test.DoHash(t, txOrder)
 	ok := test.Eventually(func() bool {
 		for _, n := range part.Nodes {
 			txRecProof, err := n.GetTransactionRecordProof(context.Background(), txHash)
@@ -636,10 +643,10 @@ func WaitUnitProof(t *testing.T, part *NodePartition, ID types.UnitID, txOrder *
 	var (
 		unitProof *types.UnitDataAndProof
 	)
-	txOrderHash := txOrder.Hash(crypto.SHA256)
+	txHash := test.DoHash(t, txOrder)
 	if ok := test.Eventually(func() bool {
 		for _, n := range part.Nodes {
-			unitDataAndProof, err := partition.ReadUnitProofIndex(n.proofDB, ID, txOrderHash)
+			unitDataAndProof, err := partition.ReadUnitProofIndex(n.proofDB, ID, txHash)
 			if err != nil {
 				continue
 			}
@@ -710,33 +717,31 @@ func createSigners(count uint8) ([]abcrypto.Signer, error) {
 	return signers, nil
 }
 
-func createPeerConfs(count uint8) ([]*network.PeerConfiguration, error) {
+func createPeerConfs(count uint8) ([]*network.PeerConfiguration, peer.IDSlice, error) {
 	var peerConfs = make([]*network.PeerConfiguration, count)
 
 	// generate connection encryption key pairs
 	keyPairs, err := generateKeyPairs(count)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	var validators = make(peer.IDSlice, count)
-
 	for i := 0; i < int(count); i++ {
 		peerConfs[i], err = network.NewPeerConfiguration(
 			"/ip4/127.0.0.1/tcp/0",
 			nil,
 			keyPairs[i], // connection encryption key. The ID of the node is derived from this keypair.
 			nil,
-			validators, // Persistent peers
 		)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		validators[i] = peerConfs[i].ID
 	}
 	sort.Sort(validators)
 
-	return peerConfs, nil
+	return peerConfs, validators, nil
 }
 
 func generateKeyPairs(count uint8) ([]*network.PeerKeyPair, error) {

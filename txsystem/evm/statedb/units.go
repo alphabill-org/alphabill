@@ -2,9 +2,8 @@ package statedb
 
 import (
 	"bytes"
-	"fmt"
-	"hash"
 
+	abhash "github.com/alphabill-org/alphabill-go-base/hash"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/holiman/uint256"
 
@@ -46,16 +45,8 @@ type AlphaBillLink struct {
 	OwnerPredicate []byte
 }
 
-func (s *StateObject) Write(hasher hash.Hash) error {
-	res, err := types.Cbor.Marshal(s)
-	if err != nil {
-		return fmt.Errorf("unit data encode error: %w", err)
-	}
-	// s.Storage is map which will be serialized in sorted order by CBOR
-	// however when deserializing we will not get back the same map (order will be different)
-	// if this becomes an issue then map cannot be used, or it needs special serializaion
-	_, err = hasher.Write(res)
-	return err
+func (s *StateObject) Write(hasher abhash.Hasher) {
+	hasher.Write(s)
 }
 
 func (s *StateObject) SummaryValueInput() uint64 {

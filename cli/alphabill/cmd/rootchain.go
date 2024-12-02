@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
 
@@ -209,26 +208,20 @@ func runRootNode(ctx context.Context, config *rootNodeConfig) error {
 		return fmt.Errorf("root trust base init failed: %w", err)
 	}
 
-	gs, err := partitions.NewGenesisStore(filepath.Join(config.getStorageDir(), "genesis.db"), rootGenesis)
-	if err != nil {
-		return fmt.Errorf("creating genesis store: %w", err)
-	}
-	partitionCfg, err := partitions.NewPartitionStore(gs)
-	if err != nil {
-		return fmt.Errorf("creating partition store: %w", err)
-	}
-
 	rootNet, err := network.NewLibP2RootConsensusNetwork(host, config.MaxRequests, defaultNetworkTimeout, obs)
 	if err != nil {
 		return fmt.Errorf("failed initiate root network, %w", err)
 	}
 
-	// Create distributed consensus manager
+	orchestration, err := partitions.NewOrchestration(rootGenesis, filepath.Join(config.getStorageDir(), "orchestration.db"))
+	if err != nil {
+		return fmt.Errorf("creating orchestration: %w", err)
+	}
 	cm, err := consensus.NewConsensusManager(
 		host.ID(),
 		rootGenesis,
 		trustBase,
-		partitions.NewOrchestration(rootGenesis),
+		orchestration,
 		rootNet,
 		keys.SigningPrivateKey,
 		obs,
@@ -263,14 +256,9 @@ func runRootNode(ctx context.Context, config *rootNodeConfig) error {
 		if pr := config.Base.observe.PrometheusRegisterer(); pr != nil {
 			mux.Handle("/api/v1/metrics", promhttp.HandlerFor(pr.(prometheus.Gatherer), promhttp.HandlerOpts{MaxRequestsInFlight: 1}))
 		}
-		// there is a race - the partitionCfg.AddConfiguration is only safe to call after
-		// the partitionCfg.Reset has been called which happens once the Consensus Manager
-		// is running (ie node is "fully running").
-		// The request must have start-round=n query parameter (the round when the genesis
-		// in the body must take effect)
-		mux.HandleFunc("PUT /api/v1/configurations", cfgHandler(partitionCfg.AddConfiguration))
+		mux.HandleFunc("PUT /api/v1/configurations", putShardConfigHandler(orchestration.AddShardConfig))
 		return httpsrv.Run(ctx,
-			http.Server{
+			&http.Server{
 				Addr:              config.RPCServerAddress,
 				Handler:           mux,
 				ReadTimeout:       3 * time.Second,
@@ -292,7 +280,7 @@ func createHost(ctx context.Context, keys *Keys, cfg *rootNodeConfig) (*network.
 	if err != nil {
 		return nil, fmt.Errorf("get key pair failed: %w", err)
 	}
-	peerConf, err := network.NewPeerConfiguration(cfg.Address, cfg.AnnounceAddrs, keyPair, bootNodes, nil)
+	peerConf, err := network.NewPeerConfiguration(cfg.Address, cfg.AnnounceAddrs, keyPair, bootNodes)
 	if err != nil {
 		return nil, err
 	}
@@ -340,26 +328,16 @@ func initTrustBase(store keyvaluedb.KeyValueDB, trustBaseFile string) (types.Roo
 	return trustBase, nil
 }
 
-// The request must have start-round=n query parameter to send the round when configuration takes effect.
-func cfgHandler(addConfiguration func(round uint64, cfg *genesis.RootGenesis) error) http.HandlerFunc {
+func putShardConfigHandler(addVarFn func(rec *partitions.ValidatorAssignmentRecord) error) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		round, err := strconv.ParseUint(r.URL.Query().Get("start-round"), 10, 64)
+		rec, err := parseVAR(r.Body)
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
-			fmt.Fprintf(w, "invalid 'start-round' parameter: %v", err)
+			fmt.Fprintf(w, "parsing var request body: %v", err)
 			return
 		}
 
-		rootGenesis, err := parseRootGenesis(r.Body)
-		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			fmt.Fprintf(w, "parsing root genesis: %v", err)
-			return
-		}
-		// should we verify that the node is in the genesis? ie call
-		// verifyKeyPresentInGenesis as done on bootstrap?
-
-		if err := addConfiguration(round, rootGenesis); err != nil {
+		if err := addVarFn(rec); err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			fmt.Fprintf(w, "registering configurations: %v", err)
 			return
@@ -379,4 +357,13 @@ func parseRootGenesis(r io.ReadCloser) (*genesis.RootGenesis, error) {
 		return nil, fmt.Errorf("invalid root genesis: %w", err)
 	}
 	return rg, nil
+}
+
+func parseVAR(r io.ReadCloser) (*partitions.ValidatorAssignmentRecord, error) {
+	defer r.Close()
+	var rec *partitions.ValidatorAssignmentRecord
+	if err := json.NewDecoder(r).Decode(&rec); err != nil {
+		return nil, fmt.Errorf("decoding var json: %w", err)
+	}
+	return rec, nil
 }

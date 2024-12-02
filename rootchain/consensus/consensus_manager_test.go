@@ -15,6 +15,8 @@ import (
 	"time"
 
 	"github.com/alphabill-org/alphabill-go-base/types/hex"
+	testcertificates "github.com/alphabill-org/alphabill/internal/testutils/certificates"
+	testpartition "github.com/alphabill-org/alphabill/rootchain/partitions/testutils"
 	p2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	p2ptest "github.com/libp2p/go-libp2p/core/test"
@@ -35,7 +37,6 @@ import (
 	abdrctu "github.com/alphabill-org/alphabill/rootchain/consensus/testutils"
 	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
 	rootgenesis "github.com/alphabill-org/alphabill/rootchain/genesis"
-	"github.com/alphabill-org/alphabill/rootchain/partitions"
 	"github.com/alphabill-org/alphabill/rootchain/testutils"
 )
 
@@ -75,7 +76,7 @@ func initConsensusManager(t *testing.T, net RootNet) (*ConsensusManager, *testut
 	trustBase, err := rootGenesis.GenerateTrustBase()
 	require.NoError(t, err)
 	observe := testobservability.Default(t)
-	cm, err := NewConsensusManager(id, rootGenesis, trustBase, partitions.NewOrchestration(rootGenesis), net, rootNode.Signer, observability.WithLogger(observe, observe.Logger().With(logger.NodeID(id))))
+	cm, err := NewConsensusManager(id, rootGenesis, trustBase, testpartition.NewOrchestration(t, rootGenesis), net, rootNode.Signer, observability.WithLogger(observe, observe.Logger().With(logger.NodeID(id))))
 	require.NoError(t, err)
 	return cm, rootNode, partitionNodes, rootGenesis
 }
@@ -89,7 +90,7 @@ func buildBlockCertificationRequest(t *testing.T, rg *genesis.RootGenesis, parti
 		BlockHash:    test.RandomBytes(32),
 		SummaryValue: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.SummaryValue,
 		RoundNumber:  2,
-		Timestamp:    types.NewTimestamp(),
+		Timestamp:    rg.Partitions[0].Certificate.UnicitySeal.Timestamp,
 	}
 	requests := make([]*certification.BlockCertificationRequest, len(partitionNodes))
 	for i, n := range partitionNodes {
@@ -195,10 +196,6 @@ func TestIRChangeRequestFromRootValidator_RootTimeoutOnFirstRound(t *testing.T) 
 }
 
 func TestIRChangeRequestFromRootValidator_RootTimeout(t *testing.T) {
-	var lastProposalMsg *abdrc.ProposalMsg = nil
-	var lastVoteMsg *abdrc.VoteMsg = nil
-	var lastTimeoutMsg *abdrc.TimeoutMsg = nil
-
 	mockNet := testnetwork.NewRootMockNetwork()
 	cm, rootNode, partitionNodes, rg := initConsensusManager(t, mockNet)
 	ctx, ctxCancel := context.WithCancel(context.Background())
@@ -217,14 +214,14 @@ func TestIRChangeRequestFromRootValidator_RootTimeout(t *testing.T) {
 	require.NoError(t, irChReqMsg.Sign(rootNode.Signer))
 	testutils.MockValidatorNetReceives(t, mockNet, rootNode.PeerConf.ID, network.ProtocolRootIrChangeReq, irChReqMsg)
 	// As the node is the leader, next round will trigger a proposal
-	lastProposalMsg = testutils.MockAwaitMessage[*abdrc.ProposalMsg](t, mockNet, network.ProtocolRootProposal)
+	lastProposalMsg := testutils.MockAwaitMessage[*abdrc.ProposalMsg](t, mockNet, network.ProtocolRootProposal)
 	require.Equal(t, partitionID, lastProposalMsg.Block.Payload.Requests[0].Partition)
 	require.Equal(t, drctypes.Quorum, lastProposalMsg.Block.Payload.Requests[0].CertReason)
 	require.Len(t, lastProposalMsg.Block.Payload.Requests[0].Requests, 2)
 	// route the proposal back
 	testutils.MockValidatorNetReceives(t, mockNet, rootNode.PeerConf.ID, network.ProtocolRootProposal, lastProposalMsg)
 	// wait for the vote message
-	lastVoteMsg = testutils.MockAwaitMessage[*abdrc.VoteMsg](t, mockNet, network.ProtocolRootVote)
+	lastVoteMsg := testutils.MockAwaitMessage[*abdrc.VoteMsg](t, mockNet, network.ProtocolRootVote)
 	require.Equal(t, uint64(2), lastVoteMsg.VoteInfo.RoundNumber)
 	require.Equal(t, uint64(1), lastVoteMsg.VoteInfo.ParentRoundNumber)
 	require.Equal(t, uint64(0), lastVoteMsg.VoteInfo.Epoch)
@@ -248,7 +245,7 @@ func TestIRChangeRequestFromRootValidator_RootTimeout(t *testing.T) {
 	// simulate local timeout by calling the method -> race/hack accessing from different go routines not safe
 	cm.onLocalTimeout(ctx)
 	// await timeout vote
-	lastTimeoutMsg = testutils.MockAwaitMessage[*abdrc.TimeoutMsg](t, mockNet, network.ProtocolRootTimeout)
+	lastTimeoutMsg := testutils.MockAwaitMessage[*abdrc.TimeoutMsg](t, mockNet, network.ProtocolRootTimeout)
 	require.Equal(t, uint64(3), lastTimeoutMsg.Timeout.Round)
 	// route the timeout message back to trigger timeout certificate and new round
 	testutils.MockValidatorNetReceives(t, mockNet, rootNode.PeerConf.ID, network.ProtocolRootTimeout, lastTimeoutMsg)
@@ -396,7 +393,8 @@ func TestIRChangeRequestFromRootValidator(t *testing.T) {
 	require.NoError(t, err)
 	trustBase, err := rg.GenerateTrustBase()
 	require.NoError(t, err)
-	sdrh := rg.Partitions[0].GetSystemDescriptionRecord().Hash(gocrypto.SHA256)
+	sdrh, err := rg.Partitions[0].GetPartitionDescriptionRecord().Hash(gocrypto.SHA256)
+	require.NoError(t, err)
 	require.NoError(t, result.Verify(trustBase, gocrypto.SHA256, partitionID, sdrh))
 
 	// root will continue and next proposal is also triggered by the same QC
@@ -498,13 +496,13 @@ func Test_ConsensusManager_onVoteMsg(t *testing.T) {
 	makeVoteMsg := func(t *testing.T, cms []*ConsensusManager, round uint64) *abdrc.VoteMsg {
 		t.Helper()
 		qcRoundInfo := abdrctu.NewDummyRootRoundInfo(round - 2)
-		commitInfo := abdrctu.NewDummyCommitInfo(gocrypto.SHA256, qcRoundInfo)
+		commitInfo := abdrctu.NewDummyCommitInfo(t, gocrypto.SHA256, qcRoundInfo)
 		highQc := &drctypes.QuorumCert{
 			VoteInfo:         qcRoundInfo,
 			LedgerCommitInfo: commitInfo,
 			Signatures:       map[string]hex.Bytes{},
 		}
-		cib := commitInfo.Bytes()
+		cib := testcertificates.UnicitySealBytes(t, commitInfo)
 		for _, cm := range cms {
 			sig, err := cm.safety.signer.SignBytes(cib)
 			require.NoError(t, err)
@@ -512,11 +510,13 @@ func Test_ConsensusManager_onVoteMsg(t *testing.T) {
 		}
 
 		voteRoundInfo := abdrctu.NewDummyRootRoundInfo(round)
+		h, err := voteRoundInfo.Hash(gocrypto.SHA256)
+		require.NoError(t, err)
 		voteMsg := &abdrc.VoteMsg{
 			VoteInfo: voteRoundInfo,
 			LedgerCommitInfo: &types.UnicitySeal{
 				Version:      1,
-				PreviousHash: voteRoundInfo.Hash(gocrypto.SHA256),
+				PreviousHash: h,
 			},
 			HighQc: highQc,
 			Author: cms[0].id.String(),
@@ -1216,7 +1216,7 @@ func TestConsensusManger_RestoreVote(t *testing.T) {
 	db, err := memorydb.New()
 	require.NoError(t, err)
 	// init DB from genesis
-	orchestration := partitions.NewOrchestration(rootGenesis)
+	orchestration := testpartition.NewOrchestration(t, rootGenesis)
 	_, err = storage.New(gocrypto.SHA256, rootGenesis.Partitions, db, orchestration)
 	require.NoError(t, err)
 	timeoutVote := &abdrc.TimeoutMsg{

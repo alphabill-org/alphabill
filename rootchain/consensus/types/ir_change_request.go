@@ -1,14 +1,12 @@
 package types
 
 import (
-	"bytes"
 	"crypto"
 	"errors"
 	"fmt"
 
-	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
+	abhash "github.com/alphabill-org/alphabill-go-base/hash"
 	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill-go-base/util"
 	"github.com/alphabill-org/alphabill/network/protocol/certification"
 )
 
@@ -30,16 +28,15 @@ type (
 		Requests []*certification.BlockCertificationRequest
 	}
 
-	TrustBase interface {
+	RequestVerifier interface {
 		GetQuorum() uint64
 		GetTotalNodes() uint64
-		Verify(nodeID string, f func(v abcrypto.Verifier) error) error
+		ValidRequest(req *certification.BlockCertificationRequest) error
 	}
 
 	CertRequestVerifier interface {
 		IRRound() uint64
 		IRPreviousHash() []byte
-		RootRound() uint64
 	}
 )
 
@@ -73,16 +70,16 @@ func (x *IRChangeReq) IsValid() error {
 	return nil
 }
 
-func (x *IRChangeReq) Verify(tb TrustBase, luc *types.UnicityCertificate, round, t2InRounds uint64) (*types.InputRecord, error) {
+func (x *IRChangeReq) Verify(tb RequestVerifier, luc *types.UnicityCertificate, round, t2InRounds uint64) (*types.InputRecord, error) {
 	if tb == nil {
-		return nil, errors.New("trust base is nil")
+		return nil, errors.New("RequestVerifier is unassigned")
 	}
 	if err := x.IsValid(); err != nil {
-		return nil, fmt.Errorf("ir change request validation failed: %w", err)
+		return nil, fmt.Errorf("invalid IR Change Request: %w", err)
 	}
 	// quick sanity check, there cannot be more requests than known partition nodes
 	if len(x.Requests) > int(tb.GetTotalNodes()) {
-		return nil, fmt.Errorf("proof contains more requests than registered partition nodes")
+		return nil, errors.New("IR Change Request contains more requests than registered partition nodes")
 	}
 	// verify IR change proof
 	// monitor hash counts
@@ -91,28 +88,27 @@ func (x *IRChangeReq) Verify(tb TrustBase, luc *types.UnicityCertificate, round,
 	nodeIDs := make(map[string]struct{})
 	// validate all block request in the proof
 	for _, req := range x.Requests {
-		if err := tb.Verify(req.NodeIdentifier, req.IsValid); err != nil {
-			return nil, fmt.Errorf("request proof from partition %s node %v is not valid: %w",
-				req.Partition, req.NodeIdentifier, err)
+		if x.Partition != req.Partition || !x.Shard.Equal(req.Shard) {
+			return nil, fmt.Errorf("shard of the change request is %s-%s but block certification request is for %s=%s",
+				x.Partition, x.Shard, req.Partition, req.Shard)
 		}
-		if x.Partition != req.Partition {
-			return nil, fmt.Errorf("invalid partition %s proof: node %v request partition id %s does not match request",
-				x.Partition, req.NodeIdentifier, req.Partition)
-		}
-		if err := CheckBlockCertificationRequest(req, luc); err != nil {
+		if err := tb.ValidRequest(req); err != nil {
 			return nil, fmt.Errorf("invalid certification request: %w", err)
 		}
 		if _, found := nodeIDs[req.NodeIdentifier]; found {
-			return nil, fmt.Errorf("invalid partition %s proof: contains duplicate request from node %v",
-				x.Partition, req.NodeIdentifier)
+			return nil, fmt.Errorf("invalid partition %s proof: contains duplicate request from node %v", x.Partition, req.NodeIdentifier)
 		}
 		// register node id
 		nodeIDs[req.NodeIdentifier] = struct{}{}
 		// get hash of IR and add to hash counter
-		hasher := crypto.SHA256.New()
+		hasher := abhash.New(crypto.SHA256.New())
 		req.InputRecord.AddToHasher(hasher)
-		count := hashCnt[string(hasher.Sum(nil))]
-		hashCnt[string(hasher.Sum(nil))] = count + 1
+		hash, err := hasher.Sum()
+		if err != nil {
+			return nil, fmt.Errorf("failed to calculate hash: %w", err)
+		}
+		count := hashCnt[string(hash)]
+		hashCnt[string(hash)] = count + 1
 	}
 	// match request type to proof
 	switch x.CertReason {
@@ -131,11 +127,15 @@ func (x *IRChangeReq) Verify(tb TrustBase, luc *types.UnicityCertificate, round,
 		// NB! there was at least one request, otherwise we would not be here
 		return x.Requests[0].InputRecord, nil
 	case QuorumNotPossible:
+		maxHC := getMaxHashCount(hashCnt)
+		if maxHC >= tb.GetQuorum() {
+			return nil, fmt.Errorf("can't certify 'no quorum' as one input already does have quorum (%d votes, quorum is %d)", maxHC, tb.GetQuorum())
+		}
 		// Verify that enough partition nodes have voted for different IR change
 		// a) find how many votes are missing (nof nodes - requests)
 		// b) if the missing votes would also vote for the most popular hash, it must be still not enough to come to a quorum
-		if int(tb.GetTotalNodes())-len(x.Requests)+int(getMaxHashCount(hashCnt)) >= int(tb.GetQuorum()) {
-			return nil, fmt.Errorf("invalid partition %s no quorum proof: not enough requests to prove only no quorum is possible", x.Partition)
+		if vc := int(tb.GetTotalNodes()) - len(x.Requests) + int(maxHC); vc >= int(tb.GetQuorum()) {
+			return nil, fmt.Errorf("not enough votes to prove 'no quorum' - it is possible to get %d votes, quorum is %d", vc, tb.GetQuorum())
 		}
 		// initiate repeat UC
 		return luc.InputRecord.NewRepeatIR(), nil
@@ -158,37 +158,6 @@ func (x *IRChangeReq) Verify(tb TrustBase, luc *types.UnicityCertificate, round,
 	return nil, fmt.Errorf("invalid request: unknown certification reason %v", x.CertReason)
 }
 
-// Bytes serializes entire struct.
-func (x *IRChangeReq) Bytes() []byte {
-	var b bytes.Buffer
-	b.Write(x.Partition.Bytes())
-	b.Write(util.Uint32ToBytes(uint32(x.CertReason)))
-	for _, req := range x.Requests {
-		b.Write(req.Bytes())
-	}
-	return b.Bytes()
-}
-
 func (x *IRChangeReq) String() string {
 	return fmt.Sprintf("%s->%s", x.Partition, x.CertReason)
-}
-
-func CheckBlockCertificationRequest(req CertRequestVerifier, luc *types.UnicityCertificate) error {
-	if req == nil {
-		return errors.New("block certification request is nil")
-	}
-	if luc == nil {
-		return errors.New("unicity certificate is nil")
-	}
-	if req.IRRound() != luc.InputRecord.RoundNumber+1 {
-		// Older UC, return current.
-		return fmt.Errorf("invalid partition round number %v, last certified round number %v", req.IRRound(), luc.InputRecord.RoundNumber)
-	} else if !bytes.Equal(req.IRPreviousHash(), luc.InputRecord.Hash) {
-		// Extending of unknown State.
-		return fmt.Errorf("request extends unknown state: expected hash: %v, got: %v", luc.InputRecord.Hash, req.IRPreviousHash())
-	} else if req.RootRound() != luc.GetRootRoundNumber() {
-		// Stale request, it has been sent before most recent UC was issued
-		return fmt.Errorf("request root round number %v does not match luc root round %v", req.RootRound(), luc.UnicitySeal.RootChainRoundNumber)
-	}
-	return nil
 }

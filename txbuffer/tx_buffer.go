@@ -81,7 +81,10 @@ func (buf *TxBuffer) Add(ctx context.Context, tx *types.TransactionOrder) ([]byt
 		return nil, ErrTxIsNil
 	}
 
-	txHash := tx.Hash(buf.hashAlgorithm)
+	txHash, err := tx.Hash(buf.hashAlgorithm)
+	if err != nil {
+		return nil, fmt.Errorf("hashing transaction: %w", err)
+	}
 	buf.log.DebugContext(ctx, fmt.Sprintf("received transaction (type=%d), hash %X", tx.Type, txHash), logger.UnitID(tx.UnitID))
 	txId := string(txHash)
 	span.SetAttributes(observability.TxHash(txHash), observability.UnitID(tx.UnitID), observability.TxTypeKey.Int(int(tx.Type)))
@@ -111,7 +114,10 @@ func (buf *TxBuffer) Remove(ctx context.Context) (*types.TransactionOrder, error
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	case tx := <-buf.transactionsCh:
-		txHash := tx.Hash(buf.hashAlgorithm)
+		txHash, err := tx.Hash(buf.hashAlgorithm)
+		if err != nil {
+			return nil, fmt.Errorf("hashing transaction: %w", err)
+		}
 		span.SetAttributes(observability.TxHash(txHash), observability.UnitID(tx.UnitID), observability.TxTypeKey.Int(int(tx.Type)))
 		buf.removeFromIndex(ctx, string(txHash))
 		return tx, nil

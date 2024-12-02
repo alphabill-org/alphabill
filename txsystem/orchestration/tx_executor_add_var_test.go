@@ -1,10 +1,10 @@
 package orchestration
 
 import (
-	"hash"
 	"testing"
 
 	"github.com/alphabill-org/alphabill-go-base/crypto"
+	abhash "github.com/alphabill-org/alphabill-go-base/hash"
 	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/orchestration"
 	"github.com/alphabill-org/alphabill-go-base/types"
@@ -21,7 +21,7 @@ type TestData struct {
 	_ struct{} `cbor:",toarray"`
 }
 
-func (t *TestData) Write(hasher hash.Hash) error { return nil }
+func (t *TestData) Write(hasher abhash.Hasher) { hasher.Write(t) }
 func (t *TestData) SummaryValueInput() uint64 {
 	return 0
 }

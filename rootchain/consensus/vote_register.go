@@ -2,10 +2,10 @@ package consensus
 
 import (
 	"bytes"
-	"crypto/sha256"
 	"errors"
 	"fmt"
 
+	abhash "github.com/alphabill-org/alphabill-go-base/hash"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	"github.com/alphabill-org/alphabill/network/protocol/abdrc"
@@ -51,30 +51,34 @@ func (v *VoteRegister) InsertVote(vote *abdrc.VoteMsg, quorumInfo QuorumInfo) (*
 	}
 
 	// Get hash of consensus structure
-	commitInfoHash := sha256.Sum256(vote.LedgerCommitInfo.Bytes())
+	bs, err := vote.LedgerCommitInfo.SigBytes()
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal unicity seal: %w", err)
+	}
+	commitInfoHash := abhash.Sum256(bs)
 
 	// has the author already voted in this round?
 	if prevVoteHash, voted := v.authorToVote[vote.Author]; voted {
 		// Check if vote has changed
-		if !bytes.Equal(commitInfoHash[:], prevVoteHash) {
+		if !bytes.Equal(commitInfoHash, prevVoteHash) {
 			// new equivocating vote, this is a security event
 			return nil, fmt.Errorf("equivocating vote, previous %X, new %X", prevVoteHash, commitInfoHash)
 		}
 		return nil, fmt.Errorf("duplicate vote")
 	}
 	// Store vote from author
-	v.authorToVote[vote.Author] = commitInfoHash[:]
+	v.authorToVote[vote.Author] = commitInfoHash
 	// register commit hash
 	// Create new entry if not present
-	if _, present := v.hashToSignatures[string(commitInfoHash[:])]; !present {
-		v.hashToSignatures[string(commitInfoHash[:])] = &ConsensusWithSignatures{
+	if _, present := v.hashToSignatures[string(commitInfoHash)]; !present {
+		v.hashToSignatures[string(commitInfoHash)] = &ConsensusWithSignatures{
 			commitInfo: vote.LedgerCommitInfo,
 			voteInfo:   vote.VoteInfo,
 			signatures: make(map[string]hex.Bytes),
 		}
 	}
 	// Add signature from vote
-	quorum := v.hashToSignatures[string(commitInfoHash[:])]
+	quorum := v.hashToSignatures[string(commitInfoHash)]
 	quorum.signatures[vote.Author] = vote.Signature
 	// Check QC
 	if uint64(len(quorum.signatures)) >= quorumInfo.GetQuorumThreshold() {

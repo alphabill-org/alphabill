@@ -175,7 +175,10 @@ func NewRootGenesis(
 		if err = partition.IsValid(); err != nil {
 			return nil, nil, fmt.Errorf("invalid partition record: %w", err)
 		}
-		sdrh := partition.PartitionDescription.Hash(c.hashAlgorithm)
+		sdrh, err := partition.PartitionDescription.Hash(c.hashAlgorithm)
+		if err != nil {
+			return nil, nil, fmt.Errorf("calculating partition %s description hash: %w", partitionID, err)
+		}
 		// if partition is valid then conversion cannot fail
 		sdrhs[partition.PartitionDescription.PartitionIdentifier] = sdrh
 
@@ -222,11 +225,15 @@ func NewRootGenesis(
 			ParentRoundNumber: 0,
 			CurrentRootHash:   rootHash,
 		}
+		h, err := roundMeta.Hash(crypto.SHA256)
+		if err != nil {
+			return nil, fmt.Errorf("round info hash error: %w", err)
+		}
 		uSeal := &types.UnicitySeal{
 			Version:              1,
 			RootChainRoundNumber: genesis.RootRound,
 			Timestamp:            types.GenesisTime,
-			PreviousHash:         roundMeta.Hash(crypto.SHA256),
+			PreviousHash:         h,
 			Hash:                 rootHash,
 		}
 		return uSeal, uSeal.Sign(c.peerID, c.signer)
@@ -312,6 +319,10 @@ func NewRootGenesis(
 }
 
 func TechnicalRecord(ir *types.InputRecord, nodes []string) (tr certification.TechnicalRecord, err error) {
+	if len(nodes) == 0 {
+		return tr, errors.New("node list is empty")
+	}
+
 	tr = certification.TechnicalRecord{
 		Round:  ir.RoundNumber + 1,
 		Epoch:  ir.Epoch,
@@ -382,7 +393,10 @@ func MergeRootGenesisFiles(rootGenesis []*genesis.RootGenesis) (*genesis.RootGen
 	if err := rg.IsValid(); err != nil {
 		return nil, nil, fmt.Errorf("invalid root genesis input: %w", err)
 	}
-	consensusBytes := rg.Root.Consensus.Bytes()
+	consensusBytes, err := rg.Root.Consensus.SigBytes()
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get consensus bytes: %w", err)
+	}
 	nodeIds := map[string]struct{}{}
 	for _, v := range rg.Root.RootValidators {
 		nodeIds[v.NodeIdentifier] = struct{}{}
@@ -394,7 +408,11 @@ func MergeRootGenesisFiles(rootGenesis []*genesis.RootGenesis) (*genesis.RootGen
 		}
 		// Check consensus parameters are same by comparing serialized bytes
 		// Should probably write a compare method instead of comparing serialized struct
-		if !bytes.Equal(consensusBytes, appendGen.Root.Consensus.Bytes()) {
+		appendConsensusBytes, err := appendGen.Root.Consensus.SigBytes()
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to get append consensus bytes: %w", err)
+		}
+		if !bytes.Equal(consensusBytes, appendConsensusBytes) {
 			return nil, nil, errors.New("not compatible root genesis files, consensus is different")
 		}
 		// append consensus signatures

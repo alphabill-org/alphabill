@@ -99,7 +99,7 @@ func TestPartition_Ok(t *testing.T) {
 	// verify proof
 	ucv, err := abNet.GetValidator(pdr.PartitionIdentifier)
 	require.NoError(t, err)
-	require.NoError(t, types.VerifyUnitStateProof(unitAndProof.Proof, crypto.SHA256, unitAndProof.UnitData, ucv))
+	require.NoError(t, unitAndProof.Proof.Verify(crypto.SHA256, unitAndProof.UnitData, ucv))
 
 	// send addFC
 	addFC := testutils.NewAddFC(t, signer,
@@ -117,7 +117,7 @@ func TestPartition_Ok(t *testing.T) {
 	require.NoError(t, err, "add fee credit transaction failed")
 	unitAndProof, err = testpartition.WaitUnitProof(t, moneyPrt, fcrID, addFC)
 	require.NoError(t, err)
-	require.NoError(t, types.VerifyUnitStateProof(unitAndProof.Proof, crypto.SHA256, unitAndProof.UnitData, ucv))
+	require.NoError(t, unitAndProof.Proof.Verify(crypto.SHA256, unitAndProof.UnitData, ucv))
 
 	// verify that frc bill is created and its balance is equal to frcAmount - "transfer transaction cost" - "add transaction cost"
 	var feeBillState fcsdk.FeeCreditRecord
@@ -132,7 +132,7 @@ func TestPartition_Ok(t *testing.T) {
 	require.NoError(t, err, "transfer initial bill failed")
 	unitAndProof, err = testpartition.WaitUnitProof(t, moneyPrt, fcrID, transferInitialBillTx)
 	require.NoError(t, err)
-	require.NoError(t, types.VerifyUnitStateProof(unitAndProof.Proof, crypto.SHA256, unitAndProof.UnitData, ucv))
+	require.NoError(t, unitAndProof.Proof.Verify(crypto.SHA256, unitAndProof.UnitData, ucv))
 	require.NoError(t, unitAndProof.UnmarshalUnitData(&feeBillState))
 	remainingFeeBalance = remainingFeeBalance - txRecordProof.ActualFee()
 	require.Equal(t, remainingFeeBalance, feeBillState.Balance)
@@ -146,7 +146,7 @@ func TestPartition_Ok(t *testing.T) {
 	require.NoError(t, err, "money split transaction failed")
 	unitAndProof, err = testpartition.WaitUnitProof(t, moneyPrt, fcrID, tx)
 	require.NoError(t, err)
-	require.NoError(t, types.VerifyUnitStateProof(unitAndProof.Proof, crypto.SHA256, unitAndProof.UnitData, ucv))
+	require.NoError(t, unitAndProof.Proof.Verify(crypto.SHA256, unitAndProof.UnitData, ucv))
 	require.NoError(t, unitAndProof.UnmarshalUnitData(&feeBillState))
 	remainingFeeBalance = remainingFeeBalance - txRecordProof.ActualFee()
 	require.EqualValues(t, remainingFeeBalance, feeBillState.Balance)

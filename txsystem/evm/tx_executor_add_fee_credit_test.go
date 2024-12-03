@@ -439,7 +439,7 @@ func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
 		var attr fcsdk.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		require.EqualError(t, feeCreditModule.validateAddFC(tx, &attr, &authProof, execCtx),
-			"proof is not valid: proof block hash does not match to block hash in unicity certificate")
+			"proof is not valid: verify tx inclusion: proof block hash does not match to block hash in unicity certificate")
 	})
 }
 

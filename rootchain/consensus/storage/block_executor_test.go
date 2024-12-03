@@ -56,18 +56,7 @@ func TestNewExecutedBlockFromGenesis(t *testing.T) {
 			SigKey:  pn.PeerConf.KeyPair.PublicKey,
 		})
 	}
-	orchestration := mockOrchestration{
-		shardEpoch: func(partition types.PartitionID, shard types.ShardID, round uint64) (uint64, error) { return 0, nil },
-		shardConfig: func(partition types.PartitionID, shard types.ShardID, epoch uint64) (*partitions.ValidatorAssignmentRecord, error) {
-			return &partitions.ValidatorAssignmentRecord{
-				PartitionID: partition,
-				ShardID:     shard,
-				EpochNumber: epoch,
-				Nodes:       varNodes,
-			}, nil
-		},
-	}
-	b, err := NewGenesisBlock(hash, rootGenesis.Partitions, orchestration)
+	b, err := NewGenesisBlock(hash, rootGenesis.Partitions)
 	require.NoError(t, err)
 	require.Equal(t, b.HashAlgo, crypto.SHA256)
 	data := b.CurrentIR.Find(partitionID1)
@@ -119,7 +108,7 @@ func TestExecutedBlock_Extend(t *testing.T) {
 			}, nil
 		},
 	}
-	parent, err := NewGenesisBlock(hash, rootGenesis.Partitions, orchestration)
+	parent, err := NewGenesisBlock(hash, rootGenesis.Partitions)
 	require.NoError(t, err)
 	certReq := &certification.BlockCertificationRequest{
 		Partition:      partitionID1,
@@ -169,7 +158,7 @@ func TestExecutedBlock_Extend(t *testing.T) {
 }
 
 func TestExecutedBlock_GenerateCertificates(t *testing.T) {
-	rh, err := hex.DecodeString("385E6A58F21F1299B92438B736E97A9DCBE792673C8A7391B5005E38A7F0017C")
+	rh, err := hex.DecodeString("B8E278ACF8DB0FADF5AA7A2C079CB888DEB38303020218A003F42B32E44F1F9E")
 	require.NoError(t, err)
 	block := &ExecutedBlock{
 		BlockData: &drctypes.BlockData{

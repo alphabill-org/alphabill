@@ -103,7 +103,7 @@ func TestNewBlockStoreFromDB_MultipleRoots(t *testing.T) {
 	orchestration := testpartition.NewOrchestration(t, &genesis.RootGenesis{Version: 1, Partitions: pg})
 	db, err := memorydb.New()
 	require.NoError(t, err)
-	require.NoError(t, storeGenesisInit(gocrypto.SHA256, pg, db, orchestration))
+	require.NoError(t, storeGenesisInit(gocrypto.SHA256, pg, db))
 	// create second root
 	vInfo9 := &drctypes.RoundInfo{RoundNumber: 9, ParentRoundNumber: 8}
 	h9, err := vInfo9.Hash(gocrypto.SHA256)
@@ -172,7 +172,7 @@ func TestNewBlockStoreFromDB_InvalidDBContainsCap(t *testing.T) {
 	orchestration := testpartition.NewOrchestration(t, &genesis.RootGenesis{Version: 1, Partitions: pg})
 	db, err := memorydb.New()
 	require.NoError(t, err)
-	require.NoError(t, storeGenesisInit(gocrypto.SHA256, pg, db, orchestration))
+	require.NoError(t, storeGenesisInit(gocrypto.SHA256, pg, db))
 	// create a second chain, that has no root
 	b10 := fakeBlock(10, &drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 9}})
 	require.NoError(t, db.Write(blockKey(b10.GetRound()), b10))

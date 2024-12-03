@@ -156,7 +156,7 @@ func qcFromGenesisState(partitionRecords []*genesis.GenesisPartitionRecord) *rct
 	return nil
 }
 
-func NewGenesisBlock(hash crypto.Hash, pg []*genesis.GenesisPartitionRecord, orchestration Orchestration) (*ExecutedBlock, error) {
+func NewGenesisBlock(hash crypto.Hash, pg []*genesis.GenesisPartitionRecord) (*ExecutedBlock, error) {
 	shardStates := make(shardStates)
 	var inputData []*InputData
 	for _, partition := range pg {

@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill-go-base/crypto"
-	"github.com/alphabill-org/alphabill-go-base/tree/imt"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
@@ -223,7 +222,7 @@ func TestBlockProposal_SignAndVerify(t *testing.T) {
 			UnicityTreeCertificate: &types.UnicityTreeCertificate{
 				Version:   1,
 				Partition: partitionIdentifier,
-				HashSteps: []*imt.PathItem{{Key: test.RandomBytes(4), Hash: test.RandomBytes(32)}},
+				HashSteps: []*types.PathItem{{Key: types.PartitionID(test.RandomUint32()), Hash: test.RandomBytes(32)}},
 				PDRHash:   sdrHash,
 			},
 			UnicitySeal: seal,
@@ -279,7 +278,7 @@ func TestBlockProposal_InvalidSignature(t *testing.T) {
 			UnicityTreeCertificate: &types.UnicityTreeCertificate{
 				Version:   1,
 				Partition: partitionIdentifier,
-				HashSteps: []*imt.PathItem{{Key: test.RandomBytes(4), Hash: test.RandomBytes(32)}},
+				HashSteps: []*types.PathItem{{Key: types.PartitionID(test.RandomUint32()), Hash: test.RandomBytes(32)}},
 				PDRHash:   sdrHash,
 			},
 			UnicitySeal: seal,

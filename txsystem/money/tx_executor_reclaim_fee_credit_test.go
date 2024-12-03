@@ -130,7 +130,7 @@ func TestModule_validateReclaimFCTx(t *testing.T) {
 		module := newTestMoneyModule(t, verifier,
 			withStateUnit(tx.UnitID, &money.BillData{Value: amount, Counter: counter, OwnerPredicate: templates.AlwaysTrueBytes()}))
 		exeCtx := testctx.NewMockExecutionContext()
-		require.EqualError(t, module.validateReclaimFCTx(tx, attr, authProof, exeCtx), "invalid proof: proof block hash does not match to block hash in unicity certificate")
+		require.EqualError(t, module.validateReclaimFCTx(tx, attr, authProof, exeCtx), "invalid proof: verify inc: proof block hash does not match to block hash in unicity certificate")
 	})
 }
 

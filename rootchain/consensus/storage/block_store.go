@@ -37,8 +37,8 @@ type (
 	}
 )
 
-func storeGenesisInit(hash crypto.Hash, pg []*genesis.GenesisPartitionRecord, db keyvaluedb.KeyValueDB, orchestration Orchestration) error {
-	genesisBlock, err := NewGenesisBlock(hash, pg, orchestration)
+func storeGenesisInit(hash crypto.Hash, pg []*genesis.GenesisPartitionRecord, db keyvaluedb.KeyValueDB) error {
+	genesisBlock, err := NewGenesisBlock(hash, pg)
 	if err != nil {
 		return fmt.Errorf("creating genesis block: %w", err)
 	}
@@ -62,7 +62,7 @@ func New(hash crypto.Hash, pg []*genesis.GenesisPartitionRecord, db keyvaluedb.K
 		return nil, fmt.Errorf("failed to read block store: %w", err)
 	}
 	if empty {
-		if err = storeGenesisInit(hash, pg, db, orchestration); err != nil {
+		if err = storeGenesisInit(hash, pg, db); err != nil {
 			return nil, fmt.Errorf("initializing block store: %w", err)
 		}
 	}

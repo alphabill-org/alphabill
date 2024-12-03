@@ -2,9 +2,8 @@ package test
 
 import (
 	"crypto/rand"
+	"encoding/binary"
 	"fmt"
-
-	"github.com/alphabill-org/alphabill-go-base/util"
 )
 
 func RandomBytes(len int) []byte {
@@ -27,5 +26,5 @@ func RandomUint32() uint32 {
 	if err != nil {
 		panic(err)
 	}
-	return util.BytesToUint32(bytes)
+	return binary.BigEndian.Uint32(bytes)
 }

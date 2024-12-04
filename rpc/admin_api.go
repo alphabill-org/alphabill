@@ -1,9 +1,11 @@
 package rpc
 
 import (
+	"context"
 	"encoding/json"
 	"log/slog"
 	"slices"
+	"time"
 
 	"github.com/multiformats/go-multiaddr"
 
@@ -18,6 +20,8 @@ type (
 		name string
 		self *network.Peer
 		log  *slog.Logger
+
+		updMetrics func(ctx context.Context, method string, start time.Time, apiErr error)
 	}
 
 	NodeInfoResponse struct {
@@ -39,12 +43,19 @@ type (
 	}
 )
 
-func NewAdminAPI(node partitionNode, name string, self *network.Peer, log *slog.Logger) *AdminAPI {
-	return &AdminAPI{node: node, name: name, self: self, log: log}
+func NewAdminAPI(node partitionNode, name string, self *network.Peer, obs Observability) *AdminAPI {
+	return &AdminAPI{
+		node:       node,
+		name:       name,
+		self:       self,
+		log:        obs.Logger(),
+		updMetrics: metricsUpdater(obs.Meter(metricsScopeJRPCAPI), node, obs.Logger()),
+	}
 }
 
 // GetNodeInfo returns information about the node.
-func (s *AdminAPI) GetNodeInfo() (*NodeInfoResponse, error) {
+func (s *AdminAPI) GetNodeInfo(ctx context.Context) (_ *NodeInfoResponse, retErr error) {
+	defer func(start time.Time) { s.updMetrics(ctx, "getNodeInfo", start, retErr) }(time.Now())
 	return &NodeInfoResponse{
 		NetworkID:        s.node.NetworkID(),
 		PartitionID:      s.node.PartitionID(),

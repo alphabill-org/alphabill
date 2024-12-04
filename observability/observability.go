@@ -21,7 +21,7 @@ import (
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	semconv "go.opentelemetry.io/otel/semconv/v1.21.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.27.0"
 	"go.opentelemetry.io/otel/trace"
 	tnop "go.opentelemetry.io/otel/trace/noop"
 )
@@ -29,7 +29,7 @@ import (
 func newObservability(metrics, traces string) (*otelMetricsAndTrace, error) {
 	res := resource.NewWithAttributes(semconv.SchemaURL,
 		semconv.ServiceName(serviceName()),
-		semconv.ServiceVersion("0.3.0"),
+		semconv.ServiceVersion("0.5.0"),
 	)
 
 	o := &otelMetricsAndTrace{mp: noop.NewMeterProvider(), tp: tnop.NewTracerProvider()}

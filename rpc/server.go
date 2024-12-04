@@ -17,7 +17,7 @@ import (
 const (
 	headerContentType = "Content-Type"
 
-	metricsScopeRPCAPI  = "rpc_api"
+	metricsScopeJRPCAPI = "jrpc_api" // json-rpc
 	metricsScopeRESTAPI = "rest_api"
 
 	DefaultMaxBodyBytes           int64 = 4194304 // 4MB
@@ -65,7 +65,7 @@ type (
 		// there will be no timeout.
 		WriteTimeout time.Duration
 
-		// IdleTimeout is the maximum amount of time to wait for the next request when keep-alives are enabled. If
+		// IdleTimeout is the maximum amount of time to wait for the next request when keep-alive is enabled. If
 		// IdleTimeout is zero, the value of ReadTimeout is used. If both are zero, there is no timeout.
 		IdleTimeout time.Duration
 
@@ -97,7 +97,6 @@ func (c *ServerConfiguration) IsAddressEmpty() bool {
 
 func NewHTTPServer(conf *ServerConfiguration, obs Observability, registrars ...Registrar) (*http.Server, error) {
 	restMeter := obs.Meter(metricsScopeRESTAPI)
-	rpcMeter := obs.Meter(metricsScopeRPCAPI)
 
 	router := mux.NewRouter()
 	router.NotFoundHandler = http.HandlerFunc(http.NotFound)
@@ -127,7 +126,7 @@ func NewHTTPServer(conf *ServerConfiguration, obs Observability, registrars ...R
 	// RPC HTTP handler
 	rpcRouter := router.PathPrefix("/rpc").Subrouter()
 	rpcRouter.Handle("", rpcServer)
-	rpcRouter.Use(handlers.CORS(handlers.AllowedHeaders(allowedCORSHeaders)), instrumentHTTP(rpcMeter, obs.Logger()))
+	rpcRouter.Use(handlers.CORS(handlers.AllowedHeaders(allowedCORSHeaders)))
 
 	return &http.Server{
 		Addr:              conf.Address,

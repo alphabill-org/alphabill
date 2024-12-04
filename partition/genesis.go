@@ -123,7 +123,7 @@ func NewNodeGenesis(state *state.State, pdr types.PartitionDescriptionRecord, op
 	gBlock := &types.Block{
 		Header: &types.Header{
 			Version:           1,
-			PartitionID:       pdr.PartitionIdentifier,
+			PartitionID:       pdr.PartitionID,
 			ProposerID:        "genesis",
 			PreviousBlockHash: zeroHash,
 		},
@@ -138,7 +138,7 @@ func NewNodeGenesis(state *state.State, pdr types.PartitionDescriptionRecord, op
 	id := c.peerID.String()
 	// Protocol request
 	blockCertificationRequest := &certification.BlockCertificationRequest{
-		Partition:      pdr.PartitionIdentifier,
+		Partition:      pdr.PartitionID,
 		NodeIdentifier: id,
 		InputRecord:    gIR,
 	}

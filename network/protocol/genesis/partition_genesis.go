@@ -74,7 +74,7 @@ func (x *PartitionGenesis) IsValid(trustBase types.RootTrustBase, hashAlgorithm 
 		return fmt.Errorf("partition description hash error, %w", err)
 	}
 	// validate all signatures against known root keys
-	if err := x.Certificate.Verify(trustBase, hashAlgorithm, x.PartitionDescription.PartitionIdentifier, pdrHash); err != nil {
+	if err := x.Certificate.Verify(trustBase, hashAlgorithm, x.PartitionDescription.PartitionID, pdrHash); err != nil {
 		return fmt.Errorf("invalid unicity certificate, %w", err)
 	}
 	// UC Seal must be signed by all validators

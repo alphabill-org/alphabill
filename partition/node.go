@@ -403,7 +403,7 @@ func (n *Node) sendHandshake(ctx context.Context) {
 	}
 	if err = n.network.Send(ctx,
 		handshake.Handshake{
-			Partition:      n.configuration.GetPartitionIdentifier(),
+			Partition:      n.configuration.GetPartitionID(),
 			Shard:          n.configuration.shardID,
 			NodeIdentifier: n.peer.ID().String(),
 		},
@@ -613,7 +613,7 @@ func statusCodeOfTxError(err error) string {
 		return "ok"
 	case errors.Is(err, ErrTxTimeout):
 		return "tx.timeout"
-	case errors.Is(err, errInvalidPartitionIdentifier):
+	case errors.Is(err, errInvalidPartitionID):
 		return "invalid.sysid"
 	default:
 		return "err"
@@ -1158,11 +1158,11 @@ func (n *Node) handleLedgerReplicationRequest(ctx context.Context, lr *replicati
 		// for now do not respond to obviously invalid requests
 		return fmt.Errorf("invalid request, %w", err)
 	}
-	if lr.PartitionIdentifier != n.configuration.GetPartitionIdentifier() {
+	if lr.PartitionID != n.configuration.GetPartitionID() {
 		resp := &replication.LedgerReplicationResponse{
 			UUID:    lr.UUID,
-			Status:  replication.UnknownPartitionIdentifier,
-			Message: fmt.Sprintf("Unknown partition identifier: %s", lr.PartitionIdentifier),
+			Status:  replication.UnknownPartitionID,
+			Message: fmt.Sprintf("Unknown partition identifier: %s", lr.PartitionID),
 		}
 		return n.sendLedgerReplicationResponse(ctx, resp, lr.NodeIdentifier)
 	}
@@ -1376,11 +1376,11 @@ func (n *Node) sendLedgerReplicationRequest(ctx context.Context) {
 	defer span.End()
 
 	req := &replication.LedgerReplicationRequest{
-		UUID:                uuid.New(),
-		PartitionIdentifier: n.configuration.GetPartitionIdentifier(),
-		NodeIdentifier:      n.peer.ID().String(),
-		BeginBlockNumber:    startingBlockNr,
-		EndBlockNumber:      startingBlockNr + n.configuration.replicationConfig.maxFetchBlocks,
+		UUID:             uuid.New(),
+		PartitionID:      n.configuration.GetPartitionID(),
+		NodeIdentifier:   n.peer.ID().String(),
+		BeginBlockNumber: startingBlockNr,
+		EndBlockNumber:   startingBlockNr + n.configuration.replicationConfig.maxFetchBlocks,
 	}
 	n.log.Log(ctx, logger.LevelTrace, "sending ledger replication request", logger.Data(req))
 
@@ -1423,7 +1423,7 @@ func (n *Node) sendBlockProposal(ctx context.Context) error {
 
 	nodeId := n.peer.ID()
 	prop := &blockproposal.BlockProposal{
-		Partition:          n.configuration.GetPartitionIdentifier(),
+		Partition:          n.configuration.GetPartitionID(),
 		Shard:              n.configuration.shardID,
 		NodeIdentifier:     nodeId,
 		UnicityCertificate: n.luc.Load(),
@@ -1475,7 +1475,7 @@ func (n *Node) sendCertificationRequest(ctx context.Context, blockAuthor string)
 	pendingProposal := &types.Block{
 		Header: &types.Header{
 			Version:           1,
-			PartitionID:       n.configuration.GetPartitionIdentifier(),
+			PartitionID:       n.configuration.GetPartitionID(),
 			ShardID:           n.configuration.shardID,
 			ProposerID:        blockAuthor,
 			PreviousBlockHash: n.committedUC().InputRecord.BlockHash,
@@ -1496,7 +1496,7 @@ func (n *Node) sendCertificationRequest(ctx context.Context, blockAuthor string)
 	n.sumOfEarnedFees = 0
 	// send new input record for certification
 	req := &certification.BlockCertificationRequest{
-		Partition:      n.configuration.GetPartitionIdentifier(),
+		Partition:      n.configuration.GetPartitionID(),
 		Shard:          n.configuration.shardID,
 		NodeIdentifier: n.peer.ID().String(),
 		InputRecord:    ir,
@@ -1594,7 +1594,7 @@ func (n *Node) NetworkID() types.NetworkID {
 }
 
 func (n *Node) PartitionID() types.PartitionID {
-	return n.configuration.GetPartitionIdentifier()
+	return n.configuration.GetPartitionID()
 }
 
 func (n *Node) Peer() *network.Peer {
@@ -1773,7 +1773,7 @@ func newVARFromGenesis(genesis *genesis.PartitionGenesis) *partitions.ValidatorA
 
 	return &partitions.ValidatorAssignmentRecord{
 		NetworkID:   genesis.PartitionDescription.NetworkIdentifier,
-		PartitionID: genesis.PartitionDescription.PartitionIdentifier,
+		PartitionID: genesis.PartitionDescription.PartitionID,
 		EpochNumber: genesis.Certificate.InputRecord.Epoch,
 		RoundNumber: genesis.Certificate.GetRoundNumber(),
 		Nodes:       validators,

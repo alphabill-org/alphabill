@@ -45,7 +45,7 @@ func TestNewOrchestration(t *testing.T) {
 		pgPDR := pgPartition.PartitionDescription
 		pgIR := pgPartition.Certificate.InputRecord
 		require.EqualValues(t, pgPDR.NetworkIdentifier, recA.NetworkID)
-		require.EqualValues(t, pgPDR.PartitionIdentifier, recA.PartitionID)
+		require.EqualValues(t, pgPDR.PartitionID, recA.PartitionID)
 		require.EqualValues(t, pgPartition.Certificate.ShardTreeCertificate.Shard, recA.ShardID)
 		require.EqualValues(t, pgIR.Epoch, recA.EpochNumber)
 		require.EqualValues(t, pgIR.RoundNumber, recA.RoundNumber)
@@ -303,7 +303,7 @@ func createGenesisPartitionRecord(partitionID types.PartitionID, shardID types.S
 		PartitionDescription: &types.PartitionDescriptionRecord{
 			Version:             1,
 			NetworkIdentifier:   5,
-			PartitionIdentifier: partitionID,
+			PartitionID: partitionID,
 		},
 	}
 }

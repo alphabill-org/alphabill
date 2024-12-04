@@ -48,7 +48,7 @@ func (x *GenesisPartitionRecord) IsValid(trustBase types.RootTrustBase, hashAlgo
 	if err := nodesUnique(x.Nodes); err != nil {
 		return fmt.Errorf("invalid partition nodes: %w", err)
 	}
-	partitionIdentifier := x.PartitionDescription.PartitionIdentifier
+	partitionIdentifier := x.PartitionDescription.PartitionID
 	partitionDescriptionHash, err := x.PartitionDescription.Hash(hashAlgorithm)
 	if err != nil {
 		return fmt.Errorf("partition description hash error: %w", err)

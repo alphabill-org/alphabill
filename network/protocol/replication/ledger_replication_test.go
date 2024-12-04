@@ -63,17 +63,17 @@ func TestLedgerReplicationRequestValidation(t *testing.T) {
 	}{
 		{
 			name:    "ValidRequest",
-			request: &LedgerReplicationRequest{PartitionIdentifier: 1, NodeIdentifier: "node1", BeginBlockNumber: 1, EndBlockNumber: 10},
+			request: &LedgerReplicationRequest{PartitionID: 1, NodeIdentifier: "node1", BeginBlockNumber: 1, EndBlockNumber: 10},
 			wantErr: nil,
 		},
 		{
 			name:    "ZeroBlockNumbers",
-			request: &LedgerReplicationRequest{PartitionIdentifier: 1, NodeIdentifier: "node1"},
+			request: &LedgerReplicationRequest{PartitionID: 1, NodeIdentifier: "node1"},
 			wantErr: nil,
 		},
 		{
 			name:    "EqualBlockNumbers",
-			request: &LedgerReplicationRequest{PartitionIdentifier: 1, NodeIdentifier: "node1", BeginBlockNumber: 1, EndBlockNumber: 1},
+			request: &LedgerReplicationRequest{PartitionID: 1, NodeIdentifier: "node1", BeginBlockNumber: 1, EndBlockNumber: 1},
 			wantErr: nil,
 		},
 		{
@@ -82,18 +82,18 @@ func TestLedgerReplicationRequestValidation(t *testing.T) {
 			wantErr: ErrLedgerReplicationReqIsNil,
 		},
 		{
-			name:    "InvalidPartitionIdentifier",
-			request: &LedgerReplicationRequest{PartitionIdentifier: 0, NodeIdentifier: "node1", BeginBlockNumber: 1, EndBlockNumber: 10},
-			wantErr: ErrInvalidPartitionIdentifier,
+			name:    "InvalidPartitionID",
+			request: &LedgerReplicationRequest{PartitionID: 0, NodeIdentifier: "node1", BeginBlockNumber: 1, EndBlockNumber: 10},
+			wantErr: ErrInvalidPartitionID,
 		},
 		{
 			name:    "MissingNodeIdentifier",
-			request: &LedgerReplicationRequest{PartitionIdentifier: 1, NodeIdentifier: "", BeginBlockNumber: 1, EndBlockNumber: 10},
+			request: &LedgerReplicationRequest{PartitionID: 1, NodeIdentifier: "", BeginBlockNumber: 1, EndBlockNumber: 10},
 			wantErr: ErrNodeIdentifierIsMissing,
 		},
 		{
 			name:    "InvalidBlockRange",
-			request: &LedgerReplicationRequest{PartitionIdentifier: 1, NodeIdentifier: "node1", BeginBlockNumber: 10, EndBlockNumber: 1},
+			request: &LedgerReplicationRequest{PartitionID: 1, NodeIdentifier: "node1", BeginBlockNumber: 10, EndBlockNumber: 1},
 			wantErr: fmt.Errorf("invalid block request range from 10 to 1"),
 		},
 	}

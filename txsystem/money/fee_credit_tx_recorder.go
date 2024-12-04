@@ -38,7 +38,7 @@ type reclaimFeeCreditTx struct {
 func newFeeCreditTxRecorder(s *state.State, partitionIdentifier types.PartitionID, records []*types.PartitionDescriptionRecord) *feeCreditTxRecorder {
 	sdrs := make(map[types.PartitionID]*types.PartitionDescriptionRecord)
 	for _, record := range records {
-		sdrs[record.PartitionIdentifier] = record
+		sdrs[record.PartitionID] = record
 	}
 	return &feeCreditTxRecorder{
 		sdrs:                sdrs,
@@ -124,12 +124,12 @@ func (f *feeCreditTxRecorder) consolidateFees() error {
 			})
 		err = f.state.Apply(updateData)
 		if err != nil {
-			return fmt.Errorf("failed to update [%x] partition's fee credit bill: %w", pdr.PartitionIdentifier, err)
+			return fmt.Errorf("failed to update [%x] partition's fee credit bill: %w", pdr.PartitionID, err)
 		}
 
 		err = f.state.AddUnitLog(fcUnitID, make([]byte, f.state.HashAlgorithm().Size()))
 		if err != nil {
-			return fmt.Errorf("failed to update [%x] partition's fee credit bill state log: %w", pdr.PartitionIdentifier, err)
+			return fmt.Errorf("failed to update [%x] partition's fee credit bill state log: %w", pdr.PartitionID, err)
 		}
 	}
 

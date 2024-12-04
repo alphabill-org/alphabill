@@ -1200,7 +1200,7 @@ func TestNode_RespondToReplicationRequest(t *testing.T) {
 	tp.mockNet.Receive(&replication.LedgerReplicationRequest{
 		NodeIdentifier:      tp.nodeDeps.peerConf.ID.String(),
 		BeginBlockNumber:    genesisBlockNumber + 1,
-		PartitionIdentifier: tp.nodeConf.GetPartitionIdentifier(),
+		PartitionID: tp.nodeConf.GetPartitionID(),
 	})
 
 	testevent.ContainsEvent(t, tp.eh, event.ReplicationResponseSent)
@@ -1219,7 +1219,7 @@ func TestNode_RespondToReplicationRequest(t *testing.T) {
 	tp.mockNet.Receive(&replication.LedgerReplicationRequest{
 		NodeIdentifier:      tp.nodeDeps.peerConf.ID.String(),
 		BeginBlockNumber:    genesisBlockNumber + 1,
-		PartitionIdentifier: tp.nodeConf.GetPartitionIdentifier(),
+		PartitionID: tp.nodeConf.GetPartitionID(),
 	})
 	testevent.ContainsEvent(t, tp.eh, event.ReplicationResponseSent)
 	resp = WaitNodeRequestReceived(t, tp, network.ProtocolLedgerReplicationResp)
@@ -1263,7 +1263,7 @@ func TestNode_RespondToInvalidReplicationRequest(t *testing.T) {
 	tp.mockNet.Receive(&replication.LedgerReplicationRequest{
 		NodeIdentifier:      tp.nodeDeps.peerConf.ID.String(),
 		BeginBlockNumber:    11,
-		PartitionIdentifier: tp.nodeConf.GetPartitionIdentifier(),
+		PartitionID: tp.nodeConf.GetPartitionID(),
 	})
 	testevent.ContainsEvent(t, tp.eh, event.ReplicationResponseSent)
 	//make sure response is sent
@@ -1278,14 +1278,14 @@ func TestNode_RespondToInvalidReplicationRequest(t *testing.T) {
 	tp.mockNet.Receive(&replication.LedgerReplicationRequest{
 		NodeIdentifier:      tp.nodeDeps.peerConf.ID.String(),
 		BeginBlockNumber:    2,
-		PartitionIdentifier: 0xFFFFFFFF,
+		PartitionID: 0xFFFFFFFF,
 	})
 	testevent.ContainsEvent(t, tp.eh, event.ReplicationResponseSent)
 	resp = WaitNodeRequestReceived(t, tp, network.ProtocolLedgerReplicationResp)
 	require.NotNil(t, resp)
 	require.IsType(t, resp.Message, &replication.LedgerReplicationResponse{})
 	msg = resp.Message.(*replication.LedgerReplicationResponse)
-	require.Equal(t, replication.UnknownPartitionIdentifier, msg.Status)
+	require.Equal(t, replication.UnknownPartitionID, msg.Status)
 	require.Contains(t, msg.Message, "Unknown partition identifier: FFFFFFFF")
 	tp.mockNet.ResetSentMessages(network.ProtocolLedgerReplicationResp)
 	// cases where node does not even respond
@@ -1293,21 +1293,21 @@ func TestNode_RespondToInvalidReplicationRequest(t *testing.T) {
 	req := &replication.LedgerReplicationRequest{
 		NodeIdentifier:      tp.nodeDeps.peerConf.ID.String(),
 		BeginBlockNumber:    2,
-		PartitionIdentifier: 0,
+		PartitionID: 0,
 	}
 	require.ErrorContains(t, tp.partition.handleLedgerReplicationRequest(context.Background(), req), "invalid request, invalid partition identifier")
 	req = &replication.LedgerReplicationRequest{
 		NodeIdentifier:      tp.nodeDeps.peerConf.ID.String(),
 		BeginBlockNumber:    5,
 		EndBlockNumber:      3,
-		PartitionIdentifier: tp.nodeConf.GetPartitionIdentifier(),
+		PartitionID: tp.nodeConf.GetPartitionID(),
 	}
 	require.ErrorContains(t, tp.partition.handleLedgerReplicationRequest(context.Background(), req), "invalid request, invalid block request range from 5 to 3")
 	// unknown node identifier
 	req = &replication.LedgerReplicationRequest{
 		NodeIdentifier:      "",
 		BeginBlockNumber:    2,
-		PartitionIdentifier: tp.nodeConf.GetPartitionIdentifier(),
+		PartitionID: tp.nodeConf.GetPartitionID(),
 	}
 	require.ErrorContains(t, tp.partition.handleLedgerReplicationRequest(context.Background(), req), "invalid request, node identifier is missing")
 }

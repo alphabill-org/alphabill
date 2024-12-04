@@ -1146,7 +1146,7 @@ func createSDRs(fcbID types.UnitID) []*types.PartitionDescriptionRecord {
 	return []*types.PartitionDescriptionRecord{{
 		Version:             1,
 		NetworkIdentifier:   5,
-		PartitionIdentifier: money.DefaultPartitionID,
+		PartitionID: money.DefaultPartitionID,
 		TypeIdLen:           8,
 		UnitIdLen:           256,
 		T2Timeout:           2500 * time.Millisecond,

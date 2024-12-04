@@ -47,7 +47,7 @@ func TestPartition_Ok(t *testing.T) {
 	pdr := types.PartitionDescriptionRecord{
 		Version:             1,
 		NetworkIdentifier:   5,
-		PartitionIdentifier: money.DefaultPartitionID,
+		PartitionID: money.DefaultPartitionID,
 		TypeIdLen:           8,
 		UnitIdLen:           256,
 		T2Timeout:           2000 * time.Millisecond,
@@ -97,7 +97,7 @@ func TestPartition_Ok(t *testing.T) {
 	require.Equal(t, moneyInvariant-fcrAmount, billState.Value)
 
 	// verify proof
-	ucv, err := abNet.GetValidator(pdr.PartitionIdentifier)
+	ucv, err := abNet.GetValidator(pdr.PartitionID)
 	require.NoError(t, err)
 	require.NoError(t, unitAndProof.Proof.Verify(crypto.SHA256, unitAndProof.UnitData, ucv))
 
@@ -180,7 +180,7 @@ func TestPartition_SwapDCOk(t *testing.T) {
 	pdr := types.PartitionDescriptionRecord{
 		Version:             1,
 		NetworkIdentifier:   networkID,
-		PartitionIdentifier: money.DefaultPartitionID,
+		PartitionID: money.DefaultPartitionID,
 		TypeIdLen:           8,
 		UnitIdLen:           256,
 		T2Timeout:           2000 * time.Millisecond,
@@ -306,7 +306,7 @@ func TestPartition_SwapDCOk(t *testing.T) {
 		Version: 1,
 		Payload: types.Payload{
 			NetworkID:   pdr.NetworkIdentifier,
-			PartitionID: pdr.PartitionIdentifier,
+			PartitionID: pdr.PartitionID,
 			Type:        money.TransactionTypeSwapDC,
 			UnitID:      initialBill.ID,
 			Attributes:  swapAttrBytes,

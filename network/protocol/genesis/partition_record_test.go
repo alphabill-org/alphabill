@@ -13,7 +13,7 @@ import (
 var systemDescription = &types.PartitionDescriptionRecord{
 	Version:             1,
 	NetworkIdentifier:   5,
-	PartitionIdentifier: 1,
+	PartitionID: 1,
 	TypeIdLen:           8,
 	UnitIdLen:           256,
 	T2Timeout:           time.Second,
@@ -59,7 +59,7 @@ func TestPartitionRecord_IsValid(t *testing.T) {
 				SystemDescriptionRecord: &types.PartitionDescriptionRecord{
 					Version:             1,
 					NetworkIdentifier:   5,
-					PartitionIdentifier: 2,
+					PartitionID: 2,
 					TypeIdLen:           8,
 					UnitIdLen:           256,
 					T2Timeout:           time.Second,

@@ -27,7 +27,7 @@ func TestNewGenesisPartitionNode_NotOk(t *testing.T) {
 	validPDR := types.PartitionDescriptionRecord{
 		Version:             1,
 		NetworkIdentifier:   5,
-		PartitionIdentifier: 1,
+		PartitionID: 1,
 		TypeIdLen:           8,
 		UnitIdLen:           128,
 		T2Timeout:           5 * time.Second,
@@ -95,7 +95,7 @@ func TestNewGenesisPartitionNode_NotOk(t *testing.T) {
 	// invalid partition identifier
 	got, err := NewNodeGenesis(
 		state.NewEmptyState(),
-		types.PartitionDescriptionRecord{Version: 1, NetworkIdentifier: 5, PartitionIdentifier: 0},
+		types.PartitionDescriptionRecord{Version: 1, NetworkIdentifier: 5, PartitionID: 0},
 		WithPeerID("1"),
 		WithSigningKey(signer),
 		WithEncryptionPubKey(pubKeyBytes),
@@ -109,7 +109,7 @@ func TestNewGenesisPartitionNode_Ok(t *testing.T) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	pubKey, err := verifier.MarshalPublicKey()
 	require.NoError(t, err)
-	pdr := types.PartitionDescriptionRecord{Version: 1, NetworkIdentifier: 5, PartitionIdentifier: 1, T2Timeout: 2500 * time.Millisecond}
+	pdr := types.PartitionDescriptionRecord{Version: 1, NetworkIdentifier: 5, PartitionID: 1, T2Timeout: 2500 * time.Millisecond}
 	authKey, err := verifier.MarshalPublicKey()
 	require.NoError(t, err)
 	pn := createPartitionNode(t, signer, authKey, pdr, nodeID)
@@ -117,7 +117,7 @@ func TestNewGenesisPartitionNode_Ok(t *testing.T) {
 	require.Equal(t, base58.Encode([]byte(nodeID)), pn.NodeIdentifier)
 	require.Equal(t, hex.Bytes(pubKey), pn.SigningPublicKey)
 	blockCertificationRequestRequest := pn.BlockCertificationRequest
-	require.Equal(t, pdr.PartitionIdentifier, blockCertificationRequestRequest.Partition)
+	require.Equal(t, pdr.PartitionID, blockCertificationRequestRequest.Partition)
 	require.NoError(t, blockCertificationRequestRequest.IsValid(verifier))
 
 	ir := blockCertificationRequestRequest.InputRecord

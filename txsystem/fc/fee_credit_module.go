@@ -21,11 +21,11 @@ const (
 var _ txtypes.FeeCreditModule = (*FeeCreditModule)(nil)
 
 var (
-	ErrNetworkIdentifierMissing        = errors.New("network identifier is missing")
-	ErrPartitionIdentifierMissing      = errors.New("partition identifier is missing")
-	ErrMoneyPartitionIdentifierMissing = errors.New("money transaction partition identifier is missing")
-	ErrStateIsNil                      = errors.New("state is nil")
-	ErrTrustBaseIsNil                  = errors.New("trust base is nil")
+	ErrNetworkIdentifierMissing = errors.New("network identifier is missing")
+	ErrPartitionIDMissing       = errors.New("partition identifier is missing")
+	ErrMoneyPartitionIDMissing  = errors.New("money transaction partition identifier is missing")
+	ErrStateIsNil               = errors.New("state is nil")
+	ErrTrustBaseIsNil           = errors.New("trust base is nil")
 )
 
 type (
@@ -102,10 +102,10 @@ func (f *FeeCreditModule) IsValid() error {
 		return ErrNetworkIdentifierMissing
 	}
 	if f.partitionID == 0 {
-		return ErrPartitionIdentifierMissing
+		return ErrPartitionIDMissing
 	}
 	if f.moneyPartitionID == 0 {
-		return ErrMoneyPartitionIdentifierMissing
+		return ErrMoneyPartitionIDMissing
 	}
 	if f.state == nil {
 		return ErrStateIsNil

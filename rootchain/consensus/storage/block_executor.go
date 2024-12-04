@@ -161,7 +161,7 @@ func NewGenesisBlock(hash crypto.Hash, pg []*genesis.GenesisPartitionRecord) (*E
 	var inputData []*InputData
 	for _, partition := range pg {
 		pdr := partition.PartitionDescription
-		partitionID := pdr.PartitionIdentifier
+		partitionID := pdr.PartitionID
 		shardID := partition.Certificate.ShardTreeCertificate.Shard
 
 		if len(pdr.Shards) > 0 {

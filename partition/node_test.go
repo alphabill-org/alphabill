@@ -226,7 +226,7 @@ func TestNode_SubsequentEmptyBlocksNotPersisted(t *testing.T) {
 func TestNode_InvalidCertificateResponse(t *testing.T) {
 	tp := runSingleValidatorNodePartition(t, &testtxsystem.CounterTxSystem{})
 	cr := &certification.CertificationResponse{
-		Partition: tp.nodeConf.GetPartitionIdentifier(),
+		Partition: tp.nodeConf.GetPartitionID(),
 		Shard:     tp.nodeConf.shardID,
 	}
 	tp.mockNet.Receive(cr)
@@ -249,7 +249,7 @@ func TestNode_HandleStaleCertificationResponse(t *testing.T) {
 
 func TestNode_StartNodeBehindRootchain_OK(t *testing.T) {
 	tp := runSingleValidatorNodePartition(t, &testtxsystem.CounterTxSystem{})
-	luc, found := tp.certs[tp.nodeConf.GetPartitionIdentifier()]
+	luc, found := tp.certs[tp.nodeConf.GetPartitionID()]
 	require.True(t, found)
 	// Mock and skip some root rounds
 	tp.eh.Reset()
@@ -532,7 +532,7 @@ func TestBlockProposal_HandleOldBlockProposal(t *testing.T) {
 
 	tp.SubmitBlockProposal(&blockproposal.BlockProposal{
 		NodeIdentifier:     tp.nodeDeps.peerConf.ID,
-		Partition:          tp.nodeConf.GetPartitionIdentifier(),
+		Partition:          tp.nodeConf.GetPartitionID(),
 		UnicityCertificate: uc,
 	})
 

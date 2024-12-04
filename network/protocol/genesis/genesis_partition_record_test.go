@@ -25,7 +25,7 @@ func TestGenesisPartitionRecord_IsValid(t *testing.T) {
 	validPDR := &types.PartitionDescriptionRecord{
 		Version:             1,
 		NetworkIdentifier:   5,
-		PartitionIdentifier: 1,
+		PartitionID: 1,
 		TypeIdLen:           8,
 		UnitIdLen:           256,
 		T2Timeout:           1 * time.Second,

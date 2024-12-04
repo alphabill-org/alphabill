@@ -57,7 +57,7 @@ func TestEVMPartition_DeployAndCallContract(t *testing.T) {
 	pdr := types.PartitionDescriptionRecord{
 		Version:             1,
 		NetworkIdentifier:   networkIdentifier,
-		PartitionIdentifier: 0x00000402,
+		PartitionID: 0x00000402,
 		TypeIdLen:           8,
 		UnitIdLen:           256,
 		T2Timeout:           2000 * time.Millisecond,
@@ -70,7 +70,7 @@ func TestEVMPartition_DeployAndCallContract(t *testing.T) {
 		genesisState = genesisState.Clone()
 		system, err := NewEVMTxSystem(
 			pdr.NetworkIdentifier,
-			pdr.PartitionIdentifier,
+			pdr.PartitionID,
 			observability.Default(t),
 			WithBlockDB(blockDB),
 			WithState(genesisState),

@@ -60,7 +60,7 @@ func TestNewExecutedBlockFromGenesis(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, b.HashAlgo, crypto.SHA256)
 	data := b.CurrentIR.Find(partitionID1)
-	require.Equal(t, rootGenesis.Partitions[0].PartitionDescription.PartitionIdentifier, data.Partition)
+	require.Equal(t, rootGenesis.Partitions[0].PartitionDescription.PartitionID, data.Partition)
 	require.Equal(t, rootGenesis.Partitions[0].Certificate.InputRecord, data.IR)
 	require.Equal(t, rootGenesis.Partitions[0].Certificate.UnicityTreeCertificate.PDRHash, data.PDRHash)
 	require.Empty(t, b.Changed)

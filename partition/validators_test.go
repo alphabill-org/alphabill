@@ -18,7 +18,7 @@ import (
 var systemDescription = &types.PartitionDescriptionRecord{
 	Version:             1,
 	NetworkIdentifier:   5,
-	PartitionIdentifier: 1,
+	PartitionID: 1,
 	TypeIdLen:           8,
 	UnitIdLen:           256,
 	T2Timeout:           2500 * time.Millisecond,
@@ -204,35 +204,35 @@ func TestDefaultTxValidator_ValidateNotOk(t *testing.T) {
 		name                        string
 		tx                          *types.TransactionOrder
 		latestBlockNumber           uint64
-		expectedPartitionIdentifier types.PartitionID
+		expectedPartitionID types.PartitionID
 		errStr                      string
 	}{
 		{
 			name:                        "tx is nil",
 			tx:                          nil,
 			latestBlockNumber:           10,
-			expectedPartitionIdentifier: 0x01020304,
+			expectedPartitionID: 0x01020304,
 			errStr:                      "transaction is nil",
 		},
 		{
 			name:                        "invalid partition identifier",
 			tx:                          testtransaction.NewTransactionOrder(t), // default partitionID is 0x00000001
 			latestBlockNumber:           10,
-			expectedPartitionIdentifier: 0x01020304,
+			expectedPartitionID: 0x01020304,
 			errStr:                      "expected 01020304, got 00000001: invalid transaction partition identifier",
 		},
 		{
 			name:                        "expired transaction",
 			tx:                          testtransaction.NewTransactionOrder(t), // default timeout is 10
 			latestBlockNumber:           11,
-			expectedPartitionIdentifier: 0x00000001,
+			expectedPartitionID: 0x00000001,
 			errStr:                      "transaction timeout round is 10, current round is 11: transaction has timed out",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dtv := &DefaultTxValidator{
-				partitionIdentifier: tt.expectedPartitionIdentifier,
+				partitionIdentifier: tt.expectedPartitionID,
 			}
 			err := dtv.Validate(tt.tx, tt.latestBlockNumber)
 			require.ErrorContains(t, err, tt.errStr)

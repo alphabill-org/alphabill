@@ -36,7 +36,7 @@ func (x *PartitionRecord) IsValid() error {
 	if len(x.Validators) == 0 {
 		return errValidatorsMissing
 	}
-	id := x.GetPartitionIdentifier()
+	id := x.GetPartitionID()
 	var irBytes []byte
 	var err error
 	for _, node := range x.Validators {
@@ -70,8 +70,8 @@ func (x *PartitionRecord) IsValid() error {
 	return nil
 }
 
-func (x *PartitionRecord) GetPartitionIdentifier() types.PartitionID {
-	return x.PartitionDescription.PartitionIdentifier
+func (x *PartitionRecord) GetPartitionID() types.PartitionID {
+	return x.PartitionDescription.PartitionID
 }
 
 func (x *PartitionRecord) GetPartitionNode(id string) *PartitionNode {

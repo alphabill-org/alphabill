@@ -368,14 +368,14 @@ func Test_BlockStore_ShardInfo(t *testing.T) {
 	bStore := initBlockStoreFromGenesis(t)
 	// the initBlockStoreFromGenesis fills the store from global var "pg"
 	for idx, partGenesis := range pg {
-		si, err := bStore.ShardInfo(partGenesis.PartitionDescription.PartitionIdentifier, types.ShardID{})
+		si, err := bStore.ShardInfo(partGenesis.PartitionDescription.PartitionID, types.ShardID{})
 		require.NoError(t, err)
 		require.NotNil(t, si)
 		require.Equal(t, partGenesis.Certificate.InputRecord.Epoch, si.LastCR.Technical.Epoch)
 		require.Equal(t, partGenesis.Certificate.InputRecord.RoundNumber+1, si.LastCR.Technical.Round)
 		require.EqualValues(t, partGenesis.Certificate.InputRecord.Hash, si.RootHash)
 		require.Equal(t, partGenesis.Certificate, &si.LastCR.UC, "genesis[%d]", idx)
-		require.Equal(t, partGenesis.PartitionDescription.PartitionIdentifier, si.LastCR.Partition)
+		require.Equal(t, partGenesis.PartitionDescription.PartitionID, si.LastCR.Partition)
 	}
 
 	// and an partition which shouldn't exist
@@ -387,7 +387,7 @@ func Test_BlockStore_ShardInfo(t *testing.T) {
 func Test_BlockStore_StateRoundtrip(t *testing.T) {
 	storeA := initBlockStoreFromGenesis(t)
 	// modify Fees to see will these be restored correctly
-	si, err := storeA.ShardInfo(pg[0].PartitionDescription.PartitionIdentifier, types.ShardID{})
+	si, err := storeA.ShardInfo(pg[0].PartitionDescription.PartitionID, types.ShardID{})
 	require.NoError(t, err)
 	si.Fees[si.nodeIDs[0]] = 10
 
@@ -414,11 +414,11 @@ func Test_BlockStore_StateRoundtrip(t *testing.T) {
 	}
 	require.Equal(t, storeA.blockTree.highQc, storeB.blockTree.highQc)
 	for _, partGenesis := range pg {
-		siA, err := storeA.ShardInfo(partGenesis.PartitionDescription.PartitionIdentifier, types.ShardID{})
+		siA, err := storeA.ShardInfo(partGenesis.PartitionDescription.PartitionID, types.ShardID{})
 		require.NoError(t, err)
 		require.NotNil(t, siA)
 		require.NoError(t, siA.IsValid())
-		siB, err := storeB.ShardInfo(partGenesis.PartitionDescription.PartitionIdentifier, types.ShardID{})
+		siB, err := storeB.ShardInfo(partGenesis.PartitionDescription.PartitionID, types.ShardID{})
 		require.NoError(t, err)
 		require.NotNil(t, siB)
 		require.NoError(t, siB.IsValid())
@@ -446,13 +446,13 @@ func Test_BlockStore_persistance(t *testing.T) {
 	require.NoError(t, err)
 
 	for idx, partGenesis := range pg {
-		si, err := storeB.ShardInfo(partGenesis.PartitionDescription.PartitionIdentifier, types.ShardID{})
+		si, err := storeB.ShardInfo(partGenesis.PartitionDescription.PartitionID, types.ShardID{})
 		require.NoError(t, err)
 		require.NotNil(t, si)
 		require.Equal(t, partGenesis.Certificate.InputRecord.Epoch, si.LastCR.Technical.Epoch)
 		require.Equal(t, partGenesis.Certificate.InputRecord.RoundNumber+1, si.LastCR.Technical.Round)
 		require.EqualValues(t, partGenesis.Certificate.InputRecord.Hash, si.RootHash)
 		require.Equal(t, partGenesis.Certificate, &si.LastCR.UC, "genesis[%d]", idx)
-		require.Equal(t, partGenesis.PartitionDescription.PartitionIdentifier, si.LastCR.Partition)
+		require.Equal(t, partGenesis.PartitionDescription.PartitionID, si.LastCR.Partition)
 	}
 }

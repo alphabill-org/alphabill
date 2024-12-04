@@ -35,7 +35,7 @@ func TestInitPartitionAndDefineNFT_Ok(t *testing.T) {
 	pdr := types.PartitionDescriptionRecord{
 		Version:             1,
 		NetworkIdentifier:   5,
-		PartitionIdentifier: tokens.DefaultPartitionID,
+		PartitionID: tokens.DefaultPartitionID,
 		TypeIdLen:           8,
 		UnitIdLen:           256,
 		T2Timeout:           2000 * time.Millisecond,
@@ -54,7 +54,7 @@ func TestInitPartitionAndDefineNFT_Ok(t *testing.T) {
 
 	tx := testtransaction.NewTransactionOrder(t,
 		testtransaction.WithTransactionType(tokens.TransactionTypeDefineNFT),
-		testtransaction.WithPartitionID(pdr.PartitionIdentifier),
+		testtransaction.WithPartitionID(pdr.PartitionID),
 		testtransaction.WithUnitID(tokens.NewNonFungibleTokenTypeID(nil, []byte{1})),
 		testtransaction.WithAuthProof(&tokens.DefineNonFungibleTokenAuthProof{}),
 		testtransaction.WithAttributes(&tokens.DefineNonFungibleTokenAttributes{
@@ -87,7 +87,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	pdr := types.PartitionDescriptionRecord{
 		Version:             1,
 		NetworkIdentifier:   5,
-		PartitionIdentifier: tokens.DefaultPartitionID,
+		PartitionID: tokens.DefaultPartitionID,
 		TypeIdLen:           8,
 		UnitIdLen:           256,
 		T2Timeout:           2000 * time.Millisecond,

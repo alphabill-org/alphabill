@@ -93,7 +93,7 @@ func runOrchestrationNode(ctx context.Context, cfg *orchestrationConfiguration) 
 		return fmt.Errorf("failed to calculate nodeID: %w", err)
 	}
 
-	log := cfg.Base.observe.Logger().With(logger.NodeID(nodeID), logger.Shard(pg.PartitionDescription.PartitionIdentifier, types.ShardID{}))
+	log := cfg.Base.observe.Logger().With(logger.NodeID(nodeID), logger.Shard(pg.PartitionDescription.PartitionID, types.ShardID{}))
 	obs := observability.WithLogger(cfg.Base.observe, log)
 
 	blockStore, err := initStore(cfg.Node.DbFile)

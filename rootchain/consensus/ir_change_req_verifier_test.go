@@ -67,7 +67,7 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 	pdr := &types.PartitionDescriptionRecord{
 		Version:             1,
 		NetworkIdentifier:   5,
-		PartitionIdentifier: 1,
+		PartitionID: 1,
 		T2Timeout:           2000 * time.Millisecond,
 	}
 	genesisPartitions := []*genesis.GenesisPartitionRecord{
@@ -279,7 +279,7 @@ func TestNewIRChangeReqVerifier(t *testing.T) {
 			PartitionDescription: &types.PartitionDescriptionRecord{
 				Version:             1,
 				NetworkIdentifier:   5,
-				PartitionIdentifier: 1,
+				PartitionID: 1,
 				T2Timeout:           2600 * time.Millisecond,
 			},
 			Nodes: []*genesis.PartitionNode{
@@ -328,7 +328,7 @@ func TestNewLucBasedT2TimeoutGenerator(t *testing.T) {
 			PartitionDescription: &types.PartitionDescriptionRecord{
 				Version:             1,
 				NetworkIdentifier:   5,
-				PartitionIdentifier: 1,
+				PartitionID: 1,
 				T2Timeout:           2600 * time.Millisecond,
 			},
 			Nodes: []*genesis.PartitionNode{
@@ -381,7 +381,7 @@ func TestPartitionTimeoutGenerator_GetT2Timeouts(t *testing.T) {
 			PartitionDescription: &types.PartitionDescriptionRecord{
 				Version:             1,
 				NetworkIdentifier:   5,
-				PartitionIdentifier: sysID1,
+				PartitionID: sysID1,
 				T2Timeout:           2500 * time.Millisecond,
 			},
 			Nodes: []*genesis.PartitionNode{

@@ -116,12 +116,12 @@ func Test_MoneyGenesis(t *testing.T) {
 	t.Run("ParamsCanBeChanged", func(t *testing.T) {
 		homeDir := t.TempDir()
 		pdr := &types.PartitionDescriptionRecord{
-			Version:             1,
-			NetworkIdentifier:   5,
-			PartitionIdentifier: moneysdk.DefaultPartitionID,
-			TypeIdLen:           4,
-			UnitIdLen:           300,
-			T2Timeout:           10 * time.Second,
+			Version:           1,
+			NetworkIdentifier: 5,
+			PartitionID:       moneysdk.DefaultPartitionID,
+			TypeIdLen:         4,
+			UnitIdLen:         300,
+			T2Timeout:         10 * time.Second,
 			FeeCreditBill: &types.FeeCreditBill{
 				UnitID:         moneysdk.NewBillID(nil, []byte{2}),
 				OwnerPredicate: templates.AlwaysFalseBytes(),
@@ -160,7 +160,7 @@ func Test_MoneyGenesis(t *testing.T) {
 		pdr := &types.PartitionDescriptionRecord{
 			Version:             1,
 			NetworkIdentifier:   5,
-			PartitionIdentifier: moneysdk.DefaultPartitionID,
+			PartitionID: moneysdk.DefaultPartitionID,
 			T2Timeout:           10 * time.Second,
 			FeeCreditBill: &types.FeeCreditBill{
 				UnitID:         defaultInitialBillID,
@@ -184,7 +184,7 @@ func Test_MoneyGenesis(t *testing.T) {
 		pdr := &types.PartitionDescriptionRecord{
 			Version:             1,
 			NetworkIdentifier:   5,
-			PartitionIdentifier: moneysdk.DefaultPartitionID,
+			PartitionID: moneysdk.DefaultPartitionID,
 			T2Timeout:           10 * time.Second,
 			FeeCreditBill: &types.FeeCreditBill{
 				UnitID:         money.DustCollectorMoneySupplyID,
@@ -208,7 +208,7 @@ func Test_MoneyGenesis(t *testing.T) {
 		pdr := types.PartitionDescriptionRecord{
 			Version:             1,
 			NetworkIdentifier:   5,
-			PartitionIdentifier: 55,
+			PartitionID: 55,
 			TypeIdLen:           4,
 			UnitIdLen:           300,
 			T2Timeout:           10 * time.Second,
@@ -228,7 +228,7 @@ func Test_MoneyGenesis(t *testing.T) {
 		pn, err := util.ReadJsonFile(nodeGenesisFile, &genesis.PartitionNode{Version: 1})
 		require.NoError(t, err)
 		require.EqualValues(t, pdr, pn.PartitionDescriptionRecord)
-		require.EqualValues(t, pdr.PartitionIdentifier, pn.BlockCertificationRequest.Partition)
+		require.EqualValues(t, pdr.PartitionID, pn.BlockCertificationRequest.Partition)
 	})
 }
 
@@ -246,7 +246,7 @@ func Test_moneyGenesisConfig_getSDRFiles(t *testing.T) {
 		sdrs, err := cfg.getPDRs()
 		require.NoError(t, err)
 		require.Len(t, sdrs, 1)
-		require.EqualValues(t, 1234567890, sdrs[0].PartitionIdentifier)
+		require.EqualValues(t, 1234567890, sdrs[0].PartitionID)
 	})
 
 	t.Run("defaultMoneySDR", func(t *testing.T) {
@@ -270,7 +270,7 @@ func Test_moneyGenesisConfig_getSDRFiles(t *testing.T) {
 }
 
 func createPDRFile(dir string, pdr *types.PartitionDescriptionRecord) (string, error) {
-	filePath := filepath.Join(dir, fmt.Sprintf("pdr-%d.json", pdr.PartitionIdentifier))
+	filePath := filepath.Join(dir, fmt.Sprintf("pdr-%d.json", pdr.PartitionID))
 	if err := util.WriteJsonFile(filePath, pdr); err != nil {
 		return "", err
 	}

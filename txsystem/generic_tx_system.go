@@ -350,8 +350,8 @@ func (m *GenericTxSystem) validateGenericTransaction(tx *types.TransactionOrder)
 	}
 
 	// T.β = S.β – transaction is sent to this partition
-	if m.pdr.PartitionIdentifier != tx.PartitionID {
-		return ErrInvalidPartitionIdentifier
+	if m.pdr.PartitionID != tx.PartitionID {
+		return ErrInvalidPartitionID
 	}
 
 	// fSH(T.ι) = S.σ – target unit is in this shard

@@ -11,7 +11,7 @@ import (
 const (
 	Ok Status = iota
 	InvalidRequestParameters
-	UnknownPartitionIdentifier
+	UnknownPartitionID
 	BlocksNotFound
 	Unknown
 )
@@ -20,18 +20,18 @@ var (
 	ErrLedgerReplicationRespIsNil = errors.New("ledger replication response is nil")
 	ErrLedgerResponseBlocksIsNil  = errors.New("ledger response blocks is nil")
 	ErrLedgerReplicationReqIsNil  = errors.New("ledger replication requests is nil")
-	ErrInvalidPartitionIdentifier = errors.New("invalid partition identifier")
+	ErrInvalidPartitionID         = errors.New("invalid partition identifier")
 	ErrNodeIdentifierIsMissing    = errors.New("node identifier is missing")
 )
 
 type (
 	LedgerReplicationRequest struct {
-		_                   struct{} `cbor:",toarray"`
-		UUID                uuid.UUID
-		PartitionIdentifier types.PartitionID
-		NodeIdentifier      string
-		BeginBlockNumber    uint64
-		EndBlockNumber      uint64
+		_                struct{} `cbor:",toarray"`
+		UUID             uuid.UUID
+		PartitionID      types.PartitionID
+		NodeIdentifier   string
+		BeginBlockNumber uint64
+		EndBlockNumber   uint64
 	}
 
 	LedgerReplicationResponse struct {
@@ -88,8 +88,8 @@ func (r *LedgerReplicationRequest) IsValid() error {
 	if r == nil {
 		return ErrLedgerReplicationReqIsNil
 	}
-	if r.PartitionIdentifier == 0 {
-		return ErrInvalidPartitionIdentifier
+	if r.PartitionID == 0 {
+		return ErrInvalidPartitionID
 	}
 	if r.NodeIdentifier == "" {
 		return ErrNodeIdentifierIsMissing
@@ -108,7 +108,7 @@ func (s Status) String() string {
 		return "Blocks Not Found"
 	case InvalidRequestParameters:
 		return "Invalid Request Parameters"
-	case UnknownPartitionIdentifier:
+	case UnknownPartitionID:
 		return "Unknown Partition Identifier"
 	case Unknown:
 		return "Unknown"

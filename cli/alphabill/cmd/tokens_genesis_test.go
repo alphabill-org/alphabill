@@ -22,7 +22,7 @@ func Test_TokensGenesis(t *testing.T) {
 	pdr := types.PartitionDescriptionRecord{
 		Version:             1,
 		NetworkIdentifier:   5,
-		PartitionIdentifier: 2,
+		PartitionID: 2,
 		TypeIdLen:           8,
 		UnitIdLen:           256,
 		T2Timeout:           3 * time.Second,

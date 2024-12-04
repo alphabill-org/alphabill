@@ -7,9 +7,9 @@ import (
 )
 
 var (
-	ErrHandshakeIsNil             = errors.New("handshake is nil")
-	ErrInvalidPartitionIdentifier = errors.New("invalid partition identifier")
-	ErrMissingNodeIdentifier      = errors.New("missing node identifier")
+	ErrHandshakeIsNil        = errors.New("handshake is nil")
+	ErrInvalidPartitionID    = errors.New("invalid partition identifier")
+	ErrMissingNodeIdentifier = errors.New("missing node identifier")
 )
 
 type Handshake struct {
@@ -24,7 +24,7 @@ func (h *Handshake) IsValid() error {
 		return ErrHandshakeIsNil
 	}
 	if h.Partition == 0 {
-		return ErrInvalidPartitionIdentifier
+		return ErrInvalidPartitionID
 	}
 	if len(h.NodeIdentifier) == 0 {
 		return ErrMissingNodeIdentifier

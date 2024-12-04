@@ -134,7 +134,7 @@ func (o *Orchestration) PartitionDescription(partitionID types.PartitionID, epoc
 	// TODO: dynamic/multi shard support - currently all epochs of the partition share the same PDR
 	// as we do not support "shard splitting"
 	for _, pg := range o.pdrs {
-		if pg.PartitionIdentifier == partitionID {
+		if pg.PartitionID == partitionID {
 			return pg, nil
 		}
 	}

@@ -13,12 +13,12 @@ import (
 )
 
 var (
-	ErrBlockProposalIsNil         = errors.New("block proposal is nil")
-	ErrTrustBaseIsNil             = errors.New("trust base is nil")
-	ErrSignerIsNil                = errors.New("signer is nil")
-	ErrNodeVerifierIsNil          = errors.New("node signature verifier is nil")
-	ErrInvalidPartitionIdentifier = errors.New("invalid partition identifier")
-	errBlockProposerIDMissing     = errors.New("block proposer id is missing")
+	ErrBlockProposalIsNil     = errors.New("block proposal is nil")
+	ErrTrustBaseIsNil         = errors.New("trust base is nil")
+	ErrSignerIsNil            = errors.New("signer is nil")
+	ErrNodeVerifierIsNil      = errors.New("node signature verifier is nil")
+	ErrInvalidPartitionID     = errors.New("invalid partition identifier")
+	errBlockProposerIDMissing = errors.New("block proposer id is missing")
 )
 
 type BlockProposal struct {
@@ -46,7 +46,7 @@ func (x *BlockProposal) IsValid(nodeSignatureVerifier crypto.Verifier, tb types.
 		return ErrTrustBaseIsNil
 	}
 	if partitionIdentifier != x.Partition {
-		return fmt.Errorf("%w, expected %s, got %s", ErrInvalidPartitionIdentifier, partitionIdentifier, x.Partition)
+		return fmt.Errorf("%w, expected %s, got %s", ErrInvalidPartitionID, partitionIdentifier, x.Partition)
 	}
 	if err := x.UnicityCertificate.Verify(tb, algorithm, partitionIdentifier, systemDescriptionHash); err != nil {
 		return err

@@ -37,7 +37,7 @@ func NewVARFromGenesis(gpr *genesis.GenesisPartitionRecord) *ValidatorAssignment
 	uc := gpr.Certificate
 	return &ValidatorAssignmentRecord{
 		NetworkID:   pdr.NetworkIdentifier,
-		PartitionID: pdr.PartitionIdentifier,
+		PartitionID: pdr.PartitionID,
 		ShardID:     uc.ShardTreeCertificate.Shard,
 		EpochNumber: uc.InputRecord.Epoch,
 		RoundNumber: uc.InputRecord.RoundNumber,

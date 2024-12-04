@@ -62,7 +62,7 @@ func Test_BlockCertificationRequest_IsValid(t *testing.T) {
 	t.Run("invalid partition ID", func(t *testing.T) {
 		bcr := validBCR(t)
 		bcr.Partition = 0
-		require.ErrorIs(t, bcr.IsValid(verifier), errInvalidPartitionIdentifier)
+		require.ErrorIs(t, bcr.IsValid(verifier), errInvalidPartitionID)
 	})
 
 	t.Run("invalid node ID", func(t *testing.T) {

@@ -218,7 +218,7 @@ func Test_ShardInfo_nextRound(t *testing.T) {
 	pubKey := []byte{0x3, 0x24, 0x8b, 0x61, 0x68, 0x51, 0xac, 0x6e, 0x43, 0x7e, 0xc2, 0x4e, 0xcc, 0x21, 0x9e, 0x5b, 0x42, 0x43, 0xdf, 0xa5, 0xdb, 0xdb, 0x8, 0xce, 0xa6, 0x48, 0x3a, 0xc9, 0xe0, 0xdc, 0x6b, 0x55, 0xcd}
 	signer, _ := testsig.CreateSignerAndVerifier(t)
 	pdr := types.PartitionDescriptionRecord{
-		PartitionIdentifier: 8,
+		PartitionID: 8,
 	}
 	irEpoch1 := types.InputRecord{
 		RoundNumber: 100,
@@ -245,7 +245,7 @@ func Test_ShardInfo_nextRound(t *testing.T) {
 				MaxStateSize: 6,
 			},
 			LastCR: &certification.CertificationResponse{
-				Partition: pdr.PartitionIdentifier,
+				Partition: pdr.PartitionID,
 				UC:        *ucE1,
 			},
 			nodeIDs: []string{"A", "B", "C"},
@@ -348,7 +348,7 @@ func Test_ShardInfo_NextEpoch(t *testing.T) {
 		Epoch:       2,
 		Hash:        []byte{1, 2, 3, 4, 5, 6, 7, 8},
 	}
-	pdr := types.PartitionDescriptionRecord{PartitionIdentifier: 7}
+	pdr := types.PartitionDescriptionRecord{PartitionID: 7}
 	varEpoch2 := &partitions.ValidatorAssignmentRecord{
 		NetworkID:   0,
 		PartitionID: 7,
@@ -390,7 +390,7 @@ func Test_ShardInfo_NextEpoch(t *testing.T) {
 			MaxStateSize: 6,
 		},
 		LastCR: &certification.CertificationResponse{
-			Partition: pdr.PartitionIdentifier,
+			Partition: pdr.PartitionID,
 			UC:        *ucE1,
 		},
 		nodeIDs: []string{"A", "B", "C"},
@@ -484,7 +484,7 @@ func Test_NewShardInfoFromGenesis(t *testing.T) {
 		Epoch:       1,
 		Hash:        []byte{1, 2, 3, 4, 5, 6, 7, 8},
 	}
-	pdr := &types.PartitionDescriptionRecord{PartitionIdentifier: 7}
+	pdr := &types.PartitionDescriptionRecord{PartitionID: 7}
 	zH := make([]byte, 32)
 	nodeID, authKey := testutils.RandomNodeID(t)
 	pgEpoch1 := &genesis.GenesisPartitionRecord{

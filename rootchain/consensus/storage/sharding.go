@@ -103,7 +103,7 @@ func NewShardInfoFromGenesis(pg *genesis.GenesisPartitionRecord) (*ShardInfo, er
 		RootHash:      pg.Certificate.InputRecord.Hash,
 		PrevEpochFees: types.RawCBOR{0xA0}, // CBOR map(0)
 		LastCR: &certification.CertificationResponse{
-			Partition: pg.PartitionDescription.PartitionIdentifier,
+			Partition: pg.PartitionDescription.PartitionID,
 			Shard:     types.ShardID{},
 			UC:        *pg.Certificate,
 		},

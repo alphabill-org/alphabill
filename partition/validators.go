@@ -53,7 +53,7 @@ type (
 )
 
 var ErrTxTimeout = errors.New("transaction has timed out")
-var errInvalidPartitionIdentifier = errors.New("invalid transaction partition identifier")
+var errInvalidPartitionID = errors.New("invalid transaction partition identifier")
 
 // NewDefaultTxValidator creates a new instance of default TxValidator.
 func NewDefaultTxValidator(partitionIdentifier types.PartitionID) (TxValidator, error) {
@@ -71,7 +71,7 @@ func (dtv *DefaultTxValidator) Validate(tx *types.TransactionOrder, currentRound
 	}
 	if dtv.partitionIdentifier != tx.PartitionID {
 		// transaction was not sent to correct transaction system
-		return fmt.Errorf("expected %s, got %s: %w", dtv.partitionIdentifier, tx.PartitionID, errInvalidPartitionIdentifier)
+		return fmt.Errorf("expected %s, got %s: %w", dtv.partitionIdentifier, tx.PartitionID, errInvalidPartitionID)
 	}
 
 	if tx.Timeout() < currentRoundNumber {
@@ -103,7 +103,7 @@ func NewDefaultUnicityCertificateValidator(
 		return nil, fmt.Errorf("failed to hash partition description: %w", err)
 	}
 	return &DefaultUnicityCertificateValidator{
-		partitionIdentifier:   partitionDescription.PartitionIdentifier,
+		partitionIdentifier:   partitionDescription.PartitionID,
 		rootTrustBase:         trustBase,
 		systemDescriptionHash: h,
 		algorithm:             algorithm,
@@ -131,7 +131,7 @@ func NewDefaultBlockProposalValidator(
 		return nil, fmt.Errorf("failed to hash partition description: %w", err)
 	}
 	return &DefaultBlockProposalValidator{
-		partitionIdentifier:   partitionDescription.PartitionIdentifier,
+		partitionIdentifier:   partitionDescription.PartitionID,
 		rootTrustBase:         rootTrust,
 		systemDescriptionHash: h,
 		algorithm:             algorithm,

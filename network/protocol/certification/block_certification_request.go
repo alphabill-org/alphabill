@@ -11,7 +11,7 @@ import (
 
 var (
 	ErrBlockCertificationRequestIsNil = errors.New("block certification request is nil")
-	errInvalidPartitionIdentifier     = errors.New("invalid partition identifier")
+	errInvalidPartitionID             = errors.New("invalid partition identifier")
 	errVerifierIsNil                  = errors.New("verifier is nil")
 	errEmptyNodeIdentifier            = errors.New("node identifier is empty")
 )
@@ -49,7 +49,7 @@ func (x *BlockCertificationRequest) IsValid(v crypto.Verifier) error {
 		return errVerifierIsNil
 	}
 	if x.Partition == 0 {
-		return errInvalidPartitionIdentifier
+		return errInvalidPartitionID
 	}
 	if x.NodeIdentifier == "" {
 		return errEmptyNodeIdentifier

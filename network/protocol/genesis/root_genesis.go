@@ -33,14 +33,14 @@ type PartitionDescriptionRecordGetter interface {
 	GetPartitionDescriptionRecord() *types.PartitionDescriptionRecord
 }
 
-func CheckPartitionPartitionIdentifiersUnique[T PartitionDescriptionRecordGetter](records []T) error {
+func CheckPartitionPartitionIDsUnique[T PartitionDescriptionRecordGetter](records []T) error {
 	ids := make(map[types.PartitionID]struct{}, len(records))
 	for _, rec := range records {
 		record := rec.GetPartitionDescriptionRecord()
-		if _, f := ids[record.PartitionIdentifier]; f {
-			return fmt.Errorf("duplicated partition identifier: %s", record.PartitionIdentifier)
+		if _, f := ids[record.PartitionID]; f {
+			return fmt.Errorf("duplicated partition identifier: %s", record.PartitionID)
 		}
-		ids[record.PartitionIdentifier] = struct{}{}
+		ids[record.PartitionID] = struct{}{}
 	}
 	return nil
 }
@@ -64,7 +64,7 @@ func (x *RootGenesis) IsValid() error {
 		return ErrPartitionsNotFound
 	}
 	// Check that all partition id's are unique
-	if err := CheckPartitionPartitionIdentifiersUnique(x.Partitions); err != nil {
+	if err := CheckPartitionPartitionIDsUnique(x.Partitions); err != nil {
 		return fmt.Errorf("root genesis duplicate partition record error: %w", err)
 	}
 
@@ -99,7 +99,7 @@ func (x *RootGenesis) Verify() error {
 		return ErrPartitionsNotFound
 	}
 	// Check that all partition id's are unique
-	if err := CheckPartitionPartitionIdentifiersUnique(x.Partitions); err != nil {
+	if err := CheckPartitionPartitionIDsUnique(x.Partitions); err != nil {
 		return fmt.Errorf("root genesis duplicate partition error: %w", err)
 	}
 	// Check all signatures on Partition UC Seals
@@ -116,7 +116,7 @@ func (x *RootGenesis) Verify() error {
 		// make sure all root validators have signed the UC Seal
 		if len(p.Certificate.UnicitySeal.Signatures) != len(x.Root.RootValidators) {
 			return fmt.Errorf("partition %X UC Seal is not signed by all root nodes",
-				p.PartitionDescription.PartitionIdentifier)
+				p.PartitionDescription.PartitionID)
 		}
 	}
 	return nil
@@ -199,7 +199,7 @@ func (x *RootGenesis) UnmarshalCBOR(data []byte) error {
 
 func (x *RootGenesis) GetPartitionGenesis(partitionID types.PartitionID) (*GenesisPartitionRecord, error) {
 	for _, pg := range x.Partitions {
-		if pg.PartitionDescription.PartitionIdentifier == partitionID {
+		if pg.PartitionDescription.PartitionID == partitionID {
 			return pg, nil
 		}
 	}

@@ -23,13 +23,13 @@ func TestNewFeeCreditModule(t *testing.T) {
 	t.Run("missing network id", func(t *testing.T) {
 		m, err := NewFeeCreditModule(0, partitionID, stateTree, feeCreditRecordUnitType, adminOwnerPredicate)
 		require.Nil(t, m)
-		require.ErrorIs(t, err, ErrMissingPartitionIdentifier)
+		require.ErrorIs(t, err, ErrMissingPartitionID)
 	})
 
 	t.Run("missing partition id", func(t *testing.T) {
 		m, err := NewFeeCreditModule(networkID, 0, stateTree, feeCreditRecordUnitType, adminOwnerPredicate)
 		require.Nil(t, m)
-		require.ErrorIs(t, err, ErrMissingPartitionIdentifier)
+		require.ErrorIs(t, err, ErrMissingPartitionID)
 	})
 
 	t.Run("state is nil", func(t *testing.T) {

@@ -52,8 +52,8 @@ type MockConsensusManager struct {
 func NewMockConsensus(rg *genesis.RootGenesis) (*MockConsensusManager, error) {
 	var c = make(map[types.PartitionID]*certification.CertificationResponse)
 	for _, partition := range rg.Partitions {
-		c[partition.PartitionDescription.GetPartitionIdentifier()] = &certification.CertificationResponse{
-			Partition: partition.PartitionDescription.GetPartitionIdentifier(),
+		c[partition.PartitionDescription.GetPartitionID()] = &certification.CertificationResponse{
+			Partition: partition.PartitionDescription.GetPartitionID(),
 			UC:        *partition.Certificate,
 		}
 	}
@@ -64,7 +64,7 @@ func NewMockConsensus(rg *genesis.RootGenesis) (*MockConsensusManager, error) {
 		if err != nil {
 			return nil, fmt.Errorf("creating shard info: %w", err)
 		}
-		shardInfo[partition.PartitionDescription.PartitionIdentifier] = si
+		shardInfo[partition.PartitionDescription.PartitionID] = si
 	}
 
 	return &MockConsensusManager{
@@ -489,7 +489,7 @@ func TestRootValidatorTest_SimulateResponse(t *testing.T) {
 			FeeHash:  []byte{2},
 		}))
 	// simulate 2x subscriptions
-	id32 := rg.Partitions[0].PartitionDescription.PartitionIdentifier
+	id32 := rg.Partitions[0].PartitionDescription.PartitionID
 	rootValidator.subscription.Subscribe(id32, rg.Partitions[0].Nodes[0].NodeIdentifier)
 	rootValidator.subscription.Subscribe(id32, rg.Partitions[0].Nodes[1].NodeIdentifier)
 	// simulate response from consensus manager

@@ -33,7 +33,7 @@ var inputRecord1 = &types.InputRecord{
 var sdr1 = &types.PartitionDescriptionRecord{
 	Version:             1,
 	NetworkIdentifier:   5,
-	PartitionIdentifier: sysID1,
+	PartitionID: sysID1,
 	T2Timeout:           2500 * time.Millisecond,
 }
 var inputRecord2 = &types.InputRecord{
@@ -48,7 +48,7 @@ var inputRecord2 = &types.InputRecord{
 var sdr2 = &types.PartitionDescriptionRecord{
 	Version:             1,
 	NetworkIdentifier:   5,
-	PartitionIdentifier: sysID2,
+	PartitionID: sysID2,
 	T2Timeout:           2500 * time.Millisecond,
 }
 

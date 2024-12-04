@@ -46,7 +46,7 @@ func (m *Module) GenericTransactionValidator() genericTransactionValidator {
 			return fmt.Errorf("invalid network id: %d (expected %d)", ctx.Tx.NetworkID, ctx.NetworkID)
 		}
 		if ctx.Tx.PartitionID != ctx.PartitionID {
-			return txsystem.ErrInvalidPartitionIdentifier
+			return txsystem.ErrInvalidPartitionID
 		}
 		if ctx.BlockNumber >= ctx.Tx.Timeout() {
 			return txsystem.ErrTransactionExpired

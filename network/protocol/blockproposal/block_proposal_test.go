@@ -22,7 +22,7 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 	_, nodeVerifier := testsig.CreateSignerAndVerifier(t)
 	ucSigner, trustBase := testsig.CreateSignerAndVerifier(t)
 	type fields struct {
-		PartitionIdentifier types.PartitionID
+		PartitionID types.PartitionID
 		NodeIdentifier      peer.ID
 		UnicityCertificate  *types.UnicityCertificate
 		TechnicalRecord     certification.TechnicalRecord
@@ -37,7 +37,7 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 	}
 
 	pdr := &types.PartitionDescriptionRecord{
-		PartitionIdentifier: partitionIdentifier,
+		PartitionID: partitionIdentifier,
 	}
 	tr := certification.TechnicalRecord{
 		Round:    1,
@@ -56,7 +56,7 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 		{
 			name: "node signature verifier is nil",
 			fields: fields{
-				PartitionIdentifier: partitionIdentifier,
+				PartitionID: partitionIdentifier,
 				NodeIdentifier:      "1",
 				Transactions:        []*types.TransactionRecord{},
 			},
@@ -72,7 +72,7 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 		{
 			name: "uc trust base verifier is nil",
 			fields: fields{
-				PartitionIdentifier: partitionIdentifier,
+				PartitionID: partitionIdentifier,
 				NodeIdentifier:      "1",
 				Transactions:        []*types.TransactionRecord{},
 			},
@@ -88,7 +88,7 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 		{
 			name: "invalid partition identifier",
 			fields: fields{
-				PartitionIdentifier: partitionIdentifier,
+				PartitionID: partitionIdentifier,
 				NodeIdentifier:      "1",
 				Transactions:        []*types.TransactionRecord{},
 			},
@@ -99,12 +99,12 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 				partitionIdentifier:   2,
 				systemDescriptionHash: test.RandomBytes(32),
 			},
-			wantErr: ErrInvalidPartitionIdentifier.Error(),
+			wantErr: ErrInvalidPartitionID.Error(),
 		},
 		{
 			name: "block proposer id is missing",
 			fields: fields{
-				PartitionIdentifier: partitionIdentifier,
+				PartitionID: partitionIdentifier,
 				Transactions:        []*types.TransactionRecord{},
 			},
 			args: args{
@@ -119,7 +119,7 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 		{
 			name: "uc is nil",
 			fields: fields{
-				PartitionIdentifier: partitionIdentifier,
+				PartitionID: partitionIdentifier,
 				NodeIdentifier:      "1",
 				UnicityCertificate:  nil,
 				Transactions:        []*types.TransactionRecord{},
@@ -136,7 +136,7 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 		{
 			name: "tr hash mismatch",
 			fields: fields{
-				PartitionIdentifier: partitionIdentifier,
+				PartitionID: partitionIdentifier,
 				NodeIdentifier:      "1",
 				UnicityCertificate: testcerts.CreateUnicityCertificate(
 					t, ucSigner, &types.InputRecord{
@@ -163,7 +163,7 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			bp := &BlockProposal{
-				Partition:          tt.fields.PartitionIdentifier,
+				Partition:          tt.fields.PartitionID,
 				NodeIdentifier:     tt.fields.NodeIdentifier,
 				UnicityCertificate: tt.fields.UnicityCertificate,
 				Technical:          tt.fields.TechnicalRecord,

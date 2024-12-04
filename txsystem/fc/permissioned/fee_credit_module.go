@@ -18,7 +18,7 @@ var _ txtypes.FeeCreditModule = (*FeeCreditModule)(nil)
 
 var (
 	ErrMissingNetworkIdentifier       = errors.New("network identifier is missing")
-	ErrMissingPartitionIdentifier     = errors.New("partition identifier is missing")
+	ErrMissingPartitionID             = errors.New("partition identifier is missing")
 	ErrStateIsNil                     = errors.New("state is nil")
 	ErrMissingFeeCreditRecordUnitType = errors.New("fee credit record unit type is missing")
 	ErrMissingAdminOwnerPredicate     = errors.New("admin owner predicate is missing")
@@ -52,10 +52,10 @@ type FeeCreditModule struct {
 
 func NewFeeCreditModule(networkID types.NetworkID, partitionID types.PartitionID, state *state.State, feeCreditRecordUnitType []byte, adminOwnerPredicate []byte, opts ...Option) (*FeeCreditModule, error) {
 	if networkID == 0 {
-		return nil, ErrMissingPartitionIdentifier
+		return nil, ErrMissingPartitionID
 	}
 	if partitionID == 0 {
-		return nil, ErrMissingPartitionIdentifier
+		return nil, ErrMissingPartitionID
 	}
 	if state == nil {
 		return nil, ErrStateIsNil

@@ -345,9 +345,9 @@ func TestRootValidatorTest_SimulateNetCommunicationHandshake(t *testing.T) {
 	require.NotEmpty(t, node.PeerConf.ID.String())
 	// create
 	h := &handshake.Handshake{
-		Partition: partitionID,
-		Shard:     types.ShardID{},
-		NodeID:    partitionNodes[1].PeerConf.ID.String(),
+		PartitionID: partitionID,
+		ShardID:     types.ShardID{},
+		NodeID:      partitionNodes[1].PeerConf.ID.String(),
 	}
 	testutils.MockValidatorNetReceives(t, mockNet, partitionNodes[0].PeerConf.ID, network.ProtocolHandshake, h)
 	// make sure certificate is sent in return

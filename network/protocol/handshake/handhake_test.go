@@ -13,22 +13,22 @@ func TestHandshake_IsValid_Nil(t *testing.T) {
 
 func TestHandshake_IsValid_Error(t *testing.T) {
 	h := &Handshake{
-		Partition: 0,
-		NodeID:    "test",
+		PartitionID: 0,
+		NodeID:      "test",
 	}
 	require.ErrorIs(t, ErrInvalidPartitionID, h.IsValid())
 
 	h = &Handshake{
-		Partition: 1,
-		NodeID:    "",
+		PartitionID: 1,
+		NodeID:      "",
 	}
 	require.ErrorIs(t, ErrMissingNodeID, h.IsValid())
 }
 
 func TestHandshake_IsValid(t *testing.T) {
 	h := &Handshake{
-		Partition: 1,
-		NodeID:    "test",
+		PartitionID: 1,
+		NodeID:      "test",
 	}
 	require.NoError(t, h.IsValid())
 }

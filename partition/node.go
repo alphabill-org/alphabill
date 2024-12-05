@@ -403,9 +403,9 @@ func (n *Node) sendHandshake(ctx context.Context) {
 	}
 	if err = n.network.Send(ctx,
 		handshake.Handshake{
-			Partition: n.configuration.GetPartitionID(),
-			Shard:     n.configuration.shardID,
-			NodeID:    n.peer.ID().String(),
+			PartitionID: n.configuration.GetPartitionID(),
+			ShardID:     n.configuration.shardID,
+			NodeID:      n.peer.ID().String(),
 		},
 		rootIDs...); err != nil {
 		n.log.WarnContext(ctx, "error sending handshake", logger.Error(err))
@@ -1423,8 +1423,8 @@ func (n *Node) sendBlockProposal(ctx context.Context) error {
 
 	nodeID := n.peer.ID()
 	prop := &blockproposal.BlockProposal{
-		Partition:          n.configuration.GetPartitionID(),
-		Shard:              n.configuration.shardID,
+		PartitionID:        n.configuration.GetPartitionID(),
+		ShardID:            n.configuration.shardID,
 		NodeID:             nodeID,
 		UnicityCertificate: n.luc.Load(),
 		Technical:          *ltr,

@@ -161,9 +161,9 @@ func (v *Node) onHandshake(ctx context.Context, req *handshake.Handshake) error 
 	if err := req.IsValid(); err != nil {
 		return fmt.Errorf("invalid handshake request: %w", err)
 	}
-	si, err := v.consensusManager.ShardInfo(req.Partition, req.Shard)
+	si, err := v.consensusManager.ShardInfo(req.PartitionID, req.ShardID)
 	if err != nil {
-		return fmt.Errorf("reading partition %s certificate: %w", req.Partition, err)
+		return fmt.Errorf("reading partition %s certificate: %w", req.PartitionID, err)
 	}
 	if err = v.sendResponse(ctx, req.NodeID, si.LastCR); err != nil {
 		return fmt.Errorf("failed to send response: %w", err)

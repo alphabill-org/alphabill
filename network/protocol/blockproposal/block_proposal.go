@@ -23,8 +23,8 @@ var (
 
 type BlockProposal struct {
 	_                  struct{} `cbor:",toarray"`
-	Partition          types.PartitionID
-	Shard              types.ShardID
+	PartitionID        types.PartitionID
+	ShardID            types.ShardID
 	NodeID             peer.ID
 	UnicityCertificate *types.UnicityCertificate
 	Technical          certification.TechnicalRecord
@@ -45,8 +45,8 @@ func (x *BlockProposal) IsValid(nodeSignatureVerifier crypto.Verifier, tb types.
 	if tb == nil {
 		return ErrTrustBaseIsNil
 	}
-	if partitionID != x.Partition {
-		return fmt.Errorf("%w, expected %s, got %s", ErrInvalidPartitionID, partitionID, x.Partition)
+	if partitionID != x.PartitionID {
+		return fmt.Errorf("%w, expected %s, got %s", ErrInvalidPartitionID, partitionID, x.PartitionID)
 	}
 	if err := x.UnicityCertificate.Verify(tb, algorithm, partitionID, systemDescriptionHash); err != nil {
 		return err

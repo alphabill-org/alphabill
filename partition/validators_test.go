@@ -181,7 +181,7 @@ func TestDefaultNewDefaultBlockProposalValidator_ValidateOk(t *testing.T) {
 	)
 
 	bp := &blockproposal.BlockProposal{
-		Partition:          uc.UnicityTreeCertificate.Partition,
+		PartitionID:        uc.UnicityTreeCertificate.Partition,
 		NodeID:             "1",
 		UnicityCertificate: uc,
 		Technical: tr,

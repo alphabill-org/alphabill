@@ -531,8 +531,8 @@ func TestBlockProposal_HandleOldBlockProposal(t *testing.T) {
 	require.Eventually(t, NextBlockReceived(t, tp, uc), test.WaitDuration, test.WaitTick)
 
 	tp.SubmitBlockProposal(&blockproposal.BlockProposal{
-		NodeID:     tp.nodeDeps.peerConf.ID,
-		Partition:          tp.nodeConf.GetPartitionID(),
+		NodeID:             tp.nodeDeps.peerConf.ID,
+		PartitionID:        tp.nodeConf.GetPartitionID(),
 		UnicityCertificate: uc,
 	})
 
@@ -555,8 +555,8 @@ func TestBlockProposal_ExpectedLeaderInvalid(t *testing.T) {
 	}, test.WaitDuration, test.WaitTick)
 
 	bp := &blockproposal.BlockProposal{
-		Partition:          uc2.UnicityTreeCertificate.Partition,
-		NodeID:     tp.nodeDeps.peerConf.ID,
+		PartitionID:        uc2.UnicityTreeCertificate.Partition,
+		NodeID:             tp.nodeDeps.peerConf.ID,
 		UnicityCertificate: uc2,
 		Transactions:       []*types.TransactionRecord{},
 		Technical:          *tr,
@@ -580,8 +580,8 @@ func TestBlockProposal_Ok(t *testing.T) {
 	require.NoError(t, err)
 
 	bp := &blockproposal.BlockProposal{
-		Partition:          uc2.UnicityTreeCertificate.Partition,
-		NodeID:     tp.nodeDeps.peerConf.ID,
+		PartitionID:        uc2.UnicityTreeCertificate.Partition,
+		NodeID:             tp.nodeDeps.peerConf.ID,
 		UnicityCertificate: uc2,
 		Transactions:       []*types.TransactionRecord{},
 	}
@@ -603,8 +603,8 @@ func TestBlockProposal_TxSystemStateIsDifferent_sameUC(t *testing.T) {
 	require.NoError(t, err)
 
 	bp := &blockproposal.BlockProposal{
-		Partition:          uc2.UnicityTreeCertificate.Partition,
-		NodeID:     tp.nodeDeps.peerConf.ID,
+		PartitionID:        uc2.UnicityTreeCertificate.Partition,
+		NodeID:             tp.nodeDeps.peerConf.ID,
 		UnicityCertificate: uc2,
 		Transactions:       []*types.TransactionRecord{},
 	}
@@ -637,8 +637,8 @@ func TestBlockProposal_TxSystemStateIsDifferent_newUC(t *testing.T) {
 	require.NoError(t, err)
 
 	bp := &blockproposal.BlockProposal{
-		Partition:          uc2.UnicityTreeCertificate.Partition,
-		NodeID:     tp.nodeDeps.peerConf.ID,
+		PartitionID:        uc2.UnicityTreeCertificate.Partition,
+		NodeID:             tp.nodeDeps.peerConf.ID,
 		UnicityCertificate: uc2,
 		Transactions:       []*types.TransactionRecord{},
 		Technical:          *tr,

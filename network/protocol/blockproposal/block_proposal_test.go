@@ -163,7 +163,7 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			bp := &BlockProposal{
-				Partition:          tt.fields.PartitionID,
+				PartitionID:        tt.fields.PartitionID,
 				NodeID:             tt.fields.NodeID,
 				UnicityCertificate: tt.fields.UnicityCertificate,
 				Technical:          tt.fields.TechnicalRecord,
@@ -208,8 +208,8 @@ func TestBlockProposal_SignAndVerify(t *testing.T) {
 	}).MarshalCBOR()
 	require.NoError(t, err)
 	bp := &BlockProposal{
-		Partition:          partitionID,
-		NodeID:             "1",
+		PartitionID: partitionID,
+		NodeID:      "1",
 		UnicityCertificate: &types.UnicityCertificate{
 			Version: 1,
 			InputRecord: &types.InputRecord{
@@ -264,8 +264,8 @@ func TestBlockProposal_InvalidSignature(t *testing.T) {
 	}).MarshalCBOR()
 	require.NoError(t, err)
 	bp := &BlockProposal{
-		Partition: partitionID,
-		NodeID:    "1",
+		PartitionID: partitionID,
+		NodeID:      "1",
 		UnicityCertificate: &types.UnicityCertificate{
 			Version: 1,
 			InputRecord: &types.InputRecord{

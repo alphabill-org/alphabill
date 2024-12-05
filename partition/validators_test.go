@@ -18,7 +18,7 @@ import (
 var systemDescription = &types.PartitionDescriptionRecord{
 	Version:             1,
 	NetworkIdentifier:   5,
-	PartitionID: 1,
+	PartitionID:         1,
 	TypeIdLen:           8,
 	UnitIdLen:           256,
 	T2Timeout:           2500 * time.Millisecond,
@@ -232,7 +232,7 @@ func TestDefaultTxValidator_ValidateNotOk(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dtv := &DefaultTxValidator{
-				partitionIdentifier: tt.expectedPartitionID,
+				partitionID: tt.expectedPartitionID,
 			}
 			err := dtv.Validate(tt.tx, tt.latestBlockNumber)
 			require.ErrorContains(t, err, tt.errStr)

@@ -40,7 +40,7 @@ In feeless mode the non-fee transactions are "free" i.e. no actual fees are char
 */
 type FeeCreditModule struct {
 	networkID               types.NetworkID
-	partitionIdentifier     types.PartitionID
+	partitionID             types.PartitionID
 	state                   *state.State
 	hashAlgorithm           crypto.Hash
 	execPredicate           predicates.PredicateRunner
@@ -67,7 +67,7 @@ func NewFeeCreditModule(networkID types.NetworkID, partitionID types.PartitionID
 		return nil, ErrMissingAdminOwnerPredicate
 	}
 	m := &FeeCreditModule{
-		partitionIdentifier:     partitionID,
+		partitionID:     partitionID,
 		state:                   state,
 		feeCreditRecordUnitType: feeCreditRecordUnitType,
 		adminOwnerPredicate:     adminOwnerPredicate,

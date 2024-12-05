@@ -239,7 +239,7 @@ func Test_moneyGenesisConfig_getSDRFiles(t *testing.T) {
 		// setup-testab.sh creates the SDR files with hardcoded content - refactor
 		// so that these files can be tested here?
 		fileName := filepath.Join(testDir, "pdr.json")
-		err := os.WriteFile(fileName, []byte(`{"partitionIdentifier": 1234567890, "t2timeout": 2500, "feeCreditBill": {"unitId": "0x00000000000000000000000000000000000000000000000000000000000000010F", "ownerPredicate": "0x5376a8014f01f52022bb450407d92f13bf1c53128a676bcf304818e9f41a5ef4ebeae9c0d6b08769ac01"}}`), 0666)
+		err := os.WriteFile(fileName, []byte(`{"partitionId": 1234567890, "t2timeout": 2500, "feeCreditBill": {"unitId": "0x00000000000000000000000000000000000000000000000000000000000000010F", "ownerPredicate": "0x5376a8014f01f52022bb450407d92f13bf1c53128a676bcf304818e9f41a5ef4ebeae9c0d6b08769ac01"}}`), 0666)
 		require.NoError(t, err)
 
 		cfg := moneyGenesisConfig{PDRFiles: []string{fileName}}

@@ -16,7 +16,7 @@ import (
 func TestAPI_GasPrice(t *testing.T) {
 	a := &API{
 		state:               nil,
-		partitionIdentifier: 1,
+		partitionID:         1,
 		gasUnitPrice:        big.NewInt(evm.DefaultGasPrice),
 		blockGasLimit:       10000,
 	}

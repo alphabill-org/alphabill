@@ -314,6 +314,7 @@ func rootGenesis(t *testing.T, path string) *genesis.RootGenesis {
 	require.NoError(t, err)
 	require.NoError(t, json.NewDecoder(f).Decode(rgA))
 	require.NoError(t, f.Close())
+	rgA.Verify()
 	return rgA
 }
 

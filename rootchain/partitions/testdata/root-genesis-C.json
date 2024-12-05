@@ -30,7 +30,7 @@
           "signingPublicKey": "0x024636bbba1fbf6d838831875cefa0368808b09415b419ca5a1c36e4b696543b5c",
           "encryptionPublicKey": "0x03407d389a975d0d128afdf17b543be0122ca46fd0482ee97d50fa50bd2e5202fb",
           "blockCertificationRequest": {
-            "partitionIdentifier": 1,
+            "partitionId": 1,
             "shardIdentifier": "0x80",
             "nodeIdentifier": "16Uiu2HAmGzjBwdBocQFgzVN7yxVtru8itbA5WjZVNp5bFdxerA2e",
             "inputRecord": {
@@ -51,7 +51,7 @@
           "partitionDescriptionRecord": {
             "version": 1,
             "networkIdentifier": 0,
-            "partitionIdentifier": 0,
+            "partitionId": 0,
             "typeIdLength": 0,
             "unitIdLength": 0,
             "shardingScheme": null,
@@ -81,7 +81,7 @@
         },
         "unicityTreeCertificate": {
           "version": 1,
-          "partitionIdentifier": 1,
+          "partitionId": 1,
           "hashSteps": [],
           "partitionDescriptionHash": "0xc57d52d4482de608b21c70b9118a35d0de8f0def0392ce13f96df83cdef9ca54"
         },
@@ -99,7 +99,7 @@
       "partitionDescriptionRecord": {
         "version": 1,
         "networkIdentifier": 5,
-        "partitionIdentifier": 1,
+        "partitionId": 1,
         "typeIdLength": 8,
         "unitIdLength": 256,
         "shardingScheme": null,

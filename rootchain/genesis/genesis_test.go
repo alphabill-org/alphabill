@@ -30,9 +30,9 @@ func getPublicKeyAndVerifier(signer abcrypto.Signer) ([]byte, abcrypto.Verifier,
 	return pubKey, verifier, nil
 }
 
-func createPartition(t *testing.T, partitionIdentifier types.PartitionID, nodeID string, partitionSigner abcrypto.Signer) *genesis.PartitionRecord {
+func createPartition(t *testing.T, partitionID types.PartitionID, nodeID string, partitionSigner abcrypto.Signer) *genesis.PartitionRecord {
 	t.Helper()
-	req := createInputRequest(t, partitionIdentifier, nodeID, partitionSigner)
+	req := createInputRequest(t, partitionID, nodeID, partitionSigner)
 	pubKey, _, err := getPublicKeyAndVerifier(partitionSigner)
 	require.NoError(t, err)
 
@@ -40,7 +40,7 @@ func createPartition(t *testing.T, partitionIdentifier types.PartitionID, nodeID
 		PartitionDescription: &types.PartitionDescriptionRecord{
 			Version:             1,
 			NetworkIdentifier:   5,
-			PartitionID: partitionIdentifier,
+			PartitionID: partitionID,
 			TypeIdLen:           8,
 			UnitIdLen:           256,
 			T2Timeout:           2500 * time.Millisecond,
@@ -56,9 +56,9 @@ func createPartition(t *testing.T, partitionIdentifier types.PartitionID, nodeID
 	}
 }
 
-func createPartitionNode(t *testing.T, partitionIdentifier types.PartitionID, nodeID string, partitionSigner abcrypto.Signer) *genesis.PartitionNode {
+func createPartitionNode(t *testing.T, partitionID types.PartitionID, nodeID string, partitionSigner abcrypto.Signer) *genesis.PartitionNode {
 	t.Helper()
-	req := createInputRequest(t, partitionIdentifier, nodeID, partitionSigner)
+	req := createInputRequest(t, partitionID, nodeID, partitionSigner)
 	pubKey, _, err := getPublicKeyAndVerifier(partitionSigner)
 	require.NoError(t, err)
 
@@ -71,7 +71,7 @@ func createPartitionNode(t *testing.T, partitionIdentifier types.PartitionID, no
 		PartitionDescriptionRecord: types.PartitionDescriptionRecord{
 			Version:             1,
 			NetworkIdentifier:   5,
-			PartitionID: partitionIdentifier,
+			PartitionID:         partitionID,
 			TypeIdLen:           8,
 			UnitIdLen:           256,
 			T2Timeout:           2500 * time.Millisecond,
@@ -79,10 +79,10 @@ func createPartitionNode(t *testing.T, partitionIdentifier types.PartitionID, no
 	}
 }
 
-func createInputRequest(t *testing.T, partitionIdentifier types.PartitionID, nodeID string, partitionSigner abcrypto.Signer) *certification.BlockCertificationRequest {
+func createInputRequest(t *testing.T, partitionID types.PartitionID, nodeID string, partitionSigner abcrypto.Signer) *certification.BlockCertificationRequest {
 	t.Helper()
 	req := &certification.BlockCertificationRequest{
-		Partition:      partitionIdentifier,
+		Partition:      partitionID,
 		NodeIdentifier: nodeID,
 		InputRecord: &types.InputRecord{
 			Version:      1,
@@ -307,17 +307,17 @@ func TestNewGenesisFromPartitionNodes_Ok(t *testing.T) {
 }
 
 func TestNewGenesisForMultiplePartitions_Ok(t *testing.T) {
-	const partitionIdentifier1 types.PartitionID = 2
-	const partitionIdentifier2 types.PartitionID = 1
-	const partitionIdentifier3 types.PartitionID = 0xFFFFFFFF
+	const partitionID1 types.PartitionID = 2
+	const partitionID2 types.PartitionID = 1
+	const partitionID3 types.PartitionID = 0xFFFFFFFF
 
 	partitionSigner, _ := testsig.CreateSignerAndVerifier(t)
 	partitionSigner2, _ := testsig.CreateSignerAndVerifier(t)
 	partitionSigner3, _ := testsig.CreateSignerAndVerifier(t)
 
-	pn1 := createPartitionNode(t, partitionIdentifier1, "1", partitionSigner)
-	pn2 := createPartitionNode(t, partitionIdentifier2, "2", partitionSigner2)
-	pn3 := createPartitionNode(t, partitionIdentifier3, "3", partitionSigner3)
+	pn1 := createPartitionNode(t, partitionID1, "1", partitionSigner)
+	pn2 := createPartitionNode(t, partitionID2, "2", partitionSigner2)
+	pn3 := createPartitionNode(t, partitionID3, "3", partitionSigner3)
 	rootChainSigner, err := abcrypto.NewInMemorySecp256K1Signer()
 	require.NoError(t, err)
 	rootChainVerifier, err := rootChainSigner.Verifier()

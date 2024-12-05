@@ -16,9 +16,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const sysID1 types.PartitionID = 1
-const sysID2 types.PartitionID = 2
-
 var zeroHash = make([]byte, gocrypto.SHA256.Size())
 
 var inputRecord1 = &types.InputRecord{
@@ -30,11 +27,12 @@ var inputRecord1 = &types.InputRecord{
 	RoundNumber:  1,
 	Timestamp:    202411131,
 }
-var sdr1 = &types.PartitionDescriptionRecord{
-	Version:             1,
-	NetworkIdentifier:   5,
-	PartitionID: sysID1,
-	T2Timeout:           2500 * time.Millisecond,
+var pdr1 = &types.PartitionDescriptionRecord{
+	Version:           1,
+	NetworkIdentifier: 5,
+	PartitionID:       partitionID1,
+	PartitionTypeID:   1,
+	T2Timeout:         2500 * time.Millisecond,
 }
 var inputRecord2 = &types.InputRecord{
 	Version:      1,
@@ -45,22 +43,23 @@ var inputRecord2 = &types.InputRecord{
 	RoundNumber:  1,
 	Timestamp:    202411132,
 }
-var sdr2 = &types.PartitionDescriptionRecord{
-	Version:             1,
-	NetworkIdentifier:   5,
-	PartitionID: sysID2,
-	T2Timeout:           2500 * time.Millisecond,
+var pdr2 = &types.PartitionDescriptionRecord{
+	Version:           1,
+	NetworkIdentifier: 5,
+	PartitionID:       partitionID2,
+	PartitionTypeID:   2,
+	T2Timeout:         2500 * time.Millisecond,
 }
 
 var roundInfo = &drctypes.RoundInfo{
 	RoundNumber:     genesis.RootRound,
 	Timestamp:       genesis.Timestamp,
-	CurrentRootHash: hexToBytes("92DECD59BA61EF7EFE3A2827DF4D5E732C55740341ED4E8B07431BB1AB2EB27F"),
+	CurrentRootHash: hexToBytes("6439C3FBC4811C9B8139BE7E817A2C89623434AE60EAD6F177AA7F49B05C7A3A"),
 }
 
 var pg = func() []*genesis.GenesisPartitionRecord {
-	sdr1Hash, _ := sdr1.Hash(gocrypto.SHA256)
-	sdr2Hash, _ := sdr2.Hash(gocrypto.SHA256)
+	pdr1Hash, _ := pdr1.Hash(gocrypto.SHA256)
+	pdr2Hash, _ := pdr2.Hash(gocrypto.SHA256)
 	r1hash, _ := roundInfo.Hash(gocrypto.SHA256)
 	return []*genesis.GenesisPartitionRecord{
 		{
@@ -71,8 +70,8 @@ var pg = func() []*genesis.GenesisPartitionRecord {
 				TRHash:      []uint8{0x76, 0xdc, 0xe1, 0x7b, 0x29, 0xcb, 0xa7, 0x61, 0xf8, 0x9e, 0x3f, 0xd6, 0xc3, 0x50, 0x4d, 0x81, 0x83, 0x92, 0x3, 0xf9, 0x5b, 0x29, 0xd4, 0xbb, 0x64, 0x58, 0x67, 0x3e, 0xdb, 0x39, 0xb6, 0xb0},
 				UnicityTreeCertificate: &types.UnicityTreeCertificate{
 					Version:   1,
-					Partition: sysID1,
-					PDRHash:   sdr1Hash,
+					Partition: pdr1.PartitionID,
+					PDRHash:   pdr1Hash,
 				},
 				UnicitySeal: &types.UnicitySeal{
 					Version:              1,
@@ -83,7 +82,7 @@ var pg = func() []*genesis.GenesisPartitionRecord {
 					Signatures:           map[string]basehex.Bytes{},
 				},
 			},
-			PartitionDescription: sdr1,
+			PartitionDescription: pdr1,
 			Nodes: []*genesis.PartitionNode{
 				{
 					Version:                    1,
@@ -101,8 +100,8 @@ var pg = func() []*genesis.GenesisPartitionRecord {
 				TRHash:      []uint8{0x18, 0x28, 0x40, 0xfc, 0x9, 0x13, 0x83, 0xa, 0x92, 0x82, 0xc7, 0xd3, 0x50, 0x33, 0xac, 0x41, 0x2, 0x1b, 0x1e, 0x39, 0x6c, 0xd7, 0x30, 0xaa, 0x73, 0x8d, 0xa7, 0xaf, 0x7b, 0x3c, 0xbe, 0x18},
 				UnicityTreeCertificate: &types.UnicityTreeCertificate{
 					Version:   1,
-					Partition: sysID2,
-					PDRHash:   sdr2Hash,
+					Partition: pdr2.PartitionID,
+					PDRHash:   pdr2Hash,
 				},
 				UnicitySeal: &types.UnicitySeal{
 					Version:              1,
@@ -113,7 +112,7 @@ var pg = func() []*genesis.GenesisPartitionRecord {
 					Signatures:           map[string]basehex.Bytes{},
 				},
 			},
-			PartitionDescription: sdr2,
+			PartitionDescription: pdr2,
 			Nodes: []*genesis.PartitionNode{
 				{
 					Version:                    1,

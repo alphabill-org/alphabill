@@ -19,24 +19,24 @@ var _ txtypes.Module = (*Module)(nil)
 
 type (
 	Module struct {
-		partitionIdentifier types.PartitionID
-		options             *Options
-		blockGasCounter     *core.GasPool
-		execPredicate       predicates.PredicateRunner
-		log                 *slog.Logger
+		partitionID     types.PartitionID
+		options         *Options
+		blockGasCounter *core.GasPool
+		execPredicate   predicates.PredicateRunner
+		log             *slog.Logger
 	}
 )
 
-func NewEVMModule(partitionIdentifier types.PartitionID, opts *Options, log *slog.Logger) (*Module, error) {
+func NewEVMModule(partitionID types.PartitionID, opts *Options, log *slog.Logger) (*Module, error) {
 	if opts.gasUnitPrice == nil {
 		return nil, fmt.Errorf("evm init failed, gas price is nil")
 	}
 	return &Module{
-		partitionIdentifier: partitionIdentifier,
-		options:             opts,
-		blockGasCounter:     new(core.GasPool).AddGas(opts.blockGasLimit),
-		execPredicate:       predicates.NewPredicateRunner(opts.execPredicate),
-		log:                 log,
+		partitionID:     partitionID,
+		options:         opts,
+		blockGasCounter: new(core.GasPool).AddGas(opts.blockGasLimit),
+		execPredicate:   predicates.NewPredicateRunner(opts.execPredicate),
+		log:             log,
 	}, nil
 }
 

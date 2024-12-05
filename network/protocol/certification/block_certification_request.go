@@ -18,7 +18,7 @@ var (
 
 type BlockCertificationRequest struct {
 	_              struct{}           `cbor:",toarray"`
-	Partition      types.PartitionID  `json:"partitionIdentifier"`
+	Partition      types.PartitionID  `json:"partitionId"`
 	Shard          types.ShardID      `json:"shardIdentifier"`
 	NodeIdentifier string             `json:"nodeIdentifier"`
 	InputRecord    *types.InputRecord `json:"inputRecord"`

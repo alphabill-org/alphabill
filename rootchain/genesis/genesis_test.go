@@ -39,7 +39,7 @@ func createPartition(t *testing.T, partitionID types.PartitionID, nodeID string,
 	return &genesis.PartitionRecord{
 		PartitionDescription: &types.PartitionDescriptionRecord{
 			Version:             1,
-			NetworkIdentifier:   5,
+			NetworkID:   5,
 			PartitionID: partitionID,
 			TypeIdLen:           8,
 			UnitIdLen:           256,
@@ -47,7 +47,7 @@ func createPartition(t *testing.T, partitionID types.PartitionID, nodeID string,
 		},
 		Validators: []*genesis.PartitionNode{{
 			Version:                    1,
-			NodeIdentifier:             nodeID,
+			NodeID:                     nodeID,
 			SigningPublicKey:           pubKey,
 			EncryptionPublicKey:        pubKey,
 			BlockCertificationRequest:  req,
@@ -64,13 +64,13 @@ func createPartitionNode(t *testing.T, partitionID types.PartitionID, nodeID str
 
 	return &genesis.PartitionNode{
 		Version:                   1,
-		NodeIdentifier:            nodeID,
+		NodeID:                    nodeID,
 		SigningPublicKey:          pubKey,
 		EncryptionPublicKey:       pubKey,
 		BlockCertificationRequest: req,
 		PartitionDescriptionRecord: types.PartitionDescriptionRecord{
 			Version:             1,
-			NetworkIdentifier:   5,
+			NetworkID:   5,
 			PartitionID:         partitionID,
 			TypeIdLen:           8,
 			UnitIdLen:           256,
@@ -82,8 +82,8 @@ func createPartitionNode(t *testing.T, partitionID types.PartitionID, nodeID str
 func createInputRequest(t *testing.T, partitionID types.PartitionID, nodeID string, partitionSigner abcrypto.Signer) *certification.BlockCertificationRequest {
 	t.Helper()
 	req := &certification.BlockCertificationRequest{
-		Partition:      partitionID,
-		NodeIdentifier: nodeID,
+		Partition:   partitionID,
+		NodeID:      nodeID,
 		InputRecord: &types.InputRecord{
 			Version:      1,
 			PreviousHash: make([]byte, 32),
@@ -141,7 +141,7 @@ func Test_rootGenesisConf_isValid(t *testing.T) {
 				consensusTimeoutMs:    genesis.MinConsensusTimeout,
 				hashAlgorithm:         gocrypto.SHA256,
 			},
-			wantErr: genesis.ErrNodeIdentifierIsEmpty.Error(),
+			wantErr: genesis.ErrNodeIDIsEmpty.Error(),
 		},
 		{
 			name: "no pub key",
@@ -266,7 +266,7 @@ func TestNewGenesis_ConsensusNotPossible(t *testing.T) {
 	require.NoError(t, err)
 	pr := &genesis.PartitionNode{
 		Version:                   1,
-		NodeIdentifier:            "2",
+		NodeID:                    "2",
 		SigningPublicKey:          pubKey,
 		EncryptionPublicKey:       pubKey,
 		BlockCertificationRequest: req,

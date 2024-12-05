@@ -8,7 +8,7 @@ The file is JSON encoded description of partition configuration with following f
 
 Field               | Type      | Description
 --------------------|-----------|---
-networkIdentifier   | uint16    | Network identifier.
+networkId           | uint16    | Network identifier.
 partitionId         | uint      | Partition identifier.
 partitionTypeId     | uint      | Partition type identifier.
 typeIdLength        | uint      | Unit type identifier length in bits.
@@ -22,7 +22,7 @@ feeCreditBill       |           | Fee credit info.
 Example of the money partition description
 ```json
 {
-  "networkIdentifier": 3,
+  "networkId": 3,
   "partitionId": 1,
   "partitionTypeId": 1,
   "typeIdLength": 8,

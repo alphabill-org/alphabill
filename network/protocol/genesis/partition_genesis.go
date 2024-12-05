@@ -29,7 +29,7 @@ type PartitionGenesis struct {
 func (x *PartitionGenesis) FindRootPubKeyInfoById(id string) *PublicKeyInfo {
 	// linear search for id
 	for _, info := range x.RootValidators {
-		if info.NodeIdentifier == id {
+		if info.NodeID == id {
 			return info
 		}
 	}
@@ -107,7 +107,7 @@ func newTrustBaseNodes(publicKeyInfo []*PublicKeyInfo) ([]*types.NodeInfo, error
 		if err != nil {
 			return nil, err
 		}
-		nodeInfo = append(nodeInfo, types.NewNodeInfo(info.NodeIdentifier, 1, verifier))
+		nodeInfo = append(nodeInfo, types.NewNodeInfo(info.NodeID, 1, verifier))
 	}
 	return nodeInfo, nil
 }

@@ -21,7 +21,7 @@ const (
 var _ txtypes.FeeCreditModule = (*FeeCreditModule)(nil)
 
 var (
-	ErrNetworkIdentifierMissing = errors.New("network identifier is missing")
+	ErrNetworkIDMissing = errors.New("network identifier is missing")
 	ErrPartitionIDMissing       = errors.New("partition identifier is missing")
 	ErrMoneyPartitionIDMissing  = errors.New("money transaction partition identifier is missing")
 	ErrStateIsNil               = errors.New("state is nil")
@@ -99,7 +99,7 @@ func (f *FeeCreditModule) IsFeeCreditTx(tx *types.TransactionOrder) bool {
 
 func (f *FeeCreditModule) IsValid() error {
 	if f.networkID == 0 {
-		return ErrNetworkIdentifierMissing
+		return ErrNetworkIDMissing
 	}
 	if f.partitionID == 0 {
 		return ErrPartitionIDMissing

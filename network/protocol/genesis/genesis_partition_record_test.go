@@ -24,7 +24,7 @@ func TestGenesisPartitionRecord_IsValid(t *testing.T) {
 	_, encryptionKey2 := testsig.CreateSignerAndVerifier(t)
 	validPDR := &types.PartitionDescriptionRecord{
 		Version:             1,
-		NetworkIdentifier:   5,
+		NetworkID:   5,
 		PartitionID: 1,
 		TypeIdLen:           8,
 		UnitIdLen:           256,
@@ -151,8 +151,8 @@ func createPartitionNode(t *testing.T, nodeID string, signingKey abcrypto.Signer
 	require.NoError(t, err)
 
 	request := &certification.BlockCertificationRequest{
-		Partition:      1,
-		NodeIdentifier: nodeID,
+		Partition:   1,
+		NodeID:      nodeID,
 		InputRecord: &types.InputRecord{
 			Version:      1,
 			PreviousHash: make([]byte, 32),
@@ -166,7 +166,7 @@ func createPartitionNode(t *testing.T, nodeID string, signingKey abcrypto.Signer
 	require.NoError(t, request.Sign(signingKey))
 	pr := &PartitionNode{
 		Version:                    1,
-		NodeIdentifier:             nodeID,
+		NodeID:                     nodeID,
 		SigningPublicKey:           node1VerifierPubKey,
 		EncryptionPublicKey:        encryptionPubKeyBytes,
 		BlockCertificationRequest:  request,

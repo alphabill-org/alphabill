@@ -25,7 +25,7 @@ type BlockProposal struct {
 	_                  struct{} `cbor:",toarray"`
 	Partition          types.PartitionID
 	Shard              types.ShardID
-	NodeIdentifier     peer.ID
+	NodeID             peer.ID
 	UnicityCertificate *types.UnicityCertificate
 	Technical          certification.TechnicalRecord
 	Transactions       []*types.TransactionRecord
@@ -39,7 +39,7 @@ func (x *BlockProposal) IsValid(nodeSignatureVerifier crypto.Verifier, tb types.
 	if nodeSignatureVerifier == nil {
 		return ErrNodeVerifierIsNil
 	}
-	if len(x.NodeIdentifier) == 0 {
+	if len(x.NodeID) == 0 {
 		return errBlockProposerIDMissing
 	}
 	if tb == nil {

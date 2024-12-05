@@ -36,7 +36,7 @@ func CreatePartitionNodesAndPartitionRecord(t *testing.T, ir *types.InputRecord,
 	record = &genesis.PartitionRecord{
 		PartitionDescription: &types.PartitionDescriptionRecord{
 			Version:             1,
-			NetworkIdentifier:   5,
+			NetworkID:   5,
 			PartitionID: partitionID,
 			TypeIdLen:           8,
 			UnitIdLen:           256,
@@ -53,16 +53,16 @@ func CreatePartitionNodesAndPartitionRecord(t *testing.T, ir *types.InputRecord,
 		require.NoError(t, err)
 
 		req := &certification.BlockCertificationRequest{
-			Partition:      partitionID,
-			NodeIdentifier: partitionNode.PeerConf.ID.String(),
-			InputRecord:    ir,
+			Partition:   partitionID,
+			NodeID:      partitionNode.PeerConf.ID.String(),
+			InputRecord: ir,
 		}
 		err = req.Sign(partitionNode.Signer)
 		require.NoError(t, err)
 
 		record.Validators = append(record.Validators, &genesis.PartitionNode{
 			Version:                    1,
-			NodeIdentifier:             partitionNode.PeerConf.ID.String(),
+			NodeID:                     partitionNode.PeerConf.ID.String(),
 			SigningPublicKey:           rawSigningPubKey,
 			EncryptionPublicKey:        rawEncPubKey,
 			BlockCertificationRequest:  req,
@@ -74,12 +74,12 @@ func CreatePartitionNodesAndPartitionRecord(t *testing.T, ir *types.InputRecord,
 	return partitionNodes, record
 }
 
-func CreateBlockCertificationRequest(t *testing.T, ir *types.InputRecord, sysID types.PartitionID, node *TestNode) *certification.BlockCertificationRequest {
+func CreateBlockCertificationRequest(t *testing.T, ir *types.InputRecord, partitionID types.PartitionID, node *TestNode) *certification.BlockCertificationRequest {
 	t.Helper()
 	r1 := &certification.BlockCertificationRequest{
-		Partition:      sysID,
-		NodeIdentifier: node.PeerConf.ID.String(),
-		InputRecord:    ir,
+		Partition:   partitionID,
+		NodeID:      node.PeerConf.ID.String(),
+		InputRecord: ir,
 	}
 	require.NoError(t, r1.Sign(node.Signer))
 	return r1

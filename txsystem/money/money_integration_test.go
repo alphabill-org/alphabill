@@ -46,7 +46,7 @@ func TestPartition_Ok(t *testing.T) {
 	}
 	pdr := types.PartitionDescriptionRecord{
 		Version:             1,
-		NetworkIdentifier:   5,
+		NetworkID:   5,
 		PartitionID: money.DefaultPartitionID,
 		TypeIdLen:           8,
 		UnitIdLen:           256,
@@ -179,7 +179,7 @@ func TestPartition_SwapDCOk(t *testing.T) {
 	)
 	pdr := types.PartitionDescriptionRecord{
 		Version:             1,
-		NetworkIdentifier:   networkID,
+		NetworkID:   networkID,
 		PartitionID: money.DefaultPartitionID,
 		TypeIdLen:           8,
 		UnitIdLen:           256,
@@ -305,7 +305,7 @@ func TestPartition_SwapDCOk(t *testing.T) {
 	swapTx := &types.TransactionOrder{
 		Version: 1,
 		Payload: types.Payload{
-			NetworkID:   pdr.NetworkIdentifier,
+			NetworkID:   pdr.NetworkID,
 			PartitionID: pdr.PartitionID,
 			Type:        money.TransactionTypeSwapDC,
 			UnitID:      initialBill.ID,

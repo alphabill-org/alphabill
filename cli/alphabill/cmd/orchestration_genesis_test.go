@@ -27,7 +27,7 @@ const (
 func Test_OrchestrationGenesis(t *testing.T) {
 	pdr := types.PartitionDescriptionRecord{
 		Version:             1,
-		NetworkIdentifier:   5,
+		NetworkID:   5,
 		PartitionID: 123,
 		TypeIdLen:           8,
 		UnitIdLen:           256,
@@ -60,7 +60,7 @@ func Test_OrchestrationGenesis(t *testing.T) {
 		homeDir := t.TempDir()
 		require.NoError(t, os.MkdirAll(filepath.Join(homeDir, orchestrationDir), 0700))
 		nodeGenesisFile := filepath.Join(homeDir, orchestrationDir, orchestrationGenesisFileName)
-		require.NoError(t, util.WriteJsonFile(nodeGenesisFile, &genesis.PartitionNode{Version: 1, NodeIdentifier: "1"}))
+		require.NoError(t, util.WriteJsonFile(nodeGenesisFile, &genesis.PartitionNode{Version: 1, NodeID: "1"}))
 
 		cmd := New(testobserve.NewFactory(t))
 		args := "orchestration-genesis --gen-keys --home " + homeDir + " --owner-predicate " + ownerPredicate + pdrArgument
@@ -111,7 +111,7 @@ func Test_OrchestrationGenesis(t *testing.T) {
 
 		pdr := types.PartitionDescriptionRecord{
 			Version:             1,
-			NetworkIdentifier:   5,
+			NetworkID:   5,
 			PartitionID: 55,
 			TypeIdLen:           4,
 			UnitIdLen:           300,

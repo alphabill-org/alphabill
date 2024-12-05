@@ -83,7 +83,7 @@ func (x *GenesisRootRecord) FindPubKeyById(id string) *PublicKeyInfo {
 	}
 	// linear search for id
 	for _, info := range x.RootValidators {
-		if info.NodeIdentifier == id {
+		if info.NodeID == id {
 			return info
 		}
 	}

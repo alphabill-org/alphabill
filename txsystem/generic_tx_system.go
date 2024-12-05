@@ -345,8 +345,8 @@ implemented by the tx handler.
 */
 func (m *GenericTxSystem) validateGenericTransaction(tx *types.TransactionOrder) error {
 	// T.α = S.α – transaction is sent to this network
-	if m.pdr.NetworkIdentifier != tx.NetworkID {
-		return fmt.Errorf("invalid network id: %d (expected %d)", tx.NetworkID, m.pdr.NetworkIdentifier)
+	if m.pdr.NetworkID != tx.NetworkID {
+		return fmt.Errorf("invalid network id: %d (expected %d)", tx.NetworkID, m.pdr.NetworkID)
 	}
 
 	// T.β = S.β – transaction is sent to this partition

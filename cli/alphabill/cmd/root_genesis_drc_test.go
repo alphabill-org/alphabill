@@ -54,7 +54,7 @@ func TestGenerateDistributedGenesisFiles(t *testing.T) {
 		}
 		// linear search for id
 		for _, info := range keys {
-			if info.NodeIdentifier == id {
+			if info.NodeID == id {
 				return info
 			}
 		}

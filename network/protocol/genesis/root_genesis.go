@@ -147,9 +147,9 @@ NodeIDs returns IDs of all root validator nodes.
 func (x *RootGenesis) NodeIDs() ([]peer.ID, error) {
 	IDs := make([]peer.ID, len(x.Root.RootValidators))
 	for n, v := range x.Root.RootValidators {
-		id, err := peer.Decode(v.NodeIdentifier)
+		id, err := peer.Decode(v.NodeID)
 		if err != nil {
-			return nil, fmt.Errorf("failed to convert node ID %q: %w", v.NodeIdentifier, err)
+			return nil, fmt.Errorf("failed to convert node ID %q: %w", v.NodeID, err)
 		}
 		IDs[n] = id
 	}
@@ -166,7 +166,7 @@ func (x *RootGenesis) GenerateTrustBase(opts ...types.Option) (*types.RootTrustB
 		if err != nil {
 			return nil, err
 		}
-		trustBaseNodes = append(trustBaseNodes, types.NewNodeInfo(rn.NodeIdentifier, 1, verifier))
+		trustBaseNodes = append(trustBaseNodes, types.NewNodeInfo(rn.NodeID, 1, verifier))
 		// parse unicity tree root hash, optionally sanity check that all root hashes are equal for each partition
 		for _, p := range x.Partitions {
 			if len(unicityTreeRootHash) == 0 {

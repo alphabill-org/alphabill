@@ -26,7 +26,7 @@ func TestNewTxSystem_OK(t *testing.T) {
 	require.NoError(t, err)
 	pdr := types.PartitionDescriptionRecord{
 		Version:             1,
-		NetworkIdentifier:   5,
+		NetworkID:   5,
 		PartitionID: orchestration.DefaultPartitionID,
 		TypeIdLen:           8,
 		UnitIdLen:           256,

@@ -144,7 +144,7 @@ func createPartitionGenesis(t *testing.T, nodeSigningKey crypto.Signer, authKey 
 	}
 	pdr := types.PartitionDescriptionRecord{
 		Version:             1,
-		NetworkIdentifier:   5,
+		NetworkID:   5,
 		PartitionID: 0x01000001,
 		TypeIdLen:           8,
 		UnitIdLen:           256,

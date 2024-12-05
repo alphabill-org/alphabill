@@ -17,7 +17,7 @@ import (
 var _ txtypes.FeeCreditModule = (*FeeCreditModule)(nil)
 
 var (
-	ErrMissingNetworkIdentifier       = errors.New("network identifier is missing")
+	ErrMissingNetworkID       = errors.New("network identifier is missing")
 	ErrMissingPartitionID             = errors.New("partition identifier is missing")
 	ErrStateIsNil                     = errors.New("state is nil")
 	ErrMissingFeeCreditRecordUnitType = errors.New("fee credit record unit type is missing")

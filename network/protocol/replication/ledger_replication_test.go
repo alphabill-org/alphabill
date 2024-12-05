@@ -63,17 +63,17 @@ func TestLedgerReplicationRequestValidation(t *testing.T) {
 	}{
 		{
 			name:    "ValidRequest",
-			request: &LedgerReplicationRequest{PartitionID: 1, NodeIdentifier: "node1", BeginBlockNumber: 1, EndBlockNumber: 10},
+			request: &LedgerReplicationRequest{PartitionID: 1, NodeID: "node1", BeginBlockNumber: 1, EndBlockNumber: 10},
 			wantErr: nil,
 		},
 		{
 			name:    "ZeroBlockNumbers",
-			request: &LedgerReplicationRequest{PartitionID: 1, NodeIdentifier: "node1"},
+			request: &LedgerReplicationRequest{PartitionID: 1, NodeID: "node1"},
 			wantErr: nil,
 		},
 		{
 			name:    "EqualBlockNumbers",
-			request: &LedgerReplicationRequest{PartitionID: 1, NodeIdentifier: "node1", BeginBlockNumber: 1, EndBlockNumber: 1},
+			request: &LedgerReplicationRequest{PartitionID: 1, NodeID: "node1", BeginBlockNumber: 1, EndBlockNumber: 1},
 			wantErr: nil,
 		},
 		{
@@ -83,17 +83,17 @@ func TestLedgerReplicationRequestValidation(t *testing.T) {
 		},
 		{
 			name:    "InvalidPartitionID",
-			request: &LedgerReplicationRequest{PartitionID: 0, NodeIdentifier: "node1", BeginBlockNumber: 1, EndBlockNumber: 10},
+			request: &LedgerReplicationRequest{PartitionID: 0, NodeID: "node1", BeginBlockNumber: 1, EndBlockNumber: 10},
 			wantErr: ErrInvalidPartitionID,
 		},
 		{
-			name:    "MissingNodeIdentifier",
-			request: &LedgerReplicationRequest{PartitionID: 1, NodeIdentifier: "", BeginBlockNumber: 1, EndBlockNumber: 10},
-			wantErr: ErrNodeIdentifierIsMissing,
+			name:    "MissingNodeID",
+			request: &LedgerReplicationRequest{PartitionID: 1, NodeID: "", BeginBlockNumber: 1, EndBlockNumber: 10},
+			wantErr: ErrNodeIDIsMissing,
 		},
 		{
 			name:    "InvalidBlockRange",
-			request: &LedgerReplicationRequest{PartitionID: 1, NodeIdentifier: "node1", BeginBlockNumber: 10, EndBlockNumber: 1},
+			request: &LedgerReplicationRequest{PartitionID: 1, NodeID: "node1", BeginBlockNumber: 10, EndBlockNumber: 1},
 			wantErr: fmt.Errorf("invalid block request range from 10 to 1"),
 		},
 	}

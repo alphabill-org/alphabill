@@ -22,8 +22,8 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 	_, nodeVerifier := testsig.CreateSignerAndVerifier(t)
 	ucSigner, trustBase := testsig.CreateSignerAndVerifier(t)
 	type fields struct {
-		PartitionID types.PartitionID
-		NodeIdentifier      peer.ID
+		PartitionID         types.PartitionID
+		NodeID              peer.ID
 		UnicityCertificate  *types.UnicityCertificate
 		TechnicalRecord     certification.TechnicalRecord
 		Transactions        []*types.TransactionRecord
@@ -56,15 +56,15 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 		{
 			name: "node signature verifier is nil",
 			fields: fields{
-				PartitionID: partitionID,
-				NodeIdentifier:      "1",
-				Transactions:        []*types.TransactionRecord{},
+				PartitionID:  partitionID,
+				NodeID:       "1",
+				Transactions: []*types.TransactionRecord{},
 			},
 			args: args{
 				nodeSignatureVerifier: nil,
 				ucTrustBase:           trustbase.NewTrustBaseFromVerifiers(t, map[string]crypto.Verifier{"1": trustBase}),
 				algorithm:             gocrypto.SHA256,
-				partitionID:   partitionID,
+				partitionID:           partitionID,
 				systemDescriptionHash: test.RandomBytes(32),
 			},
 			wantErr: ErrNodeVerifierIsNil.Error(),
@@ -72,15 +72,15 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 		{
 			name: "uc trust base verifier is nil",
 			fields: fields{
-				PartitionID: partitionID,
-				NodeIdentifier:      "1",
-				Transactions:        []*types.TransactionRecord{},
+				PartitionID:  partitionID,
+				NodeID:       "1",
+				Transactions: []*types.TransactionRecord{},
 			},
 			args: args{
 				nodeSignatureVerifier: nodeVerifier,
 				ucTrustBase:           nil,
 				algorithm:             gocrypto.SHA256,
-				partitionID:   partitionID,
+				partitionID:           partitionID,
 				systemDescriptionHash: test.RandomBytes(32),
 			},
 			wantErr: ErrTrustBaseIsNil.Error(),
@@ -88,15 +88,15 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 		{
 			name: "invalid partition identifier",
 			fields: fields{
-				PartitionID: partitionID,
-				NodeIdentifier:      "1",
-				Transactions:        []*types.TransactionRecord{},
+				PartitionID:  partitionID,
+				NodeID:       "1",
+				Transactions: []*types.TransactionRecord{},
 			},
 			args: args{
 				nodeSignatureVerifier: nodeVerifier,
 				ucTrustBase:           trustbase.NewTrustBaseFromVerifiers(t, map[string]crypto.Verifier{"1": trustBase}),
 				algorithm:             gocrypto.SHA256,
-				partitionID:   2,
+				partitionID:           2,
 				systemDescriptionHash: test.RandomBytes(32),
 			},
 			wantErr: ErrInvalidPartitionID.Error(),
@@ -119,10 +119,10 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 		{
 			name: "uc is nil",
 			fields: fields{
-				PartitionID: partitionID,
-				NodeIdentifier:      "1",
-				UnicityCertificate:  nil,
-				Transactions:        []*types.TransactionRecord{},
+				PartitionID:        partitionID,
+				NodeID:             "1",
+				UnicityCertificate: nil,
+				Transactions:       []*types.TransactionRecord{},
 			},
 			args: args{
 				nodeSignatureVerifier: nodeVerifier,
@@ -136,8 +136,8 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 		{
 			name: "tr hash mismatch",
 			fields: fields{
-				PartitionID: partitionID,
-				NodeIdentifier:      "1",
+				PartitionID:        partitionID,
+				NodeID:             "1",
 				UnicityCertificate: testcerts.CreateUnicityCertificate(
 					t, ucSigner, &types.InputRecord{
 						Version:      1,
@@ -164,7 +164,7 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			bp := &BlockProposal{
 				Partition:          tt.fields.PartitionID,
-				NodeIdentifier:     tt.fields.NodeIdentifier,
+				NodeID:             tt.fields.NodeID,
 				UnicityCertificate: tt.fields.UnicityCertificate,
 				Technical:          tt.fields.TechnicalRecord,
 				Transactions:       tt.fields.Transactions,
@@ -208,8 +208,8 @@ func TestBlockProposal_SignAndVerify(t *testing.T) {
 	}).MarshalCBOR()
 	require.NoError(t, err)
 	bp := &BlockProposal{
-		Partition:      partitionID,
-		NodeIdentifier: "1",
+		Partition:          partitionID,
+		NodeID:             "1",
 		UnicityCertificate: &types.UnicityCertificate{
 			Version: 1,
 			InputRecord: &types.InputRecord{
@@ -264,8 +264,8 @@ func TestBlockProposal_InvalidSignature(t *testing.T) {
 	}).MarshalCBOR()
 	require.NoError(t, err)
 	bp := &BlockProposal{
-		Partition:      partitionID,
-		NodeIdentifier: "1",
+		Partition: partitionID,
+		NodeID:    "1",
 		UnicityCertificate: &types.UnicityCertificate{
 			Version: 1,
 			InputRecord: &types.InputRecord{

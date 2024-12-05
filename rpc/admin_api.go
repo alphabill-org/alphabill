@@ -34,7 +34,7 @@ type (
 	}
 
 	PeerInfo struct {
-		Identifier string                `json:"identifier"`
+		NodeID     string                `json:"nodeId"`
 		Addresses  []multiaddr.Multiaddr `json:"addresses"`
 	}
 )
@@ -52,7 +52,7 @@ func (s *AdminAPI) GetNodeInfo() (*NodeInfoResponse, error) {
 		PermissionedMode: s.node.IsPermissionedMode(),
 		FeelessMode:      s.node.IsFeelessMode(),
 		Self: PeerInfo{
-			Identifier: s.self.ID().String(),
+			NodeID: s.self.ID().String(),
 			Addresses:  s.self.MultiAddresses(),
 		},
 		BootstrapNodes:      getBootstrapNodes(s.self),
@@ -68,7 +68,7 @@ func getPartitionValidators(node partitionNode, self *network.Peer) []PeerInfo {
 	peerStore := self.Network().Peerstore()
 	for i, v := range validators {
 		peers[i] = PeerInfo{
-			Identifier: v.String(),
+			NodeID: v.String(),
 			Addresses:  peerStore.PeerInfo(v).Addrs,
 		}
 	}
@@ -80,7 +80,7 @@ func getOpenConnections(self *network.Peer) []PeerInfo {
 	peers := make([]PeerInfo, len(connections))
 	for i, connection := range connections {
 		peers[i] = PeerInfo{
-			Identifier: connection.RemotePeer().String(),
+			NodeID: connection.RemotePeer().String(),
 			Addresses:  []multiaddr.Multiaddr{connection.RemoteMultiaddr()},
 		}
 	}
@@ -99,7 +99,7 @@ func getRootValidators(self *network.Peer, log *slog.Logger) []PeerInfo {
 		}
 		if slices.Contains(protocols, network.ProtocolBlockCertification) {
 			peers = append(peers, PeerInfo{
-				Identifier: id.String(),
+				NodeID: id.String(),
 				Addresses:  peerStore.PeerInfo(id).Addrs,
 			})
 		}
@@ -111,7 +111,7 @@ func getBootstrapNodes(self *network.Peer) []PeerInfo {
 	bootstrapPeers := self.Configuration().BootstrapPeers
 	infos := make([]PeerInfo, len(bootstrapPeers))
 	for i, p := range bootstrapPeers {
-		infos[i] = PeerInfo{Identifier: p.ID.String(), Addresses: p.Addrs}
+		infos[i] = PeerInfo{NodeID: p.ID.String(), Addresses: p.Addrs}
 	}
 	return infos
 }
@@ -122,7 +122,7 @@ func (pi *PeerInfo) UnmarshalJSON(data []byte) error {
 		return err
 	}
 
-	pi.Identifier, _ = d["identifier"].(string)
+	pi.NodeID, _ = d["identifier"].(string)
 	addrs := d["addresses"].([]interface{})
 	for _, addr := range addrs {
 		multiAddr, err := multiaddr.NewMultiaddr(addr.(string))

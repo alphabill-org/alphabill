@@ -9,14 +9,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const nodeIdentifier = "1"
+const nodeID = "1"
 
 func TestPartitionNode_IsValid_InvalidInputs(t *testing.T) {
 	_, verifier := testsig.CreateSignerAndVerifier(t)
 	pubKey, err := verifier.MarshalPublicKey()
 	require.NoError(t, err)
 	type fields struct {
-		NodeIdentifier                   string
+		NodeID                           string
 		SigningPublicKey                 []byte
 		EncryptionPublicKey              []byte
 		BlockCertificationRequestRequest *certification.BlockCertificationRequest
@@ -30,14 +30,14 @@ func TestPartitionNode_IsValid_InvalidInputs(t *testing.T) {
 		{
 			name: "node identifier is empty",
 			fields: fields{
-				NodeIdentifier: "",
+				NodeID: "",
 			},
-			wantErrStr: ErrNodeIdentifierIsEmpty.Error(),
+			wantErrStr: ErrNodeIDIsEmpty.Error(),
 		},
 		{
 			name: "signing public key is missing",
 			fields: fields{
-				NodeIdentifier:   nodeIdentifier,
+				NodeID:   nodeID,
 				SigningPublicKey: nil,
 			},
 			wantErrStr: ErrSigningPublicKeyIsInvalid.Error(),
@@ -45,7 +45,7 @@ func TestPartitionNode_IsValid_InvalidInputs(t *testing.T) {
 		{
 			name: "signing public key is invalid",
 			fields: fields{
-				NodeIdentifier:   "1",
+				NodeID:   "1",
 				SigningPublicKey: []byte{0, 0, 0, 0},
 			},
 			wantErrStr: "invalid signing public key, pubkey must be 33 bytes long, but is 4",
@@ -53,7 +53,7 @@ func TestPartitionNode_IsValid_InvalidInputs(t *testing.T) {
 		{
 			name: "encryption public key is missing",
 			fields: fields{
-				NodeIdentifier:      nodeIdentifier,
+				NodeID:      nodeID,
 				SigningPublicKey:    pubKey,
 				EncryptionPublicKey: nil,
 			},
@@ -62,7 +62,7 @@ func TestPartitionNode_IsValid_InvalidInputs(t *testing.T) {
 		{
 			name: "encryption public key is invalid",
 			fields: fields{
-				NodeIdentifier:      "1",
+				NodeID:      "1",
 				SigningPublicKey:    pubKey,
 				EncryptionPublicKey: []byte{0, 0, 0, 0},
 			},
@@ -71,7 +71,7 @@ func TestPartitionNode_IsValid_InvalidInputs(t *testing.T) {
 		{
 			name: "invalid p1 request",
 			fields: fields{
-				NodeIdentifier:                   nodeIdentifier,
+				NodeID:                   nodeID,
 				SigningPublicKey:                 pubKey,
 				EncryptionPublicKey:              pubKey,
 				BlockCertificationRequestRequest: nil,
@@ -83,7 +83,7 @@ func TestPartitionNode_IsValid_InvalidInputs(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			x := &PartitionNode{
 				Version:                   1,
-				NodeIdentifier:            tt.fields.NodeIdentifier,
+				NodeID:                    tt.fields.NodeID,
 				SigningPublicKey:          tt.fields.SigningPublicKey,
 				EncryptionPublicKey:       tt.fields.EncryptionPublicKey,
 				BlockCertificationRequest: tt.fields.BlockCertificationRequestRequest,
@@ -104,7 +104,7 @@ func TestPartitionNodeIsValid(t *testing.T) {
 	require.NoError(t, err)
 	req := &certification.BlockCertificationRequest{
 		Partition:      1,
-		NodeIdentifier: nodeIdentifier,
+		NodeID:      nodeID,
 		InputRecord: &types.InputRecord{
 			Version:      1,
 			PreviousHash: make([]byte, 32),
@@ -118,7 +118,7 @@ func TestPartitionNodeIsValid(t *testing.T) {
 	require.NoError(t, req.Sign(signer))
 	pn := &PartitionNode{
 		Version:                   1,
-		NodeIdentifier:            nodeIdentifier,
+		NodeID:                    nodeID,
 		SigningPublicKey:          pubKey,
 		EncryptionPublicKey:       pubKey,
 		BlockCertificationRequest: req,

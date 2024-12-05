@@ -145,9 +145,9 @@ func Test_ShardInfo_ValidRequest(t *testing.T) {
 	// return BCR which is valid next request for "si" above (but not signed)
 	validBCR := func() *certification.BlockCertificationRequest {
 		return &certification.BlockCertificationRequest{
-			Partition:      si.LastCR.Partition,
-			Shard:          si.LastCR.Shard,
-			NodeIdentifier: "1111",
+			Partition:   si.LastCR.Partition,
+			Shard:       si.LastCR.Shard,
+			NodeID:      "1111",
 			InputRecord: &types.InputRecord{
 				Version:      1,
 				RoundNumber:  si.LastCR.Technical.Round, // incoming request must be for next round
@@ -169,7 +169,7 @@ func Test_ShardInfo_ValidRequest(t *testing.T) {
 		bcr.InputRecord.RoundNumber++
 		require.EqualError(t, si.ValidRequest(bcr), `invalid certification request: signature verification: verification failed`)
 
-		bcr.NodeIdentifier = "unknown"
+		bcr.NodeID = "unknown"
 		require.EqualError(t, si.ValidRequest(bcr), `invalid certification request: node "unknown" is not in the trustbase of the shard`)
 	})
 
@@ -490,7 +490,7 @@ func Test_NewShardInfoFromGenesis(t *testing.T) {
 	pgEpoch1 := &genesis.GenesisPartitionRecord{
 		Version: 1,
 		Nodes: []*genesis.PartitionNode{
-			{NodeIdentifier: nodeID, EncryptionPublicKey: authKey, SigningPublicKey: validKey},
+			{NodeID: nodeID, EncryptionPublicKey: authKey, SigningPublicKey: validKey},
 		},
 		Certificate:          testcertificates.CreateUnicityCertificate(t, signer, ir, pdr, 1, zH, zH),
 		PartitionDescription: pdr,
@@ -520,7 +520,7 @@ func Test_NewShardInfoFromGenesis(t *testing.T) {
 	t.Run("invalid key", func(t *testing.T) {
 		pg := *pgEpoch1
 		pg.Nodes = []*genesis.PartitionNode{
-			{NodeIdentifier: "1111", SigningPublicKey: []byte{1, 2, 3}},
+			{NodeID: "1111", SigningPublicKey: []byte{1, 2, 3}},
 		}
 		si, err := NewShardInfoFromGenesis(&pg)
 		require.EqualError(t, err, `shard info init: creating verifier for the node "1111": pubkey must be 33 bytes long, but is 3`)

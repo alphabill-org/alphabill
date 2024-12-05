@@ -51,7 +51,7 @@ func Test_MoneyGenesis(t *testing.T) {
 		homeDir := t.TempDir()
 		require.NoError(t, os.MkdirAll(filepath.Join(homeDir, moneyPartitionDir), 0700))
 		nodeGenesisFile := filepath.Join(homeDir, moneyPartitionDir, moneyGenesisFileName)
-		require.NoError(t, util.WriteJsonFile(nodeGenesisFile, &genesis.PartitionNode{Version: 1, NodeIdentifier: "1"}))
+		require.NoError(t, util.WriteJsonFile(nodeGenesisFile, &genesis.PartitionNode{Version: 1, NodeID: "1"}))
 
 		cmd := New(testobserve.NewFactory(t))
 		args := "money-genesis --gen-keys --home " + homeDir + pdrArgument
@@ -117,7 +117,7 @@ func Test_MoneyGenesis(t *testing.T) {
 		homeDir := t.TempDir()
 		pdr := &types.PartitionDescriptionRecord{
 			Version:           1,
-			NetworkIdentifier: 5,
+			NetworkID: 5,
 			PartitionID:       moneysdk.DefaultPartitionID,
 			TypeIdLen:         4,
 			UnitIdLen:         300,
@@ -159,7 +159,7 @@ func Test_MoneyGenesis(t *testing.T) {
 
 		pdr := &types.PartitionDescriptionRecord{
 			Version:             1,
-			NetworkIdentifier:   5,
+			NetworkID:   5,
 			PartitionID: moneysdk.DefaultPartitionID,
 			T2Timeout:           10 * time.Second,
 			FeeCreditBill: &types.FeeCreditBill{
@@ -183,7 +183,7 @@ func Test_MoneyGenesis(t *testing.T) {
 
 		pdr := &types.PartitionDescriptionRecord{
 			Version:             1,
-			NetworkIdentifier:   5,
+			NetworkID:   5,
 			PartitionID: moneysdk.DefaultPartitionID,
 			T2Timeout:           10 * time.Second,
 			FeeCreditBill: &types.FeeCreditBill{
@@ -207,7 +207,7 @@ func Test_MoneyGenesis(t *testing.T) {
 
 		pdr := types.PartitionDescriptionRecord{
 			Version:             1,
-			NetworkIdentifier:   5,
+			NetworkID:   5,
 			PartitionID: 55,
 			TypeIdLen:           4,
 			UnitIdLen:           300,

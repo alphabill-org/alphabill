@@ -95,11 +95,11 @@ func (x *IRChangeReq) Verify(tb RequestVerifier, luc *types.UnicityCertificate, 
 		if err := tb.ValidRequest(req); err != nil {
 			return nil, fmt.Errorf("invalid certification request: %w", err)
 		}
-		if _, found := nodeIDs[req.NodeIdentifier]; found {
-			return nil, fmt.Errorf("invalid partition %s proof: contains duplicate request from node %v", x.Partition, req.NodeIdentifier)
+		if _, found := nodeIDs[req.NodeID]; found {
+			return nil, fmt.Errorf("invalid partition %s proof: contains duplicate request from node %v", x.Partition, req.NodeID)
 		}
 		// register node id
-		nodeIDs[req.NodeIdentifier] = struct{}{}
+		nodeIDs[req.NodeID] = struct{}{}
 		// get hash of IR and add to hash counter
 		hasher := abhash.New(crypto.SHA256.New())
 		req.InputRecord.AddToHasher(hasher)

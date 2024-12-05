@@ -13,8 +13,8 @@ func Test_BlockCertificationRequest_IsValid(t *testing.T) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	validBCR := func(t *testing.T) *BlockCertificationRequest {
 		bcr := &BlockCertificationRequest{
-			Partition:      1,
-			NodeIdentifier: "1",
+			Partition:   1,
+			NodeID:      "1",
 			InputRecord: &types.InputRecord{
 				Version:      1,
 				PreviousHash: []byte{},
@@ -67,8 +67,8 @@ func Test_BlockCertificationRequest_IsValid(t *testing.T) {
 
 	t.Run("invalid node ID", func(t *testing.T) {
 		bcr := validBCR(t)
-		bcr.NodeIdentifier = ""
-		require.ErrorIs(t, bcr.IsValid(verifier), errEmptyNodeIdentifier)
+		bcr.NodeID = ""
+		require.ErrorIs(t, bcr.IsValid(verifier), errEmptyNodeID)
 	})
 
 	t.Run("invalid IR", func(t *testing.T) {
@@ -88,9 +88,9 @@ func TestBlockCertificationRequest_GetPreviousHash(t *testing.T) {
 	var req *BlockCertificationRequest = nil
 	require.Nil(t, req.IRPreviousHash())
 	req = &BlockCertificationRequest{
-		Partition:      1,
-		NodeIdentifier: "1",
-		InputRecord:    nil,
+		Partition:   1,
+		NodeID:      "1",
+		InputRecord: nil,
 	}
 	require.Nil(t, req.IRPreviousHash())
 	req.InputRecord = &types.InputRecord{Version: 1, PreviousHash: []byte{1, 2, 3}}
@@ -101,9 +101,9 @@ func TestBlockCertificationRequest_GetIRRound(t *testing.T) {
 	var req *BlockCertificationRequest = nil
 	require.EqualValues(t, 0, req.IRRound())
 	req = &BlockCertificationRequest{
-		Partition:      1,
-		NodeIdentifier: "1",
-		InputRecord:    nil,
+		Partition:   1,
+		NodeID:      "1",
+		InputRecord: nil,
 	}
 	require.EqualValues(t, 0, req.IRRound())
 	req.InputRecord = &types.InputRecord{Version: 1, RoundNumber: 10}

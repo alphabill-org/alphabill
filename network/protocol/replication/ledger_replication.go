@@ -21,7 +21,7 @@ var (
 	ErrLedgerResponseBlocksIsNil  = errors.New("ledger response blocks is nil")
 	ErrLedgerReplicationReqIsNil  = errors.New("ledger replication requests is nil")
 	ErrInvalidPartitionID         = errors.New("invalid partition identifier")
-	ErrNodeIdentifierIsMissing    = errors.New("node identifier is missing")
+	ErrNodeIDIsMissing            = errors.New("node identifier is missing")
 )
 
 type (
@@ -29,7 +29,7 @@ type (
 		_                struct{} `cbor:",toarray"`
 		UUID             uuid.UUID
 		PartitionID      types.PartitionID
-		NodeIdentifier   string
+		NodeID           string
 		BeginBlockNumber uint64
 		EndBlockNumber   uint64
 	}
@@ -91,8 +91,8 @@ func (r *LedgerReplicationRequest) IsValid() error {
 	if r.PartitionID == 0 {
 		return ErrInvalidPartitionID
 	}
-	if r.NodeIdentifier == "" {
-		return ErrNodeIdentifierIsMissing
+	if r.NodeID == "" {
+		return ErrNodeIDIsMissing
 	}
 	if r.EndBlockNumber != 0 && r.EndBlockNumber < r.BeginBlockNumber {
 		return fmt.Errorf("invalid block request range from %v to %v", r.BeginBlockNumber, r.EndBlockNumber)

@@ -29,7 +29,7 @@ var inputRecord1 = &types.InputRecord{
 }
 var pdr1 = &types.PartitionDescriptionRecord{
 	Version:           1,
-	NetworkIdentifier: 5,
+	NetworkID: 5,
 	PartitionID:       partitionID1,
 	PartitionTypeID:   1,
 	T2Timeout:         2500 * time.Millisecond,
@@ -45,7 +45,7 @@ var inputRecord2 = &types.InputRecord{
 }
 var pdr2 = &types.PartitionDescriptionRecord{
 	Version:           1,
-	NetworkIdentifier: 5,
+	NetworkID: 5,
 	PartitionID:       partitionID2,
 	PartitionTypeID:   2,
 	T2Timeout:         2500 * time.Millisecond,
@@ -86,7 +86,7 @@ var pg = func() []*genesis.GenesisPartitionRecord {
 			Nodes: []*genesis.PartitionNode{
 				{
 					Version:                    1,
-					NodeIdentifier:             "1111",
+					NodeID:                     "1111",
 					SigningPublicKey:           []byte{0x3, 0x24, 0x8b, 0x61, 0x68, 0x51, 0xac, 0x6e, 0x43, 0x7e, 0xc2, 0x4e, 0xcc, 0x21, 0x9e, 0x5b, 0x42, 0x43, 0xdf, 0xa5, 0xdb, 0xdb, 0x8, 0xce, 0xa6, 0x48, 0x3a, 0xc9, 0xe0, 0xdc, 0x6b, 0x55, 0xcd},
 					PartitionDescriptionRecord: types.PartitionDescriptionRecord{Version: 1},
 				},
@@ -116,7 +116,7 @@ var pg = func() []*genesis.GenesisPartitionRecord {
 			Nodes: []*genesis.PartitionNode{
 				{
 					Version:                    1,
-					NodeIdentifier:             "2222",
+					NodeID:                     "2222",
 					SigningPublicKey:           []byte{0x3, 0x24, 0x8b, 0x61, 0x68, 0x51, 0xac, 0x6e, 0x43, 0x7e, 0xc2, 0x4e, 0xcc, 0x21, 0x9e, 0x5b, 0x42, 0x43, 0xdf, 0xa5, 0xdb, 0xdb, 0x8, 0xce, 0xa6, 0x48, 0x3a, 0xc9, 0xe0, 0xdc, 0x6b, 0x55, 0xcd},
 					PartitionDescriptionRecord: types.PartitionDescriptionRecord{Version: 1},
 				},

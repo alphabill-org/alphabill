@@ -38,7 +38,7 @@ var (
 
 	defaultMoneyPDR = &types.PartitionDescriptionRecord{
 		Version:           1,
-		NetworkIdentifier: types.NetworkLocal,
+		NetworkID: types.NetworkLocal,
 		PartitionID:       moneysdk.DefaultPartitionID,
 		TypeIdLen:         8,
 		UnitIdLen:         256,

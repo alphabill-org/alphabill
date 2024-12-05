@@ -17,7 +17,7 @@ import (
 
 var systemDescription = &types.PartitionDescriptionRecord{
 	Version:             1,
-	NetworkIdentifier:   5,
+	NetworkID:   5,
 	PartitionID:         1,
 	TypeIdLen:           8,
 	UnitIdLen:           256,
@@ -182,7 +182,7 @@ func TestDefaultNewDefaultBlockProposalValidator_ValidateOk(t *testing.T) {
 
 	bp := &blockproposal.BlockProposal{
 		Partition:          uc.UnicityTreeCertificate.Partition,
-		NodeIdentifier:     "1",
+		NodeID:             "1",
 		UnicityCertificate: uc,
 		Technical: tr,
 		Transactions: []*types.TransactionRecord{

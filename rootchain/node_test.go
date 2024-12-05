@@ -168,7 +168,7 @@ func createTrustBaseFromRootGenesis(rootGenesis *genesis.RootGenesis) (types.Roo
 		if err != nil {
 			return nil, err
 		}
-		trustBaseNodes = append(trustBaseNodes, types.NewNodeInfo(rn.NodeIdentifier, 1, verifier))
+		trustBaseNodes = append(trustBaseNodes, types.NewNodeInfo(rn.NodeID, 1, verifier))
 		// parse unicity tree root hash, optionally sanity check that all root hashes are equal for each partition
 		for _, p := range rootGenesis.Partitions {
 			if len(unicityTreeRootHash) == 0 {
@@ -345,9 +345,9 @@ func TestRootValidatorTest_SimulateNetCommunicationHandshake(t *testing.T) {
 	require.NotEmpty(t, node.PeerConf.ID.String())
 	// create
 	h := &handshake.Handshake{
-		Partition:      partitionID,
-		Shard:          types.ShardID{},
-		NodeIdentifier: partitionNodes[1].PeerConf.ID.String(),
+		Partition: partitionID,
+		Shard:     types.ShardID{},
+		NodeID:    partitionNodes[1].PeerConf.ID.String(),
 	}
 	testutils.MockValidatorNetReceives(t, mockNet, partitionNodes[0].PeerConf.ID, network.ProtocolHandshake, h)
 	// make sure certificate is sent in return
@@ -484,14 +484,14 @@ func TestRootValidatorTest_SimulateResponse(t *testing.T) {
 		cr.SetTechnicalRecord(certification.TechnicalRecord{
 			Round:    3,
 			Epoch:    1,
-			Leader:   rg.Partitions[0].Nodes[0].NodeIdentifier,
+			Leader:   rg.Partitions[0].Nodes[0].NodeID,
 			StatHash: []byte{1},
 			FeeHash:  []byte{2},
 		}))
 	// simulate 2x subscriptions
 	id32 := rg.Partitions[0].PartitionDescription.PartitionID
-	rootValidator.subscription.Subscribe(id32, rg.Partitions[0].Nodes[0].NodeIdentifier)
-	rootValidator.subscription.Subscribe(id32, rg.Partitions[0].Nodes[1].NodeIdentifier)
+	rootValidator.subscription.Subscribe(id32, rg.Partitions[0].Nodes[0].NodeID)
+	rootValidator.subscription.Subscribe(id32, rg.Partitions[0].Nodes[1].NodeID)
 	// simulate response from consensus manager
 	rootValidator.onCertificationResult(ctx, &cr)
 	// UC's are sent to all partition nodes

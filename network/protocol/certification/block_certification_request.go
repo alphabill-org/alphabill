@@ -13,14 +13,14 @@ var (
 	ErrBlockCertificationRequestIsNil = errors.New("block certification request is nil")
 	errInvalidPartitionID             = errors.New("invalid partition identifier")
 	errVerifierIsNil                  = errors.New("verifier is nil")
-	errEmptyNodeIdentifier            = errors.New("node identifier is empty")
+	errEmptyNodeID                    = errors.New("node identifier is empty")
 )
 
 type BlockCertificationRequest struct {
 	_              struct{}           `cbor:",toarray"`
 	Partition      types.PartitionID  `json:"partitionId"`
 	Shard          types.ShardID      `json:"shardIdentifier"`
-	NodeIdentifier string             `json:"nodeIdentifier"`
+	NodeID         string             `json:"nodeId"`
 	InputRecord    *types.InputRecord `json:"inputRecord"`
 	BlockSize      uint64             `json:"blockSize"`
 	StateSize      uint64             `json:"stateSize"`
@@ -51,8 +51,8 @@ func (x *BlockCertificationRequest) IsValid(v crypto.Verifier) error {
 	if x.Partition == 0 {
 		return errInvalidPartitionID
 	}
-	if x.NodeIdentifier == "" {
-		return errEmptyNodeIdentifier
+	if x.NodeID == "" {
+		return errEmptyNodeID
 	}
 	if err := x.InputRecord.IsValid(); err != nil {
 		return fmt.Errorf("invalid input record: %w", err)

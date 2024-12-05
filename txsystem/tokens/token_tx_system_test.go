@@ -49,7 +49,7 @@ var (
 func TestNewTokenTxSystem_NilPartitionID(t *testing.T) {
 	pdr := types.PartitionDescriptionRecord{
 		Version:             1,
-		NetworkIdentifier:   5,
+		NetworkID:   5,
 		PartitionID: 0,
 		TypeIdLen:           8,
 		UnitIdLen:           256,
@@ -63,7 +63,7 @@ func TestNewTokenTxSystem_NilPartitionID(t *testing.T) {
 func TestNewTokenTxSystem_StateIsNil(t *testing.T) {
 	pdr := types.PartitionDescriptionRecord{
 		Version:             1,
-		NetworkIdentifier:   5,
+		NetworkID:   5,
 		PartitionID: tokens.DefaultPartitionID,
 		TypeIdLen:           8,
 		UnitIdLen:           256,
@@ -1773,7 +1773,7 @@ func newTokenTxSystem(t *testing.T, opts ...Option) (*txsystem.GenericTxSystem, 
 	}}))
 	pdr := types.PartitionDescriptionRecord{
 		Version:             1,
-		NetworkIdentifier:   5,
+		NetworkID:   5,
 		PartitionID: tokens.DefaultPartitionID,
 		TypeIdLen:           8,
 		UnitIdLen:           256,

@@ -78,7 +78,7 @@ func newSingleNonValidatorNodePartition(t *testing.T, txSystem txsystem.Transact
 
 func newSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, validator bool, nodeOptions ...NodeOption) *SingleNodePartition {
 	peerConf := createPeerConfiguration(t)
-	pdr := types.PartitionDescriptionRecord{Version: 1, NetworkIdentifier: 5, PartitionID: 0x01010101, TypeIdLen: 8, UnitIdLen: 256, T2Timeout: 2500 * time.Millisecond}
+	pdr := types.PartitionDescriptionRecord{Version: 1, NetworkID: 5, PartitionID: 0x01010101, TypeIdLen: 8, UnitIdLen: 256, T2Timeout: 2500 * time.Millisecond}
 	// node genesis
 	nodeSigner, _ := testsig.CreateSignerAndVerifier(t)
 	nodeGenesis, err := NewNodeGenesis(
@@ -125,7 +125,7 @@ func newSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, v
 	require.NoError(t, err)
 	partitionGenesis[0].Keys = []*genesis.PublicKeyInfo{
 		&genesis.PublicKeyInfo{
-			NodeIdentifier:      fakeValidatorID.String(),
+			NodeID:              fakeValidatorID.String(),
 			SigningPublicKey:    fakeValidatorPubKeyRaw,
 			EncryptionPublicKey: fakeValidatorPubKeyRaw,
 		},
@@ -133,7 +133,7 @@ func newSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, v
 	if validator {
 		partitionGenesis[0].Keys = append(partitionGenesis[0].Keys,
 			&genesis.PublicKeyInfo{
-				NodeIdentifier:      peerConf.ID.String(),
+				NodeID:              peerConf.ID.String(),
 				SigningPublicKey:    peerConf.KeyPair.PublicKey,
 				EncryptionPublicKey: peerConf.KeyPair.PublicKey,
 			})

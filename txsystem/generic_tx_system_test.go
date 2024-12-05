@@ -46,7 +46,7 @@ func (t *MockData) Owner() []byte {
 func Test_NewGenericTxSystem(t *testing.T) {
 	validPDR := types.PartitionDescriptionRecord{
 		Version:             1,
-		NetworkIdentifier:   mockNetworkID,
+		NetworkID:   mockNetworkID,
 		PartitionID: mockPartitionID,
 		TypeIdLen:           8,
 		UnitIdLen:           256,
@@ -355,7 +355,7 @@ func Test_GenericTxSystem_validateGenericTransaction(t *testing.T) {
 		return &types.TransactionOrder{
 			Version: 1,
 			Payload: types.Payload{
-				NetworkID:   txs.pdr.NetworkIdentifier,
+				NetworkID:   txs.pdr.NetworkID,
 				PartitionID: txs.pdr.PartitionID,
 				UnitID:      make(types.UnitID, 33),
 				ClientMetadata: &types.ClientMetadata{
@@ -470,7 +470,7 @@ func NewTestGenericTxSystem(t *testing.T, modules []txtypes.Module, opts ...txSy
 func defaultTestConfiguration(t *testing.T, modules []txtypes.Module) *GenericTxSystem {
 	pdr := types.PartitionDescriptionRecord{
 		Version:             1,
-		NetworkIdentifier:   mockNetworkID,
+		NetworkID:   mockNetworkID,
 		PartitionID: mockPartitionID,
 		TypeIdLen:           8,
 		UnitIdLen:           8 * 32,

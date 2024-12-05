@@ -66,7 +66,7 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 	require.NoError(t, err)
 	pdr := &types.PartitionDescriptionRecord{
 		Version:             1,
-		NetworkIdentifier:   5,
+		NetworkID:   5,
 		PartitionID: 1,
 		T2Timeout:           2000 * time.Millisecond,
 	}
@@ -74,7 +74,7 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 		{
 			PartitionDescription: pdr,
 			Nodes: []*genesis.PartitionNode{
-				{NodeIdentifier: "node1", SigningPublicKey: pubKeyBytes, PartitionDescriptionRecord: *pdr},
+				{NodeID: "node1", SigningPublicKey: pubKeyBytes, PartitionDescriptionRecord: *pdr},
 			},
 			Certificate: testcertificates.CreateUnicityCertificate(t, signer, irSysID1, pdr, 1, make([]byte, 32), make([]byte, 32)),
 		},
@@ -118,9 +118,9 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 			Timestamp:       genesisPartitions[0].Certificate.UnicitySeal.Timestamp,
 		}
 		request := &certification.BlockCertificationRequest{
-			Partition:      sysID1,
-			NodeIdentifier: "node1",
-			InputRecord:    newIR,
+			Partition:   sysID1,
+			NodeID:      "node1",
+			InputRecord: newIR,
 		}
 		require.NoError(t, request.Sign(signer))
 		irChReq := &abtypes.IRChangeReq{
@@ -150,9 +150,9 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 			Timestamp:       genesisPartitions[0].Certificate.UnicitySeal.Timestamp,
 		}
 		request := &certification.BlockCertificationRequest{
-			Partition:      sysID2,
-			NodeIdentifier: "node1",
-			InputRecord:    newIR,
+			Partition:   sysID2,
+			NodeID:      "node1",
+			InputRecord: newIR,
 		}
 		require.NoError(t, request.Sign(signer))
 		irChReq := &abtypes.IRChangeReq{
@@ -182,9 +182,9 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 			orchestration: orchestration,
 		}
 		request := &certification.BlockCertificationRequest{
-			Partition:      sysID1,
-			NodeIdentifier: "node1",
-			InputRecord:    newIR,
+			Partition:   sysID1,
+			NodeID:      "node1",
+			InputRecord: newIR,
 		}
 		require.NoError(t, request.Sign(signer))
 		irChReq := &abtypes.IRChangeReq{
@@ -221,9 +221,9 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 			Timestamp:       genesisPartitions[0].Certificate.UnicitySeal.Timestamp,
 		}
 		request := &certification.BlockCertificationRequest{
-			Partition:      sysID1,
-			NodeIdentifier: "node1",
-			InputRecord:    newIR,
+			Partition:   sysID1,
+			NodeID:      "node1",
+			InputRecord: newIR,
 		}
 		require.NoError(t, request.Sign(signer))
 		irChReq := &abtypes.IRChangeReq{
@@ -253,9 +253,9 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 			Timestamp:       genesisPartitions[0].Certificate.UnicitySeal.Timestamp,
 		}
 		request := &certification.BlockCertificationRequest{
-			Partition:      sysID1,
-			NodeIdentifier: "node1",
-			InputRecord:    newIR,
+			Partition:   sysID1,
+			NodeID:      "node1",
+			InputRecord: newIR,
 		}
 		require.NoError(t, request.Sign(signer))
 		irChReq := &abtypes.IRChangeReq{
@@ -278,14 +278,14 @@ func TestNewIRChangeReqVerifier(t *testing.T) {
 		{
 			PartitionDescription: &types.PartitionDescriptionRecord{
 				Version:             1,
-				NetworkIdentifier:   5,
+				NetworkID:   5,
 				PartitionID: 1,
 				T2Timeout:           2600 * time.Millisecond,
 			},
 			Nodes: []*genesis.PartitionNode{
-				{NodeIdentifier: "node1", SigningPublicKey: pubKeyBytes, PartitionDescriptionRecord: types.PartitionDescriptionRecord{Version: 1}},
-				{NodeIdentifier: "node2", SigningPublicKey: pubKeyBytes, PartitionDescriptionRecord: types.PartitionDescriptionRecord{Version: 1}},
-				{NodeIdentifier: "node3", SigningPublicKey: pubKeyBytes, PartitionDescriptionRecord: types.PartitionDescriptionRecord{Version: 1}},
+				{NodeID: "node1", SigningPublicKey: pubKeyBytes, PartitionDescriptionRecord: types.PartitionDescriptionRecord{Version: 1}},
+				{NodeID: "node2", SigningPublicKey: pubKeyBytes, PartitionDescriptionRecord: types.PartitionDescriptionRecord{Version: 1}},
+				{NodeID: "node3", SigningPublicKey: pubKeyBytes, PartitionDescriptionRecord: types.PartitionDescriptionRecord{Version: 1}},
 			},
 			Certificate: &types.UnicityCertificate{
 				InputRecord: &types.InputRecord{},
@@ -327,12 +327,12 @@ func TestNewLucBasedT2TimeoutGenerator(t *testing.T) {
 		{
 			PartitionDescription: &types.PartitionDescriptionRecord{
 				Version:             1,
-				NetworkIdentifier:   5,
+				NetworkID:   5,
 				PartitionID: 1,
 				T2Timeout:           2600 * time.Millisecond,
 			},
 			Nodes: []*genesis.PartitionNode{
-				{NodeIdentifier: "node1", SigningPublicKey: pubKeyBytes, PartitionDescriptionRecord: types.PartitionDescriptionRecord{Version: 1}},
+				{NodeID: "node1", SigningPublicKey: pubKeyBytes, PartitionDescriptionRecord: types.PartitionDescriptionRecord{Version: 1}},
 			},
 			Certificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{}},
 		},
@@ -380,12 +380,12 @@ func TestPartitionTimeoutGenerator_GetT2Timeouts(t *testing.T) {
 			},
 			PartitionDescription: &types.PartitionDescriptionRecord{
 				Version:             1,
-				NetworkIdentifier:   5,
+				NetworkID:   5,
 				PartitionID: sysID1,
 				T2Timeout:           2500 * time.Millisecond,
 			},
 			Nodes: []*genesis.PartitionNode{
-				{NodeIdentifier: "node1", SigningPublicKey: pubKeyBytes, PartitionDescriptionRecord: types.PartitionDescriptionRecord{Version: 1}},
+				{NodeID: "node1", SigningPublicKey: pubKeyBytes, PartitionDescriptionRecord: types.PartitionDescriptionRecord{Version: 1}},
 			},
 		},
 	}

@@ -31,7 +31,7 @@ func TestRunEvmNode_StartStop(t *testing.T) {
 	trustBaseFileLocation := filepath.Join(homeDir, rootTrustBaseFileName)
 	pdr := types.PartitionDescriptionRecord{
 		Version:           1,
-		NetworkIdentifier: 5,
+		NetworkID: 5,
 		PartitionID:       33,
 		TypeIdLen:         8,
 		UnitIdLen:         256,

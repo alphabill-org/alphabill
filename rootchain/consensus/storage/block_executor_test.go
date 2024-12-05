@@ -111,8 +111,8 @@ func TestExecutedBlock_Extend(t *testing.T) {
 	parent, err := NewGenesisBlock(hash, rootGenesis.Partitions)
 	require.NoError(t, err)
 	certReq := &certification.BlockCertificationRequest{
-		Partition:      partitionID1,
-		NodeIdentifier: "1",
+		Partition:  partitionID1,
+		NodeID:     "1",
 		InputRecord: &types.InputRecord{
 			Version:         1,
 			PreviousHash:    []byte{1, 1, 1, 1},

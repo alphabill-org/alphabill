@@ -114,7 +114,7 @@ func NewShardInfoFromGenesis(pg *genesis.GenesisPartitionRecord) (*ShardInfo, er
 		return nil, fmt.Errorf("init previous epoch stat: %w", err)
 	}
 
-	nodeIDs := util.TransformSlice(pg.Nodes, func(pn *genesis.PartitionNode) string { return pn.NodeIdentifier })
+	nodeIDs := util.TransformSlice(pg.Nodes, func(pn *genesis.PartitionNode) string { return pn.NodeID })
 	tr, err := rcgenesis.TechnicalRecord(pg.Certificate.InputRecord, nodeIDs)
 	if err != nil {
 		return nil, fmt.Errorf("creating TechnicalRecord: %w", err)
@@ -288,7 +288,7 @@ func (si *ShardInfo) ValidRequest(req *certification.BlockCertificationRequest) 
 	// req.IsValid checks that req is not nil and comes from valid validator.
 	// It also calls IR.IsValid which implements (CR.IR.h = CR.IR.h′) = (CR.IR.hB = 0H)
 	// check so we do not repeat it here.
-	if err := si.Verify(req.NodeIdentifier, req.IsValid); err != nil {
+	if err := si.Verify(req.NodeID, req.IsValid); err != nil {
 		return fmt.Errorf("invalid certification request: %w", err)
 	}
 

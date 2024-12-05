@@ -23,7 +23,7 @@ func TestFC_Validation(t *testing.T) {
 
 	t.Run("new fc module validation errors", func(t *testing.T) {
 		_, err := NewFeeCreditModule(0, partitionID, partitionID, s, trustBase)
-		require.ErrorIs(t, err, ErrNetworkIdentifierMissing)
+		require.ErrorIs(t, err, ErrNetworkIDMissing)
 
 		_, err = NewFeeCreditModule(networkID, 0, partitionID, s, trustBase)
 		require.ErrorIs(t, err, ErrPartitionIDMissing)

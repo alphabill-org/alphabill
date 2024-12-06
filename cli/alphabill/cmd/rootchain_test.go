@@ -359,6 +359,10 @@ func (mn *mockNode) PartitionID() types.PartitionID {
 	return mn.partitionID
 }
 
+func (mn *mockNode) ShardID() types.ShardID {
+	return types.ShardID{}
+}
+
 func (mn *mockNode) Peer() *network.Peer {
 	return mn.peer
 }

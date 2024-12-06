@@ -33,7 +33,8 @@ type (
 		log            *slog.Logger
 		tracer         trace.Tracer
 
-		mDur metric.Float64Histogram
+		mDur      metric.Float64Histogram
+		shardAttr metric.MeasurementOption
 	}
 
 	Observability interface {
@@ -47,7 +48,7 @@ type (
 New creates a new instance of the TxBuffer.
 MaxSize specifies the total number of transactions the TxBuffer may contain.
 */
-func New(maxSize uint, hashAlgorithm crypto.Hash, obs Observability) (*TxBuffer, error) {
+func New(maxSize uint, hashAlgorithm crypto.Hash, partition types.PartitionID, shard types.ShardID, obs Observability) (*TxBuffer, error) {
 	if maxSize < 1 {
 		return nil, fmt.Errorf("buffer max size must be greater than zero, got %d", maxSize)
 	}
@@ -62,7 +63,7 @@ func New(maxSize uint, hashAlgorithm crypto.Hash, obs Observability) (*TxBuffer,
 		log:            obs.Logger(),
 		tracer:         obs.Tracer("txBuffer"),
 	}
-	if err := buf.initMetrics(obs); err != nil {
+	if err := buf.initMetrics(partition, shard, obs); err != nil {
 		return nil, fmt.Errorf("initializing metrics: %w", err)
 	}
 
@@ -137,7 +138,7 @@ func (buf *TxBuffer) removeFromIndex(ctx context.Context, id string) {
 	if added, found := buf.transactions[id]; found {
 		bufTime := time.Since(added)
 		span.SetAttributes(attribute.String("buffered.duration", bufTime.String()))
-		buf.mDur.Record(ctx, bufTime.Seconds())
+		buf.mDur.Record(ctx, bufTime.Seconds(), buf.shardAttr)
 		delete(buf.transactions, id)
 	}
 }
@@ -146,15 +147,16 @@ func (buf *TxBuffer) HashAlgorithm() crypto.Hash {
 	return buf.hashAlgorithm
 }
 
-func (buf *TxBuffer) initMetrics(obs Observability) (err error) {
+func (buf *TxBuffer) initMetrics(partition types.PartitionID, shard types.ShardID, obs Observability) (err error) {
 	m := obs.Meter("txbuffer")
+	buf.shardAttr = observability.Shard(partition, shard)
 
 	if _, err = m.Int64ObservableUpDownCounter(
 		"count",
 		metric.WithDescription(`Number of transactions in the buffer.`),
 		metric.WithUnit("{transaction}"),
 		metric.WithInt64Callback(func(ctx context.Context, io metric.Int64Observer) error {
-			io.Observe(int64(len(buf.transactionsCh)))
+			io.Observe(int64(len(buf.transactionsCh)), buf.shardAttr)
 			return nil
 		}),
 	); err != nil {

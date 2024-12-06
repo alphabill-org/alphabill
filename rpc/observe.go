@@ -6,11 +6,13 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/alphabill-org/alphabill/logger"
 	"github.com/gorilla/mux"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 	semconv "go.opentelemetry.io/otel/semconv/v1.27.0"
+
+	"github.com/alphabill-org/alphabill/logger"
+	"github.com/alphabill-org/alphabill/observability"
 )
 
 func metricsUpdater(mtr metric.Meter, node partitionNode, log *slog.Logger) func(ctx context.Context, method string, start time.Time, apiErr error) {
@@ -28,10 +30,7 @@ func metricsUpdater(mtr metric.Meter, node partitionNode, log *slog.Logger) func
 		return func(context.Context, string, time.Time, error) { /* NOP */ }
 	}
 
-	fixedAttr := metric.WithAttributeSet(attribute.NewSet(
-		attribute.Int64("partition", int64(node.PartitionID())),
-		attribute.String("shard", node.ShardID().String()),
-	))
+	fixedAttr := observability.Shard(node.PartitionID(), node.ShardID())
 	statusOK := attribute.String("status", "ok")
 	statusErr := attribute.String("status", "err")
 

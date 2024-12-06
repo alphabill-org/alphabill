@@ -7,7 +7,6 @@ import (
 	"log/slog"
 
 	"github.com/libp2p/go-libp2p/core/peer"
-	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
@@ -182,9 +181,8 @@ func (v *Node) onBlockCertificationRequest(ctx context.Context, req *certificati
 			span.RecordError(rErr)
 			span.SetStatus(codes.Error, rErr.Error())
 		}
-		partition := observability.Partition(req.Partition)
-		span.SetAttributes(partition)
-		v.bcrCount.Add(ctx, 1, metric.WithAttributeSet(attribute.NewSet(observability.ErrStatus(rErr), partition)))
+		span.SetAttributes(observability.Partition(req.Partition))
+		v.bcrCount.Add(ctx, 1, observability.Shard(req.Partition, req.Shard, observability.ErrStatus(rErr)))
 		span.End()
 	}()
 

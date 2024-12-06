@@ -40,7 +40,7 @@ type PeerMessage struct {
 
 func NewMockNetwork(t *testing.T) *MockNet {
 	obs := observability.Default(t)
-	txBuffer, err := txbuffer.New(100, crypto.SHA256, obs)
+	txBuffer, err := txbuffer.New(100, crypto.SHA256, 1, types.ShardID{}, obs)
 	require.NoError(t, err)
 
 	mn := &MockNet{

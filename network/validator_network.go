@@ -15,6 +15,7 @@ import (
 	"github.com/alphabill-org/alphabill/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/network/protocol/handshake"
 	"github.com/alphabill-org/alphabill/network/protocol/replication"
+	"github.com/alphabill-org/alphabill/observability"
 	"github.com/alphabill-org/alphabill/txbuffer"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	pubsub_pb "github.com/libp2p/go-libp2p-pubsub/pb"
@@ -71,6 +72,7 @@ type (
 
 	node interface {
 		PartitionID() types.PartitionID
+		ShardID() types.ShardID
 		Peer() *Peer
 		IsValidator() bool
 	}
@@ -81,6 +83,7 @@ type (
 		txBuffer             *txbuffer.TxBuffer
 		txFwdBy              metric.Int64Counter
 		txFwdTo              metric.Int64Counter
+		fixedAttr            metric.MeasurementOption
 		gsTopicBlock         *pubsub.Topic
 		gsSubscriptionBlock  *pubsub.Subscription
 		gsCancelHandleBlocks context.CancelFunc
@@ -98,7 +101,7 @@ func NewLibP2PValidatorNetwork(ctx context.Context, node node, opts ValidatorNet
 		return nil, err
 	}
 
-	txBuffer, err := txbuffer.New(opts.TxBufferSize, opts.TxBufferHashAlgorithm, obs)
+	txBuffer, err := txbuffer.New(opts.TxBufferSize, opts.TxBufferHashAlgorithm, node.PartitionID(), node.ShardID(), obs)
 	if err != nil {
 		return nil, fmt.Errorf("tx buffer init error, %w", err)
 	}
@@ -207,6 +210,8 @@ func (n *validatorNetwork) initMetrics(obs Observability) (err error) {
 	); err != nil {
 		return fmt.Errorf("creating counter for forwarded tx: %w", err)
 	}
+
+	n.fixedAttr = observability.Shard(n.node.PartitionID(), n.node.ShardID())
 
 	return nil
 }
@@ -317,7 +322,7 @@ func (n *validatorNetwork) ForwardTransactions(ctx context.Context, receiverFunc
 
 		addToMetric := func(status string) {
 			n.txFwdBy.Add(ctx, 1, metric.WithAttributeSet(
-				attribute.NewSet(attribute.Int("tx", int(tx.Type)), attribute.String("status", status))))
+				attribute.NewSet(attribute.Int("tx", int(tx.Type)), attribute.String("status", status))), n.fixedAttr)
 		}
 
 		curReceiver := receiverFunc()
@@ -394,7 +399,9 @@ func (n *validatorNetwork) handleTransactions(stream libp2pNetwork.Stream) {
 
 		n.txFwdTo.Add(ctx, 1, metric.WithAttributes(
 			attribute.Int("tx", int(tx.Type)),
-			attribute.String("status", statusCodeOfTxBufferError(err))))
+			attribute.String("status", statusCodeOfTxBufferError(err))),
+			n.fixedAttr,
+		)
 	}
 }
 

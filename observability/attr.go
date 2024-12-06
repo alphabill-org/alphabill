@@ -5,6 +5,7 @@ import (
 
 	"github.com/libp2p/go-libp2p/core/peer"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
 )
@@ -32,6 +33,16 @@ func PeerID(key attribute.Key, id peer.ID) attribute.KeyValue {
 
 func Partition(id types.PartitionID) attribute.KeyValue {
 	return attribute.Int("partition", int(id))
+}
+
+func Shard(partition types.PartitionID, shard types.ShardID, extra ...attribute.KeyValue) metric.MeasurementOption {
+	return metric.WithAttributeSet(attribute.NewSet(
+		append(
+			extra,
+			attribute.Int64("partition", int64(partition)),
+			attribute.String("shard", shard.String()),
+		)...,
+	))
 }
 
 /*

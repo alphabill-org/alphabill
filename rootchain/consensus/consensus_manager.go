@@ -510,7 +510,7 @@ func (x *ConsensusManager) onIRChangeMsg(ctx context.Context, irChangeMsg *abdrc
 	// todo: AB-549 add max hop count or some sort of TTL?
 	// either this is a completely lost message or because of race we just proposed, forward the original
 	// message again to next leader
-	x.fwdIRCRCnt.Add(ctx, 1, metric.WithAttributeSet(attribute.NewSet(observability.Partition(irChangeMsg.IrChangeReq.Partition), attribute.String("reason", irChangeMsg.IrChangeReq.CertReason.String()))))
+	x.fwdIRCRCnt.Add(ctx, 1, observability.Shard(irChangeMsg.IrChangeReq.Partition, irChangeMsg.IrChangeReq.Shard, attribute.String("reason", irChangeMsg.IrChangeReq.CertReason.String())))
 	if err := x.net.Send(ctx, irChangeMsg, nextLeader); err != nil {
 		return fmt.Errorf("failed to forward IR change request from %s to the next leader: %w", irChangeMsg.Author, err)
 	}
@@ -896,7 +896,7 @@ func (x *ConsensusManager) processNewRoundEvent(ctx context.Context) {
 		x.log.WarnContext(ctx, "error on broadcasting proposal message", logger.Error(err))
 	}
 	for _, cr := range proposalMsg.Block.Payload.Requests {
-		x.proposedCR.Add(ctx, 1, metric.WithAttributeSet(attribute.NewSet(observability.Partition(cr.Partition), attribute.String("reason", cr.CertReason.String()))))
+		x.proposedCR.Add(ctx, 1, observability.Shard(cr.Partition, cr.Shard, attribute.String("reason", cr.CertReason.String())))
 	}
 }
 

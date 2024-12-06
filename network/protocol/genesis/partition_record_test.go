@@ -14,8 +14,8 @@ var systemDescription = &types.PartitionDescriptionRecord{
 	Version:     1,
 	NetworkID:   5,
 	PartitionID: 1,
-	TypeIdLen:   8,
-	UnitIdLen:   256,
+	TypeIDLen:   8,
+	UnitIDLen:   256,
 	T2Timeout:   time.Second,
 }
 
@@ -60,8 +60,8 @@ func TestPartitionRecord_IsValid(t *testing.T) {
 					Version:     1,
 					NetworkID:   5,
 					PartitionID: 2,
-					TypeIdLen:   8,
-					UnitIdLen:   256,
+					TypeIDLen:   8,
+					UnitIDLen:   256,
 					T2Timeout:   time.Second,
 				},
 				Validators: []*PartitionNode{createPartitionNode(t, nodeID, signingKey, encryptionPubKey)},

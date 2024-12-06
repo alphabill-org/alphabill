@@ -58,8 +58,8 @@ func TestEVMPartition_DeployAndCallContract(t *testing.T) {
 		Version:     1,
 		NetworkID:   networkID,
 		PartitionID: 0x00000402,
-		TypeIdLen:   8,
-		UnitIdLen:   256,
+		TypeIDLen:   8,
+		UnitIDLen:   256,
 		T2Timeout:   2000 * time.Millisecond,
 	}
 	from := test.RandomBytes(20)

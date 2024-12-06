@@ -48,8 +48,8 @@ func TestPartition_Ok(t *testing.T) {
 		Version:             1,
 		NetworkID:   5,
 		PartitionID: money.DefaultPartitionID,
-		TypeIdLen:           8,
-		UnitIdLen:           256,
+		TypeIDLen:           8,
+		UnitIDLen:           256,
 		T2Timeout:           2000 * time.Millisecond,
 	}
 	sdrs := createSDRs(newBillID(2))
@@ -181,8 +181,8 @@ func TestPartition_SwapDCOk(t *testing.T) {
 		Version:             1,
 		NetworkID:   networkID,
 		PartitionID: money.DefaultPartitionID,
-		TypeIdLen:           8,
-		UnitIdLen:           256,
+		TypeIDLen:           8,
+		UnitIDLen:           256,
 		T2Timeout:           2000 * time.Millisecond,
 	}
 	total := moneyInvariant

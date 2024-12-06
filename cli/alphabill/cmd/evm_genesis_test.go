@@ -26,8 +26,8 @@ func Test_EvmGenesis(t *testing.T) {
 		Version:           1,
 		NetworkID: 5,
 		PartitionID:       evmsdk.DefaultPartitionID,
-		TypeIdLen:         8,
-		UnitIdLen:         256,
+		TypeIDLen:         8,
+		UnitIDLen:         256,
 		T2Timeout:         2500 * time.Millisecond,
 	}
 	pdrFilename, err := createPDRFile(t.TempDir(), &pdr)

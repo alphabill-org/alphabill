@@ -36,8 +36,8 @@ func TestInitPartitionAndDefineNFT_Ok(t *testing.T) {
 		Version:             1,
 		NetworkID:   5,
 		PartitionID: tokens.DefaultPartitionID,
-		TypeIdLen:           8,
-		UnitIdLen:           256,
+		TypeIDLen:           8,
+		UnitIDLen:           256,
 		T2Timeout:           2000 * time.Millisecond,
 	}
 	genesisState := newStateWithFeeCredit(t, feeCreditID)
@@ -88,8 +88,8 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		Version:             1,
 		NetworkID:   5,
 		PartitionID: tokens.DefaultPartitionID,
-		TypeIdLen:           8,
-		UnitIdLen:           256,
+		TypeIDLen:           8,
+		UnitIDLen:           256,
 		T2Timeout:           2000 * time.Millisecond,
 	}
 

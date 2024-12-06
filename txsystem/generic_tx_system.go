@@ -36,7 +36,7 @@ type (
 		roundCommitted      bool
 		log                 *slog.Logger
 		pr                  predicates.PredicateRunner
-		unitIdValidator     func(types.UnitID) error
+		unitIDValidator     func(types.UnitID) error
 	}
 
 	Observability interface {
@@ -65,7 +65,7 @@ func NewGenericTxSystem(pdr types.PartitionDescriptionRecord, shardID types.Shar
 		hashAlgorithm:       options.hashAlgorithm,
 		state:               options.state,
 		trustBase:           trustBase,
-		unitIdValidator:     pdr.UnitIdValidator(shardID),
+		unitIDValidator:     pdr.UnitIDValidator(shardID),
 		beginBlockFunctions: options.beginBlockFunctions,
 		endBlockFunctions:   options.endBlockFunctions,
 		handlers:            make(txtypes.TxExecutors),
@@ -355,7 +355,7 @@ func (m *GenericTxSystem) validateGenericTransaction(tx *types.TransactionOrder)
 	}
 
 	// fSH(T.ι) = S.σ – target unit is in this shard
-	if err := m.unitIdValidator(tx.UnitID); err != nil {
+	if err := m.unitIDValidator(tx.UnitID); err != nil {
 		return err
 	}
 

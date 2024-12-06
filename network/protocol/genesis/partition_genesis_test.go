@@ -32,8 +32,8 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 		Version:     1,
 		NetworkID:   5,
 		PartitionID: 1,
-		TypeIdLen:   8,
-		UnitIdLen:   256,
+		TypeIDLen:   8,
+		UnitIDLen:   256,
 		T2Timeout:   1 * time.Second,
 	}
 

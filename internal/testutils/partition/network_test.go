@@ -18,8 +18,8 @@ func TestNewNetwork_Ok(t *testing.T) {
 		Version:             1,
 		NetworkID:   5,
 		PartitionID: 0x01020401,
-		TypeIdLen:           8,
-		UnitIdLen:           256,
+		TypeIDLen:           8,
+		UnitIDLen:           256,
 		T2Timeout:           3 * time.Second,
 	}
 	genesisState := state.NewEmptyState()
@@ -57,8 +57,8 @@ func TestNewNetwork_StandaloneBootstrapNodes(t *testing.T) {
 		Version:             1,
 		NetworkID:   5,
 		PartitionID: 0x01020401,
-		TypeIdLen:           8,
-		UnitIdLen:           256,
+		TypeIDLen:           8,
+		UnitIDLen:           256,
 		T2Timeout:           3 * time.Second,
 	}
 	genesisState := state.NewEmptyState()

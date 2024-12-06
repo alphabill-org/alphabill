@@ -119,8 +119,8 @@ func Test_MoneyGenesis(t *testing.T) {
 			Version:           1,
 			NetworkID: 5,
 			PartitionID:       moneysdk.DefaultPartitionID,
-			TypeIdLen:         4,
-			UnitIdLen:         300,
+			TypeIDLen:         4,
+			UnitIDLen:         300,
 			T2Timeout:         10 * time.Second,
 			FeeCreditBill: &types.FeeCreditBill{
 				UnitID:         moneysdk.NewBillID(nil, []byte{2}),
@@ -209,8 +209,8 @@ func Test_MoneyGenesis(t *testing.T) {
 			Version:             1,
 			NetworkID:   5,
 			PartitionID: 55,
-			TypeIdLen:           4,
-			UnitIdLen:           300,
+			TypeIDLen:           4,
+			UnitIDLen:           300,
 			T2Timeout:           10 * time.Second,
 			FeeCreditBill: &types.FeeCreditBill{
 				UnitID:         moneysdk.NewBillID(nil, []byte{2}),

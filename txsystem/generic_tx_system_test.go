@@ -48,8 +48,8 @@ func Test_NewGenericTxSystem(t *testing.T) {
 		Version:             1,
 		NetworkID:   mockNetworkID,
 		PartitionID: mockPartitionID,
-		TypeIdLen:           8,
-		UnitIdLen:           256,
+		TypeIDLen:           8,
+		UnitIDLen:           256,
 		T2Timeout:           2500 * time.Millisecond,
 	}
 	require.NoError(t, validPDR.IsValid())
@@ -472,8 +472,8 @@ func defaultTestConfiguration(t *testing.T, modules []txtypes.Module) *GenericTx
 		Version:             1,
 		NetworkID:   mockNetworkID,
 		PartitionID: mockPartitionID,
-		TypeIdLen:           8,
-		UnitIdLen:           8 * 32,
+		TypeIDLen:           8,
+		UnitIDLen:           8 * 32,
 		T2Timeout:           2500 * time.Millisecond,
 	}
 	// default configuration has no fee handling

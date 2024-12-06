@@ -40,8 +40,8 @@ var (
 		Version:           1,
 		NetworkID: types.NetworkLocal,
 		PartitionID:       moneysdk.DefaultPartitionID,
-		TypeIdLen:         8,
-		UnitIdLen:         256,
+		TypeIDLen:         8,
+		UnitIDLen:         256,
 		T2Timeout:         2500 * time.Millisecond,
 		FeeCreditBill: &types.FeeCreditBill{
 			UnitID:         moneysdk.NewBillID(nil, []byte{2}),

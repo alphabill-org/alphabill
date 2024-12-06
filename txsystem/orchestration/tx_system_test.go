@@ -28,8 +28,8 @@ func TestNewTxSystem_OK(t *testing.T) {
 		Version:             1,
 		NetworkID:   5,
 		PartitionID: orchestration.DefaultPartitionID,
-		TypeIdLen:           8,
-		UnitIdLen:           256,
+		TypeIDLen:           8,
+		UnitIDLen:           256,
 		T2Timeout:           2000 * time.Millisecond,
 	}
 	txSystem, err := NewTxSystem(

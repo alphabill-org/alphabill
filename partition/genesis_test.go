@@ -28,8 +28,8 @@ func TestNewGenesisPartitionNode_NotOk(t *testing.T) {
 		Version:             1,
 		NetworkID:   5,
 		PartitionID: 1,
-		TypeIdLen:           8,
-		UnitIdLen:           128,
+		TypeIDLen:           8,
+		UnitIDLen:           128,
 		T2Timeout:           5 * time.Second,
 	}
 

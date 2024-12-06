@@ -146,8 +146,8 @@ func createPartitionGenesis(t *testing.T, nodeSigningKey crypto.Signer, authKey 
 		Version:             1,
 		NetworkID:   5,
 		PartitionID: 0x01000001,
-		TypeIdLen:           8,
-		UnitIdLen:           256,
+		TypeIDLen:           8,
+		UnitIDLen:           256,
 		T2Timeout:           2500 * time.Millisecond,
 	}
 	pn := createPartitionNode(t, nodeSigningKey, authKey, pdr, peerConf.ID)

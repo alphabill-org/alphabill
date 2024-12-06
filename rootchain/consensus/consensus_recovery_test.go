@@ -789,8 +789,8 @@ func createPartitionRecord(t *testing.T, partitionID abtypes.PartitionID, ir *ab
 			Version:             1,
 			NetworkID:   5,
 			PartitionID: partitionID,
-			TypeIdLen:           8,
-			UnitIdLen:           256,
+			TypeIDLen:           8,
+			UnitIDLen:           256,
 			T2Timeout:           2500 * time.Millisecond,
 		},
 	}

@@ -1597,6 +1597,10 @@ func (n *Node) PartitionID() types.PartitionID {
 	return n.configuration.GetPartitionIdentifier()
 }
 
+func (n *Node) ShardID() types.ShardID {
+	return n.configuration.shardID
+}
+
 func (n *Node) Peer() *network.Peer {
 	return n.peer
 }

@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"math"
 
+	"github.com/alphabill-org/alphabill-go-base/txsystem/evm"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/util"
 	"github.com/alphabill-org/alphabill/logger"
@@ -223,6 +224,10 @@ func (m *TxSystem) IsPermissionedMode() bool {
 
 func (m *TxSystem) IsFeelessMode() bool {
 	return false
+}
+
+func (m *TxSystem) TypeID() types.PartitionTypeID {
+	return evm.PartitionTypeID
 }
 
 func (vc *TxValidationContext) GetUnit(id types.UnitID, committed bool) (*state.Unit, error) {

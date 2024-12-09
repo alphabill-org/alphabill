@@ -29,7 +29,7 @@ type PartitionGenesis struct {
 func (x *PartitionGenesis) FindRootPubKeyInfoById(id string) *PublicKeyInfo {
 	// linear search for id
 	for _, info := range x.RootValidators {
-		if info.NodeIdentifier == id {
+		if info.NodeID == id {
 			return info
 		}
 	}
@@ -74,7 +74,7 @@ func (x *PartitionGenesis) IsValid(trustBase types.RootTrustBase, hashAlgorithm 
 		return fmt.Errorf("partition description hash error, %w", err)
 	}
 	// validate all signatures against known root keys
-	if err := x.Certificate.Verify(trustBase, hashAlgorithm, x.PartitionDescription.PartitionIdentifier, pdrHash); err != nil {
+	if err := x.Certificate.Verify(trustBase, hashAlgorithm, x.PartitionDescription.PartitionID, pdrHash); err != nil {
 		return fmt.Errorf("invalid unicity certificate, %w", err)
 	}
 	// UC Seal must be signed by all validators
@@ -107,7 +107,7 @@ func newTrustBaseNodes(publicKeyInfo []*PublicKeyInfo) ([]*types.NodeInfo, error
 		if err != nil {
 			return nil, err
 		}
-		nodeInfo = append(nodeInfo, types.NewNodeInfo(info.NodeIdentifier, 1, verifier))
+		nodeInfo = append(nodeInfo, types.NewNodeInfo(info.NodeID, 1, verifier))
 	}
 	return nodeInfo, nil
 }

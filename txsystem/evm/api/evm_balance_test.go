@@ -33,10 +33,10 @@ func TestAPI_Balance_OK(t *testing.T) {
 	teststate.CommitWithUC(t, tree)
 
 	a := &API{
-		state:               tree,
-		partitionIdentifier: 1,
-		gasUnitPrice:        big.NewInt(10),
-		blockGasLimit:       10000,
+		state:         tree,
+		partitionID:   1,
+		gasUnitPrice:  big.NewInt(10),
+		blockGasLimit: 10000,
 	}
 
 	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/evm/balance/%X", address.Bytes()), nil)
@@ -69,10 +69,10 @@ func TestAPI_BalanceWithCounter(t *testing.T) {
 	teststate.CommitWithUC(t, tree)
 
 	a := &API{
-		state:               tree,
-		partitionIdentifier: 1,
-		gasUnitPrice:        big.NewInt(10),
-		blockGasLimit:       10000,
+		state:         tree,
+		partitionID:   1,
+		gasUnitPrice:  big.NewInt(10),
+		blockGasLimit: 10000,
 	}
 
 	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/evm/balance/%X", address.Bytes()), nil)
@@ -92,10 +92,10 @@ func TestAPI_BalanceWithCounter(t *testing.T) {
 
 func TestAPI_Balance_NotFound(t *testing.T) {
 	a := &API{
-		state:               abstate.NewEmptyState(),
-		partitionIdentifier: 1,
-		gasUnitPrice:        big.NewInt(10),
-		blockGasLimit:       10000,
+		state:         abstate.NewEmptyState(),
+		partitionID:   1,
+		gasUnitPrice:  big.NewInt(10),
+		blockGasLimit: 10000,
 	}
 
 	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/v1/evm/balance/%X", test.RandomBytes(20)), nil)

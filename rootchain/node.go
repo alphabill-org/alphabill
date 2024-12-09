@@ -128,11 +128,11 @@ func (v *Node) loop(ctx context.Context) error {
 			switch mt := msg.(type) {
 			case *certification.BlockCertificationRequest:
 				if err := v.onBlockCertificationRequest(ctx, mt); err != nil {
-					v.log.LogAttrs(ctx, slog.LevelWarn, fmt.Sprintf("handling block certification request from %s", mt.NodeIdentifier), logger.Error(err))
+					v.log.LogAttrs(ctx, slog.LevelWarn, fmt.Sprintf("handling block certification request from %s", mt.NodeID), logger.Error(err))
 				}
 			case *handshake.Handshake:
 				if err := v.onHandshake(ctx, mt); err != nil {
-					v.log.LogAttrs(ctx, slog.LevelWarn, fmt.Sprintf("handling handshake from %s", mt.NodeIdentifier), logger.Error(err))
+					v.log.LogAttrs(ctx, slog.LevelWarn, fmt.Sprintf("handling handshake from %s", mt.NodeID), logger.Error(err))
 				}
 			default:
 				v.log.LogAttrs(ctx, slog.LevelWarn, fmt.Sprintf("message %T not supported.", msg))
@@ -160,11 +160,11 @@ func (v *Node) onHandshake(ctx context.Context, req *handshake.Handshake) error 
 	if err := req.IsValid(); err != nil {
 		return fmt.Errorf("invalid handshake request: %w", err)
 	}
-	si, err := v.consensusManager.ShardInfo(req.Partition, req.Shard)
+	si, err := v.consensusManager.ShardInfo(req.PartitionID, req.ShardID)
 	if err != nil {
-		return fmt.Errorf("reading partition %s certificate: %w", req.Partition, err)
+		return fmt.Errorf("reading partition %s certificate: %w", req.PartitionID, err)
 	}
-	if err = v.sendResponse(ctx, req.NodeIdentifier, si.LastCR); err != nil {
+	if err = v.sendResponse(ctx, req.NodeID, si.LastCR); err != nil {
 		return fmt.Errorf("failed to send response: %w", err)
 	}
 	return nil
@@ -190,11 +190,11 @@ func (v *Node) onBlockCertificationRequest(ctx context.Context, req *certificati
 	if err != nil {
 		return fmt.Errorf("acquiring shard %s - %s info: %w", req.Partition, req.Shard, err)
 	}
-	v.subscription.Subscribe(req.Partition, req.NodeIdentifier)
+	v.subscription.Subscribe(req.Partition, req.NodeID)
 	// we got the shard info thus it's a valid partition/shard
 	if err := si.ValidRequest(req); err != nil {
 		err = fmt.Errorf("invalid block certification request: %w", err)
-		if se := v.sendResponse(ctx, req.NodeIdentifier, si.LastCR); se != nil {
+		if se := v.sendResponse(ctx, req.NodeID, si.LastCR); se != nil {
 			err = errors.Join(err, fmt.Errorf("sending latest cert: %w", se))
 		}
 		return err

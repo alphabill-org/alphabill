@@ -61,7 +61,7 @@ func NewTxSystem(pdr basetypes.PartitionDescriptionRecord, shardID basetypes.Sha
 	var feeCreditModule txtypes.FeeCreditModule
 	if len(options.adminOwnerPredicate) > 0 {
 		feeCreditModule, err = permissioned.NewFeeCreditModule(
-			pdr.NetworkIdentifier, pdr.PartitionIdentifier, options.state, tokens.FeeCreditRecordUnitType, options.adminOwnerPredicate,
+			pdr.NetworkID, pdr.PartitionID, options.state, tokens.FeeCreditRecordUnitType, options.adminOwnerPredicate,
 			permissioned.WithHashAlgorithm(options.hashAlgorithm),
 			permissioned.WithFeelessMode(options.feelessMode),
 		)
@@ -69,7 +69,7 @@ func NewTxSystem(pdr basetypes.PartitionDescriptionRecord, shardID basetypes.Sha
 			return nil, fmt.Errorf("failed to load permissioned fee credit module: %w", err)
 		}
 	} else {
-		feeCreditModule, err = fc.NewFeeCreditModule(pdr.NetworkIdentifier, pdr.PartitionIdentifier, options.moneyPartitionID, options.state, options.trustBase,
+		feeCreditModule, err = fc.NewFeeCreditModule(pdr.NetworkID, pdr.PartitionID, options.moneyPartitionID, options.state, options.trustBase,
 			fc.WithHashAlgorithm(options.hashAlgorithm),
 			fc.WithFeeCreditRecordUnitType(tokens.FeeCreditRecordUnitType),
 		)

@@ -54,10 +54,10 @@ type startNodeConfiguration struct {
 	BootStrapAddresses              string // boot strap addresses (libp2p multiaddress format)
 }
 
-func run(ctx context.Context, name string, node *partition.Node, rpcServerConf *rpc.ServerConfiguration, ownerIndexer *partition.OwnerIndexer, obs Observability) error {
+func run(ctx context.Context, node *partition.Node, rpcServerConf *rpc.ServerConfiguration, ownerIndexer *partition.OwnerIndexer, obs Observability) error {
 	log := obs.Logger()
-	log.InfoContext(ctx, fmt.Sprintf("starting %s: BuildInfo=%s", name, debug.ReadBuildInfo()))
-
+	name := partitionTypeIDToName(node.PartitionTypeID())
+	log.InfoContext(ctx, fmt.Sprintf("starting %s node: BuildInfo=%s", name, debug.ReadBuildInfo()))
 	g, ctx := errgroup.WithContext(ctx)
 
 	g.Go(func() error { return node.Run(ctx) })
@@ -80,7 +80,7 @@ func run(ctx context.Context, name string, node *partition.Node, rpcServerConf *
 			},
 			{
 				Namespace: "admin",
-				Service:   rpc.NewAdminAPI(node, name, node.Peer(), obs),
+				Service:   rpc.NewAdminAPI(node, node.Peer(), obs),
 			},
 		}
 
@@ -280,5 +280,20 @@ func hideFlags(cmd *cobra.Command, flags ...string) {
 		if err := cmd.Flags().MarkHidden(flag); err != nil {
 			panic(err)
 		}
+	}
+}
+
+func partitionTypeIDToName(partitionTypeID types.PartitionTypeID) string {
+	switch partitionTypeID {
+	case 1:
+		return "money"
+	case 2:
+		return "tokens"
+	case 3:
+		return "evm"
+	case 4:
+		return "orchestration"
+	default:
+		return "unknown"
 	}
 }

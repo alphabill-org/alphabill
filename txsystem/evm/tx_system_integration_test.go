@@ -50,17 +50,17 @@ import (
 const counterContractCode = "60806040526000805534801561001457600080fd5b506101b1806100246000396000f3fe608060405234801561001057600080fd5b50600436106100365760003560e01c80636d4ce63c1461003b578063d09de08a14610059575b600080fd5b610043610077565b60405161005091906100e9565b60405180910390f35b610061610080565b60405161006e91906100e9565b60405180910390f35b60008054905090565b600080600081548092919061009490610133565b91905055506000547f51af157c2eee40f68107a47a49c32fbbeb0a3c9e5cd37aa56e88e6be92368a8160405160405180910390a2600054905090565b6000819050919050565b6100e3816100d0565b82525050565b60006020820190506100fe60008301846100da565b92915050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601160045260246000fd5b600061013e826100d0565b91507fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff82036101705761016f610104565b5b60018201905091905056fea2646970667358221220e77ebad0c44e3c4060e53c55352c0cc28d52a30710a3437aa1345775714eeb1f64736f6c63430008120033"
 const counterABI = "[\n\t{\n\t\t\"anonymous\": false,\n\t\t\"inputs\": [\n\t\t\t{\n\t\t\t\t\"indexed\": true,\n\t\t\t\t\"internalType\": \"uint256\",\n\t\t\t\t\"name\": \"newValue\",\n\t\t\t\t\"type\": \"uint256\"\n\t\t\t}\n\t\t],\n\t\t\"name\": \"Increment\",\n\t\t\"type\": \"event\"\n\t},\n\t{\n\t\t\"inputs\": [],\n\t\t\"name\": \"get\",\n\t\t\"outputs\": [\n\t\t\t{\n\t\t\t\t\"internalType\": \"uint256\",\n\t\t\t\t\"name\": \"\",\n\t\t\t\t\"type\": \"uint256\"\n\t\t\t}\n\t\t],\n\t\t\"stateMutability\": \"view\",\n\t\t\"type\": \"function\"\n\t},\n\t{\n\t\t\"inputs\": [],\n\t\t\"name\": \"increment\",\n\t\t\"outputs\": [\n\t\t\t{\n\t\t\t\t\"internalType\": \"uint256\",\n\t\t\t\t\"name\": \"\",\n\t\t\t\t\"type\": \"uint256\"\n\t\t\t}\n\t\t],\n\t\t\"stateMutability\": \"nonpayable\",\n\t\t\"type\": \"function\"\n\t}\n]"
 
-const networkIdentifier types.NetworkID = 5
-const partitionIdentifier types.PartitionID = 0x00000402
+const networkID types.NetworkID = 5
+const partitionID types.PartitionID = 0x00000402
 
 func TestEVMPartition_DeployAndCallContract(t *testing.T) {
 	pdr := types.PartitionDescriptionRecord{
-		Version:             1,
-		NetworkIdentifier:   networkIdentifier,
-		PartitionIdentifier: 0x00000402,
-		TypeIdLen:           8,
-		UnitIdLen:           256,
-		T2Timeout:           2000 * time.Millisecond,
+		Version:     1,
+		NetworkID:   networkID,
+		PartitionID: 0x00000402,
+		TypeIDLen:   8,
+		UnitIDLen:   256,
+		T2Timeout:   2000 * time.Millisecond,
 	}
 	from := test.RandomBytes(20)
 	genesisState := newGenesisState(t, from, big.NewInt(oneEth))
@@ -69,8 +69,8 @@ func TestEVMPartition_DeployAndCallContract(t *testing.T) {
 	evmPartition, err := testpartition.NewPartition(t, 3, func(trustBase types.RootTrustBase) txsystem.TransactionSystem {
 		genesisState = genesisState.Clone()
 		system, err := NewEVMTxSystem(
-			pdr.NetworkIdentifier,
-			pdr.PartitionIdentifier,
+			pdr.NetworkID,
+			pdr.PartitionID,
 			observability.Default(t),
 			WithBlockDB(blockDB),
 			WithState(genesisState),
@@ -143,7 +143,7 @@ func TestEVMPartition_Revert_test(t *testing.T) {
 	blockDB, err := memorydb.New()
 	require.NoError(t, err)
 	genesisState := newGenesisState(t, from, big.NewInt(oneEth))
-	system, err := NewEVMTxSystem(networkIdentifier, partitionIdentifier, observability.Default(t), WithBlockDB(blockDB), WithState(genesisState)) // 1 ETH
+	system, err := NewEVMTxSystem(networkID, partitionID, observability.Default(t), WithBlockDB(blockDB), WithState(genesisState)) // 1 ETH
 	require.NoError(t, err)
 
 	// Simulate round 1
@@ -251,8 +251,8 @@ func createTransferTx(t *testing.T, from []byte, to []byte) *types.TransactionOr
 	txo := &types.TransactionOrder{
 		Version: 1,
 		Payload: types.Payload{
-			NetworkID:      networkIdentifier,
-			PartitionID:    partitionIdentifier,
+			NetworkID:      networkID,
+			PartitionID:    partitionID,
 			UnitID:         hash.Sum256(test.RandomBytes(32)),
 			Type:           evm.TransactionTypeEVMCall,
 			Attributes:     attrBytes,
@@ -278,8 +278,8 @@ func createCallContractTx(from []byte, addr common.Address, methodID []byte, non
 	txo := &types.TransactionOrder{
 		Version: 1,
 		Payload: types.Payload{
-			NetworkID:      networkIdentifier,
-			PartitionID:    partitionIdentifier,
+			NetworkID:      networkID,
+			PartitionID:    partitionID,
 			UnitID:         hash.Sum256(test.RandomBytes(32)),
 			Type:           evm.TransactionTypeEVMCall,
 			Attributes:     attrBytes,
@@ -304,8 +304,8 @@ func createDeployContractTx(t *testing.T, from []byte) *types.TransactionOrder {
 	txo := &types.TransactionOrder{
 		Version: 1,
 		Payload: types.Payload{
-			NetworkID:      networkIdentifier,
-			PartitionID:    partitionIdentifier,
+			NetworkID:      networkID,
+			PartitionID:    partitionID,
 			UnitID:         hash.Sum256(test.RandomBytes(32)),
 			Type:           evm.TransactionTypeEVMCall,
 			Attributes:     attrBytes,

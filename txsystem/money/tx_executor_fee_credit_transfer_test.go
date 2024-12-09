@@ -54,14 +54,14 @@ func TestModule_validateTransferFCTx(t *testing.T) {
 		exeCtx := testctx.NewMockExecutionContext()
 		require.EqualError(t, module.validateTransferFCTx(tx, attr, authProof, exeCtx), "unit not found 000000000000000000000000000000000000000000000000000000000000000001")
 	})
-	t.Run("err - TargetPartitionIdentifier is zero", func(t *testing.T) {
+	t.Run("err - TargetPartitionID is zero", func(t *testing.T) {
 		tx := testutils.NewTransferFC(t, signer, testutils.NewTransferFCAttr(t, signer, testutils.WithTargetPartitionID(0)))
 		attr := &fcsdk.TransferFeeCreditAttributes{}
 		require.NoError(t, tx.UnmarshalAttributes(attr))
 		module := newTestMoneyModule(t, verifier,
 			withStateUnit(tx.UnitID, &money.BillData{Value: 101, Counter: counter, OwnerPredicate: templates.AlwaysTrueBytes()}))
 		exeCtx := testctx.NewMockExecutionContext()
-		require.EqualError(t, module.validateTransferFCTx(tx, attr, authProof, exeCtx), "TargetPartitionIdentifier is empty")
+		require.EqualError(t, module.validateTransferFCTx(tx, attr, authProof, exeCtx), "TargetPartitionID is empty")
 	})
 	t.Run("err - TargetRecordID is nil", func(t *testing.T) {
 		tx := testutils.NewTransferFC(t, signer, testutils.NewTransferFCAttr(t, signer, testutils.WithTargetRecordID(nil)))

@@ -13,14 +13,14 @@ import (
 )
 
 var (
-	ErrBillLocked                     = errors.New("bill is locked")
-	ErrTargetPartitionIdentifierEmpty = errors.New("TargetPartitionIdentifier is empty")
-	ErrTargetRecordIDEmpty            = errors.New("TargetRecordID is empty")
-	ErrRecordIDExists                 = errors.New("fee transaction cannot contain fee credit reference")
-	ErrFeeProofExists                 = errors.New("fee transaction cannot contain fee authorization proof")
-	ErrInvalidFCValue                 = errors.New("the amount to transfer cannot exceed the value of the bill")
-	ErrInvalidFeeValue                = errors.New("the transaction max fee cannot exceed the transferred amount")
-	ErrInvalidCounter                 = errors.New("the transaction counter is not equal to the unit counter")
+	ErrBillLocked             = errors.New("bill is locked")
+	ErrTargetPartitionIDEmpty = errors.New("TargetPartitionID is empty")
+	ErrTargetRecordIDEmpty    = errors.New("TargetRecordID is empty")
+	ErrRecordIDExists         = errors.New("fee transaction cannot contain fee credit reference")
+	ErrFeeProofExists         = errors.New("fee transaction cannot contain fee authorization proof")
+	ErrInvalidFCValue         = errors.New("the amount to transfer cannot exceed the value of the bill")
+	ErrInvalidFeeValue        = errors.New("the transaction max fee cannot exceed the transferred amount")
+	ErrInvalidCounter         = errors.New("the transaction counter is not equal to the unit counter")
 )
 
 func (m *Module) executeTransferFCTx(tx *types.TransactionOrder, attr *fc.TransferFeeCreditAttributes, _ *fc.TransferFeeCreditAuthProof, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
@@ -61,7 +61,7 @@ func (m *Module) validateTransferFCTx(tx *types.TransactionOrder, attr *fc.Trans
 		return errors.New("invalid unit type")
 	}
 	if attr.TargetPartitionID == 0 {
-		return ErrTargetPartitionIdentifierEmpty
+		return ErrTargetPartitionIDEmpty
 	}
 	if len(attr.TargetRecordID) == 0 {
 		return ErrTargetRecordIDEmpty

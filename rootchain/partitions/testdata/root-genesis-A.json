@@ -4,7 +4,7 @@
     "version": 1,
     "rootValidators": [
       {
-        "nodeIdentifier": "16Uiu2HAmUfBNseqgeYXip8HE1dZQ2DnTKqXAh8qZzAtp8yENRgUR",
+        "nodeId": "16Uiu2HAmUfBNseqgeYXip8HE1dZQ2DnTKqXAh8qZzAtp8yENRgUR",
         "signingPublicKey": "0x02507d57ed45c6e1da11732fa7e19fc620c980b8cdb19f051bb47d4474b3c3774d",
         "encryptionPublicKey": "0x02507d57ed45c6e1da11732fa7e19fc620c980b8cdb19f051bb47d4474b3c3774d"
       }
@@ -26,13 +26,13 @@
       "nodes": [
         {
           "version": 1,
-          "nodeIdentifier": "16Uiu2HAmBD14HUw3MNfneWNWWdsFfdFiqjW87ySSyiniN5yPzZbu",
+          "nodeId": "16Uiu2HAmBD14HUw3MNfneWNWWdsFfdFiqjW87ySSyiniN5yPzZbu",
           "signingPublicKey": "0x023bdf93e7e2798f10c29937a09fcce76a36966b7c69b776d60d3fd79f0097fe6f",
           "encryptionPublicKey": "0x02ea7c02e0266d52ecdc67872e94b577c8329e061e3b98b84f180b45719912fe30",
           "blockCertificationRequest": {
-            "partitionIdentifier": 1,
+            "partitionId": 1,
             "shardIdentifier": "0x80",
-            "nodeIdentifier": "16Uiu2HAmBD14HUw3MNfneWNWWdsFfdFiqjW87ySSyiniN5yPzZbu",
+            "nodeId": "16Uiu2HAmBD14HUw3MNfneWNWWdsFfdFiqjW87ySSyiniN5yPzZbu",
             "inputRecord": {
               "version": 1,
               "previousHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
@@ -50,8 +50,8 @@
           },
           "partitionDescriptionRecord": {
             "version": 1,
-            "networkIdentifier": 0,
-            "partitionIdentifier": 0,
+            "networkId": 0,
+            "partitionId": 0,
             "typeIdLength": 0,
             "unitIdLength": 0,
             "shardingScheme": null,
@@ -81,7 +81,7 @@
         },
         "unicityTreeCertificate": {
           "version": 1,
-          "partitionIdentifier": 1,
+          "partitionId": 1,
           "hashSteps": [],
           "partitionDescriptionHash": "0xc57d52d4482de608b21c70b9118a35d0de8f0def0392ce13f96df83cdef9ca54"
         },
@@ -98,8 +98,8 @@
       },
       "partitionDescriptionRecord": {
         "version": 1,
-        "networkIdentifier": 5,
-        "partitionIdentifier": 1,
+        "networkId": 5,
+        "partitionId": 1,
         "typeIdLength": 8,
         "unitIdLength": 256,
         "shardingScheme": null,

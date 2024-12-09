@@ -8,7 +8,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newNodeIdentifierCmd() *cobra.Command {
+func newNodeIDCmd() *cobra.Command {
 	var file string
 	var cmd = &cobra.Command{
 		Use:   "identifier",

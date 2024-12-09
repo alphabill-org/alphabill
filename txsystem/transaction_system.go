@@ -56,6 +56,9 @@ type (
 
 		// IsFeelessMode returns true if feeless mode is enabled and the cost of executing transactions is 0.
 		IsFeelessMode() bool
+
+		// TypeID returns the type identifier of the transaction system.
+		TypeID() types.PartitionTypeID
 	}
 
 	StateReader interface {

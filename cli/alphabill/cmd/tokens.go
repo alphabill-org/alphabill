@@ -155,5 +155,5 @@ func runTokensNode(ctx context.Context, cfg *tokensConfiguration) error {
 	if err != nil {
 		return fmt.Errorf("creating node: %w", err)
 	}
-	return run(ctx, "tokens node", node, cfg.RPCServer, ownerIndexer, obs)
+	return run(ctx, node, cfg.RPCServer, ownerIndexer, obs)
 }

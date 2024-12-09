@@ -133,5 +133,5 @@ func runMoneyNode(ctx context.Context, cfg *moneyNodeConfiguration) error {
 	if err != nil {
 		return fmt.Errorf("creating node: %w", err)
 	}
-	return run(ctx, "money node", node, cfg.rpcServer, ownerIndexer, obs)
+	return run(ctx, node, cfg.rpcServer, ownerIndexer, obs)
 }

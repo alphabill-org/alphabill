@@ -23,6 +23,7 @@ type (
 	partitionNode interface {
 		NetworkID() types.NetworkID
 		PartitionID() types.PartitionID
+		PartitionTypeID() types.PartitionTypeID
 		SubmitTx(ctx context.Context, tx *types.TransactionOrder) ([]byte, error)
 		GetBlock(ctx context.Context, blockNr uint64) (*types.Block, error)
 		LatestBlockNumber() (uint64, error)

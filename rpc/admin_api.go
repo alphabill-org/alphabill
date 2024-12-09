@@ -21,16 +21,16 @@ type (
 	}
 
 	NodeInfoResponse struct {
-		NetworkID           types.NetworkID   `json:"networkId"`   // hex encoded network identifier
-		PartitionID         types.PartitionID `json:"partitionId"` // hex encoded partition identifier
-		Name                string            `json:"name"`        // one of [money node | tokens node | evm node]
-		PermissionedMode    bool              `json:"permissionedMode"`
-		FeelessMode         bool              `json:"feelessMode"`
-		Self                PeerInfo          `json:"self"` // information about this peer
-		BootstrapNodes      []PeerInfo        `json:"bootstrapNodes"`
-		RootValidators      []PeerInfo        `json:"rootValidators"`
-		PartitionValidators []PeerInfo        `json:"partitionValidators"`
-		OpenConnections     []PeerInfo        `json:"openConnections"` // all libp2p connections to other peers in the network
+		NetworkID           types.NetworkID       `json:"networkId"`   // hex encoded network identifier
+		PartitionID         types.PartitionID     `json:"partitionId"` // hex encoded partition identifier
+		PartitionTypeID     types.PartitionTypeID `json:"partitionTypeId"` // hex encoded partition identifier
+		PermissionedMode    bool                  `json:"permissionedMode"`
+		FeelessMode         bool                  `json:"feelessMode"`
+		Self                PeerInfo              `json:"self"` // information about this peer
+		BootstrapNodes      []PeerInfo            `json:"bootstrapNodes"`
+		RootValidators      []PeerInfo            `json:"rootValidators"`
+		PartitionValidators []PeerInfo            `json:"partitionValidators"`
+		OpenConnections     []PeerInfo            `json:"openConnections"` // all libp2p connections to other peers in the network
 	}
 
 	PeerInfo struct {
@@ -39,8 +39,8 @@ type (
 	}
 )
 
-func NewAdminAPI(node partitionNode, name string, self *network.Peer, log *slog.Logger) *AdminAPI {
-	return &AdminAPI{node: node, name: name, self: self, log: log}
+func NewAdminAPI(node partitionNode, self *network.Peer, log *slog.Logger) *AdminAPI {
+	return &AdminAPI{node: node, self: self, log: log}
 }
 
 // GetNodeInfo returns information about the node.
@@ -48,7 +48,7 @@ func (s *AdminAPI) GetNodeInfo() (*NodeInfoResponse, error) {
 	return &NodeInfoResponse{
 		NetworkID:        s.node.NetworkID(),
 		PartitionID:      s.node.PartitionID(),
-		Name:             s.name,
+		PartitionTypeID:  s.node.PartitionTypeID(),
 		PermissionedMode: s.node.IsPermissionedMode(),
 		FeelessMode:      s.node.IsFeelessMode(),
 		Self: PeerInfo{

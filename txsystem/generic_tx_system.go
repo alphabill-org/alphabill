@@ -406,6 +406,10 @@ func (m *GenericTxSystem) CurrentRound() uint64 {
 	return m.currentRoundNumber
 }
 
+func (m *GenericTxSystem) TypeID() types.PartitionTypeID {
+	return m.pdr.PartitionTypeID
+}
+
 func (m *GenericTxSystem) GetUnit(id types.UnitID, committed bool) (*state.Unit, error) {
 	return m.state.GetUnit(id, committed)
 }

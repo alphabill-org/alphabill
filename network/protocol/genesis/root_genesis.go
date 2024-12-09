@@ -178,7 +178,7 @@ func (x *RootGenesis) GenerateTrustBase(opts ...types.Option) (*types.RootTrustB
 	}
 	trustBase, err := types.NewTrustBaseGenesis(trustBaseNodes, unicityTreeRootHash, opts...)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create new genesis trust base")
+		return nil, fmt.Errorf("failed to create genesis trust base: %w", err)
 	}
 	return trustBase, nil
 }

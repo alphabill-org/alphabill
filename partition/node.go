@@ -1499,8 +1499,8 @@ func (n *Node) sendCertificationRequest(ctx context.Context, blockAuthor string)
 	n.sumOfEarnedFees = 0
 	// send new input record for certification
 	req := &certification.BlockCertificationRequest{
-		Partition:   n.configuration.GetPartitionID(),
-		Shard:       n.configuration.shardID,
+		PartitionID: n.configuration.GetPartitionID(),
+		ShardID:     n.configuration.shardID,
 		NodeID:      n.peer.ID().String(),
 		InputRecord: ir,
 	}

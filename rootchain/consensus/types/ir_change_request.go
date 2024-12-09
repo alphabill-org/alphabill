@@ -88,9 +88,9 @@ func (x *IRChangeReq) Verify(tb RequestVerifier, luc *types.UnicityCertificate, 
 	nodeIDs := make(map[string]struct{})
 	// validate all block request in the proof
 	for _, req := range x.Requests {
-		if x.Partition != req.Partition || !x.Shard.Equal(req.Shard) {
+		if x.Partition != req.PartitionID || !x.Shard.Equal(req.ShardID) {
 			return nil, fmt.Errorf("shard of the change request is %s-%s but block certification request is for %s=%s",
-				x.Partition, x.Shard, req.Partition, req.Shard)
+				x.Partition, x.Shard, req.PartitionID, req.ShardID)
 		}
 		if err := tb.ValidRequest(req); err != nil {
 			return nil, fmt.Errorf("invalid certification request: %w", err)

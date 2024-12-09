@@ -232,7 +232,7 @@ func TestRootValidatorTest_CertificationReqEquivocatingReq(t *testing.T) {
 	req := testutils.CreateBlockCertificationRequest(t, newIR, partitionID, partitionNodes[0])
 	require.NoError(t, rootValidator.onBlockCertificationRequest(context.Background(), req))
 	// request is accepted
-	key := partitionShard{partition: partitionID, shard: req.Shard.Key()}
+	key := partitionShard{partition: partitionID, shard: req.ShardID.Key()}
 	require.Contains(t, rootValidator.incomingRequests.store, key)
 	equivocatingIR := &types.InputRecord{
 		Version:      1,

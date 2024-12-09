@@ -53,7 +53,7 @@ func CreatePartitionNodesAndPartitionRecord(t *testing.T, ir *types.InputRecord,
 		require.NoError(t, err)
 
 		req := &certification.BlockCertificationRequest{
-			Partition:   partitionID,
+			PartitionID: partitionID,
 			NodeID:      partitionNode.PeerConf.ID.String(),
 			InputRecord: ir,
 		}
@@ -77,7 +77,7 @@ func CreatePartitionNodesAndPartitionRecord(t *testing.T, ir *types.InputRecord,
 func CreateBlockCertificationRequest(t *testing.T, ir *types.InputRecord, partitionID types.PartitionID, node *TestNode) *certification.BlockCertificationRequest {
 	t.Helper()
 	r1 := &certification.BlockCertificationRequest{
-		Partition:   partitionID,
+		PartitionID: partitionID,
 		NodeID:      node.PeerConf.ID.String(),
 		InputRecord: ir,
 	}

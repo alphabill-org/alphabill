@@ -138,7 +138,7 @@ func NewNodeGenesis(state *state.State, pdr types.PartitionDescriptionRecord, op
 	id := c.peerID.String()
 	// Protocol request
 	blockCertificationRequest := &certification.BlockCertificationRequest{
-		Partition:   pdr.PartitionID,
+		PartitionID: pdr.PartitionID,
 		NodeID:      id,
 		InputRecord: gIR,
 	}

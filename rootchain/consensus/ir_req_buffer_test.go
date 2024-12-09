@@ -57,7 +57,7 @@ func TestIrReqBuffer_Add(t *testing.T) {
 	ver := NewAlwaysTrueIRReqVerifier()
 	// add a request that reached consensus
 	req1 := &certification.BlockCertificationRequest{
-		Partition:   sysID1,
+		PartitionID: sysID1,
 		NodeID:      "1",
 		InputRecord: inputRecord1,
 	}
@@ -127,7 +127,7 @@ func TestIrReqBuffer_TimeoutAndNewReq(t *testing.T) {
 	ver := NewAlwaysTrueIRReqVerifier()
 	// add a request that reached consensus
 	req1 := &certification.BlockCertificationRequest{
-		Partition:   sysID1,
+		PartitionID: sysID1,
 		NodeID:      "1",
 		InputRecord: inputRecord1,
 	}
@@ -152,7 +152,7 @@ func TestIrReqBuffer_TimeoutAndReqButAChangeIsPending(t *testing.T) {
 	ver := NewAlwaysTrueIRReqVerifier()
 	// add a request that reached consensus
 	req1 := &certification.BlockCertificationRequest{
-		Partition:   sysID1,
+		PartitionID: sysID1,
 		NodeID:      "1",
 		InputRecord: inputRecord1,
 	}

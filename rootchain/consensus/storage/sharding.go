@@ -292,8 +292,8 @@ func (si *ShardInfo) ValidRequest(req *certification.BlockCertificationRequest) 
 		return fmt.Errorf("invalid certification request: %w", err)
 	}
 
-	if req.Partition != si.LastCR.Partition || !req.Shard.Equal(si.LastCR.Shard) {
-		return fmt.Errorf("request of shard %s-%s but ShardInfo of %s-%s", req.Partition, req.Shard, si.LastCR.Partition, si.LastCR.Shard)
+	if req.PartitionID != si.LastCR.Partition || !req.ShardID.Equal(si.LastCR.Shard) {
+		return fmt.Errorf("request of shard %s-%s but ShardInfo of %s-%s", req.PartitionID, req.ShardID, si.LastCR.Partition, si.LastCR.Shard)
 	}
 
 	if req.IRRound() != si.LastCR.Technical.Round {

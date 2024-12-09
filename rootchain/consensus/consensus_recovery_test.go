@@ -799,7 +799,7 @@ func createPartitionRecord(t *testing.T, partitionID abtypes.PartitionID, ir *ab
 		nodeID, signer, _, pubKey := generatePeerData(t)
 
 		req := &certification.BlockCertificationRequest{
-			Partition:   partitionID,
+			PartitionID: partitionID,
 			NodeID:      nodeID.String(),
 			InputRecord: ir,
 		}

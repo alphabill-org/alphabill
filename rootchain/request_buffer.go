@@ -73,7 +73,7 @@ func NewCertificationRequestBuffer() *CertRequestBuffer {
 func (c *CertRequestBuffer) Add(request *certification.BlockCertificationRequest, tb QuorumInfo) (QuorumStatus, []*certification.BlockCertificationRequest, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	rs := c.get(request.Partition, request.Shard)
+	rs := c.get(request.PartitionID, request.ShardID)
 	return rs.add(request, tb)
 }
 

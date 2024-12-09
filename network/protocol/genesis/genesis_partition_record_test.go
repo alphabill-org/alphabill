@@ -151,7 +151,7 @@ func createPartitionNode(t *testing.T, nodeID string, signingKey abcrypto.Signer
 	require.NoError(t, err)
 
 	request := &certification.BlockCertificationRequest{
-		Partition:   1,
+		PartitionID: 1,
 		NodeID:      nodeID,
 		InputRecord: &types.InputRecord{
 			Version:      1,

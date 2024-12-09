@@ -145,8 +145,8 @@ func Test_ShardInfo_ValidRequest(t *testing.T) {
 	// return BCR which is valid next request for "si" above (but not signed)
 	validBCR := func() *certification.BlockCertificationRequest {
 		return &certification.BlockCertificationRequest{
-			Partition:   si.LastCR.Partition,
-			Shard:       si.LastCR.Shard,
+			PartitionID: si.LastCR.Partition,
+			ShardID:     si.LastCR.Shard,
 			NodeID:      "1111",
 			InputRecord: &types.InputRecord{
 				Version:      1,
@@ -196,12 +196,12 @@ func Test_ShardInfo_ValidRequest(t *testing.T) {
 
 	t.Run("wrong shard", func(t *testing.T) {
 		bcr := validBCR()
-		bcr.Partition++
+		bcr.PartitionID++
 		require.NoError(t, bcr.Sign(signer))
 		require.EqualError(t, si.ValidRequest(bcr), `request of shard 00000017- but ShardInfo of 00000016-`)
 
 		bcr = validBCR()
-		bcr.Shard, _ = si.LastCR.Shard.Split()
+		bcr.ShardID, _ = si.LastCR.Shard.Split()
 		require.NoError(t, bcr.Sign(signer))
 		require.EqualError(t, si.ValidRequest(bcr), `request of shard 00000016-0 but ShardInfo of 00000016-`)
 	})

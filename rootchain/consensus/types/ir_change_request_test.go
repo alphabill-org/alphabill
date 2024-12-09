@@ -26,7 +26,7 @@ func TestIRChangeReqMsg_IsValid(t *testing.T) {
 	t.Run("IR change req. invalid cert reason", func(t *testing.T) {
 		requests := []*certification.BlockCertificationRequest{
 			{
-				Partition:   2,
+				PartitionID: 2,
 				NodeID:      "1",
 				InputRecord: inputRecord1,
 				Signature:   []byte{0, 1},
@@ -55,8 +55,8 @@ func TestIRChangeReqMsg_Marshal(t *testing.T) {
 		CertReason: QuorumNotPossible,
 		Requests: []*certification.BlockCertificationRequest{
 			{
-				Partition:   1,
-				Shard:       types.ShardID{},
+				PartitionID: 1,
+				ShardID:     types.ShardID{},
 				NodeID:      "1",
 				InputRecord: &types.InputRecord{
 					Version:      1,
@@ -138,12 +138,12 @@ func Test_IRChangeReq_Verify(t *testing.T) {
 
 	// pair of matching certification requests (from different nodes)
 	reqS1 := certification.BlockCertificationRequest{
-		Partition:   partition1,
+		PartitionID: partition1,
 		NodeID:      "1",
 		InputRecord: inputRecord1,
 	}
 	reqS2 := certification.BlockCertificationRequest{
-		Partition:   partition1,
+		PartitionID: partition1,
 		NodeID:      "2",
 		InputRecord: inputRecord1,
 	}
@@ -172,7 +172,7 @@ func Test_IRChangeReq_Verify(t *testing.T) {
 
 	t.Run("partition id in request and proof do not match", func(t *testing.T) {
 		reqS1InvalidSysId := reqS1
-		reqS1InvalidSysId.Partition = partition2
+		reqS1InvalidSysId.PartitionID = partition2
 		x := &IRChangeReq{
 			Partition:  partition1,
 			CertReason: Quorum,
@@ -182,8 +182,8 @@ func Test_IRChangeReq_Verify(t *testing.T) {
 		require.EqualError(t, err, "shard of the change request is 00000001- but block certification request is for 00000002=")
 		require.Nil(t, ir)
 
-		reqS1InvalidSysId.Partition = x.Partition
-		reqS1InvalidSysId.Shard, _ = x.Shard.Split()
+		reqS1InvalidSysId.PartitionID = x.Partition
+		reqS1InvalidSysId.ShardID, _ = x.Shard.Split()
 		x.Requests = []*certification.BlockCertificationRequest{&reqS1InvalidSysId, &reqS2}
 		ir, err = x.Verify(bcrVerifier, luc, 0, 0)
 		require.EqualError(t, err, "shard of the change request is 00000001- but block certification request is for 00000001=0")
@@ -289,7 +289,7 @@ func Test_IRChangeReq_Verify(t *testing.T) {
 
 	t.Run("Contains not matching proofs", func(t *testing.T) {
 		reqS3NotMatchingIR := &certification.BlockCertificationRequest{
-			Partition:   partition1,
+			PartitionID: partition1,
 			NodeID:      "3",
 			InputRecord: inputRecord2, // use different IR
 		}
@@ -342,7 +342,7 @@ func Test_IRChangeReq_Verify(t *testing.T) {
 
 	t.Run("QuorumNotPossible", func(t *testing.T) {
 		reqS3 := &certification.BlockCertificationRequest{
-			Partition:   1,
+			PartitionID: 1,
 			NodeID:      "3",
 			InputRecord: inputRecord2, // different IR than other requests
 		}

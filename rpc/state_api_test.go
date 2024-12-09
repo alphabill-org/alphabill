@@ -337,6 +337,13 @@ func (mn *MockNode) PartitionID() types.PartitionID {
 	return 0x00010000
 }
 
+func (mn *MockNode) PartitionTypeID() types.PartitionTypeID {
+	if mn.txs != nil {
+		return mn.txs.TypeID()
+	}
+	return 1
+}
+
 func (mn *MockNode) ShardID() types.ShardID {
 	return types.ShardID{}
 }

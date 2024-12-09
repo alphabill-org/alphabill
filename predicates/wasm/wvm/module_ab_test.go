@@ -186,7 +186,7 @@ func Test_amountTransferredSum(t *testing.T) {
 	txPaymentBytes, err := txPayment.MarshalCBOR()
 	require.NoError(t, err)
 	txRec := &types.TransactionRecord{Version: 1, TransactionOrder: txPaymentBytes, ServerMetadata: &types.ServerMetadata{ActualFee: 25, SuccessIndicator: types.TxStatusSuccessful}}
-	txRecProof := testblock.CreateTxRecordProof(t, txRec, tbSigner, testblock.WithPartitionIdentifier(money.DefaultPartitionID))
+	txRecProof := testblock.CreateTxRecordProof(t, txRec, tbSigner, testblock.WithPartitionID(money.DefaultPartitionID))
 	proofs = append(proofs, txRecProof)
 
 	// money transfer by split tx
@@ -209,7 +209,7 @@ func Test_amountTransferredSum(t *testing.T) {
 	txPaymentBytes, err = txPayment.MarshalCBOR()
 	require.NoError(t, err)
 	txRec = &types.TransactionRecord{Version: 1, TransactionOrder: txPaymentBytes, ServerMetadata: &types.ServerMetadata{ActualFee: 25, SuccessIndicator: types.TxStatusSuccessful}}
-	txRecProof = testblock.CreateTxRecordProof(t, txRec, tbSigner, testblock.WithPartitionIdentifier(money.DefaultPartitionID))
+	txRecProof = testblock.CreateTxRecordProof(t, txRec, tbSigner, testblock.WithPartitionID(money.DefaultPartitionID))
 	proofs = append(proofs, txRecProof)
 
 	// because of invalid proof record we expect error but pkhA should receive
@@ -386,7 +386,7 @@ func Test_transferredSum(t *testing.T) {
 		txBytes, err := txPayment.MarshalCBOR()
 		require.NoError(t, err)
 		txRec := &types.TransactionRecord{Version: 1, TransactionOrder: txBytes, ServerMetadata: &types.ServerMetadata{ActualFee: 25, SuccessIndicator: types.TxStatusSuccessful}}
-		txRecProof := testblock.CreateTxRecordProof(t, txRec, tbSigner, testblock.WithPartitionIdentifier(money.DefaultPartitionID))
+		txRecProof := testblock.CreateTxRecordProof(t, txRec, tbSigner, testblock.WithPartitionID(money.DefaultPartitionID))
 		// match without ref-no
 		sum, err := transferredSum(trustBaseOK, txRecProof, pkHash, nil)
 		require.NoError(t, err)
@@ -439,7 +439,7 @@ func Test_transferredSum(t *testing.T) {
 		txBytes, err := txPayment.MarshalCBOR()
 		require.NoError(t, err)
 		txRec := &types.TransactionRecord{Version: 1, TransactionOrder: txBytes, ServerMetadata: &types.ServerMetadata{ActualFee: 25, SuccessIndicator: types.TxStatusSuccessful}}
-		txRecProof := testblock.CreateTxRecordProof(t, txRec, tbSigner, testblock.WithPartitionIdentifier(money.DefaultPartitionID))
+		txRecProof := testblock.CreateTxRecordProof(t, txRec, tbSigner, testblock.WithPartitionID(money.DefaultPartitionID))
 
 		// match without ref-no
 		sum, err := transferredSum(trustBaseOK, txRecProof, pkHash, nil)

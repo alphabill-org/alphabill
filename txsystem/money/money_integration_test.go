@@ -27,7 +27,7 @@ import (
 )
 
 var (
-	partitionIdentifier = money.DefaultPartitionID
+	partitionID = money.DefaultPartitionID
 
 	pubKey1  = "0x0212911c7341399e876800a268855c894c43eb849a72ac5a9d26a0091041c107f0"
 	privKey1 = "0xa5e8bff9733ebc751a45ca4b8cc6ce8e76c8316a5eb556f738092df6232e78de"
@@ -46,10 +46,10 @@ func TestPartition_Ok(t *testing.T) {
 	}
 	pdr := types.PartitionDescriptionRecord{
 		Version:             1,
-		NetworkIdentifier:   5,
-		PartitionIdentifier: money.DefaultPartitionID,
-		TypeIdLen:           8,
-		UnitIdLen:           256,
+		NetworkID:   5,
+		PartitionID: money.DefaultPartitionID,
+		TypeIDLen:           8,
+		UnitIDLen:           256,
 		T2Timeout:           2000 * time.Millisecond,
 	}
 	sdrs := createSDRs(newBillID(2))
@@ -97,7 +97,7 @@ func TestPartition_Ok(t *testing.T) {
 	require.Equal(t, moneyInvariant-fcrAmount, billState.Value)
 
 	// verify proof
-	ucv, err := abNet.GetValidator(pdr.PartitionIdentifier)
+	ucv, err := abNet.GetValidator(pdr.PartitionID)
 	require.NoError(t, err)
 	require.NoError(t, unitAndProof.Proof.Verify(crypto.SHA256, unitAndProof.UnitData, ucv))
 
@@ -179,10 +179,10 @@ func TestPartition_SwapDCOk(t *testing.T) {
 	)
 	pdr := types.PartitionDescriptionRecord{
 		Version:             1,
-		NetworkIdentifier:   networkID,
-		PartitionIdentifier: money.DefaultPartitionID,
-		TypeIdLen:           8,
-		UnitIdLen:           256,
+		NetworkID:   networkID,
+		PartitionID: money.DefaultPartitionID,
+		TypeIDLen:           8,
+		UnitIDLen:           256,
 		T2Timeout:           2000 * time.Millisecond,
 	}
 	total := moneyInvariant
@@ -305,8 +305,8 @@ func TestPartition_SwapDCOk(t *testing.T) {
 	swapTx := &types.TransactionOrder{
 		Version: 1,
 		Payload: types.Payload{
-			NetworkID:   pdr.NetworkIdentifier,
-			PartitionID: pdr.PartitionIdentifier,
+			NetworkID:   pdr.NetworkID,
+			PartitionID: pdr.PartitionID,
 			Type:        money.TransactionTypeSwapDC,
 			UnitID:      initialBill.ID,
 			Attributes:  swapAttrBytes,

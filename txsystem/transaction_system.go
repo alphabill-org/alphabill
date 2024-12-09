@@ -11,7 +11,7 @@ import (
 var (
 	ErrStateContainsUncommittedChanges = errors.New("state contains uncommitted changes")
 	ErrTransactionExpired              = errors.New("transaction timeout must be greater than current block number")
-	ErrInvalidPartitionIdentifier      = errors.New("error invalid partition identifier")
+	ErrInvalidPartitionID              = errors.New("error invalid partition identifier")
 )
 
 type (
@@ -56,6 +56,9 @@ type (
 
 		// IsFeelessMode returns true if feeless mode is enabled and the cost of executing transactions is 0.
 		IsFeelessMode() bool
+
+		// TypeID returns the type identifier of the transaction system.
+		TypeID() types.PartitionTypeID
 	}
 
 	StateReader interface {

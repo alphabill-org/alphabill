@@ -78,7 +78,7 @@ func newSingleNonValidatorNodePartition(t *testing.T, txSystem txsystem.Transact
 
 func newSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, validator bool, nodeOptions ...NodeOption) *SingleNodePartition {
 	peerConf := createPeerConfiguration(t)
-	pdr := types.PartitionDescriptionRecord{Version: 1, NetworkIdentifier: 5, PartitionIdentifier: 0x01010101, TypeIdLen: 8, UnitIdLen: 256, T2Timeout: 2500 * time.Millisecond}
+	pdr := types.PartitionDescriptionRecord{Version: 1, NetworkID: 5, PartitionID: 0x01010101, TypeIDLen: 8, UnitIDLen: 256, T2Timeout: 2500 * time.Millisecond}
 	// node genesis
 	nodeSigner, _ := testsig.CreateSignerAndVerifier(t)
 	nodeGenesis, err := NewNodeGenesis(
@@ -110,7 +110,7 @@ func newSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, v
 	// root state
 	var certs = make(map[types.PartitionID]*types.UnicityCertificate)
 	for _, partition := range rootGenesis.Partitions {
-		certs[partition.GetPartitionDescriptionRecord().GetPartitionIdentifier()] = partition.Certificate
+		certs[partition.GetPartitionDescriptionRecord().GetPartitionID()] = partition.Certificate
 	}
 
 	net := testnetwork.NewMockNetwork(t)
@@ -125,7 +125,7 @@ func newSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, v
 	require.NoError(t, err)
 	partitionGenesis[0].Keys = []*genesis.PublicKeyInfo{
 		&genesis.PublicKeyInfo{
-			NodeIdentifier:      fakeValidatorID.String(),
+			NodeID:              fakeValidatorID.String(),
 			SigningPublicKey:    fakeValidatorPubKeyRaw,
 			EncryptionPublicKey: fakeValidatorPubKeyRaw,
 		},
@@ -133,7 +133,7 @@ func newSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, v
 	if validator {
 		partitionGenesis[0].Keys = append(partitionGenesis[0].Keys,
 			&genesis.PublicKeyInfo{
-				NodeIdentifier:      peerConf.ID.String(),
+				NodeID:              peerConf.ID.String(),
 				SigningPublicKey:    peerConf.KeyPair.PublicKey,
 				EncryptionPublicKey: peerConf.KeyPair.PublicKey,
 			})
@@ -253,7 +253,7 @@ func (sn *SingleNodePartition) ReceiveCertResponse(t *testing.T, ir *types.Input
 	}
 
 	sn.mockNet.Receive(&certification.CertificationResponse{
-		Partition: sn.nodeConf.GetPartitionIdentifier(),
+		Partition: sn.nodeConf.GetPartitionID(),
 		Shard:     sn.nodeConf.shardID,
 		Technical: tr,
 		UC:        *uc,
@@ -265,7 +265,7 @@ SubmitUnicityCertificate wraps the UC into CertificationResponse and sends it to
 */
 func (sn *SingleNodePartition) SubmitUnicityCertificate(t *testing.T, uc *types.UnicityCertificate) {
 	cr := &certification.CertificationResponse{
-		Partition: sn.nodeConf.GetPartitionIdentifier(),
+		Partition: sn.nodeConf.GetPartitionID(),
 		Shard:     sn.nodeConf.shardID,
 		UC:        *uc,
 	}
@@ -337,7 +337,7 @@ func (sn *SingleNodePartition) CreateUnicityCertificate(ir *types.InputRecord, r
 	}
 
 	data := []*types.UnicityTreeData{{
-		Partition:     pdr.PartitionIdentifier,
+		Partition:     pdr.PartitionID,
 		ShardTreeRoot: sTree.RootHash(),
 		PDRHash:       pdrHash,
 	}}
@@ -350,7 +350,7 @@ func (sn *SingleNodePartition) CreateUnicityCertificate(ir *types.InputRecord, r
 	if err != nil {
 		return nil, nil, err
 	}
-	cert, err := ut.Certificate(pdr.PartitionIdentifier)
+	cert, err := ut.Certificate(pdr.PartitionID)
 	if err != nil {
 		return nil, nil, fmt.Errorf("creating UnicityTreeCertificate: %w", err)
 	}
@@ -391,7 +391,7 @@ func (sn *SingleNodePartition) CreateUnicityCertificateTR(ir *types.InputRecord,
 	}
 
 	data := []*types.UnicityTreeData{{
-		Partition:     pdr.PartitionIdentifier,
+		Partition:     pdr.PartitionID,
 		ShardTreeRoot: sTree.RootHash(),
 		PDRHash:       pdrHash,
 	}}
@@ -404,7 +404,7 @@ func (sn *SingleNodePartition) CreateUnicityCertificateTR(ir *types.InputRecord,
 	if err != nil {
 		return nil, tr, err
 	}
-	cert, err := ut.Certificate(pdr.PartitionIdentifier)
+	cert, err := ut.Certificate(pdr.PartitionID)
 	if err != nil {
 		return nil, tr, fmt.Errorf("creating UnicityTreeCertificate: %w", err)
 	}

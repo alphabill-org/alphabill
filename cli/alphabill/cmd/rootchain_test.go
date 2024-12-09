@@ -185,8 +185,8 @@ func Test_StartSingleNode(t *testing.T) {
 		require.Eventually(t, func() bool {
 			// it is enough that send is success
 			err := n.Send(ctx, handshake.Handshake{
-				Partition:      money.DefaultPartitionID,
-				NodeIdentifier: moneyPeer.ID().String(),
+				PartitionID: money.DefaultPartitionID,
+				NodeID:      moneyPeer.ID().String(),
 			}, rootID)
 			return err == nil
 		}, 2*time.Second, test.WaitTick)
@@ -321,8 +321,8 @@ func Test_Start_2_DRCNodes(t *testing.T) {
 		require.Eventually(t, func() bool {
 			// it is enough that send is success
 			err := n.Send(ctx, handshake.Handshake{
-				Partition:      money.DefaultPartitionID,
-				NodeIdentifier: moneyPeer.ID().String(),
+				PartitionID: money.DefaultPartitionID,
+				NodeID:      moneyPeer.ID().String(),
 			}, rootID)
 			return err == nil
 		}, 4*time.Second, test.WaitTick)
@@ -357,6 +357,10 @@ type mockNode struct {
 
 func (mn *mockNode) PartitionID() types.PartitionID {
 	return mn.partitionID
+}
+
+func (mn *mockNode) ShardID() types.ShardID {
+	return types.ShardID{}
 }
 
 func (mn *mockNode) Peer() *network.Peer {

@@ -18,7 +18,7 @@ var (
 type BlockData struct {
 	_         struct{} `cbor:",toarray"`
 	Version   types.ABVersion
-	Author    string   `json:"author"` // NodeIdentifier of the proposer
+	Author    string   `json:"author"` // NodeID of the proposer
 	Round     uint64   `json:"round"`  // Root round number
 	Epoch     uint64   `json:"epoch"`  // Epoch to establish valid configuration
 	Timestamp uint64   `json:"timestamp"`

@@ -13,6 +13,7 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/util"
 	"github.com/alphabill-org/alphabill/logger"
+	"github.com/alphabill-org/alphabill/observability"
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/state"
 	abfc "github.com/alphabill-org/alphabill/txsystem/fc"
@@ -36,7 +37,7 @@ type (
 		roundCommitted      bool
 		log                 *slog.Logger
 		pr                  predicates.PredicateRunner
-		unitIdValidator     func(types.UnitID) error
+		unitIDValidator     func(types.UnitID) error
 	}
 
 	Observability interface {
@@ -65,7 +66,7 @@ func NewGenericTxSystem(pdr types.PartitionDescriptionRecord, shardID types.Shar
 		hashAlgorithm:       options.hashAlgorithm,
 		state:               options.state,
 		trustBase:           trustBase,
-		unitIdValidator:     pdr.UnitIdValidator(shardID),
+		unitIDValidator:     pdr.UnitIDValidator(shardID),
 		beginBlockFunctions: options.beginBlockFunctions,
 		endBlockFunctions:   options.endBlockFunctions,
 		handlers:            make(txtypes.TxExecutors),
@@ -87,7 +88,7 @@ func NewGenericTxSystem(pdr types.PartitionDescriptionRecord, shardID types.Shar
 		}
 
 	}
-	if err := txs.initMetrics(observe.Meter("txsystem")); err != nil {
+	if err := txs.initMetrics(observe.Meter("txsystem"), shardID); err != nil {
 		return nil, fmt.Errorf("initializing metrics: %w", err)
 	}
 
@@ -345,17 +346,17 @@ implemented by the tx handler.
 */
 func (m *GenericTxSystem) validateGenericTransaction(tx *types.TransactionOrder) error {
 	// T.α = S.α – transaction is sent to this network
-	if m.pdr.NetworkIdentifier != tx.NetworkID {
-		return fmt.Errorf("invalid network id: %d (expected %d)", tx.NetworkID, m.pdr.NetworkIdentifier)
+	if m.pdr.NetworkID != tx.NetworkID {
+		return fmt.Errorf("invalid network id: %d (expected %d)", tx.NetworkID, m.pdr.NetworkID)
 	}
 
 	// T.β = S.β – transaction is sent to this partition
-	if m.pdr.PartitionIdentifier != tx.PartitionID {
-		return ErrInvalidPartitionIdentifier
+	if m.pdr.PartitionID != tx.PartitionID {
+		return ErrInvalidPartitionID
 	}
 
 	// fSH(T.ι) = S.σ – target unit is in this shard
-	if err := m.unitIdValidator(tx.UnitID); err != nil {
+	if err := m.unitIDValidator(tx.UnitID); err != nil {
 		return err
 	}
 
@@ -406,11 +407,16 @@ func (m *GenericTxSystem) CurrentRound() uint64 {
 	return m.currentRoundNumber
 }
 
+func (m *GenericTxSystem) TypeID() types.PartitionTypeID {
+	return m.pdr.PartitionTypeID
+}
+
 func (m *GenericTxSystem) GetUnit(id types.UnitID, committed bool) (*state.Unit, error) {
 	return m.state.GetUnit(id, committed)
 }
 
-func (m *GenericTxSystem) initMetrics(mtr metric.Meter) error {
+func (m *GenericTxSystem) initMetrics(mtr metric.Meter, shardID types.ShardID) error {
+	shardAttr := observability.Shard(m.pdr.PartitionID, shardID)
 	if _, err := mtr.Int64ObservableUpDownCounter(
 		"unit.count",
 		metric.WithDescription(`Number of units in the state.`),
@@ -418,7 +424,7 @@ func (m *GenericTxSystem) initMetrics(mtr metric.Meter) error {
 		metric.WithInt64Callback(func(ctx context.Context, io metric.Int64Observer) error {
 			snc := state.NewStateNodeCounter()
 			m.state.Traverse(snc)
-			io.Observe(int64(snc.NodeCount()))
+			io.Observe(int64(snc.NodeCount()), shardAttr)
 			return nil
 		}),
 	); err != nil {

@@ -1,6 +1,7 @@
 {
-  "networkIdentifier": 3,
-  "systemIdentifier": 1,
+  "networkId": 3,
+  "partitionId": 1,
+  "partitionTypeId": 1,
   "typeIdLength": 8,
   "unitIdLength": 256,
   "shardingScheme": null,

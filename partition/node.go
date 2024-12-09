@@ -131,6 +131,7 @@ type (
 		blockSize  metric.Int64Counter
 		execMsgCnt metric.Int64Counter
 		execMsgDur metric.Float64Histogram
+		fixedAttr  metric.MeasurementOption
 	}
 
 	status int
@@ -273,6 +274,8 @@ func (n *Node) initMetrics(observe Observability) (err error) {
 		return fmt.Errorf("creating histogram for processed messages: %w", err)
 	}
 
+	n.fixedAttr = observability.Shard(n.PartitionID(), n.configuration.shardID)
+
 	return nil
 }
 
@@ -403,9 +406,9 @@ func (n *Node) sendHandshake(ctx context.Context) {
 	}
 	if err = n.network.Send(ctx,
 		handshake.Handshake{
-			Partition:      n.configuration.GetPartitionIdentifier(),
-			Shard:          n.configuration.shardID,
-			NodeIdentifier: n.peer.ID().String(),
+			PartitionID: n.configuration.GetPartitionID(),
+			ShardID:     n.configuration.shardID,
+			NodeID:      n.peer.ID().String(),
 		},
 		rootIDs...); err != nil {
 		n.log.WarnContext(ctx, "error sending handshake", logger.Error(err))
@@ -427,7 +430,7 @@ func verifyTxSystemState(state txsystem.StateSummary, sumOfEarnedFees uint64, uc
 }
 
 func (n *Node) applyBlockTransactions(ctx context.Context, round uint64, txs []*types.TransactionRecord) (txsystem.StateSummary, uint64, error) {
-	ctx, span := n.tracer.Start(ctx, "node.applyBlockTransactions", trace.WithAttributes(attribute.Int64("round", int64(round))))
+	ctx, span := n.tracer.Start(ctx, "node.applyBlockTransactions", trace.WithAttributes(observability.Round(round)))
 	defer span.End()
 
 	var sumOfEarnedFees uint64
@@ -480,7 +483,7 @@ func (n *Node) restoreBlockProposal(ctx context.Context) {
 	}
 	uc, err := getUCv1(pr)
 	if err != nil {
-		n.log.WarnContext(ctx, "Error unmarshalling unicity certificate", logger.Error(err))
+		n.log.WarnContext(ctx, "Error unmarshaling unicity certificate", logger.Error(err))
 		return
 	}
 	// make sure proposal extends the committed state
@@ -554,7 +557,7 @@ func (n *Node) loop(ctx context.Context) error {
 }
 
 /*
-handleMessage processes message received from AB network (ie from other partition nodes or rootchain).
+handleMessage processes message received from AB network (ie from other shard validators or root partition).
 */
 func (n *Node) handleMessage(ctx context.Context, msg any) (rErr error) {
 	msgAttr := attribute.String("msg", fmt.Sprintf("%T", msg))
@@ -565,8 +568,8 @@ func (n *Node) handleMessage(ctx context.Context, msg any) (rErr error) {
 			span.SetStatus(codes.Error, rErr.Error())
 			n.sendEvent(event.Error, rErr)
 		}
-		n.execMsgCnt.Add(ctx, 1, metric.WithAttributeSet(attribute.NewSet(msgAttr, observability.ErrStatus(rErr))))
-		n.execMsgDur.Record(ctx, time.Since(start).Seconds(), metric.WithAttributes(msgAttr))
+		n.execMsgCnt.Add(ctx, 1, metric.WithAttributeSet(attribute.NewSet(msgAttr, observability.ErrStatus(rErr))), n.fixedAttr)
+		n.execMsgDur.Record(ctx, time.Since(start).Seconds(), metric.WithAttributes(msgAttr), n.fixedAttr)
 		span.End()
 	}(time.Now())
 
@@ -613,7 +616,7 @@ func statusCodeOfTxError(err error) string {
 		return "ok"
 	case errors.Is(err, ErrTxTimeout):
 		return "tx.timeout"
-	case errors.Is(err, errInvalidPartitionIdentifier):
+	case errors.Is(err, errInvalidPartitionID):
 		return "invalid.sysid"
 	default:
 		return "err"
@@ -643,8 +646,8 @@ func (n *Node) process(ctx context.Context, tx *types.TransactionOrder) error {
 func (n *Node) validateAndExecuteTx(ctx context.Context, tx *types.TransactionOrder, round uint64) (_ *types.TransactionRecord, rErr error) {
 	defer func(start time.Time) {
 		txTypeAttr := attribute.Int("tx", int(tx.Type))
-		n.execTxCnt.Add(ctx, 1, metric.WithAttributeSet(attribute.NewSet(txTypeAttr, attribute.String("status", statusCodeOfTxError(rErr)))))
-		n.execTxDur.Record(ctx, time.Since(start).Seconds(), metric.WithAttributeSet(attribute.NewSet(txTypeAttr)))
+		n.execTxCnt.Add(ctx, 1, metric.WithAttributeSet(attribute.NewSet(txTypeAttr, attribute.String("status", statusCodeOfTxError(rErr)))), n.fixedAttr)
+		n.execTxDur.Record(ctx, time.Since(start).Seconds(), metric.WithAttributeSet(attribute.NewSet(txTypeAttr)), n.fixedAttr)
 	}(time.Now())
 
 	if err := n.txValidator.Validate(tx, round); err != nil {
@@ -680,9 +683,9 @@ func (n *Node) handleBlockProposal(ctx context.Context, prop *blockproposal.Bloc
 	if prop == nil {
 		return blockproposal.ErrBlockProposalIsNil
 	}
-	nodeSignatureVerifier := n.shardStore.Verifier(prop.NodeIdentifier)
+	nodeSignatureVerifier := n.shardStore.Verifier(prop.NodeID)
 	if nodeSignatureVerifier == nil {
-		return fmt.Errorf("block proposal from unknown node %s", prop.NodeIdentifier.String())
+		return fmt.Errorf("block proposal from unknown node %s", prop.NodeID.String())
 	}
 	if err := n.blockProposalValidator.Validate(prop, nodeSignatureVerifier); err != nil {
 		return fmt.Errorf("block proposal validation failed, %w", err)
@@ -711,8 +714,8 @@ func (n *Node) handleBlockProposal(ctx context.Context, prop *blockproposal.Bloc
 
 	// Leader must be the author of the proposal
 	expectedLeader := n.leader.Get()
-	if expectedLeader == UnknownLeader || prop.NodeIdentifier != expectedLeader {
-		return fmt.Errorf("expecting leader %v, leader in proposal: %v", expectedLeader, prop.NodeIdentifier)
+	if expectedLeader == UnknownLeader || prop.NodeID != expectedLeader {
+		return fmt.Errorf("expecting leader %v, leader in proposal: %v", expectedLeader, prop.NodeID)
 	}
 
 	prevHash := uc.InputRecord.Hash
@@ -740,7 +743,7 @@ func (n *Node) handleBlockProposal(ctx context.Context, prop *blockproposal.Bloc
 			return fmt.Errorf("processing transaction %X: %w", txHash, err)
 		}
 	}
-	if err = n.sendCertificationRequest(ctx, prop.NodeIdentifier.String()); err != nil {
+	if err = n.sendCertificationRequest(ctx, prop.NodeID.String()); err != nil {
 		return fmt.Errorf("certification request send failed, %w", err)
 	}
 	return nil
@@ -837,7 +840,7 @@ func (n *Node) startNewRound(ctx context.Context) error {
 		if err := n.transactionSystem.BeginBlock(newRoundNumber); err != nil {
 			return fmt.Errorf("starting new block for round %d: %w", newRoundNumber, err)
 		}
-		n.leaderCnt.Add(ctx, 1)
+		n.leaderCnt.Add(ctx, 1, n.fixedAttr)
 	}
 	n.startProcessingTransactions(ctx)
 	n.sendEvent(event.NewRoundStarted, newRoundNumber)
@@ -882,7 +885,7 @@ func (n *Node) handleCertificationResponse(ctx context.Context, cr *certificatio
 	if err := cr.IsValid(); err != nil {
 		return fmt.Errorf("invalid CertificationResponse: %w", err)
 	}
-	ctx, span := n.tracer.Start(ctx, "node.handleCertificationResponse", trace.WithAttributes(attribute.Int64("round", int64(cr.Technical.Round))))
+	ctx, span := n.tracer.Start(ctx, "node.handleCertificationResponse", trace.WithAttributes(observability.Round(cr.Technical.Round)))
 	defer span.End()
 	n.log.InfoContext(ctx, fmt.Sprintf("handleCertificationResponse: Round %d, Leader %s", cr.Technical.Round, cr.Technical.Leader))
 
@@ -1153,18 +1156,18 @@ func (n *Node) sendLedgerReplicationResponse(ctx context.Context, msg *replicati
 }
 
 func (n *Node) handleLedgerReplicationRequest(ctx context.Context, lr *replication.LedgerReplicationRequest) error {
-	n.log.DebugContext(ctx, fmt.Sprintf("Handling ledger replication request '%s' from '%s', starting block %d", lr.UUID.String(), lr.NodeIdentifier, lr.BeginBlockNumber))
+	n.log.DebugContext(ctx, fmt.Sprintf("Handling ledger replication request '%s' from '%s', starting block %d", lr.UUID.String(), lr.NodeID, lr.BeginBlockNumber))
 	if err := lr.IsValid(); err != nil {
 		// for now do not respond to obviously invalid requests
 		return fmt.Errorf("invalid request, %w", err)
 	}
-	if lr.PartitionIdentifier != n.configuration.GetPartitionIdentifier() {
+	if lr.PartitionID != n.configuration.GetPartitionID() {
 		resp := &replication.LedgerReplicationResponse{
 			UUID:    lr.UUID,
-			Status:  replication.UnknownPartitionIdentifier,
-			Message: fmt.Sprintf("Unknown partition identifier: %s", lr.PartitionIdentifier),
+			Status:  replication.UnknownPartitionID,
+			Message: fmt.Sprintf("Unknown partition identifier: %s", lr.PartitionID),
 		}
-		return n.sendLedgerReplicationResponse(ctx, resp, lr.NodeIdentifier)
+		return n.sendLedgerReplicationResponse(ctx, resp, lr.NodeID)
 	}
 	startBlock := lr.BeginBlockNumber
 	// the node has been started with a later state and does not have the needed data
@@ -1174,7 +1177,7 @@ func (n *Node) handleLedgerReplicationRequest(ctx context.Context, lr *replicati
 			Status:  replication.BlocksNotFound,
 			Message: fmt.Sprintf("Node does not have block: %v, first block: %v", startBlock, n.fuc.GetRoundNumber()+1),
 		}
-		return n.sendLedgerReplicationResponse(ctx, resp, lr.NodeIdentifier)
+		return n.sendLedgerReplicationResponse(ctx, resp, lr.NodeID)
 	}
 	// the node is behind and does not have the needed data
 	latestBlock := n.committedUC().GetRoundNumber()
@@ -1184,7 +1187,7 @@ func (n *Node) handleLedgerReplicationRequest(ctx context.Context, lr *replicati
 			Status:  replication.BlocksNotFound,
 			Message: fmt.Sprintf("Node does not have block: %v, latest block: %v", startBlock, latestBlock),
 		}
-		return n.sendLedgerReplicationResponse(ctx, resp, lr.NodeIdentifier)
+		return n.sendLedgerReplicationResponse(ctx, resp, lr.NodeID)
 	}
 	n.log.DebugContext(ctx, fmt.Sprintf("Preparing replication response from block %d", startBlock))
 	go func() {
@@ -1228,7 +1231,7 @@ func (n *Node) handleLedgerReplicationRequest(ctx context.Context, lr *replicati
 			FirstBlockNumber: firstFetchedBlockNumber,
 			LastBlockNumber:  lastFetchedBlockNumber,
 		}
-		if err := n.sendLedgerReplicationResponse(ctx, resp, lr.NodeIdentifier); err != nil {
+		if err := n.sendLedgerReplicationResponse(ctx, resp, lr.NodeID); err != nil {
 			n.log.WarnContext(ctx, fmt.Sprintf("Problem sending ledger replication response, %s", resp.Pretty()), logger.Error(err))
 		}
 	}()
@@ -1376,11 +1379,11 @@ func (n *Node) sendLedgerReplicationRequest(ctx context.Context) {
 	defer span.End()
 
 	req := &replication.LedgerReplicationRequest{
-		UUID:                uuid.New(),
-		PartitionIdentifier: n.configuration.GetPartitionIdentifier(),
-		NodeIdentifier:      n.peer.ID().String(),
-		BeginBlockNumber:    startingBlockNr,
-		EndBlockNumber:      startingBlockNr + n.configuration.replicationConfig.maxFetchBlocks,
+		UUID:             uuid.New(),
+		PartitionID:      n.configuration.GetPartitionID(),
+		NodeID:   n.peer.ID().String(),
+		BeginBlockNumber: startingBlockNr,
+		EndBlockNumber:   startingBlockNr + n.configuration.replicationConfig.maxFetchBlocks,
 	}
 	n.log.Log(ctx, logger.LevelTrace, "sending ledger replication request", logger.Data(req))
 
@@ -1421,11 +1424,11 @@ func (n *Node) sendBlockProposal(ctx context.Context) error {
 		return fmt.Errorf("missing LTR")
 	}
 
-	nodeId := n.peer.ID()
+	nodeID := n.peer.ID()
 	prop := &blockproposal.BlockProposal{
-		Partition:          n.configuration.GetPartitionIdentifier(),
-		Shard:              n.configuration.shardID,
-		NodeIdentifier:     nodeId,
+		PartitionID:        n.configuration.GetPartitionID(),
+		ShardID:            n.configuration.shardID,
+		NodeID:             nodeID,
 		UnicityCertificate: n.luc.Load(),
 		Technical:          *ltr,
 		Transactions:       n.proposedTransactions,
@@ -1434,8 +1437,8 @@ func (n *Node) sendBlockProposal(ctx context.Context) error {
 	if err := prop.Sign(n.configuration.hashAlgorithm, n.configuration.signer); err != nil {
 		return fmt.Errorf("block proposal sign failed, %w", err)
 	}
-	n.blockSize.Add(ctx, int64(len(prop.Transactions)))
-	return n.network.Send(ctx, prop, n.FilterValidatorNodes(nodeId)...)
+	n.blockSize.Add(ctx, int64(len(prop.Transactions)), n.fixedAttr)
+	return n.network.Send(ctx, prop, n.FilterValidatorNodes(nodeID)...)
 }
 
 func (n *Node) persistBlockProposal(pr *types.Block) error {
@@ -1475,7 +1478,7 @@ func (n *Node) sendCertificationRequest(ctx context.Context, blockAuthor string)
 	pendingProposal := &types.Block{
 		Header: &types.Header{
 			Version:           1,
-			PartitionID:       n.configuration.GetPartitionIdentifier(),
+			PartitionID:       n.configuration.GetPartitionID(),
 			ShardID:           n.configuration.shardID,
 			ProposerID:        blockAuthor,
 			PreviousBlockHash: n.committedUC().InputRecord.BlockHash,
@@ -1496,10 +1499,10 @@ func (n *Node) sendCertificationRequest(ctx context.Context, blockAuthor string)
 	n.sumOfEarnedFees = 0
 	// send new input record for certification
 	req := &certification.BlockCertificationRequest{
-		Partition:      n.configuration.GetPartitionIdentifier(),
-		Shard:          n.configuration.shardID,
-		NodeIdentifier: n.peer.ID().String(),
-		InputRecord:    ir,
+		Partition:   n.configuration.GetPartitionID(),
+		Shard:       n.configuration.shardID,
+		NodeID:      n.peer.ID().String(),
+		InputRecord: ir,
 	}
 	if req.BlockSize, err = pendingProposal.Size(); err != nil {
 		return fmt.Errorf("calculating block size: %w", err)
@@ -1590,11 +1593,15 @@ func (n *Node) GetTransactionRecordProof(ctx context.Context, txoHash []byte) (*
 }
 
 func (n *Node) NetworkID() types.NetworkID {
-	return n.configuration.GetNetworkIdentifier()
+	return n.configuration.GetNetworkID()
 }
 
 func (n *Node) PartitionID() types.PartitionID {
-	return n.configuration.GetPartitionIdentifier()
+	return n.configuration.GetPartitionID()
+}
+
+func (n *Node) PartitionTypeID() types.PartitionTypeID {
+	return n.transactionSystem.TypeID()
 }
 
 func (n *Node) ShardID() types.ShardID {
@@ -1769,15 +1776,15 @@ func newVARFromGenesis(genesis *genesis.PartitionGenesis) *partitions.ValidatorA
 	validators := make([]partitions.NodeInfo, len(genesis.Keys))
 	for i, k := range genesis.Keys {
 		validators[i] = partitions.NodeInfo{
-			NodeID:  k.NodeIdentifier,
+			NodeID:  k.NodeID,
 			AuthKey: k.EncryptionPublicKey,
 			SigKey:  k.SigningPublicKey,
 		}
 	}
 
 	return &partitions.ValidatorAssignmentRecord{
-		NetworkID:   genesis.PartitionDescription.NetworkIdentifier,
-		PartitionID: genesis.PartitionDescription.PartitionIdentifier,
+		NetworkID:   genesis.PartitionDescription.NetworkID,
+		PartitionID: genesis.PartitionDescription.PartitionID,
 		EpochNumber: genesis.Certificate.InputRecord.Epoch,
 		RoundNumber: genesis.Certificate.GetRoundNumber(),
 		Nodes:       validators,

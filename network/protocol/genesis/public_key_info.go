@@ -12,14 +12,14 @@ import (
 
 var (
 	ErrValidatorPublicInfoIsEmpty    = errors.New("public key info is empty")
-	ErrPubKeyNodeIdentifierIsEmpty   = errors.New("public key info node identifier is empty")
+	ErrPubKeyNodeIDIsEmpty           = errors.New("public key info node identifier is empty")
 	ErrPubKeyInfoSigningKeyIsInvalid = errors.New("public key info singing key is invalid")
 	ErrPubKeyInfoEncryptionIsInvalid = errors.New("public key info encryption key is invalid")
 )
 
 type PublicKeyInfo struct {
 	_                   struct{}  `cbor:",toarray"`
-	NodeIdentifier      string    `json:"nodeIdentifier"`
+	NodeID              string    `json:"nodeId"`
 	SigningPublicKey    hex.Bytes `json:"signingPublicKey"`
 	EncryptionPublicKey hex.Bytes `json:"encryptionPublicKey"`
 }
@@ -37,7 +37,7 @@ func NewValidatorTrustBase(publicKeyInfo []*PublicKeyInfo) (map[string]abcrypto.
 		if err != nil {
 			return nil, err
 		}
-		nodeIdToKey[info.NodeIdentifier] = ver
+		nodeIdToKey[info.NodeID] = ver
 	}
 	return nodeIdToKey, nil
 }
@@ -57,7 +57,7 @@ func ValidatorInfoUnique(validators []*PublicKeyInfo) error {
 		if err := nodeInfo.IsValid(); err != nil {
 			return err
 		}
-		id := nodeInfo.NodeIdentifier
+		id := nodeInfo.NodeID
 		if _, f := ids[id]; f {
 			return fmt.Errorf("duplicated node id: %v", id)
 		}
@@ -83,8 +83,8 @@ func (x *PublicKeyInfo) IsValid() error {
 	if x == nil {
 		return ErrValidatorPublicInfoIsEmpty
 	}
-	if x.NodeIdentifier == "" {
-		return ErrPubKeyNodeIdentifierIsEmpty
+	if x.NodeID == "" {
+		return ErrPubKeyNodeIDIsEmpty
 	}
 	if len(x.SigningPublicKey) == 0 {
 		return ErrPubKeyInfoSigningKeyIsInvalid
@@ -101,10 +101,10 @@ func (x *PublicKeyInfo) IsValid() error {
 	return nil
 }
 
-// NodeID - returns node identifier as peer.ID from encryption public key
-// The NodeIdentifier (string) could also be used with Decode(),
+// GetNodeID - returns node identifier as peer.ID from encryption public key
+// The NodeID (string) could also be used with Decode(),
 // but there are a lot of unit tests that init the field as "test" or to some other invalid id
-func (x *PublicKeyInfo) NodeID() (peer.ID, error) {
+func (x *PublicKeyInfo) GetNodeID() (peer.ID, error) {
 	pKey, err := p2pcrypto.UnmarshalSecp256k1PublicKey(x.EncryptionPublicKey)
 	if err != nil {
 		return "", fmt.Errorf("encryption key marshal error: %w", err)

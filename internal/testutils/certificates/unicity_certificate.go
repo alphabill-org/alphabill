@@ -31,7 +31,7 @@ func CreateUnicityCertificate(
 		return nil
 	}
 	data := []*types.UnicityTreeData{{
-		Partition:     pdr.PartitionIdentifier,
+		Partition:     pdr.PartitionID,
 		ShardTreeRoot: sTree.RootHash(),
 		PDRHash:       test.DoHash(t, pdr),
 	}}
@@ -45,7 +45,7 @@ func CreateUnicityCertificate(
 	if err != nil {
 		t.Error(err)
 	}
-	cert, err := ut.Certificate(pdr.PartitionIdentifier)
+	cert, err := ut.Certificate(pdr.PartitionID)
 	if err != nil {
 		t.Error(err)
 	}

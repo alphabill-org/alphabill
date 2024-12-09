@@ -27,10 +27,10 @@ const (
 func Test_OrchestrationGenesis(t *testing.T) {
 	pdr := types.PartitionDescriptionRecord{
 		Version:             1,
-		NetworkIdentifier:   5,
-		PartitionIdentifier: 123,
-		TypeIdLen:           8,
-		UnitIdLen:           256,
+		NetworkID:   5,
+		PartitionID: 123,
+		TypeIDLen:           8,
+		UnitIDLen:           256,
 		T2Timeout:           5 * time.Second,
 	}
 	pdrFilename, err := createPDRFile(t.TempDir(), &pdr)
@@ -60,7 +60,7 @@ func Test_OrchestrationGenesis(t *testing.T) {
 		homeDir := t.TempDir()
 		require.NoError(t, os.MkdirAll(filepath.Join(homeDir, orchestrationDir), 0700))
 		nodeGenesisFile := filepath.Join(homeDir, orchestrationDir, orchestrationGenesisFileName)
-		require.NoError(t, util.WriteJsonFile(nodeGenesisFile, &genesis.PartitionNode{Version: 1, NodeIdentifier: "1"}))
+		require.NoError(t, util.WriteJsonFile(nodeGenesisFile, &genesis.PartitionNode{Version: 1, NodeID: "1"}))
 
 		cmd := New(testobserve.NewFactory(t))
 		args := "orchestration-genesis --gen-keys --home " + homeDir + " --owner-predicate " + ownerPredicate + pdrArgument
@@ -111,10 +111,10 @@ func Test_OrchestrationGenesis(t *testing.T) {
 
 		pdr := types.PartitionDescriptionRecord{
 			Version:             1,
-			NetworkIdentifier:   5,
-			PartitionIdentifier: 55,
-			TypeIdLen:           4,
-			UnitIdLen:           300,
+			NetworkID:   5,
+			PartitionID: 55,
+			TypeIDLen:           4,
+			UnitIDLen:           300,
 			T2Timeout:           10 * time.Second,
 		}
 		pdrFile, err := createPDRFile(homeDir, &pdr)
@@ -128,7 +128,7 @@ func Test_OrchestrationGenesis(t *testing.T) {
 		pn, err := util.ReadJsonFile(nodeGenesisFile, &genesis.PartitionNode{Version: 1})
 		require.NoError(t, err)
 		require.EqualValues(t, pdr, pn.PartitionDescriptionRecord)
-		require.EqualValues(t, pdr.PartitionIdentifier, pn.BlockCertificationRequest.Partition)
+		require.EqualValues(t, pdr.PartitionID, pn.BlockCertificationRequest.Partition)
 	})
 
 	t.Run("ParamsCanBeChanged", func(t *testing.T) {

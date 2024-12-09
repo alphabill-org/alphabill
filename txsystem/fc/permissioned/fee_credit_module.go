@@ -17,8 +17,8 @@ import (
 var _ txtypes.FeeCreditModule = (*FeeCreditModule)(nil)
 
 var (
-	ErrMissingNetworkIdentifier       = errors.New("network identifier is missing")
-	ErrMissingPartitionIdentifier     = errors.New("partition identifier is missing")
+	ErrMissingNetworkID       = errors.New("network identifier is missing")
+	ErrMissingPartitionID             = errors.New("partition identifier is missing")
 	ErrStateIsNil                     = errors.New("state is nil")
 	ErrMissingFeeCreditRecordUnitType = errors.New("fee credit record unit type is missing")
 	ErrMissingAdminOwnerPredicate     = errors.New("admin owner predicate is missing")
@@ -40,7 +40,7 @@ In feeless mode the non-fee transactions are "free" i.e. no actual fees are char
 */
 type FeeCreditModule struct {
 	networkID               types.NetworkID
-	partitionIdentifier     types.PartitionID
+	partitionID             types.PartitionID
 	state                   *state.State
 	hashAlgorithm           crypto.Hash
 	execPredicate           predicates.PredicateRunner
@@ -52,10 +52,10 @@ type FeeCreditModule struct {
 
 func NewFeeCreditModule(networkID types.NetworkID, partitionID types.PartitionID, state *state.State, feeCreditRecordUnitType []byte, adminOwnerPredicate []byte, opts ...Option) (*FeeCreditModule, error) {
 	if networkID == 0 {
-		return nil, ErrMissingPartitionIdentifier
+		return nil, ErrMissingPartitionID
 	}
 	if partitionID == 0 {
-		return nil, ErrMissingPartitionIdentifier
+		return nil, ErrMissingPartitionID
 	}
 	if state == nil {
 		return nil, ErrStateIsNil
@@ -67,7 +67,7 @@ func NewFeeCreditModule(networkID types.NetworkID, partitionID types.PartitionID
 		return nil, ErrMissingAdminOwnerPredicate
 	}
 	m := &FeeCreditModule{
-		partitionIdentifier:     partitionID,
+		partitionID:     partitionID,
 		state:                   state,
 		feeCreditRecordUnitType: feeCreditRecordUnitType,
 		adminOwnerPredicate:     adminOwnerPredicate,

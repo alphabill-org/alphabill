@@ -38,10 +38,10 @@ func FixedFee(fee uint64) FeeCalculator {
 	}
 }
 
-func newFeeModule(partitionIdentifier types.PartitionID, options *Options, log *slog.Logger) (*FeeAccount, error) {
+func newFeeModule(partitionID types.PartitionID, options *Options, log *slog.Logger) (*FeeAccount, error) {
 	m := &FeeAccount{
 		state:            options.state,
-		partitionID:      partitionIdentifier,
+		partitionID:      partitionID,
 		moneyPartitionID: money.DefaultPartitionID,
 		trustBase:        options.trustBase,
 		hashAlgorithm:    options.hashAlgorithm,

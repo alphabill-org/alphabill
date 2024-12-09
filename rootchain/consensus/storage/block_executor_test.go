@@ -60,7 +60,7 @@ func TestNewExecutedBlockFromGenesis(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, b.HashAlgo, crypto.SHA256)
 	data := b.CurrentIR.Find(partitionID1)
-	require.Equal(t, rootGenesis.Partitions[0].PartitionDescription.PartitionIdentifier, data.Partition)
+	require.Equal(t, rootGenesis.Partitions[0].PartitionDescription.PartitionID, data.Partition)
 	require.Equal(t, rootGenesis.Partitions[0].Certificate.InputRecord, data.IR)
 	require.Equal(t, rootGenesis.Partitions[0].Certificate.UnicityTreeCertificate.PDRHash, data.PDRHash)
 	require.Empty(t, b.Changed)
@@ -111,8 +111,8 @@ func TestExecutedBlock_Extend(t *testing.T) {
 	parent, err := NewGenesisBlock(hash, rootGenesis.Partitions)
 	require.NoError(t, err)
 	certReq := &certification.BlockCertificationRequest{
-		Partition:      partitionID1,
-		NodeIdentifier: "1",
+		Partition:  partitionID1,
+		NodeID:     "1",
 		InputRecord: &types.InputRecord{
 			Version:         1,
 			PreviousHash:    []byte{1, 1, 1, 1},

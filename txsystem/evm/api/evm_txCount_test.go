@@ -30,7 +30,7 @@ func TestAPI_TransactionCount_OK(t *testing.T) {
 
 	a := &API{
 		state:               tree,
-		partitionIdentifier: 1,
+		partitionID:         1,
 		gasUnitPrice:        big.NewInt(10),
 		blockGasLimit:       10000,
 		log:                 observe.Logger(),
@@ -52,7 +52,7 @@ func TestAPI_TransactionCount_OK(t *testing.T) {
 func TestAPI_TransactionCount_NotFound(t *testing.T) {
 	a := &API{
 		state:               abstate.NewEmptyState(),
-		partitionIdentifier: 1,
+		partitionID:         1,
 		gasUnitPrice:        big.NewInt(10),
 		blockGasLimit:       10000,
 	}

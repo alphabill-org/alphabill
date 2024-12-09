@@ -8,21 +8,23 @@ The file is JSON encoded description of partition configuration with following f
 
 Field               | Type      | Description
 --------------------|-----------|---
-networkIdentifier   | uint16    | partition ID.
-partitionIdentifier | uint      | partition ID.
-typeIdLength        | uint      | unit type identifier length in bits.
-unitIdLength        | uint      | unit identifier length in bits.
-shardingScheme      | []shardID | list of shard identifiers. Empty (`null` or omit the field) for single shard partition.
-t2timeout           | uint      | partition T2 timeout, nanoseconds.
-feeCreditBill       |           | fee credit info.
+networkId           | uint16    | Network identifier.
+partitionId         | uint      | Partition identifier.
+partitionTypeId     | uint      | Partition type identifier.
+typeIdLength        | uint      | Unit type identifier length in bits.
+unitIdLength        | uint      | Unit identifier length in bits.
+shardingScheme      | []shardID | List of shard identifiers. Empty (`null` or omit the field) for single shard partition.
+t2timeout           | uint      | Partition T2 timeout, nanoseconds.
+feeCreditBill       |           | Fee credit info.
 
 ## Example
 
 Example of the money partition description
 ```json
 {
-  "networkIdentifier": 3,
-  "systemIdentifier": 1,
+  "networkId": 3,
+  "partitionId": 1,
+  "partitionTypeId": 1,
   "typeIdLength": 8,
   "unitIdLength": 256,
   "shardingScheme": null,

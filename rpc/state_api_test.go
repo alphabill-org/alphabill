@@ -8,17 +8,17 @@ import (
 	"io"
 	"testing"
 
-	abhash "github.com/alphabill-org/alphabill-go-base/hash"
-	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
 
+	abhash "github.com/alphabill-org/alphabill-go-base/hash"
 	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
 	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	"github.com/alphabill-org/alphabill-go-base/util"
-
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	testobservability "github.com/alphabill-org/alphabill/internal/testutils/observability"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtxsystem "github.com/alphabill-org/alphabill/internal/testutils/txsystem"
 	"github.com/alphabill-org/alphabill/network"
@@ -30,8 +30,9 @@ import (
 var unitID = types.NewUnitID(33, nil, []byte{5}, []byte{0xFF})
 
 func TestGetRoundNumber(t *testing.T) {
+	observe := testobservability.Default(t)
 	node := &MockNode{}
-	api := NewStateAPI(node, nil)
+	api := NewStateAPI(node, nil, observe)
 
 	t.Run("ok", func(t *testing.T) {
 		node.maxRoundNumber = 1337
@@ -51,12 +52,13 @@ func TestGetRoundNumber(t *testing.T) {
 }
 
 func TestGetUnit(t *testing.T) {
+	observe := testobservability.Default(t)
 	node := &MockNode{
 		txs: &testtxsystem.CounterTxSystem{
 			FixedState: prepareState(t),
 		},
 	}
-	api := NewStateAPI(node, nil)
+	api := NewStateAPI(node, nil, observe)
 
 	t.Run("get unit (proof=false)", func(t *testing.T) {
 		unit, err := api.GetUnit(unitID, false)
@@ -91,9 +93,10 @@ func TestGetUnit(t *testing.T) {
 }
 
 func TestGetUnitsByOwnerID(t *testing.T) {
+	observe := testobservability.Default(t)
 	node := &MockNode{}
 	ownerIndex := &MockOwnerIndex{ownerUnits: map[string][]types.UnitID{}}
-	api := NewStateAPI(node, ownerIndex)
+	api := NewStateAPI(node, ownerIndex, observe)
 
 	t.Run("ok", func(t *testing.T) {
 		ownerID := []byte{1}
@@ -116,8 +119,9 @@ func TestGetUnitsByOwnerID(t *testing.T) {
 }
 
 func TestSendTransaction(t *testing.T) {
+	observe := testobservability.Default(t)
 	node := &MockNode{}
-	api := NewStateAPI(node, nil)
+	api := NewStateAPI(node, nil, observe)
 
 	t.Run("ok", func(t *testing.T) {
 		tx := createTransactionOrder(t, []byte{1})
@@ -134,8 +138,9 @@ func TestSendTransaction(t *testing.T) {
 }
 
 func TestGetTransactionProof(t *testing.T) {
+	observe := testobservability.Default(t)
 	node := &MockNode{}
-	api := NewStateAPI(node, nil)
+	api := NewStateAPI(node, nil, observe)
 
 	t.Run("ok", func(t *testing.T) {
 		txHash := []byte{1}
@@ -160,8 +165,9 @@ func TestGetTransactionProof(t *testing.T) {
 }
 
 func TestGetBlock(t *testing.T) {
+	observe := testobservability.Default(t)
 	node := &MockNode{}
-	api := NewStateAPI(node, nil)
+	api := NewStateAPI(node, nil, observe)
 
 	t.Run("ok", func(t *testing.T) {
 		node.maxBlockNumber = 1
@@ -188,8 +194,9 @@ func TestGetBlock(t *testing.T) {
 }
 
 func TestGetTrustBase(t *testing.T) {
+	observe := testobservability.Default(t)
 	node := &MockNode{}
-	api := NewStateAPI(node, nil)
+	api := NewStateAPI(node, nil, observe)
 
 	t.Run("ok", func(t *testing.T) {
 		_, verifier := testsig.CreateSignerAndVerifier(t)
@@ -335,6 +342,10 @@ func (mn *MockNode) PartitionTypeID() types.PartitionTypeID {
 		return mn.txs.TypeID()
 	}
 	return 1
+}
+
+func (mn *MockNode) ShardID() types.ShardID {
+	return types.ShardID{}
 }
 
 func (mn *MockNode) Peer() *network.Peer {

@@ -131,6 +131,7 @@ type (
 		blockSize  metric.Int64Counter
 		execMsgCnt metric.Int64Counter
 		execMsgDur metric.Float64Histogram
+		fixedAttr  metric.MeasurementOption
 	}
 
 	status int
@@ -272,6 +273,8 @@ func (n *Node) initMetrics(observe Observability) (err error) {
 	if err != nil {
 		return fmt.Errorf("creating histogram for processed messages: %w", err)
 	}
+
+	n.fixedAttr = observability.Shard(n.PartitionID(), n.configuration.shardID)
 
 	return nil
 }
@@ -427,7 +430,7 @@ func verifyTxSystemState(state txsystem.StateSummary, sumOfEarnedFees uint64, uc
 }
 
 func (n *Node) applyBlockTransactions(ctx context.Context, round uint64, txs []*types.TransactionRecord) (txsystem.StateSummary, uint64, error) {
-	ctx, span := n.tracer.Start(ctx, "node.applyBlockTransactions", trace.WithAttributes(attribute.Int64("round", int64(round))))
+	ctx, span := n.tracer.Start(ctx, "node.applyBlockTransactions", trace.WithAttributes(observability.Round(round)))
 	defer span.End()
 
 	var sumOfEarnedFees uint64
@@ -480,7 +483,7 @@ func (n *Node) restoreBlockProposal(ctx context.Context) {
 	}
 	uc, err := getUCv1(pr)
 	if err != nil {
-		n.log.WarnContext(ctx, "Error unmarshalling unicity certificate", logger.Error(err))
+		n.log.WarnContext(ctx, "Error unmarshaling unicity certificate", logger.Error(err))
 		return
 	}
 	// make sure proposal extends the committed state
@@ -554,7 +557,7 @@ func (n *Node) loop(ctx context.Context) error {
 }
 
 /*
-handleMessage processes message received from AB network (ie from other partition nodes or rootchain).
+handleMessage processes message received from AB network (ie from other shard validators or root partition).
 */
 func (n *Node) handleMessage(ctx context.Context, msg any) (rErr error) {
 	msgAttr := attribute.String("msg", fmt.Sprintf("%T", msg))
@@ -565,8 +568,8 @@ func (n *Node) handleMessage(ctx context.Context, msg any) (rErr error) {
 			span.SetStatus(codes.Error, rErr.Error())
 			n.sendEvent(event.Error, rErr)
 		}
-		n.execMsgCnt.Add(ctx, 1, metric.WithAttributeSet(attribute.NewSet(msgAttr, observability.ErrStatus(rErr))))
-		n.execMsgDur.Record(ctx, time.Since(start).Seconds(), metric.WithAttributes(msgAttr))
+		n.execMsgCnt.Add(ctx, 1, metric.WithAttributeSet(attribute.NewSet(msgAttr, observability.ErrStatus(rErr))), n.fixedAttr)
+		n.execMsgDur.Record(ctx, time.Since(start).Seconds(), metric.WithAttributes(msgAttr), n.fixedAttr)
 		span.End()
 	}(time.Now())
 
@@ -643,8 +646,8 @@ func (n *Node) process(ctx context.Context, tx *types.TransactionOrder) error {
 func (n *Node) validateAndExecuteTx(ctx context.Context, tx *types.TransactionOrder, round uint64) (_ *types.TransactionRecord, rErr error) {
 	defer func(start time.Time) {
 		txTypeAttr := attribute.Int("tx", int(tx.Type))
-		n.execTxCnt.Add(ctx, 1, metric.WithAttributeSet(attribute.NewSet(txTypeAttr, attribute.String("status", statusCodeOfTxError(rErr)))))
-		n.execTxDur.Record(ctx, time.Since(start).Seconds(), metric.WithAttributeSet(attribute.NewSet(txTypeAttr)))
+		n.execTxCnt.Add(ctx, 1, metric.WithAttributeSet(attribute.NewSet(txTypeAttr, attribute.String("status", statusCodeOfTxError(rErr)))), n.fixedAttr)
+		n.execTxDur.Record(ctx, time.Since(start).Seconds(), metric.WithAttributeSet(attribute.NewSet(txTypeAttr)), n.fixedAttr)
 	}(time.Now())
 
 	if err := n.txValidator.Validate(tx, round); err != nil {
@@ -837,7 +840,7 @@ func (n *Node) startNewRound(ctx context.Context) error {
 		if err := n.transactionSystem.BeginBlock(newRoundNumber); err != nil {
 			return fmt.Errorf("starting new block for round %d: %w", newRoundNumber, err)
 		}
-		n.leaderCnt.Add(ctx, 1)
+		n.leaderCnt.Add(ctx, 1, n.fixedAttr)
 	}
 	n.startProcessingTransactions(ctx)
 	n.sendEvent(event.NewRoundStarted, newRoundNumber)
@@ -882,7 +885,7 @@ func (n *Node) handleCertificationResponse(ctx context.Context, cr *certificatio
 	if err := cr.IsValid(); err != nil {
 		return fmt.Errorf("invalid CertificationResponse: %w", err)
 	}
-	ctx, span := n.tracer.Start(ctx, "node.handleCertificationResponse", trace.WithAttributes(attribute.Int64("round", int64(cr.Technical.Round))))
+	ctx, span := n.tracer.Start(ctx, "node.handleCertificationResponse", trace.WithAttributes(observability.Round(cr.Technical.Round)))
 	defer span.End()
 	n.log.InfoContext(ctx, fmt.Sprintf("handleCertificationResponse: Round %d, Leader %s", cr.Technical.Round, cr.Technical.Leader))
 
@@ -1434,7 +1437,7 @@ func (n *Node) sendBlockProposal(ctx context.Context) error {
 	if err := prop.Sign(n.configuration.hashAlgorithm, n.configuration.signer); err != nil {
 		return fmt.Errorf("block proposal sign failed, %w", err)
 	}
-	n.blockSize.Add(ctx, int64(len(prop.Transactions)))
+	n.blockSize.Add(ctx, int64(len(prop.Transactions)), n.fixedAttr)
 	return n.network.Send(ctx, prop, n.FilterValidatorNodes(nodeID)...)
 }
 
@@ -1599,6 +1602,10 @@ func (n *Node) PartitionID() types.PartitionID {
 
 func (n *Node) PartitionTypeID() types.PartitionTypeID {
 	return n.transactionSystem.TypeID()
+}
+
+func (n *Node) ShardID() types.ShardID {
+	return n.configuration.shardID
 }
 
 func (n *Node) Peer() *network.Peer {

@@ -76,11 +76,11 @@ func run(ctx context.Context, node *partition.Node, rpcServerConf *rpc.ServerCon
 		rpcServerConf.APIs = []rpc.API{
 			{
 				Namespace: "state",
-				Service:   rpc.NewStateAPI(node, ownerIndexer),
+				Service:   rpc.NewStateAPI(node, ownerIndexer, obs),
 			},
 			{
 				Namespace: "admin",
-				Service:   rpc.NewAdminAPI(node, node.Peer(), log),
+				Service:   rpc.NewAdminAPI(node, node.Peer(), obs),
 			},
 		}
 

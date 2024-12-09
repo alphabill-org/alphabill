@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
+
+	"github.com/libp2p/go-libp2p/core/peer"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/types/hex"
@@ -11,19 +14,21 @@ import (
 	"github.com/alphabill-org/alphabill/rootchain/partitions"
 	"github.com/alphabill-org/alphabill/tree/avl"
 	"github.com/alphabill-org/alphabill/txsystem"
-	"github.com/libp2p/go-libp2p/core/peer"
 )
 
 type (
 	StateAPI struct {
 		node       partitionNode
 		ownerIndex partition.IndexReader
+
+		updMetrics func(ctx context.Context, method string, start time.Time, apiErr error)
 	}
 
 	partitionNode interface {
 		NetworkID() types.NetworkID
 		PartitionID() types.PartitionID
 		PartitionTypeID() types.PartitionTypeID
+		ShardID() types.ShardID
 		SubmitTx(ctx context.Context, tx *types.TransactionOrder) ([]byte, error)
 		GetBlock(ctx context.Context, blockNr uint64) (*types.Block, error)
 		LatestBlockNumber() (uint64, error)
@@ -50,12 +55,17 @@ type (
 	}
 )
 
-func NewStateAPI(node partitionNode, ownerIndex partition.IndexReader) *StateAPI {
-	return &StateAPI{node: node, ownerIndex: ownerIndex}
+func NewStateAPI(node partitionNode, ownerIndex partition.IndexReader, obs Observability) *StateAPI {
+	return &StateAPI{
+		node:       node,
+		ownerIndex: ownerIndex,
+		updMetrics: metricsUpdater(obs.Meter(metricsScopeJRPCAPI), node, obs.Logger()),
+	}
 }
 
 // GetRoundNumber returns the current round number as seen by the node.
-func (s *StateAPI) GetRoundNumber(ctx context.Context) (hex.Uint64, error) {
+func (s *StateAPI) GetRoundNumber(ctx context.Context) (_ hex.Uint64, retErr error) {
+	defer func(start time.Time) { s.updMetrics(ctx, "getRoundNumber", start, retErr) }(time.Now())
 	roundNumber, err := s.node.CurrentRoundNumber(ctx)
 	if err != nil {
 		return 0, err
@@ -64,9 +74,10 @@ func (s *StateAPI) GetRoundNumber(ctx context.Context) (hex.Uint64, error) {
 }
 
 // GetUnit returns unit data and optionally the state proof for the given unitID.
-func (s *StateAPI) GetUnit(unitID types.UnitID, includeStateProof bool) (*Unit[any], error) {
-	state := s.node.TransactionSystemState()
+func (s *StateAPI) GetUnit(unitID types.UnitID, includeStateProof bool) (_ *Unit[any], retErr error) {
+	defer func(start time.Time) { s.updMetrics(context.Background(), "getUnit", start, retErr) }(time.Now())
 
+	state := s.node.TransactionSystemState()
 	unit, err := state.GetUnit(unitID, true)
 	if err != nil {
 		if errors.Is(err, avl.ErrNotFound) {
@@ -95,7 +106,8 @@ func (s *StateAPI) GetUnit(unitID types.UnitID, includeStateProof bool) (*Unit[a
 }
 
 // GetUnitsByOwnerID returns list of unit identifiers that belong to the given owner.
-func (s *StateAPI) GetUnitsByOwnerID(ownerID hex.Bytes) ([]types.UnitID, error) {
+func (s *StateAPI) GetUnitsByOwnerID(ownerID hex.Bytes) (_ []types.UnitID, retErr error) {
+	defer func(start time.Time) { s.updMetrics(context.Background(), "getUnitsByOwnerID", start, retErr) }(time.Now())
 	if s.ownerIndex == nil {
 		return nil, errors.New("owner indexer is disabled")
 	}
@@ -107,7 +119,8 @@ func (s *StateAPI) GetUnitsByOwnerID(ownerID hex.Bytes) ([]types.UnitID, error) 
 }
 
 // SendTransaction broadcasts the given transaction to the network, returns the submitted transaction hash.
-func (s *StateAPI) SendTransaction(ctx context.Context, txBytes hex.Bytes) (hex.Bytes, error) {
+func (s *StateAPI) SendTransaction(ctx context.Context, txBytes hex.Bytes) (_ hex.Bytes, retErr error) {
+	defer func(start time.Time) { s.updMetrics(ctx, "sendTransaction", start, retErr) }(time.Now())
 	var tx *types.TransactionOrder
 	if err := types.Cbor.Unmarshal(txBytes, &tx); err != nil {
 		return nil, fmt.Errorf("failed to decode transaction: %w", err)
@@ -120,7 +133,8 @@ func (s *StateAPI) SendTransaction(ctx context.Context, txBytes hex.Bytes) (hex.
 }
 
 // GetTransactionProof returns transaction record and proof for the given transaction hash.
-func (s *StateAPI) GetTransactionProof(ctx context.Context, txHash hex.Bytes) (*TransactionRecordAndProof, error) {
+func (s *StateAPI) GetTransactionProof(ctx context.Context, txHash hex.Bytes) (_ *TransactionRecordAndProof, retErr error) {
+	defer func(start time.Time) { s.updMetrics(ctx, "getTransactionProof", start, retErr) }(time.Now())
 	txRecordProof, err := s.node.GetTransactionRecordProof(ctx, txHash)
 	if err != nil {
 		if errors.Is(err, partition.ErrIndexNotFound) || errors.Is(err, types.ErrBlockIsNil) {
@@ -138,7 +152,8 @@ func (s *StateAPI) GetTransactionProof(ctx context.Context, txHash hex.Bytes) (*
 }
 
 // GetBlock returns block for the given block number.
-func (s *StateAPI) GetBlock(ctx context.Context, blockNumber hex.Uint64) (hex.Bytes, error) {
+func (s *StateAPI) GetBlock(ctx context.Context, blockNumber hex.Uint64) (_ hex.Bytes, retErr error) {
+	defer func(start time.Time) { s.updMetrics(ctx, "getBlock", start, retErr) }(time.Now())
 	block, err := s.node.GetBlock(ctx, uint64(blockNumber))
 	if err != nil {
 		return nil, fmt.Errorf("failed to load block: %w", err)
@@ -154,7 +169,8 @@ func (s *StateAPI) GetBlock(ctx context.Context, blockNumber hex.Uint64) (hex.By
 }
 
 // GetTrustBase returns trust base for the given epoch.
-func (s *StateAPI) GetTrustBase(epochNumber hex.Uint64) (types.RootTrustBase, error) {
+func (s *StateAPI) GetTrustBase(epochNumber hex.Uint64) (_ types.RootTrustBase, retErr error) {
+	defer func(start time.Time) { s.updMetrics(context.Background(), "getTrustBase", start, retErr) }(time.Now())
 	trustBase, err := s.node.GetTrustBase(uint64(epochNumber))
 	if err != nil {
 		return nil, fmt.Errorf("failed to load trust base: %w", err)

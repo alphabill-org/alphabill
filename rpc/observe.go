@@ -1,16 +1,51 @@
 package rpc
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"time"
 
-	"github.com/alphabill-org/alphabill/logger"
 	"github.com/gorilla/mux"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
-	semconv "go.opentelemetry.io/otel/semconv/v1.21.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.27.0"
+
+	"github.com/alphabill-org/alphabill/logger"
+	"github.com/alphabill-org/alphabill/observability"
 )
+
+func metricsUpdater(mtr metric.Meter, node partitionNode, log *slog.Logger) func(ctx context.Context, method string, start time.Time, apiErr error) {
+	callCnt, err := mtr.Int64Counter("calls", metric.WithDescription("How many times the endpoint has been called"))
+	if err != nil {
+		log.Error("creating calls counter", logger.Error(err))
+		return func(context.Context, string, time.Time, error) { /* NOP */ }
+	}
+	callDur, err := mtr.Float64Histogram("duration",
+		metric.WithDescription("How long it took to serve the request"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(25e-6, 50e-6, 100e-6, 200e-6, 400e-6, 800e-6, 0.0016, 0.01, 0.05, 0.1))
+	if err != nil {
+		log.Error("creating duration histogram", logger.Error(err))
+		return func(context.Context, string, time.Time, error) { /* NOP */ }
+	}
+
+	fixedAttr := observability.Shard(node.PartitionID(), node.ShardID())
+	statusOK := attribute.String("status", "ok")
+	statusErr := attribute.String("status", "err")
+
+	return func(ctx context.Context, method string, start time.Time, apiErr error) {
+		methodAttr := attribute.String("method", method)
+		statusAttr := statusOK
+		if apiErr != nil {
+			statusAttr = statusErr
+		}
+		callAttr := metric.WithAttributeSet(attribute.NewSet(methodAttr, statusAttr))
+
+		callCnt.Add(ctx, 1, fixedAttr, callAttr)
+		callDur.Record(ctx, time.Since(start).Seconds(), fixedAttr, callAttr)
+	}
+}
 
 /*
 instrumentHTTP returns http middleware which instruments the incoming handler with two metrics:
@@ -46,7 +81,7 @@ func instrumentHTTP(mtr metric.Meter, log *slog.Logger) func(next http.Handler) 
 			rsp := newstatusResponseWriter(w)
 			next.ServeHTTP(rsp, req)
 
-			attrSet := attribute.NewSet(append(attr, semconv.HTTPStatusCode(rsp.statusCode))...)
+			attrSet := attribute.NewSet(append(attr, semconv.HTTPResponseStatusCode(rsp.statusCode))...)
 			callCnt.Add(req.Context(), 1, metric.WithAttributeSet(attrSet))
 			callDur.Record(req.Context(), time.Since(start).Seconds(), metric.WithAttributeSet(attrSet))
 		})

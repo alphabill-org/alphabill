@@ -13,6 +13,7 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/util"
 	"github.com/alphabill-org/alphabill/logger"
+	"github.com/alphabill-org/alphabill/observability"
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/state"
 	abfc "github.com/alphabill-org/alphabill/txsystem/fc"
@@ -87,7 +88,7 @@ func NewGenericTxSystem(pdr types.PartitionDescriptionRecord, shardID types.Shar
 		}
 
 	}
-	if err := txs.initMetrics(observe.Meter("txsystem")); err != nil {
+	if err := txs.initMetrics(observe.Meter("txsystem"), shardID); err != nil {
 		return nil, fmt.Errorf("initializing metrics: %w", err)
 	}
 
@@ -414,7 +415,8 @@ func (m *GenericTxSystem) GetUnit(id types.UnitID, committed bool) (*state.Unit,
 	return m.state.GetUnit(id, committed)
 }
 
-func (m *GenericTxSystem) initMetrics(mtr metric.Meter) error {
+func (m *GenericTxSystem) initMetrics(mtr metric.Meter, shardID types.ShardID) error {
+	shardAttr := observability.Shard(m.pdr.PartitionID, shardID)
 	if _, err := mtr.Int64ObservableUpDownCounter(
 		"unit.count",
 		metric.WithDescription(`Number of units in the state.`),
@@ -422,7 +424,7 @@ func (m *GenericTxSystem) initMetrics(mtr metric.Meter) error {
 		metric.WithInt64Callback(func(ctx context.Context, io metric.Int64Observer) error {
 			snc := state.NewStateNodeCounter()
 			m.state.Traverse(snc)
-			io.Observe(int64(snc.NodeCount()))
+			io.Observe(int64(snc.NodeCount()), shardAttr)
 			return nil
 		}),
 	); err != nil {

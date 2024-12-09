@@ -18,8 +18,8 @@ var (
 
 type BlockCertificationRequest struct {
 	_              struct{}           `cbor:",toarray"`
-	Partition      types.PartitionID  `json:"partitionId"`
-	Shard          types.ShardID      `json:"shardIdentifier"`
+	PartitionID    types.PartitionID  `json:"partitionId"`
+	ShardID        types.ShardID      `json:"shardId"`
 	NodeID         string             `json:"nodeId"`
 	InputRecord    *types.InputRecord `json:"inputRecord"`
 	BlockSize      uint64             `json:"blockSize"`
@@ -48,7 +48,7 @@ func (x *BlockCertificationRequest) IsValid(v crypto.Verifier) error {
 	if v == nil {
 		return errVerifierIsNil
 	}
-	if x.Partition == 0 {
+	if x.PartitionID == 0 {
 		return errInvalidPartitionID
 	}
 	if x.NodeID == "" {

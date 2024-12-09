@@ -28,7 +28,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const partitionIdentifier types.PartitionID = 0x00000402
+const partitionID types.PartitionID = 0x00000402
 
 // SPDX-License-Identifier: GPL-3.0
 /*
@@ -78,7 +78,7 @@ func TestAPI_CallEVM_CleanState_OK(t *testing.T) {
 	treeClean := tree.Clone()
 	a := &API{
 		state:               tree,
-		partitionIdentifier: 3,
+		partitionID:         3,
 		gasUnitPrice:        big.NewInt(evm.DefaultGasPrice),
 		blockGasLimit:       evm.DefaultBlockGasLimit,
 		log:                 logger.New(t),
@@ -114,7 +114,7 @@ func TestAPI_CallEVM_OK(t *testing.T) {
 
 	a := &API{
 		state:               tree,
-		partitionIdentifier: 1,
+		partitionID:         1,
 		gasUnitPrice:        big.NewInt(1),
 		blockGasLimit:       evm.DefaultBlockGasLimit,
 		log:                 log,
@@ -152,7 +152,7 @@ func TestAPI_CallEVM_OK(t *testing.T) {
 	gasPrice := big.NewInt(evm.DefaultGasPrice)
 	blockDB, err := memorydb.New()
 	require.NoError(t, err)
-	_, err = evm.Execute(1, statedb.NewStateDB(tree, log), blockDB, callContract, nil, partitionIdentifier, gasPool, gasPrice, false, log)
+	_, err = evm.Execute(1, statedb.NewStateDB(tree, log), blockDB, callContract, nil, partitionID, gasPool, gasPrice, false, log)
 	require.NoError(t, err)
 	teststate.CommitWithUC(t, tree)
 
@@ -172,7 +172,7 @@ func TestAPI_CallEVM_ToFieldMissing(t *testing.T) {
 
 	a := &API{
 		state:               tree,
-		partitionIdentifier: 1,
+		partitionID:         1,
 		gasUnitPrice:        big.NewInt(evm.DefaultGasPrice),
 		blockGasLimit:       evm.DefaultBlockGasLimit,
 		log:                 logger.New(t),
@@ -206,7 +206,7 @@ func TestAPI_CallEVM_InvalidRequest(t *testing.T) {
 
 	a := &API{
 		state:               tree,
-		partitionIdentifier: 1,
+		partitionID:         1,
 		gasUnitPrice:        big.NewInt(evm.DefaultGasPrice),
 		blockGasLimit:       evm.DefaultBlockGasLimit,
 	}
@@ -243,7 +243,7 @@ func initState(t *testing.T, tree *abstate.State) (common.Address, common.Addres
 	gasPrice := big.NewInt(evm.DefaultGasPrice)
 	blockDB, err := memorydb.New()
 	require.NoError(t, err)
-	sm, err := evm.Execute(1, stateDB, blockDB, evmAttr, nil, partitionIdentifier, gasPool, gasPrice, false, log)
+	sm, err := evm.Execute(1, stateDB, blockDB, evmAttr, nil, partitionID, gasPool, gasPrice, false, log)
 	details := &evmsdk.ProcessingDetails{}
 	require.NoError(t, sm.UnmarshalDetails(details))
 	require.NoError(t, err)

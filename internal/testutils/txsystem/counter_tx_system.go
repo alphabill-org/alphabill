@@ -183,6 +183,10 @@ func (m *CounterTxSystem) IsFeelessMode() bool {
 	return m.FeelessMode
 }
 
+func (m *CounterTxSystem) TypeID() types.PartitionTypeID {
+	return 999
+}
+
 func (m *ErrorState) Serialize(writer io.Writer, committed bool) error {
 	return m.Err
 }

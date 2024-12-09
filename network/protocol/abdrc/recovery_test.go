@@ -161,7 +161,7 @@ func TestStateMsg_Verify(t *testing.T) {
 	}
 
 	pdr := types.PartitionDescriptionRecord{
-		PartitionIdentifier: 1,
+		PartitionID: 1,
 	}
 
 	signer, _ := testsig.CreateSignerAndVerifier(t)
@@ -300,7 +300,7 @@ func TestRecoveryBlock_IsValid(t *testing.T) {
 	}
 
 	pdr := types.PartitionDescriptionRecord{
-		PartitionIdentifier: 1,
+		PartitionID: 1,
 	}
 
 	signer, _ := testsig.CreateSignerAndVerifier(t)

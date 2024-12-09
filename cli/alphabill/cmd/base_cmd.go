@@ -50,7 +50,7 @@ func (a *alphabillApp) addSubcommands(opts []interface{}) {
 	a.baseCmd.AddCommand(newMoneyGenesisCmd(a.baseConfig))
 	a.baseCmd.AddCommand(newRootGenesisCmd(a.baseConfig))
 	a.baseCmd.AddCommand(newRootNodeCmd(a.baseConfig))
-	a.baseCmd.AddCommand(newNodeIdentifierCmd())
+	a.baseCmd.AddCommand(newNodeIDCmd())
 	a.baseCmd.AddCommand(newTokensNodeCmd(a.baseConfig))
 	a.baseCmd.AddCommand(newUserTokenGenesisCmd(a.baseConfig))
 	a.baseCmd.AddCommand(newEvmNodeCmd(a.baseConfig))

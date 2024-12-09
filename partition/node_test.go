@@ -226,7 +226,7 @@ func TestNode_SubsequentEmptyBlocksNotPersisted(t *testing.T) {
 func TestNode_InvalidCertificateResponse(t *testing.T) {
 	tp := runSingleValidatorNodePartition(t, &testtxsystem.CounterTxSystem{})
 	cr := &certification.CertificationResponse{
-		Partition: tp.nodeConf.GetPartitionIdentifier(),
+		Partition: tp.nodeConf.GetPartitionID(),
 		Shard:     tp.nodeConf.shardID,
 	}
 	tp.mockNet.Receive(cr)
@@ -249,7 +249,7 @@ func TestNode_HandleStaleCertificationResponse(t *testing.T) {
 
 func TestNode_StartNodeBehindRootchain_OK(t *testing.T) {
 	tp := runSingleValidatorNodePartition(t, &testtxsystem.CounterTxSystem{})
-	luc, found := tp.certs[tp.nodeConf.GetPartitionIdentifier()]
+	luc, found := tp.certs[tp.nodeConf.GetPartitionID()]
 	require.True(t, found)
 	// Mock and skip some root rounds
 	tp.eh.Reset()
@@ -483,7 +483,7 @@ func TestBlockProposal_BlockProposalIsNil(t *testing.T) {
 	ContainsError(t, tp, blockproposal.ErrBlockProposalIsNil.Error())
 }
 
-func TestBlockProposal_InvalidNodeIdentifier(t *testing.T) {
+func TestBlockProposal_InvalidNodeID(t *testing.T) {
 	tp := runSingleValidatorNodePartition(t, &testtxsystem.CounterTxSystem{})
 	tp.WaitHandshake(t)
 	uc := tp.GetCommittedUC(t)
@@ -492,7 +492,7 @@ func TestBlockProposal_InvalidNodeIdentifier(t *testing.T) {
 	require.NoError(t, tp.SubmitTx(transfer))
 	tp.CreateBlock(t)
 	require.Eventually(t, NextBlockReceived(t, tp, uc), test.WaitDuration, test.WaitTick)
-	tp.SubmitBlockProposal(&blockproposal.BlockProposal{NodeIdentifier: "1", UnicityCertificate: uc})
+	tp.SubmitBlockProposal(&blockproposal.BlockProposal{NodeID: "1", UnicityCertificate: uc})
 	ContainsError(t, tp, "block proposal from unknown node")
 }
 
@@ -513,7 +513,7 @@ func TestBlockProposal_InvalidBlockProposal(t *testing.T) {
 	tp.partition.blockProposalValidator = val
 
 	tp.SubmitBlockProposal(&blockproposal.BlockProposal{
-		NodeIdentifier:     tp.nodeDeps.peerConf.ID,
+		NodeID:     tp.nodeDeps.peerConf.ID,
 		UnicityCertificate: uc,
 	})
 
@@ -531,8 +531,8 @@ func TestBlockProposal_HandleOldBlockProposal(t *testing.T) {
 	require.Eventually(t, NextBlockReceived(t, tp, uc), test.WaitDuration, test.WaitTick)
 
 	tp.SubmitBlockProposal(&blockproposal.BlockProposal{
-		NodeIdentifier:     tp.nodeDeps.peerConf.ID,
-		Partition:          tp.nodeConf.GetPartitionIdentifier(),
+		NodeID:             tp.nodeDeps.peerConf.ID,
+		PartitionID:        tp.nodeConf.GetPartitionID(),
 		UnicityCertificate: uc,
 	})
 
@@ -555,8 +555,8 @@ func TestBlockProposal_ExpectedLeaderInvalid(t *testing.T) {
 	}, test.WaitDuration, test.WaitTick)
 
 	bp := &blockproposal.BlockProposal{
-		Partition:          uc2.UnicityTreeCertificate.Partition,
-		NodeIdentifier:     tp.nodeDeps.peerConf.ID,
+		PartitionID:        uc2.UnicityTreeCertificate.Partition,
+		NodeID:             tp.nodeDeps.peerConf.ID,
 		UnicityCertificate: uc2,
 		Transactions:       []*types.TransactionRecord{},
 		Technical:          *tr,
@@ -580,8 +580,8 @@ func TestBlockProposal_Ok(t *testing.T) {
 	require.NoError(t, err)
 
 	bp := &blockproposal.BlockProposal{
-		Partition:          uc2.UnicityTreeCertificate.Partition,
-		NodeIdentifier:     tp.nodeDeps.peerConf.ID,
+		PartitionID:        uc2.UnicityTreeCertificate.Partition,
+		NodeID:             tp.nodeDeps.peerConf.ID,
 		UnicityCertificate: uc2,
 		Transactions:       []*types.TransactionRecord{},
 	}
@@ -603,8 +603,8 @@ func TestBlockProposal_TxSystemStateIsDifferent_sameUC(t *testing.T) {
 	require.NoError(t, err)
 
 	bp := &blockproposal.BlockProposal{
-		Partition:          uc2.UnicityTreeCertificate.Partition,
-		NodeIdentifier:     tp.nodeDeps.peerConf.ID,
+		PartitionID:        uc2.UnicityTreeCertificate.Partition,
+		NodeID:             tp.nodeDeps.peerConf.ID,
 		UnicityCertificate: uc2,
 		Transactions:       []*types.TransactionRecord{},
 	}
@@ -637,8 +637,8 @@ func TestBlockProposal_TxSystemStateIsDifferent_newUC(t *testing.T) {
 	require.NoError(t, err)
 
 	bp := &blockproposal.BlockProposal{
-		Partition:          uc2.UnicityTreeCertificate.Partition,
-		NodeIdentifier:     tp.nodeDeps.peerConf.ID,
+		PartitionID:        uc2.UnicityTreeCertificate.Partition,
+		NodeID:             tp.nodeDeps.peerConf.ID,
 		UnicityCertificate: uc2,
 		Transactions:       []*types.TransactionRecord{},
 		Technical:          *tr,

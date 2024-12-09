@@ -11,20 +11,20 @@ import (
 )
 
 type API struct {
-	state               *state.State
-	partitionIdentifier types.PartitionID
-	gasUnitPrice        *big.Int
-	blockGasLimit       uint64
-	log                 *slog.Logger
+	state         *state.State
+	partitionID   types.PartitionID
+	gasUnitPrice  *big.Int
+	blockGasLimit uint64
+	log           *slog.Logger
 }
 
-func NewAPI(s *state.State, partitionIdentifier types.PartitionID, gasUnitPrice *big.Int, blockGasLimit uint64, log *slog.Logger) *API {
+func NewAPI(s *state.State, partitionID types.PartitionID, gasUnitPrice *big.Int, blockGasLimit uint64, log *slog.Logger) *API {
 	return &API{
-		state:               s,
-		partitionIdentifier: partitionIdentifier,
-		gasUnitPrice:        gasUnitPrice,
-		blockGasLimit:       blockGasLimit,
-		log:                 log,
+		state:         s,
+		partitionID:   partitionID,
+		gasUnitPrice:  gasUnitPrice,
+		blockGasLimit: blockGasLimit,
+		log:           log,
 	}
 }
 

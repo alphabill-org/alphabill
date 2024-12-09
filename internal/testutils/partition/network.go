@@ -183,7 +183,7 @@ func newRootPartition(t *testing.T, nofRootNodes uint8, nodePartitions []*NodePa
 	// update partition genesis files
 	for _, pg := range partitionGenesisFiles {
 		for _, part := range nodePartitions {
-			if part.partitionID == pg.PartitionDescription.PartitionIdentifier {
+			if part.partitionID == pg.PartitionDescription.PartitionID {
 				part.partitionGenesis = pg
 			}
 		}
@@ -251,7 +251,7 @@ func NewPartition(t *testing.T, nodeCount uint8, txSystemProvider func(trustBase
 		return nil, fmt.Errorf("invalid count of partition Nodes: %d", nodeCount)
 	}
 	abPartition = &NodePartition{
-		partitionID:  pdr.PartitionIdentifier,
+		partitionID:  pdr.PartitionID,
 		txSystemFunc: txSystemProvider,
 		genesisState: state,
 		Nodes:        make([]*partitionNode, nodeCount),

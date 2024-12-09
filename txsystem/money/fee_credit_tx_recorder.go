@@ -17,8 +17,8 @@ type feeCreditTxRecorder struct {
 	// recorded fee credit transfers indexed by partition_identifier
 	transferFeeCredits map[types.PartitionID][]*transferFeeCreditTx
 	// recorded reclaim fee credit transfers indexed by partition_identifier
-	reclaimFeeCredits   map[types.PartitionID][]*reclaimFeeCreditTx
-	partitionIdentifier types.PartitionID
+	reclaimFeeCredits map[types.PartitionID][]*reclaimFeeCreditTx
+	partitionID       types.PartitionID
 }
 
 type transferFeeCreditTx struct {
@@ -35,15 +35,15 @@ type reclaimFeeCreditTx struct {
 	closeFee      uint64
 }
 
-func newFeeCreditTxRecorder(s *state.State, partitionIdentifier types.PartitionID, records []*types.PartitionDescriptionRecord) *feeCreditTxRecorder {
+func newFeeCreditTxRecorder(s *state.State, partitionID types.PartitionID, records []*types.PartitionDescriptionRecord) *feeCreditTxRecorder {
 	sdrs := make(map[types.PartitionID]*types.PartitionDescriptionRecord)
 	for _, record := range records {
-		sdrs[record.PartitionIdentifier] = record
+		sdrs[record.PartitionID] = record
 	}
 	return &feeCreditTxRecorder{
 		sdrs:                sdrs,
 		state:               s,
-		partitionIdentifier: partitionIdentifier,
+		partitionID: partitionID,
 		transferFeeCredits:  make(map[types.PartitionID][]*transferFeeCreditTx),
 		reclaimFeeCredits:   make(map[types.PartitionID][]*reclaimFeeCreditTx),
 	}
@@ -124,19 +124,19 @@ func (f *feeCreditTxRecorder) consolidateFees() error {
 			})
 		err = f.state.Apply(updateData)
 		if err != nil {
-			return fmt.Errorf("failed to update [%x] partition's fee credit bill: %w", pdr.PartitionIdentifier, err)
+			return fmt.Errorf("failed to update [%x] partition's fee credit bill: %w", pdr.PartitionID, err)
 		}
 
 		err = f.state.AddUnitLog(fcUnitID, make([]byte, f.state.HashAlgorithm().Size()))
 		if err != nil {
-			return fmt.Errorf("failed to update [%x] partition's fee credit bill state log: %w", pdr.PartitionIdentifier, err)
+			return fmt.Errorf("failed to update [%x] partition's fee credit bill state log: %w", pdr.PartitionID, err)
 		}
 	}
 
 	// increment money fee credit bill with spent fees
 	spentFeeSum := f.getSpentFeeSum()
 	if spentFeeSum > 0 {
-		moneyFCUnitID := f.sdrs[f.partitionIdentifier].FeeCreditBill.UnitID
+		moneyFCUnitID := f.sdrs[f.partitionID].FeeCreditBill.UnitID
 		_, err := f.state.GetUnit(moneyFCUnitID, false)
 		if err != nil {
 			return fmt.Errorf("could not find money fee credit bill: %w", err)

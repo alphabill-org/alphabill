@@ -46,17 +46,17 @@ func (t *MockData) Owner() []byte {
 func Test_NewGenericTxSystem(t *testing.T) {
 	validPDR := types.PartitionDescriptionRecord{
 		Version:             1,
-		NetworkIdentifier:   mockNetworkID,
-		PartitionIdentifier: mockPartitionID,
-		TypeIdLen:           8,
-		UnitIdLen:           256,
+		NetworkID:   mockNetworkID,
+		PartitionID: mockPartitionID,
+		TypeIDLen:           8,
+		UnitIDLen:           256,
 		T2Timeout:           2500 * time.Millisecond,
 	}
 	require.NoError(t, validPDR.IsValid())
 
 	t.Run("partition ID param is mandatory", func(t *testing.T) {
 		pdr := validPDR
-		pdr.PartitionIdentifier = 0
+		pdr.PartitionID = 0
 		txSys, err := NewGenericTxSystem(pdr, types.ShardID{}, nil, nil, nil, nil)
 		require.Nil(t, txSys)
 		require.EqualError(t, err, `invalid Partition Description: invalid partition identifier: 00000000`)
@@ -78,7 +78,7 @@ func Test_NewGenericTxSystem(t *testing.T) {
 			obs,
 		)
 		require.NoError(t, err)
-		require.EqualValues(t, mockPartitionID, txSys.pdr.PartitionIdentifier)
+		require.EqualValues(t, mockPartitionID, txSys.pdr.PartitionID)
 		require.NotNil(t, txSys.log)
 		require.NotNil(t, txSys.fees)
 		// default is no fee handling, which will give you a huge gas budget
@@ -94,7 +94,7 @@ func Test_GenericTxSystem_Execute(t *testing.T) {
 			transaction.WithTransactionType(mockTxType),
 			transaction.WithAttributes(MockTxAttributes{}))
 		txr, err := txSys.Execute(txo)
-		require.ErrorIs(t, err, ErrInvalidPartitionIdentifier)
+		require.ErrorIs(t, err, ErrInvalidPartitionID)
 		require.Nil(t, txr)
 	})
 
@@ -355,8 +355,8 @@ func Test_GenericTxSystem_validateGenericTransaction(t *testing.T) {
 		return &types.TransactionOrder{
 			Version: 1,
 			Payload: types.Payload{
-				NetworkID:   txs.pdr.NetworkIdentifier,
-				PartitionID: txs.pdr.PartitionIdentifier,
+				NetworkID:   txs.pdr.NetworkID,
+				PartitionID: txs.pdr.PartitionID,
 				UnitID:      make(types.UnitID, 33),
 				ClientMetadata: &types.ClientMetadata{
 					Timeout: txs.currentRoundNumber + 1,
@@ -376,8 +376,8 @@ func Test_GenericTxSystem_validateGenericTransaction(t *testing.T) {
 	t.Run("partition ID is checked", func(t *testing.T) {
 		txSys := NewTestGenericTxSystem(t, nil)
 		txo := createTxOrder(txSys)
-		txo.PartitionID = txSys.pdr.PartitionIdentifier + 1
-		require.ErrorIs(t, txSys.validateGenericTransaction(txo), ErrInvalidPartitionIdentifier)
+		txo.PartitionID = txSys.pdr.PartitionID + 1
+		require.ErrorIs(t, txSys.validateGenericTransaction(txo), ErrInvalidPartitionID)
 	})
 
 	t.Run("timeout is checked", func(t *testing.T) {
@@ -470,10 +470,10 @@ func NewTestGenericTxSystem(t *testing.T, modules []txtypes.Module, opts ...txSy
 func defaultTestConfiguration(t *testing.T, modules []txtypes.Module) *GenericTxSystem {
 	pdr := types.PartitionDescriptionRecord{
 		Version:             1,
-		NetworkIdentifier:   mockNetworkID,
-		PartitionIdentifier: mockPartitionID,
-		TypeIdLen:           8,
-		UnitIdLen:           8 * 32,
+		NetworkID:   mockNetworkID,
+		PartitionID: mockPartitionID,
+		TypeIDLen:           8,
+		UnitIDLen:           8 * 32,
 		T2Timeout:           2500 * time.Millisecond,
 	}
 	// default configuration has no fee handling

@@ -44,14 +44,14 @@ func TestNewOrchestration(t *testing.T) {
 		pgPartition := rgA.Partitions[0]
 		pgPDR := pgPartition.PartitionDescription
 		pgIR := pgPartition.Certificate.InputRecord
-		require.EqualValues(t, pgPDR.NetworkIdentifier, recA.NetworkID)
-		require.EqualValues(t, pgPDR.PartitionIdentifier, recA.PartitionID)
+		require.EqualValues(t, pgPDR.NetworkID, recA.NetworkID)
+		require.EqualValues(t, pgPDR.PartitionID, recA.PartitionID)
 		require.EqualValues(t, pgPartition.Certificate.ShardTreeCertificate.Shard, recA.ShardID)
 		require.EqualValues(t, pgIR.Epoch, recA.EpochNumber)
 		require.EqualValues(t, pgIR.RoundNumber, recA.RoundNumber)
 		varNodes := recA.Nodes
 		require.Len(t, varNodes, 1)
-		require.EqualValues(t, pgPartition.Nodes[0].NodeIdentifier, varNodes[0].NodeID)
+		require.EqualValues(t, pgPartition.Nodes[0].NodeID, varNodes[0].NodeID)
 		require.EqualValues(t, pgPartition.Nodes[0].SigningPublicKey, varNodes[0].SigKey)
 		require.EqualValues(t, pgPartition.Nodes[0].EncryptionPublicKey, varNodes[0].AuthKey)
 
@@ -302,8 +302,8 @@ func createGenesisPartitionRecord(partitionID types.PartitionID, shardID types.S
 		},
 		PartitionDescription: &types.PartitionDescriptionRecord{
 			Version:             1,
-			NetworkIdentifier:   5,
-			PartitionIdentifier: partitionID,
+			NetworkID:   5,
+			PartitionID: partitionID,
 		},
 	}
 }
@@ -314,6 +314,7 @@ func rootGenesis(t *testing.T, path string) *genesis.RootGenesis {
 	require.NoError(t, err)
 	require.NoError(t, json.NewDecoder(f).Decode(rgA))
 	require.NoError(t, f.Close())
+	rgA.Verify()
 	return rgA
 }
 

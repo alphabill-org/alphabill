@@ -26,10 +26,10 @@ func TestIRChangeReqMsg_IsValid(t *testing.T) {
 	t.Run("IR change req. invalid cert reason", func(t *testing.T) {
 		requests := []*certification.BlockCertificationRequest{
 			{
-				Partition:      2,
-				NodeIdentifier: "1",
-				InputRecord:    inputRecord1,
-				Signature:      []byte{0, 1},
+				Partition:   2,
+				NodeID:      "1",
+				InputRecord: inputRecord1,
+				Signature:   []byte{0, 1},
 			},
 		}
 		x := &IRChangeReq{
@@ -55,9 +55,9 @@ func TestIRChangeReqMsg_Marshal(t *testing.T) {
 		CertReason: QuorumNotPossible,
 		Requests: []*certification.BlockCertificationRequest{
 			{
-				Partition:      1,
-				Shard:          types.ShardID{},
-				NodeIdentifier: "1",
+				Partition:   1,
+				Shard:       types.ShardID{},
+				NodeID:      "1",
 				InputRecord: &types.InputRecord{
 					Version:      1,
 					PreviousHash: []byte{0, 1},
@@ -138,14 +138,14 @@ func Test_IRChangeReq_Verify(t *testing.T) {
 
 	// pair of matching certification requests (from different nodes)
 	reqS1 := certification.BlockCertificationRequest{
-		Partition:      partition1,
-		NodeIdentifier: "1",
-		InputRecord:    inputRecord1,
+		Partition:   partition1,
+		NodeID:      "1",
+		InputRecord: inputRecord1,
 	}
 	reqS2 := certification.BlockCertificationRequest{
-		Partition:      partition1,
-		NodeIdentifier: "2",
-		InputRecord:    inputRecord1,
+		Partition:   partition1,
+		NodeID:      "2",
+		InputRecord: inputRecord1,
 	}
 
 	t.Run("RequestVerifier is nil", func(t *testing.T) {
@@ -289,9 +289,9 @@ func Test_IRChangeReq_Verify(t *testing.T) {
 
 	t.Run("Contains not matching proofs", func(t *testing.T) {
 		reqS3NotMatchingIR := &certification.BlockCertificationRequest{
-			Partition:      partition1,
-			NodeIdentifier: "3",
-			InputRecord:    inputRecord2, // use different IR
+			Partition:   partition1,
+			NodeID:      "3",
+			InputRecord: inputRecord2, // use different IR
 		}
 		x := &IRChangeReq{
 			Partition:  partition1,
@@ -342,9 +342,9 @@ func Test_IRChangeReq_Verify(t *testing.T) {
 
 	t.Run("QuorumNotPossible", func(t *testing.T) {
 		reqS3 := &certification.BlockCertificationRequest{
-			Partition:      1,
-			NodeIdentifier: "3",
-			InputRecord:    inputRecord2, // different IR than other requests
+			Partition:   1,
+			NodeID:      "3",
+			InputRecord: inputRecord2, // different IR than other requests
 		}
 		x := &IRChangeReq{
 			Partition:  partition1,

@@ -13,42 +13,42 @@ import (
 )
 
 var (
-	ErrBlockProposalIsNil         = errors.New("block proposal is nil")
-	ErrTrustBaseIsNil             = errors.New("trust base is nil")
-	ErrSignerIsNil                = errors.New("signer is nil")
-	ErrNodeVerifierIsNil          = errors.New("node signature verifier is nil")
-	ErrInvalidPartitionIdentifier = errors.New("invalid partition identifier")
-	errBlockProposerIDMissing     = errors.New("block proposer id is missing")
+	ErrBlockProposalIsNil     = errors.New("block proposal is nil")
+	ErrTrustBaseIsNil         = errors.New("trust base is nil")
+	ErrSignerIsNil            = errors.New("signer is nil")
+	ErrNodeVerifierIsNil      = errors.New("node signature verifier is nil")
+	ErrInvalidPartitionID     = errors.New("invalid partition identifier")
+	errBlockProposerIDMissing = errors.New("block proposer id is missing")
 )
 
 type BlockProposal struct {
 	_                  struct{} `cbor:",toarray"`
-	Partition          types.PartitionID
-	Shard              types.ShardID
-	NodeIdentifier     peer.ID
+	PartitionID        types.PartitionID
+	ShardID            types.ShardID
+	NodeID             peer.ID
 	UnicityCertificate *types.UnicityCertificate
 	Technical          certification.TechnicalRecord
 	Transactions       []*types.TransactionRecord
 	Signature          []byte
 }
 
-func (x *BlockProposal) IsValid(nodeSignatureVerifier crypto.Verifier, tb types.RootTrustBase, algorithm gocrypto.Hash, partitionIdentifier types.PartitionID, systemDescriptionHash []byte) error {
+func (x *BlockProposal) IsValid(nodeSignatureVerifier crypto.Verifier, tb types.RootTrustBase, algorithm gocrypto.Hash, partitionID types.PartitionID, systemDescriptionHash []byte) error {
 	if x == nil {
 		return ErrBlockProposalIsNil
 	}
 	if nodeSignatureVerifier == nil {
 		return ErrNodeVerifierIsNil
 	}
-	if len(x.NodeIdentifier) == 0 {
+	if len(x.NodeID) == 0 {
 		return errBlockProposerIDMissing
 	}
 	if tb == nil {
 		return ErrTrustBaseIsNil
 	}
-	if partitionIdentifier != x.Partition {
-		return fmt.Errorf("%w, expected %s, got %s", ErrInvalidPartitionIdentifier, partitionIdentifier, x.Partition)
+	if partitionID != x.PartitionID {
+		return fmt.Errorf("%w, expected %s, got %s", ErrInvalidPartitionID, partitionID, x.PartitionID)
 	}
-	if err := x.UnicityCertificate.Verify(tb, algorithm, partitionIdentifier, systemDescriptionHash); err != nil {
+	if err := x.UnicityCertificate.Verify(tb, algorithm, partitionID, systemDescriptionHash); err != nil {
 		return err
 	}
 	if err := x.Technical.IsValid(); err != nil {

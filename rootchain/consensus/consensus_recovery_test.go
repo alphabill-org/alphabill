@@ -771,10 +771,10 @@ func createConsensusManagers(t *testing.T, count int, partitionRecs []*genesis.P
 	nw := newMockNetwork(t)
 	cms := make([]*ConsensusManager, 0, len(rootG.Root.RootValidators))
 	for _, v := range rootG.Root.RootValidators {
-		nodeID, err := peer.Decode(v.NodeIdentifier)
+		nodeID, err := peer.Decode(v.NodeID)
 		require.NoError(t, err)
 
-		cm, err := NewConsensusManager(nodeID, rootG, trustBase, testpartition.NewOrchestration(t, rootG), nw.Connect(nodeID), signers[v.NodeIdentifier], observability.WithLogger(observe, observe.Logger().With(logger.NodeID(nodeID))))
+		cm, err := NewConsensusManager(nodeID, rootG, trustBase, testpartition.NewOrchestration(t, rootG), nw.Connect(nodeID), signers[v.NodeID], observability.WithLogger(observe, observe.Logger().With(logger.NodeID(nodeID))))
 		require.NoError(t, err)
 		cms = append(cms, cm)
 	}
@@ -787,10 +787,10 @@ func createPartitionRecord(t *testing.T, partitionID abtypes.PartitionID, ir *ab
 	record := &genesis.PartitionRecord{
 		PartitionDescription: &abtypes.PartitionDescriptionRecord{
 			Version:             1,
-			NetworkIdentifier:   5,
-			PartitionIdentifier: partitionID,
-			TypeIdLen:           8,
-			UnitIdLen:           256,
+			NetworkID:   5,
+			PartitionID: partitionID,
+			TypeIDLen:           8,
+			UnitIDLen:           256,
 			T2Timeout:           2500 * time.Millisecond,
 		},
 	}
@@ -799,15 +799,15 @@ func createPartitionRecord(t *testing.T, partitionID abtypes.PartitionID, ir *ab
 		nodeID, signer, _, pubKey := generatePeerData(t)
 
 		req := &certification.BlockCertificationRequest{
-			Partition:      partitionID,
-			NodeIdentifier: nodeID.String(),
-			InputRecord:    ir,
+			Partition:   partitionID,
+			NodeID:      nodeID.String(),
+			InputRecord: ir,
 		}
 		require.NoError(t, req.Sign(signer))
 
 		record.Validators = append(record.Validators, &genesis.PartitionNode{
 			Version:                    1,
-			NodeIdentifier:             nodeID.String(),
+			NodeID:                     nodeID.String(),
 			SigningPublicKey:           pubKey,
 			EncryptionPublicKey:        pubKey,
 			BlockCertificationRequest:  req,

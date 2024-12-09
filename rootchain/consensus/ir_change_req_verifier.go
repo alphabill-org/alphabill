@@ -124,7 +124,7 @@ func (x *PartitionTimeoutGenerator) GetT2Timeouts(currentRound uint64) (_ []type
 	}
 	timeoutIds := make([]types.PartitionID, 0, len(pdrs))
 	for _, partition := range pdrs {
-		partitionID := partition.PartitionIdentifier
+		partitionID := partition.PartitionID
 		// do not create T2 timeout requests if partition has a change already in pipeline
 		if ir := x.state.IsChangeInProgress(partitionID, types.ShardID{}); ir != nil {
 			continue

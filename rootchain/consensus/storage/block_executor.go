@@ -161,7 +161,7 @@ func NewGenesisBlock(hash crypto.Hash, pg []*genesis.GenesisPartitionRecord) (*E
 	var inputData []*InputData
 	for _, partition := range pg {
 		pdr := partition.PartitionDescription
-		partitionID := pdr.PartitionIdentifier
+		partitionID := pdr.PartitionID
 		shardID := partition.Certificate.ShardTreeCertificate.Shard
 
 		if len(pdr.Shards) > 0 {
@@ -173,7 +173,7 @@ func NewGenesisBlock(hash crypto.Hash, pg []*genesis.GenesisPartitionRecord) (*E
 		}
 		shardStates[partitionShard{partitionID, shardID.Key()}] = si
 
-		nodeIDs := util.TransformSlice(partition.Nodes, func(pn *genesis.PartitionNode) string { return pn.NodeIdentifier })
+		nodeIDs := util.TransformSlice(partition.Nodes, func(pn *genesis.PartitionNode) string { return pn.NodeID })
 		tr, err := rcgenesis.TechnicalRecord(partition.Certificate.InputRecord, nodeIDs)
 		if err != nil {
 			return nil, fmt.Errorf("creating TechnicalRecord: %w", err)

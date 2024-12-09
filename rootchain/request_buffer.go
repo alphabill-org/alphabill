@@ -125,7 +125,7 @@ func newRequestStore() *requestBuffer {
 
 // add stores a new input record received from the node.
 func (rs *requestBuffer) add(req *certification.BlockCertificationRequest, tb QuorumInfo) (QuorumStatus, []*certification.BlockCertificationRequest, error) {
-	if _, f := rs.nodeRequest[req.NodeIdentifier]; f {
+	if _, f := rs.nodeRequest[req.NodeID]; f {
 		return QuorumUnknown, nil, errors.New("request of the node in this round already stored")
 	}
 
@@ -134,7 +134,7 @@ func (rs *requestBuffer) add(req *certification.BlockCertificationRequest, tb Qu
 		return QuorumUnknown, nil, fmt.Errorf("new certificate input record bytes: %w", err)
 	}
 	hash := sha256.Sum256(irBytes)
-	rs.nodeRequest[req.NodeIdentifier] = struct{}{}
+	rs.nodeRequest[req.NodeID] = struct{}{}
 	rs.requests[hash] = append(rs.requests[hash], req)
 	proof, res := rs.isConsensusReceived(tb)
 	return res, proof, nil

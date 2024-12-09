@@ -218,7 +218,7 @@ func (c *configuration) initMissingDefaults() error {
 		}
 	}
 	if c.txValidator == nil {
-		c.txValidator, err = NewDefaultTxValidator(c.GetPartitionIdentifier())
+		c.txValidator, err = NewDefaultTxValidator(c.GetPartitionID())
 		if err != nil {
 			return err
 		}
@@ -241,12 +241,12 @@ func (c *configuration) initMissingDefaults() error {
 	return nil
 }
 
-func (c *configuration) GetNetworkIdentifier() types.NetworkID {
-	return c.genesis.PartitionDescription.NetworkIdentifier
+func (c *configuration) GetNetworkID() types.NetworkID {
+	return c.genesis.PartitionDescription.NetworkID
 }
 
-func (c *configuration) GetPartitionIdentifier() types.PartitionID {
-	return c.genesis.PartitionDescription.PartitionIdentifier
+func (c *configuration) GetPartitionID() types.PartitionID {
+	return c.genesis.PartitionDescription.PartitionID
 }
 
 func (c *configuration) GetT2Timeout() time.Duration {
@@ -256,7 +256,7 @@ func (c *configuration) GetT2Timeout() time.Duration {
 func (c *configuration) getRootNodes() (peer.IDSlice, error) {
 	nodes := make(peer.IDSlice, len(c.genesis.RootValidators))
 	for i, node := range c.genesis.RootValidators {
-		id, err := node.NodeID()
+		id, err := node.GetNodeID()
 		if err != nil {
 			return nil, fmt.Errorf("invalid root node id error: %w", err)
 		}

@@ -18,23 +18,23 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 	require.NoError(t, err)
 	trustBase := testtb.NewTrustBase(t, verifier)
 	keyInfo := &PublicKeyInfo{
-		NodeIdentifier:      "1",
+		NodeID:             "1",
 		SigningPublicKey:    pubKey,
 		EncryptionPublicKey: pubKey,
 	}
 
 	rootKeyInfo := &PublicKeyInfo{
-		NodeIdentifier:      "1",
+		NodeID:              "1",
 		SigningPublicKey:    pubKey,
 		EncryptionPublicKey: pubKey,
 	}
 	validPDR := &types.PartitionDescriptionRecord{
-		Version:             1,
-		NetworkIdentifier:   5,
-		PartitionIdentifier: 1,
-		TypeIdLen:           8,
-		UnitIdLen:           256,
-		T2Timeout:           1 * time.Second,
+		Version:     1,
+		NetworkID:   5,
+		PartitionID: 1,
+		TypeIDLen:   8,
+		UnitIDLen:   256,
+		T2Timeout:   1 * time.Second,
 	}
 
 	type fields struct {
@@ -98,7 +98,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 				PDR:            validPDR,
 				RootValidators: []*PublicKeyInfo{rootKeyInfo},
 				Keys: []*PublicKeyInfo{
-					{NodeIdentifier: "", SigningPublicKey: pubKey, EncryptionPublicKey: test.RandomBytes(33)},
+					{NodeID: "", SigningPublicKey: pubKey, EncryptionPublicKey: test.RandomBytes(33)},
 				},
 			},
 			wantErrStr: "partition keys validation failed, public key info node identifier is empty",
@@ -109,7 +109,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 			fields: fields{
 				PDR:            validPDR,
 				RootValidators: []*PublicKeyInfo{rootKeyInfo},
-				Keys:           []*PublicKeyInfo{{NodeIdentifier: "111", SigningPublicKey: []byte{0, 0}}},
+				Keys:           []*PublicKeyInfo{{NodeID: "111", SigningPublicKey: []byte{0, 0}}},
 			},
 			wantErrStr: "partition keys validation failed, invalid signing key: pubkey must be 33 bytes long, but is 2",
 		},
@@ -119,7 +119,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 			fields: fields{
 				PDR:            validPDR,
 				RootValidators: []*PublicKeyInfo{rootKeyInfo},
-				Keys:           []*PublicKeyInfo{{NodeIdentifier: "111", SigningPublicKey: pubKey, EncryptionPublicKey: []byte{0, 0}}},
+				Keys:           []*PublicKeyInfo{{NodeID: "111", SigningPublicKey: pubKey, EncryptionPublicKey: []byte{0, 0}}},
 			},
 			wantErrStr: "partition keys validation failed, invalid encryption key: pubkey must be 33 bytes long, but is 2",
 		},
@@ -128,7 +128,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 			args: args{verifier: trustBase},
 			fields: fields{
 				PDR:            validPDR,
-				RootValidators: []*PublicKeyInfo{{NodeIdentifier: "1", SigningPublicKey: []byte{0}, EncryptionPublicKey: pubKey}},
+				RootValidators: []*PublicKeyInfo{{NodeID: "1", SigningPublicKey: []byte{0}, EncryptionPublicKey: pubKey}},
 				Keys:           []*PublicKeyInfo{keyInfo},
 			},
 			wantErrStr: "root node list validation failed, invalid signing key: pubkey must be 33 bytes long, but is 1",
@@ -149,7 +149,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 			args: args{verifier: trustBase, hashAlgorithm: gocrypto.SHA256},
 			fields: fields{
 				PDR:            validPDR,
-				RootValidators: []*PublicKeyInfo{{NodeIdentifier: "1", SigningPublicKey: pubKey, EncryptionPublicKey: nil}},
+				RootValidators: []*PublicKeyInfo{{NodeID: "1", SigningPublicKey: pubKey, EncryptionPublicKey: nil}},
 				Keys:           []*PublicKeyInfo{keyInfo},
 			},
 			wantErrStr: "root node list validation failed, public key info encryption key is invalid",
@@ -159,7 +159,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 			args: args{verifier: trustBase, hashAlgorithm: gocrypto.SHA256},
 			fields: fields{
 				PDR:            validPDR,
-				RootValidators: []*PublicKeyInfo{{NodeIdentifier: "1", SigningPublicKey: pubKey, EncryptionPublicKey: []byte{0, 0, 0, 0}}},
+				RootValidators: []*PublicKeyInfo{{NodeID: "1", SigningPublicKey: pubKey, EncryptionPublicKey: []byte{0, 0, 0, 0}}},
 				Keys:           []*PublicKeyInfo{keyInfo},
 			},
 			wantErrStr: "root node list validation failed, invalid encryption key: pubkey must be 33 bytes long, but is 4",

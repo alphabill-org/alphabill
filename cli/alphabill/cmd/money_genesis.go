@@ -37,12 +37,12 @@ var (
 	defaultInitialBillOwnerPredicate = templates.AlwaysTrueBytes()
 
 	defaultMoneyPDR = &types.PartitionDescriptionRecord{
-		Version:             1,
-		NetworkIdentifier:   types.NetworkLocal,
-		PartitionIdentifier: moneysdk.DefaultPartitionID,
-		TypeIdLen:           8,
-		UnitIdLen:           256,
-		T2Timeout:           2500 * time.Millisecond,
+		Version:           1,
+		NetworkID: types.NetworkLocal,
+		PartitionID:       moneysdk.DefaultPartitionID,
+		TypeIDLen:         8,
+		UnitIDLen:         256,
+		T2Timeout:         2500 * time.Millisecond,
 		FeeCreditBill: &types.FeeCreditBill{
 			UnitID:         moneysdk.NewBillID(nil, []byte{2}),
 			OwnerPredicate: templates.AlwaysTrueBytes(),
@@ -204,7 +204,7 @@ func (c *moneyGenesisConfig) getPDRs() ([]*types.PartitionDescriptionRecord, err
 	}
 	// Sort, so that we don't generate a different state if CLI param order differs
 	sort.Slice(pdrs, func(i, j int) bool {
-		return pdrs[i].PartitionIdentifier < pdrs[j].PartitionIdentifier
+		return pdrs[i].PartitionID < pdrs[j].PartitionID
 	})
 	return pdrs, nil
 }

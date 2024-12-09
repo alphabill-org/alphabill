@@ -33,7 +33,7 @@ type (
 
 	// DefaultUnicityCertificateValidator is a default implementation of UnicityCertificateValidator.
 	DefaultUnicityCertificateValidator struct {
-		partitionIdentifier   types.PartitionID
+		partitionID           types.PartitionID
 		systemDescriptionHash []byte
 		rootTrustBase         types.RootTrustBase
 		algorithm             gocrypto.Hash
@@ -41,27 +41,27 @@ type (
 
 	// DefaultBlockProposalValidator is a default implementation of UnicityCertificateValidator.
 	DefaultBlockProposalValidator struct {
-		partitionIdentifier   types.PartitionID
+		partitionID           types.PartitionID
 		systemDescriptionHash []byte
 		rootTrustBase         types.RootTrustBase
 		algorithm             gocrypto.Hash
 	}
 
 	DefaultTxValidator struct {
-		partitionIdentifier types.PartitionID
+		partitionID types.PartitionID
 	}
 )
 
 var ErrTxTimeout = errors.New("transaction has timed out")
-var errInvalidPartitionIdentifier = errors.New("invalid transaction partition identifier")
+var errInvalidPartitionID = errors.New("invalid transaction partition identifier")
 
 // NewDefaultTxValidator creates a new instance of default TxValidator.
-func NewDefaultTxValidator(partitionIdentifier types.PartitionID) (TxValidator, error) {
-	if partitionIdentifier == 0 {
-		return nil, fmt.Errorf("invalid transaction partition identifier: %s", partitionIdentifier)
+func NewDefaultTxValidator(partitionID types.PartitionID) (TxValidator, error) {
+	if partitionID == 0 {
+		return nil, fmt.Errorf("invalid transaction partition identifier: %s", partitionID)
 	}
 	return &DefaultTxValidator{
-		partitionIdentifier: partitionIdentifier,
+		partitionID: partitionID,
 	}, nil
 }
 
@@ -69,9 +69,9 @@ func (dtv *DefaultTxValidator) Validate(tx *types.TransactionOrder, currentRound
 	if tx == nil {
 		return errors.New("transaction is nil")
 	}
-	if dtv.partitionIdentifier != tx.PartitionID {
+	if dtv.partitionID != tx.PartitionID {
 		// transaction was not sent to correct transaction system
-		return fmt.Errorf("expected %s, got %s: %w", dtv.partitionIdentifier, tx.PartitionID, errInvalidPartitionIdentifier)
+		return fmt.Errorf("expected %s, got %s: %w", dtv.partitionID, tx.PartitionID, errInvalidPartitionID)
 	}
 
 	if tx.Timeout() < currentRoundNumber {
@@ -103,7 +103,7 @@ func NewDefaultUnicityCertificateValidator(
 		return nil, fmt.Errorf("failed to hash partition description: %w", err)
 	}
 	return &DefaultUnicityCertificateValidator{
-		partitionIdentifier:   partitionDescription.PartitionIdentifier,
+		partitionID:   partitionDescription.PartitionID,
 		rootTrustBase:         trustBase,
 		systemDescriptionHash: h,
 		algorithm:             algorithm,
@@ -111,7 +111,7 @@ func NewDefaultUnicityCertificateValidator(
 }
 
 func (ucv *DefaultUnicityCertificateValidator) Validate(uc *types.UnicityCertificate) error {
-	return uc.Verify(ucv.rootTrustBase, ucv.algorithm, ucv.partitionIdentifier, ucv.systemDescriptionHash)
+	return uc.Verify(ucv.rootTrustBase, ucv.algorithm, ucv.partitionID, ucv.systemDescriptionHash)
 }
 
 // NewDefaultBlockProposalValidator creates a new instance of default BlockProposalValidator.
@@ -131,7 +131,7 @@ func NewDefaultBlockProposalValidator(
 		return nil, fmt.Errorf("failed to hash partition description: %w", err)
 	}
 	return &DefaultBlockProposalValidator{
-		partitionIdentifier:   partitionDescription.PartitionIdentifier,
+		partitionID:   partitionDescription.PartitionID,
 		rootTrustBase:         rootTrust,
 		systemDescriptionHash: h,
 		algorithm:             algorithm,
@@ -143,7 +143,7 @@ func (bpv *DefaultBlockProposalValidator) Validate(bp *blockproposal.BlockPropos
 		nodeSignatureVerifier,
 		bpv.rootTrustBase,
 		bpv.algorithm,
-		bpv.partitionIdentifier,
+		bpv.partitionID,
 		bpv.systemDescriptionHash,
 	)
 }

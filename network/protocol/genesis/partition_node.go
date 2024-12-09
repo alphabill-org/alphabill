@@ -12,7 +12,7 @@ import (
 
 var (
 	ErrPartitionNodeIsNil           = errors.New("partition node is nil")
-	ErrNodeIdentifierIsEmpty        = errors.New("node identifier is empty")
+	ErrNodeIDIsEmpty                = errors.New("node identifier is empty")
 	ErrSigningPublicKeyIsInvalid    = errors.New("signing public key is invalid")
 	ErrEncryptionPublicKeyIsInvalid = errors.New("encryption public key is invalid")
 )
@@ -20,7 +20,7 @@ var (
 type PartitionNode struct {
 	_                          struct{}                                 `cbor:",toarray"`
 	Version                    types.ABVersion                          `json:"version"`
-	NodeIdentifier             string                                   `json:"nodeIdentifier"`
+	NodeID                     string                                   `json:"nodeId"`
 	SigningPublicKey           hex.Bytes                                `json:"signingPublicKey"`
 	EncryptionPublicKey        hex.Bytes                                `json:"encryptionPublicKey"`
 	BlockCertificationRequest  *certification.BlockCertificationRequest `json:"blockCertificationRequest"`
@@ -57,8 +57,8 @@ func (x *PartitionNode) IsValid() error {
 	if x.Version == 0 {
 		return types.ErrInvalidVersion(x)
 	}
-	if x.NodeIdentifier == "" {
-		return ErrNodeIdentifierIsEmpty
+	if x.NodeID == "" {
+		return ErrNodeIDIsEmpty
 	}
 	if len(x.SigningPublicKey) == 0 {
 		return ErrSigningPublicKeyIsInvalid
@@ -87,7 +87,7 @@ func nodesUnique(x []*PartitionNode) error {
 		if err := node.IsValid(); err != nil {
 			return err
 		}
-		id := node.NodeIdentifier
+		id := node.NodeID
 		if _, f := ids[id]; f {
 			return fmt.Errorf("duplicated node id: %v", id)
 		}

@@ -926,7 +926,7 @@ func TestJoinFungibleToken_Ok(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, sm)
 
-	burnTxRecordProof := testblock.CreateTxRecordProof(t, burnTxRecord, signer, testblock.WithPartitionIdentifier(tokens.DefaultPartitionID))
+	burnTxRecordProof := testblock.CreateTxRecordProof(t, burnTxRecord, signer, testblock.WithPartitionID(tokens.DefaultPartitionID))
 	joinAttr := &tokens.JoinFungibleTokenAttributes{
 		BurnTokenProofs: []*types.TxRecordProof{burnTxRecordProof},
 	}
@@ -1019,7 +1019,7 @@ func TestJoinFungibleToken_NotOk(t *testing.T) {
 			},
 			testtransaction.WithAuthProof(burnAuthProof),
 		)
-		burnTxRecordProof := testblock.CreateTxRecordProof(t, burnTxRecord, signer, testblock.WithPartitionIdentifier(tokens.DefaultPartitionID))
+		burnTxRecordProof := testblock.CreateTxRecordProof(t, burnTxRecord, signer, testblock.WithPartitionID(tokens.DefaultPartitionID))
 		burnTxRecordProofs = append(burnTxRecordProofs, burnTxRecordProof)
 	}
 

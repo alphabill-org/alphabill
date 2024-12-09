@@ -99,7 +99,7 @@ func runTokensNode(ctx context.Context, cfg *tokensConfiguration) error {
 		return fmt.Errorf("failed to calculate nodeID: %w", err)
 	}
 
-	log := cfg.Base.observe.Logger().With(logger.NodeID(nodeID), logger.Shard(pg.PartitionDescription.PartitionIdentifier, types.ShardID{}))
+	log := cfg.Base.observe.Logger().With(logger.NodeID(nodeID), logger.Shard(pg.PartitionDescription.PartitionID, types.ShardID{}))
 	obs := observability.WithLogger(cfg.Base.observe, log)
 
 	blockStore, err := initStore(cfg.Node.DbFile)
@@ -155,5 +155,5 @@ func runTokensNode(ctx context.Context, cfg *tokensConfiguration) error {
 	if err != nil {
 		return fmt.Errorf("creating node: %w", err)
 	}
-	return run(ctx, "tokens node", node, cfg.RPCServer, ownerIndexer, obs)
+	return run(ctx, node, cfg.RPCServer, ownerIndexer, obs)
 }

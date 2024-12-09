@@ -40,7 +40,7 @@ func (m *Module) executeEVMTx(_ *types.TransactionOrder, attr *evmsdk.TxAttribut
 			retErr = stateDB.Finalize()
 		}
 	}()
-	return Execute(exeCtx.CurrentRound(), stateDB, m.options.blockDB, attr, authProof, m.partitionIdentifier, m.blockGasCounter, m.options.gasUnitPrice, false, m.log)
+	return Execute(exeCtx.CurrentRound(), stateDB, m.options.blockDB, attr, authProof, m.partitionID, m.blockGasCounter, m.options.gasUnitPrice, false, m.log)
 }
 
 func (m *Module) validateEVMTx(tx *types.TransactionOrder, attr *evmsdk.TxAttributes, authProof *evmsdk.TxAuthProof, exeCtx txtypes.ExecutionContext) error {
@@ -71,7 +71,7 @@ func calcGasPrice(gas uint64, gasPrice *big.Int) *uint256.Int {
 	return cost.Mul(cost, uint256.MustFromBig(gasPrice))
 }
 
-func Execute(currentBlockNumber uint64, stateDB *statedb.StateDB, blockDB keyvaluedb.KeyValueDB, attr *evmsdk.TxAttributes, _ *evmsdk.TxAuthProof, partitionIdentifier types.PartitionID, gp *core.GasPool, gasUnitPrice *big.Int, fake bool, log *slog.Logger) (*types.ServerMetadata, error) {
+func Execute(currentBlockNumber uint64, stateDB *statedb.StateDB, blockDB keyvaluedb.KeyValueDB, attr *evmsdk.TxAttributes, _ *evmsdk.TxAuthProof, partitionID types.PartitionID, gp *core.GasPool, gasUnitPrice *big.Int, fake bool, log *slog.Logger) (*types.ServerMetadata, error) {
 	if err := validate(attr); err != nil {
 		return nil, err
 	}
@@ -82,7 +82,7 @@ func Execute(currentBlockNumber uint64, stateDB *statedb.StateDB, blockDB keyval
 		return nil, fmt.Errorf("insufficient fee credit balance for transaction")
 	}
 	blockCtx := NewBlockContext(currentBlockNumber, blockDB)
-	evm := vm.NewEVM(blockCtx, NewTxContext(attr, gasUnitPrice), stateDB, NewChainConfig(new(big.Int).SetBytes(partitionIdentifier.Bytes())), NewVMConfig())
+	evm := vm.NewEVM(blockCtx, NewTxContext(attr, gasUnitPrice), stateDB, NewChainConfig(new(big.Int).SetBytes(partitionID.Bytes())), NewVMConfig())
 	msg := attr.AsMessage(gasUnitPrice, fake)
 	// Apply the transaction to the current state (included in the env)
 	execResult, err := core.ApplyMessage(evm, msg, gp)

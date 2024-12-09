@@ -118,7 +118,7 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 			Timestamp:       genesisPartitions[0].Certificate.UnicitySeal.Timestamp,
 		}
 		request := &certification.BlockCertificationRequest{
-			Partition:   sysID1,
+			PartitionID: sysID1,
 			NodeID:      "node1",
 			InputRecord: newIR,
 		}
@@ -150,7 +150,7 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 			Timestamp:       genesisPartitions[0].Certificate.UnicitySeal.Timestamp,
 		}
 		request := &certification.BlockCertificationRequest{
-			Partition:   sysID2,
+			PartitionID: sysID2,
 			NodeID:      "node1",
 			InputRecord: newIR,
 		}
@@ -182,7 +182,7 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 			orchestration: orchestration,
 		}
 		request := &certification.BlockCertificationRequest{
-			Partition:   sysID1,
+			PartitionID: sysID1,
 			NodeID:      "node1",
 			InputRecord: newIR,
 		}
@@ -221,7 +221,7 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 			Timestamp:       genesisPartitions[0].Certificate.UnicitySeal.Timestamp,
 		}
 		request := &certification.BlockCertificationRequest{
-			Partition:   sysID1,
+			PartitionID: sysID1,
 			NodeID:      "node1",
 			InputRecord: newIR,
 		}
@@ -253,7 +253,7 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 			Timestamp:       genesisPartitions[0].Certificate.UnicitySeal.Timestamp,
 		}
 		request := &certification.BlockCertificationRequest{
-			Partition:   sysID1,
+			PartitionID: sysID1,
 			NodeID:      "node1",
 			InputRecord: newIR,
 		}

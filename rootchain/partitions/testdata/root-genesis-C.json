@@ -31,7 +31,7 @@
           "encryptionPublicKey": "0x03407d389a975d0d128afdf17b543be0122ca46fd0482ee97d50fa50bd2e5202fb",
           "blockCertificationRequest": {
             "partitionId": 1,
-            "shardIdentifier": "0x80",
+            "shardId": "0x80",
             "nodeId": "16Uiu2HAmGzjBwdBocQFgzVN7yxVtru8itbA5WjZVNp5bFdxerA2e",
             "inputRecord": {
               "version": 1,

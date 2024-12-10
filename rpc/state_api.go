@@ -21,7 +21,8 @@ type (
 		node       partitionNode
 		ownerIndex partition.IndexReader
 
-		updMetrics func(ctx context.Context, method string, start time.Time, apiErr error)
+		updMetrics    func(ctx context.Context, method string, start time.Time, apiErr error)
+		updTxReceived func(ctx context.Context, txType uint16, apiErr error)
 	}
 
 	partitionNode interface {
@@ -56,10 +57,13 @@ type (
 )
 
 func NewStateAPI(node partitionNode, ownerIndex partition.IndexReader, obs Observability) *StateAPI {
+	m := obs.Meter(metricsScopeJRPCAPI)
+	log := obs.Logger()
 	return &StateAPI{
-		node:       node,
-		ownerIndex: ownerIndex,
-		updMetrics: metricsUpdater(obs.Meter(metricsScopeJRPCAPI), node, obs.Logger()),
+		node:          node,
+		ownerIndex:    ownerIndex,
+		updMetrics:    metricsUpdater(m, node, log),
+		updTxReceived: metricsUpdaterTxReceived(m, node, log),
 	}
 }
 
@@ -121,10 +125,14 @@ func (s *StateAPI) GetUnitsByOwnerID(ownerID hex.Bytes) (_ []types.UnitID, retEr
 // SendTransaction broadcasts the given transaction to the network, returns the submitted transaction hash.
 func (s *StateAPI) SendTransaction(ctx context.Context, txBytes hex.Bytes) (_ hex.Bytes, retErr error) {
 	defer func(start time.Time) { s.updMetrics(ctx, "sendTransaction", start, retErr) }(time.Now())
+
 	var tx *types.TransactionOrder
 	if err := types.Cbor.Unmarshal(txBytes, &tx); err != nil {
+		s.updTxReceived(ctx, 0, err)
 		return nil, fmt.Errorf("failed to decode transaction: %w", err)
 	}
+
+	defer func() { s.updTxReceived(ctx, tx.Type, retErr) }()
 	txHash, err := s.node.SubmitTx(ctx, tx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to submit transaction to the network: %w", err)

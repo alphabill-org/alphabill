@@ -125,13 +125,14 @@ type (
 		log                         *slog.Logger
 		tracer                      trace.Tracer
 
-		execTxCnt  metric.Int64Counter
-		execTxDur  metric.Float64Histogram
-		leaderCnt  metric.Int64Counter
-		blockSize  metric.Int64Counter
-		execMsgCnt metric.Int64Counter
-		execMsgDur metric.Float64Histogram
-		fixedAttr  metric.MeasurementOption
+		execTxCnt   metric.Int64Counter
+		execTxDur   metric.Float64Histogram
+		leaderCnt   metric.Int64Counter
+		blockSize   metric.Int64Counter
+		execMsgCnt  metric.Int64Counter
+		execMsgDur  metric.Float64Histogram
+		recoveryReq metric.Int64Counter
+		fixedAttr   metric.MeasurementOption
 	}
 
 	status int
@@ -272,6 +273,11 @@ func (n *Node) initMetrics(observe Observability) (err error) {
 	)
 	if err != nil {
 		return fmt.Errorf("creating histogram for processed messages: %w", err)
+	}
+
+	n.recoveryReq, err = m.Int64Counter("recovery", metric.WithDescription("Number of times node has entered into recovery state and sent out state request"))
+	if err != nil {
+		return fmt.Errorf("creating counter for recovery attempts: %w", err)
 	}
 
 	n.fixedAttr = observability.Shard(n.PartitionID(), n.configuration.shardID)
@@ -1377,11 +1383,12 @@ func (n *Node) sendLedgerReplicationRequest(ctx context.Context) {
 	startingBlockNr := n.committedUC().GetRoundNumber() + 1
 	ctx, span := n.tracer.Start(ctx, "node.sendLedgerReplicationRequest", trace.WithAttributes(attribute.Int64("starting_block", int64(startingBlockNr))))
 	defer span.End()
+	n.recoveryReq.Add(ctx, 1, n.fixedAttr)
 
 	req := &replication.LedgerReplicationRequest{
 		UUID:             uuid.New(),
 		PartitionID:      n.configuration.GetPartitionID(),
-		NodeID:   n.peer.ID().String(),
+		NodeID:           n.peer.ID().String(),
 		BeginBlockNumber: startingBlockNr,
 		EndBlockNumber:   startingBlockNr + n.configuration.replicationConfig.maxFetchBlocks,
 	}

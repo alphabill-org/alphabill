@@ -97,15 +97,16 @@ type (
 		log    *slog.Logger
 		tracer trace.Tracer
 
-		leaderCnt  metric.Int64Counter
-		execMsgCnt metric.Int64Counter
-		execMsgDur metric.Float64Histogram
-		voteCnt    metric.Int64Counter
-		proposedCR metric.Int64Counter
-		fwdIRCRCnt metric.Int64Counter
-		qcSize     metric.Int64Counter
-		qcVoters   metric.Int64Counter
-		susVotes   metric.Int64Counter
+		leaderCnt   metric.Int64Counter
+		execMsgCnt  metric.Int64Counter
+		execMsgDur  metric.Float64Histogram
+		voteCnt     metric.Int64Counter
+		proposedCR  metric.Int64Counter
+		fwdIRCRCnt  metric.Int64Counter
+		qcSize      metric.Int64Counter
+		qcVoters    metric.Int64Counter
+		susVotes    metric.Int64Counter
+		recoveryReq metric.Int64Counter
 	}
 )
 
@@ -243,6 +244,11 @@ func (x *ConsensusManager) initMetrics(observe Observability) (err error) {
 	x.qcVoters, err = m.Int64Counter("qc.participated", metric.WithDescription("Number of times node participated in the QC (vote was included)"))
 	if err != nil {
 		return fmt.Errorf("creating counter for votes by node included into QC: %w", err)
+	}
+
+	x.recoveryReq, err = m.Int64Counter("recovery", metric.WithDescription("Number of times node has entered into recovery state and sent out state request"))
+	if err != nil {
+		return fmt.Errorf("creating counter for recovery attempts: %w", err)
 	}
 
 	return nil
@@ -802,7 +808,7 @@ func (x *ConsensusManager) sendCertificates(ctx context.Context) error {
 		select {
 		case nm := <-x.ucSink:
 			stopFeed()
-			// NB! if previous UC for given system hasn't been consumed, yet we'll overwrite it!
+			// NB! if previous UC for given system hasn't been consumed yet we'll overwrite it!
 			// this means that the validator sees newer UC than expected and goes into recovery,
 			// rolling back pending block proposal?
 			for _, uc := range nm {
@@ -1031,6 +1037,8 @@ func (x *ConsensusManager) sendRecoveryRequests(ctx context.Context, triggerMsg 
 	if err != nil {
 		return err
 	}
+
+	x.recoveryReq.Add(ctx, 1)
 
 	if err = x.net.Send(ctx, &abdrc.StateRequestMsg{NodeId: x.id.String()},
 		selectRandomNodeIdsFromSignatureMap(signatures, 2)...); err != nil {

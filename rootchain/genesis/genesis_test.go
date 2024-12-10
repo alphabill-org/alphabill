@@ -38,12 +38,12 @@ func createPartition(t *testing.T, partitionID types.PartitionID, nodeID string,
 
 	return &genesis.PartitionRecord{
 		PartitionDescription: &types.PartitionDescriptionRecord{
-			Version:             1,
+			Version:     1,
 			NetworkID:   5,
 			PartitionID: partitionID,
-			TypeIDLen:           8,
-			UnitIDLen:           256,
-			T2Timeout:           2500 * time.Millisecond,
+			TypeIDLen:   8,
+			UnitIDLen:   256,
+			T2Timeout:   2500 * time.Millisecond,
 		},
 		Validators: []*genesis.PartitionNode{{
 			Version:                    1,
@@ -69,12 +69,12 @@ func createPartitionNode(t *testing.T, partitionID types.PartitionID, nodeID str
 		EncryptionPublicKey:       pubKey,
 		BlockCertificationRequest: req,
 		PartitionDescriptionRecord: types.PartitionDescriptionRecord{
-			Version:             1,
+			Version:     1,
 			NetworkID:   5,
-			PartitionID:         partitionID,
-			TypeIDLen:           8,
-			UnitIDLen:           256,
-			T2Timeout:           2500 * time.Millisecond,
+			PartitionID: partitionID,
+			TypeIDLen:   8,
+			UnitIDLen:   256,
+			T2Timeout:   2500 * time.Millisecond,
 		},
 	}
 }
@@ -447,13 +447,19 @@ func TestNewGenesis_MergeGenesisFiles(t *testing.T) {
 }
 
 func TestGenerateTrustBase_CustomQuorumThreshold(t *testing.T) {
+	// create root genesis with 3 root nodes
 	rg := createRootGenesis(t)
+
+	// threshold too low
 	tb, err := rg.GenerateTrustBase(types.WithQuorumThreshold(2))
-	require.NoError(t, err)
-	for _, partitionGenesis := range rg.Partitions {
-		require.ErrorContains(t, partitionGenesis.IsValid(tb, gocrypto.SHA256), "quorum not reached")
-	}
-	tb, err = rg.GenerateTrustBase(types.WithQuorumThreshold(1))
+	require.ErrorContains(t, err, "quorum threshold must be at least '2/3+1' (min threshold 3 got 2)")
+
+	// threshold too high
+	tb, err = rg.GenerateTrustBase(types.WithQuorumThreshold(4))
+	require.ErrorContains(t, err, "quorum threshold cannot exceed the total staked amount (max threshold 3 got 4)")
+
+	// threshold ok
+	tb, err = rg.GenerateTrustBase(types.WithQuorumThreshold(3))
 	require.NoError(t, err)
 	for _, partitionGenesis := range rg.Partitions {
 		require.NoError(t, partitionGenesis.IsValid(tb, gocrypto.SHA256))
@@ -463,17 +469,25 @@ func TestGenerateTrustBase_CustomQuorumThreshold(t *testing.T) {
 func createRootGenesis(t *testing.T) *genesis.RootGenesis {
 	partitionSigner, _ := testsig.CreateSignerAndVerifier(t)
 	partitionNode := createPartitionNode(t, 1, "1", partitionSigner)
-	rootChainSigner, err := abcrypto.NewInMemorySecp256K1Signer()
-	require.NoError(t, err)
-	rootChainVerifier, err := rootChainSigner.Verifier()
-	require.NoError(t, err)
-	rootPubKeyBytes, err := rootChainVerifier.MarshalPublicKey()
-	require.NoError(t, err)
 	pr, err := NewPartitionRecordFromNodes([]*genesis.PartitionNode{partitionNode})
 	require.NoError(t, err)
-	rg, rgs, err := NewRootGenesis("test", rootChainSigner, rootPubKeyBytes, pr)
+
+	var rgs []*genesis.RootGenesis
+	for i := 1; i <= 3; i++ {
+		rootSigner, rootVerifier := testsig.CreateSignerAndVerifier(t)
+		rootPubKey, err := rootVerifier.MarshalPublicKey()
+		require.NoError(t, err)
+
+		rg, pgs, err := NewRootGenesis(fmt.Sprintf("test-%d", i), rootSigner, rootPubKey, pr)
+		require.NoError(t, err)
+		require.NotNil(t, rg)
+		require.Len(t, pgs, 1)
+		rgs = append(rgs, rg)
+	}
+	rg, pgs, err := MergeRootGenesisFiles(rgs)
 	require.NoError(t, err)
 	require.NotNil(t, rg)
-	require.Len(t, rgs, 1)
+	require.Len(t, pgs, 1)
+
 	return rg
 }

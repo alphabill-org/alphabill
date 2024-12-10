@@ -17,7 +17,6 @@ import (
 type (
 	AdminAPI struct {
 		node partitionNode
-		name string
 		self *network.Peer
 		log  *slog.Logger
 
@@ -25,8 +24,8 @@ type (
 	}
 
 	NodeInfoResponse struct {
-		NetworkID           types.NetworkID       `json:"networkId"`   // hex encoded network identifier
-		PartitionID         types.PartitionID     `json:"partitionId"` // hex encoded partition identifier
+		NetworkID           types.NetworkID       `json:"networkId"`       // hex encoded network identifier
+		PartitionID         types.PartitionID     `json:"partitionId"`     // hex encoded partition identifier
 		PartitionTypeID     types.PartitionTypeID `json:"partitionTypeId"` // hex encoded partition identifier
 		PermissionedMode    bool                  `json:"permissionedMode"`
 		FeelessMode         bool                  `json:"feelessMode"`
@@ -38,8 +37,8 @@ type (
 	}
 
 	PeerInfo struct {
-		NodeID     string                `json:"nodeId"`
-		Addresses  []multiaddr.Multiaddr `json:"addresses"`
+		NodeID    string                `json:"nodeId"`
+		Addresses []multiaddr.Multiaddr `json:"addresses"`
 	}
 )
 
@@ -62,8 +61,8 @@ func (s *AdminAPI) GetNodeInfo(ctx context.Context) (_ *NodeInfoResponse, retErr
 		PermissionedMode: s.node.IsPermissionedMode(),
 		FeelessMode:      s.node.IsFeelessMode(),
 		Self: PeerInfo{
-			NodeID: s.self.ID().String(),
-			Addresses:  s.self.MultiAddresses(),
+			NodeID:    s.self.ID().String(),
+			Addresses: s.self.MultiAddresses(),
 		},
 		BootstrapNodes:      getBootstrapNodes(s.self),
 		RootValidators:      getRootValidators(s.self, s.log),
@@ -78,8 +77,8 @@ func getPartitionValidators(node partitionNode, self *network.Peer) []PeerInfo {
 	peerStore := self.Network().Peerstore()
 	for i, v := range validators {
 		peers[i] = PeerInfo{
-			NodeID: v.String(),
-			Addresses:  peerStore.PeerInfo(v).Addrs,
+			NodeID:    v.String(),
+			Addresses: peerStore.PeerInfo(v).Addrs,
 		}
 	}
 	return peers
@@ -90,8 +89,8 @@ func getOpenConnections(self *network.Peer) []PeerInfo {
 	peers := make([]PeerInfo, len(connections))
 	for i, connection := range connections {
 		peers[i] = PeerInfo{
-			NodeID: connection.RemotePeer().String(),
-			Addresses:  []multiaddr.Multiaddr{connection.RemoteMultiaddr()},
+			NodeID:    connection.RemotePeer().String(),
+			Addresses: []multiaddr.Multiaddr{connection.RemoteMultiaddr()},
 		}
 	}
 	return peers
@@ -109,8 +108,8 @@ func getRootValidators(self *network.Peer, log *slog.Logger) []PeerInfo {
 		}
 		if slices.Contains(protocols, network.ProtocolBlockCertification) {
 			peers = append(peers, PeerInfo{
-				NodeID: id.String(),
-				Addresses:  peerStore.PeerInfo(id).Addrs,
+				NodeID:    id.String(),
+				Addresses: peerStore.PeerInfo(id).Addrs,
 			})
 		}
 	}

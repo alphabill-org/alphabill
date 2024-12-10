@@ -55,7 +55,8 @@ type (
 		log    *slog.Logger
 		tracer trace.Tracer
 
-		bcrCount metric.Int64Counter // Block Certification Request count
+		bcrCount   metric.Int64Counter // Block Certification Request count
+		bcRespSent metric.Int64Counter // Block Certification Responses sent
 	}
 )
 
@@ -90,9 +91,13 @@ func New(
 }
 
 func (v *Node) initMetrics(m metric.Meter) (err error) {
-	v.bcrCount, err = m.Int64Counter("block.cert.req", metric.WithDescription("Number of Block Certification Requests processed"))
+	v.bcrCount, err = m.Int64Counter("block.cert.req", metric.WithDescription("Number of Block Certification Requests received"))
 	if err != nil {
 		return fmt.Errorf("creating Block Certification Requests counter: %w", err)
+	}
+	v.bcRespSent, err = m.Int64Counter("block.cert.rsp", metric.WithDescription("Number of Block Certification Responses sent (ie how many subscribers the node had)"))
+	if err != nil {
+		return fmt.Errorf("creating Block Certification Responses counter: %w", err)
 	}
 
 	return nil
@@ -261,6 +266,7 @@ func (v *Node) onCertificationResult(ctx context.Context, cr *certification.Cert
 	subscribed := v.subscription.Get(cr.Partition)
 	v.log.DebugContext(ctx, fmt.Sprintf("sending CertificationResponse, %d receivers, R_next: %d, IR Hash: %X, Block Hash: %X",
 		len(subscribed), cr.Technical.Round, cr.UC.InputRecord.Hash, cr.UC.InputRecord.BlockHash), logger.Shard(cr.Partition, cr.Shard))
+	v.bcRespSent.Add(ctx, int64(len(subscribed)), observability.Shard(cr.Partition, cr.Shard))
 	// send response to all registered nodes
 	for _, node := range subscribed {
 		if err := v.sendResponse(ctx, node, cr); err != nil {

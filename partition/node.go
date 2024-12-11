@@ -1167,11 +1167,11 @@ func (n *Node) handleLedgerReplicationRequest(ctx context.Context, lr *replicati
 		// for now do not respond to obviously invalid requests
 		return fmt.Errorf("invalid request, %w", err)
 	}
-	if lr.PartitionID != n.configuration.GetPartitionID() {
+	if lr.PartitionID != n.PartitionID() || !lr.ShardID.Equal(n.ShardID()) {
 		resp := &replication.LedgerReplicationResponse{
 			UUID:    lr.UUID,
-			Status:  replication.UnknownPartitionID,
-			Message: fmt.Sprintf("Unknown partition identifier: %s", lr.PartitionID),
+			Status:  replication.WrongShard,
+			Message: fmt.Sprintf("Wrong partition/shard: requested %s-%s, I'm %s-%s", lr.PartitionID, lr.ShardID, n.PartitionID(), n.ShardID()),
 		}
 		return n.sendLedgerReplicationResponse(ctx, resp, lr.NodeID)
 	}
@@ -1388,6 +1388,7 @@ func (n *Node) sendLedgerReplicationRequest(ctx context.Context) {
 	req := &replication.LedgerReplicationRequest{
 		UUID:             uuid.New(),
 		PartitionID:      n.configuration.GetPartitionID(),
+		ShardID:          n.configuration.shardID,
 		NodeID:           n.peer.ID().String(),
 		BeginBlockNumber: startingBlockNr,
 		EndBlockNumber:   startingBlockNr + n.configuration.replicationConfig.maxFetchBlocks,

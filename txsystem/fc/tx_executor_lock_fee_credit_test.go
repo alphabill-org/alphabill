@@ -162,7 +162,7 @@ func TestFeeCredit_executeLockFC(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, uint64(1), fcr.Locked)
 	require.Equal(t, 50-sm.ActualFee, fcr.Balance) //-fee
-	require.Equal(t, uint64(0), fcr.Timeout)
+	require.Equal(t, uint64(0), fcr.MinLifetime)
 	// counter is incremented
 	require.NotEqual(t, initialFcr.Counter, fcr.Counter)
 }

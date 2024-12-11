@@ -55,9 +55,9 @@ func (data InputRecords) Update(newInputData *InputData) error {
 	return fmt.Errorf("input record for partition %s was not found", newInputData.Partition)
 }
 
-func (data InputRecords) Find(sysID types.PartitionID) *InputData {
+func (data InputRecords) Find(partitionID types.PartitionID) *InputData {
 	for _, d := range data {
-		if d.Partition == sysID {
+		if d.Partition == partitionID {
 			return d
 		}
 	}

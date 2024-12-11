@@ -55,7 +55,8 @@ type (
 		log    *slog.Logger
 		tracer trace.Tracer
 
-		bcrCount metric.Int64Counter // Block Certification Request count
+		bcrCount   metric.Int64Counter // Block Certification Request count
+		bcRespSent metric.Int64Counter // Block Certification Responses sent
 	}
 )
 
@@ -90,9 +91,13 @@ func New(
 }
 
 func (v *Node) initMetrics(m metric.Meter) (err error) {
-	v.bcrCount, err = m.Int64Counter("block.cert.req", metric.WithDescription("Number of Block Certification Requests processed"))
+	v.bcrCount, err = m.Int64Counter("block.cert.req", metric.WithDescription("Number of Block Certification Requests received"))
 	if err != nil {
 		return fmt.Errorf("creating Block Certification Requests counter: %w", err)
+	}
+	v.bcRespSent, err = m.Int64Counter("block.cert.rsp", metric.WithDescription("Number of Block Certification Responses sent (ie how many subscribers the node had)"))
+	if err != nil {
+		return fmt.Errorf("creating Block Certification Responses counter: %w", err)
 	}
 
 	return nil
@@ -181,16 +186,16 @@ func (v *Node) onBlockCertificationRequest(ctx context.Context, req *certificati
 			span.RecordError(rErr)
 			span.SetStatus(codes.Error, rErr.Error())
 		}
-		span.SetAttributes(observability.Partition(req.Partition))
-		v.bcrCount.Add(ctx, 1, observability.Shard(req.Partition, req.Shard, observability.ErrStatus(rErr)))
+		span.SetAttributes(observability.Partition(req.PartitionID))
+		v.bcrCount.Add(ctx, 1, observability.Shard(req.PartitionID, req.ShardID, observability.ErrStatus(rErr)))
 		span.End()
 	}()
 
-	si, err := v.consensusManager.ShardInfo(req.Partition, req.Shard)
+	si, err := v.consensusManager.ShardInfo(req.PartitionID, req.ShardID)
 	if err != nil {
-		return fmt.Errorf("acquiring shard %s - %s info: %w", req.Partition, req.Shard, err)
+		return fmt.Errorf("acquiring shard %s - %s info: %w", req.PartitionID, req.ShardID, err)
 	}
-	v.subscription.Subscribe(req.Partition, req.NodeID)
+	v.subscription.Subscribe(req.PartitionID, req.NodeID)
 	// we got the shard info thus it's a valid partition/shard
 	if err := si.ValidRequest(req); err != nil {
 		err = fmt.Errorf("invalid block certification request: %w", err)
@@ -201,8 +206,8 @@ func (v *Node) onBlockCertificationRequest(ctx context.Context, req *certificati
 	}
 
 	// check if consensus is already achieved
-	if res := v.incomingRequests.IsConsensusReceived(req.Partition, req.Shard, si); res != QuorumInProgress {
-		v.log.DebugContext(ctx, fmt.Sprintf("dropping stale block certification request (%s) for partition %s", res, req.Partition), logger.Shard(req.Partition, req.Shard))
+	if res := v.incomingRequests.IsConsensusReceived(req.PartitionID, req.ShardID, si); res != QuorumInProgress {
+		v.log.DebugContext(ctx, fmt.Sprintf("dropping stale block certification request (%s) for partition %s", res, req.PartitionID), logger.Shard(req.PartitionID, req.ShardID))
 		return
 	}
 	// store the new request and see if quorum is now achieved
@@ -213,20 +218,20 @@ func (v *Node) onBlockCertificationRequest(ctx context.Context, req *certificati
 	var reason consensus.CertReqReason
 	switch res {
 	case QuorumAchieved:
-		v.log.DebugContext(ctx, fmt.Sprintf("partition %s reached consensus, new InputHash: %X", req.Partition, requests[0].InputRecord.Hash), logger.Shard(req.Partition, req.Shard))
+		v.log.DebugContext(ctx, fmt.Sprintf("partition %s reached consensus, new InputHash: %X", req.PartitionID, requests[0].InputRecord.Hash), logger.Shard(req.PartitionID, req.ShardID))
 		reason = consensus.Quorum
 	case QuorumNotPossible:
-		v.log.DebugContext(ctx, fmt.Sprintf("partition %s consensus not possible, repeat UC", req.Partition), logger.Shard(req.Partition, req.Shard))
+		v.log.DebugContext(ctx, fmt.Sprintf("partition %s consensus not possible, repeat UC", req.PartitionID), logger.Shard(req.PartitionID, req.ShardID))
 		reason = consensus.QuorumNotPossible
 	case QuorumInProgress:
-		v.log.DebugContext(ctx, fmt.Sprintf("partition %s quorum not yet reached, but possible in the future", req.Partition), logger.Shard(req.Partition, req.Shard))
+		v.log.DebugContext(ctx, fmt.Sprintf("partition %s quorum not yet reached, but possible in the future", req.PartitionID), logger.Shard(req.PartitionID, req.ShardID))
 		return nil
 	}
 
 	if err = v.consensusManager.RequestCertification(ctx,
 		consensus.IRChangeRequest{
-			Partition: req.Partition,
-			Shard:     req.Shard,
+			Partition: req.PartitionID,
+			Shard:     req.ShardID,
 			Reason:    reason,
 			Requests:  requests,
 		}); err != nil {
@@ -261,6 +266,7 @@ func (v *Node) onCertificationResult(ctx context.Context, cr *certification.Cert
 	subscribed := v.subscription.Get(cr.Partition)
 	v.log.DebugContext(ctx, fmt.Sprintf("sending CertificationResponse, %d receivers, R_next: %d, IR Hash: %X, Block Hash: %X",
 		len(subscribed), cr.Technical.Round, cr.UC.InputRecord.Hash, cr.UC.InputRecord.BlockHash), logger.Shard(cr.Partition, cr.Shard))
+	v.bcRespSent.Add(ctx, int64(len(subscribed)), observability.Shard(cr.Partition, cr.Shard))
 	// send response to all registered nodes
 	for _, node := range subscribed {
 		if err := v.sendResponse(ctx, node, cr); err != nil {

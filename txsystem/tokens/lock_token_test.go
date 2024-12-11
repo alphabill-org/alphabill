@@ -304,7 +304,7 @@ func initStateForLockTxTests(t *testing.T) *state.State {
 		Balance:        100,
 		OwnerPredicate: templates.AlwaysTrueBytes(),
 		Counter:        10,
-		Timeout:        100,
+		MinLifetime:    100,
 	}))
 	require.NoError(t, err)
 

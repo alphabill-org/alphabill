@@ -21,7 +21,7 @@ func DelCredit(id types.UnitID) state.Action {
 }
 
 // IncrCredit increments the balance of given FeeCreditRecord
-func IncrCredit(id types.UnitID, value uint64, timeout uint64) state.Action {
+func IncrCredit(id types.UnitID, value uint64, minLifetime uint64) state.Action {
 	updateDataFunc := func(data types.UnitData) (types.UnitData, error) {
 		fcr, ok := data.(*fc.FeeCreditRecord)
 		if !ok {
@@ -34,7 +34,7 @@ func IncrCredit(id types.UnitID, value uint64, timeout uint64) state.Action {
 		fcr.Balance = balance
 		fcr.Locked = 0 // FCR is automatically unlocked on AddFC
 		fcr.Counter += 1
-		fcr.Timeout = max(fcr.Timeout, timeout)
+		fcr.MinLifetime = max(fcr.MinLifetime, minLifetime)
 		return fcr, nil
 	}
 	return state.UpdateUnitData(id, updateDataFunc)

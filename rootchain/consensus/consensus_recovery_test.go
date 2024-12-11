@@ -98,6 +98,7 @@ func Test_ConsensusManager_sendRecoveryRequests(t *testing.T) {
 			recovery: &recoveryState{triggerMsg: toMsg, toRound: toMsg.Timeout.GetHqcRound(), sent: time.Now().Add(-statusReqShelfLife)},
 			tracer:   tracer,
 		}
+		require.NoError(t, cm.initMetrics(observe))
 
 		// call Connect to "register" the ID with mock network...
 		require.NotNil(t, nw.Connect(authID))
@@ -136,6 +137,7 @@ func Test_ConsensusManager_sendRecoveryRequests(t *testing.T) {
 		authID, _, _, _ := generatePeerData(t)
 		nw := newMockNetwork(t)
 		cm := &ConsensusManager{id: nodeID, net: nw.Connect(nodeID), tracer: tracer, recovery: &recoveryState{}}
+		require.NoError(t, cm.initMetrics(observe))
 
 		// single signature by the author so only that node should receive the request
 		toMsg := &abdrc.TimeoutMsg{
@@ -786,12 +788,12 @@ func createPartitionRecord(t *testing.T, partitionID abtypes.PartitionID, ir *ab
 	t.Helper()
 	record := &genesis.PartitionRecord{
 		PartitionDescription: &abtypes.PartitionDescriptionRecord{
-			Version:             1,
+			Version:     1,
 			NetworkID:   5,
 			PartitionID: partitionID,
-			TypeIDLen:           8,
-			UnitIDLen:           256,
-			T2Timeout:           2500 * time.Millisecond,
+			TypeIDLen:   8,
+			UnitIDLen:   256,
+			T2Timeout:   2500 * time.Millisecond,
 		},
 	}
 
@@ -799,7 +801,7 @@ func createPartitionRecord(t *testing.T, partitionID abtypes.PartitionID, ir *ab
 		nodeID, signer, _, pubKey := generatePeerData(t)
 
 		req := &certification.BlockCertificationRequest{
-			Partition:   partitionID,
+			PartitionID: partitionID,
 			NodeID:      nodeID.String(),
 			InputRecord: ir,
 		}

@@ -228,7 +228,7 @@ func Test_MoneyGenesis(t *testing.T) {
 		pn, err := util.ReadJsonFile(nodeGenesisFile, &genesis.PartitionNode{Version: 1})
 		require.NoError(t, err)
 		require.EqualValues(t, pdr, pn.PartitionDescriptionRecord)
-		require.EqualValues(t, pdr.PartitionID, pn.BlockCertificationRequest.Partition)
+		require.EqualValues(t, pdr.PartitionID, pn.BlockCertificationRequest.PartitionID)
 	})
 }
 

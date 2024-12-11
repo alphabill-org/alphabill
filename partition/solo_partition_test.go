@@ -465,7 +465,7 @@ func (sn *SingleNodePartition) IssueBlockUC(t *testing.T) *types.UnicityCertific
 	require.NoError(t, err)
 	// update state
 	sn.rootRound = uc.UnicitySeal.RootChainRoundNumber
-	sn.certs[req.Partition] = uc
+	sn.certs[req.PartitionID] = uc
 	return uc
 }
 

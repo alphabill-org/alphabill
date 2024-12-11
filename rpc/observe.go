@@ -47,6 +47,31 @@ func metricsUpdater(mtr metric.Meter, node partitionNode, log *slog.Logger) func
 	}
 }
 
+func metricsUpdaterTxReceived(mtr metric.Meter, node partitionNode, log *slog.Logger) func(ctx context.Context, txType uint16, apiErr error) {
+	txReceived, err := mtr.Int64Counter(
+		"tx.count",
+		metric.WithDescription("Number of transactions received"),
+		metric.WithUnit("{transaction}"),
+	)
+	if err != nil {
+		log.Error("creating tx received counter", logger.Error(err))
+		return func(ctx context.Context, txType uint16, apiErr error) { /* NOP */ }
+	}
+
+	fixedAttr := observability.Shard(node.PartitionID(), node.ShardID())
+	statusOK := attribute.String("status", "ok")
+	statusErr := attribute.String("status", "err")
+
+	return func(ctx context.Context, txType uint16, apiErr error) {
+		statusAttr := statusOK
+		if apiErr != nil {
+			statusAttr = statusErr
+		}
+
+		txReceived.Add(ctx, 1, metric.WithAttributeSet(attribute.NewSet(attribute.Int("tx", int(txType)), statusAttr)), fixedAttr)
+	}
+}
+
 /*
 instrumentHTTP returns http middleware which instruments the incoming handler with two metrics:
   - number of calls: how many times the endpoint has been called;

@@ -50,7 +50,7 @@ func TestLockFT_Ok(t *testing.T) {
 	// verify lock status, counter and round number is updated
 	// verify value and type id is not updated
 	require.EqualValues(t, templates.AlwaysTrueBytes(), d.Owner())
-	require.Equal(t, existingTokenTypeID, d.TokenType)
+	require.Equal(t, existingTokenTypeID, d.TypeID)
 	require.Equal(t, uint64(existingTokenValue), d.Value)
 	require.Equal(t, uint64(1), d.Counter)
 	require.Equal(t, attr.LockStatus, d.Locked)
@@ -254,7 +254,7 @@ func initStateForLockTxTests(t *testing.T) *state.State {
 	require.NoError(t, err)
 
 	err = s.Apply(state.AddUnit(existingTokenID, &tokens.FungibleTokenData{
-		TokenType:      existingTokenTypeID,
+		TypeID:         existingTokenTypeID,
 		Value:          existingTokenValue,
 		OwnerPredicate: templates.AlwaysTrueBytes(),
 		Counter:        0,
@@ -262,7 +262,7 @@ func initStateForLockTxTests(t *testing.T) *state.State {
 	require.NoError(t, err)
 
 	err = s.Apply(state.AddUnit(existingLockedTokenID, &tokens.FungibleTokenData{
-		TokenType:      existingTokenTypeID,
+		TypeID:         existingTokenTypeID,
 		Value:          existingTokenValue,
 		OwnerPredicate: templates.AlwaysTrueBytes(),
 		Counter:        0,

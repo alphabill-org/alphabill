@@ -29,7 +29,7 @@ func (m *FungibleTokensModule) executeSplitFT(tx *types.TransactionOrder, attr *
 	// update state
 	if err = m.state.Apply(
 		state.AddUnit(newTokenID, &tokens.FungibleTokenData{
-			TokenType:      ftData.TokenType,
+			TypeID:         ftData.TypeID,
 			Value:          attr.TargetValue,
 			OwnerPredicate: attr.NewOwnerPredicate,
 		}),
@@ -68,8 +68,8 @@ func (m *FungibleTokensModule) validateSplitFT(tx *types.TransactionOrder, attr 
 	if tokenData.Counter != attr.Counter {
 		return fmt.Errorf("invalid counter: expected %d, got %d", tokenData.Counter, attr.Counter)
 	}
-	if !bytes.Equal(attr.TypeID, tokenData.TokenType) {
-		return fmt.Errorf("invalid type identifier: expected '%s', got '%s'", tokenData.TokenType, attr.TypeID)
+	if !bytes.Equal(attr.TypeID, tokenData.TypeID) {
+		return fmt.Errorf("invalid type identifier: expected '%s', got '%s'", tokenData.TypeID, attr.TypeID)
 	}
 
 	if err = m.execPredicate(tokenData.OwnerPredicate, authProof.OwnerProof, tx.AuthProofSigBytes, exeCtx); err != nil {
@@ -78,7 +78,7 @@ func (m *FungibleTokensModule) validateSplitFT(tx *types.TransactionOrder, attr 
 	err = runChainedPredicates[*tokens.FungibleTokenTypeData](
 		exeCtx,
 		tx.AuthProofSigBytes,
-		tokenData.TokenType,
+		tokenData.TypeID,
 		authProof.TokenTypeOwnerProofs,
 		m.execPredicate,
 		func(d *tokens.FungibleTokenTypeData) (types.UnitID, []byte) {

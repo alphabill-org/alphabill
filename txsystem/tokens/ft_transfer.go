@@ -49,8 +49,8 @@ func (m *FungibleTokensModule) validateTransferFT(tx *types.TransactionOrder, at
 	if tokenData.Counter != attr.Counter {
 		return fmt.Errorf("invalid counter: expected %d, got %d", tokenData.Counter, attr.Counter)
 	}
-	if !bytes.Equal(attr.TypeID, tokenData.TokenType) {
-		return fmt.Errorf("invalid type identifier: expected '%s', got '%s'", tokenData.TokenType, attr.TypeID)
+	if !bytes.Equal(attr.TypeID, tokenData.TypeID) {
+		return fmt.Errorf("invalid type identifier: expected '%s', got '%s'", tokenData.TypeID, attr.TypeID)
 	}
 	if err = m.execPredicate(tokenData.OwnerPredicate, authProof.OwnerProof, tx.AuthProofSigBytes, exeCtx); err != nil {
 		return fmt.Errorf("evaluating owner predicate: %w", err)
@@ -58,7 +58,7 @@ func (m *FungibleTokensModule) validateTransferFT(tx *types.TransactionOrder, at
 	err = runChainedPredicates[*tokens.FungibleTokenTypeData](
 		exeCtx,
 		tx.AuthProofSigBytes,
-		tokenData.TokenType,
+		tokenData.TypeID,
 		authProof.TokenTypeOwnerProofs,
 		m.execPredicate,
 		func(d *tokens.FungibleTokenTypeData) (types.UnitID, []byte) {

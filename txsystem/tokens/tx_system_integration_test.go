@@ -424,7 +424,7 @@ func RequireFungibleTokenState(t *testing.T, s *state.State, e fungibleTokenUnit
 	require.Equal(t, e.bearer, d.Owner())
 	require.Equal(t, e.tokenValue, d.Value)
 	require.Equal(t, e.counter, d.Counter)
-	require.Equal(t, types.UnitID(e.typeUnitID), d.TokenType)
+	require.Equal(t, types.UnitID(e.typeUnitID), d.TypeID)
 }
 
 func newStateWithFeeCredit(t *testing.T, feeCreditID types.UnitID) *state.State {

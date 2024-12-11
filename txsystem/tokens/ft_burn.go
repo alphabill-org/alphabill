@@ -44,8 +44,8 @@ func (m *FungibleTokensModule) validateBurnFT(tx *types.TransactionOrder, attr *
 	if tokenData.Locked != 0 {
 		return errors.New("token is locked")
 	}
-	if !bytes.Equal(tokenData.TokenType, attr.TypeID) {
-		return fmt.Errorf("type of token to burn does not matches the actual type of the token: expected %s, got %s", tokenData.TokenType, attr.TypeID)
+	if !bytes.Equal(tokenData.TypeID, attr.TypeID) {
+		return fmt.Errorf("type of token to burn does not matches the actual type of the token: expected %s, got %s", tokenData.TypeID, attr.TypeID)
 	}
 	if attr.Value != tokenData.Value {
 		return fmt.Errorf("invalid token value: expected %v, got %v", tokenData.Value, attr.Value)
@@ -60,7 +60,7 @@ func (m *FungibleTokensModule) validateBurnFT(tx *types.TransactionOrder, attr *
 	err = runChainedPredicates[*tokens.FungibleTokenTypeData](
 		exeCtx,
 		tx.AuthProofSigBytes,
-		tokenData.TokenType,
+		tokenData.TypeID,
 		authProof.TokenTypeOwnerProofs,
 		m.execPredicate,
 		func(d *tokens.FungibleTokenTypeData) (types.UnitID, []byte) {

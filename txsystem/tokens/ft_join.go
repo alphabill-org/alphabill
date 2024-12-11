@@ -63,8 +63,8 @@ func (m *FungibleTokensModule) validateJoinFT(tx *types.TransactionOrder, attr *
 			// this ensures that no source token can be included multiple times
 			return errors.New("burn transaction orders are not listed in strictly increasing order of token identifiers")
 		}
-		if !bytes.Equal(btxAttr.TypeID, tokenData.TokenType) {
-			return fmt.Errorf("the type of the burned source token does not match the type of target token: expected %s, got %s", tokenData.TokenType, btxAttr.TypeID)
+		if !bytes.Equal(btxAttr.TypeID, tokenData.TypeID) {
+			return fmt.Errorf("the type of the burned source token does not match the type of target token: expected %s, got %s", tokenData.TypeID, btxAttr.TypeID)
 		}
 		if burnTxo.NetworkID != tx.NetworkID {
 			return fmt.Errorf("burn transaction network id does not match with join transaction network id: burn transaction %d join transaction %d", burnTxo.NetworkID, tx.NetworkID)
@@ -90,7 +90,7 @@ func (m *FungibleTokensModule) validateJoinFT(tx *types.TransactionOrder, attr *
 	err = runChainedPredicates[*tokens.FungibleTokenTypeData](
 		exeCtx,
 		tx.AuthProofSigBytes,
-		tokenData.TokenType,
+		tokenData.TypeID,
 		authProof.TokenTypeOwnerProofs,
 		m.execPredicate,
 		func(d *tokens.FungibleTokenTypeData) (types.UnitID, []byte) {

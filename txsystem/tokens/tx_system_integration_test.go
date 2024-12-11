@@ -33,12 +33,12 @@ var (
 
 func TestInitPartitionAndDefineNFT_Ok(t *testing.T) {
 	pdr := types.PartitionDescriptionRecord{
-		Version:             1,
+		Version:     1,
 		NetworkID:   5,
 		PartitionID: tokens.DefaultPartitionID,
-		TypeIDLen:           8,
-		UnitIDLen:           256,
-		T2Timeout:           2000 * time.Millisecond,
+		TypeIDLen:   8,
+		UnitIDLen:   256,
+		T2Timeout:   2000 * time.Millisecond,
 	}
 	genesisState := newStateWithFeeCredit(t, feeCreditID)
 	tokenPrt, err := testpartition.NewPartition(t, 3, func(trustBase types.RootTrustBase) txsystem.TransactionSystem {
@@ -85,12 +85,12 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		trustBase           types.RootTrustBase
 	)
 	pdr := types.PartitionDescriptionRecord{
-		Version:             1,
+		Version:     1,
 		NetworkID:   5,
 		PartitionID: tokens.DefaultPartitionID,
-		TypeIDLen:           8,
-		UnitIDLen:           256,
-		T2Timeout:           2000 * time.Millisecond,
+		TypeIDLen:   8,
+		UnitIDLen:   256,
+		T2Timeout:   2000 * time.Millisecond,
 	}
 
 	// setup network
@@ -434,7 +434,7 @@ func newStateWithFeeCredit(t *testing.T, feeCreditID types.UnitID) *state.State 
 			Balance:        100,
 			OwnerPredicate: templates.AlwaysTrueBytes(),
 			Counter:        10,
-			Timeout:        1000,
+			MinLifetime:    1000,
 		}),
 	))
 	_, _, err := s.CalculateRoot()

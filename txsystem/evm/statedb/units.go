@@ -41,7 +41,7 @@ type Account struct {
 type AlphaBillLink struct {
 	_              struct{} `cbor:",toarray"`
 	Counter        uint64
-	Timeout        uint64
+	MinLifetime    uint64
 	OwnerPredicate []byte
 }
 
@@ -80,14 +80,14 @@ func (f *AlphaBillLink) Copy() *AlphaBillLink {
 	}
 	return &AlphaBillLink{
 		Counter:        f.Counter,
-		Timeout:        f.Timeout,
+		MinLifetime:    f.MinLifetime,
 		OwnerPredicate: bytes.Clone(f.OwnerPredicate),
 	}
 }
 
 func (f *AlphaBillLink) GetTimeout() uint64 {
 	if f != nil {
-		return f.Timeout
+		return f.MinLifetime
 	}
 	return 0
 }

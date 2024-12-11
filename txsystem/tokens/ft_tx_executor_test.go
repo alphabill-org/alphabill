@@ -470,7 +470,7 @@ func TestMintFungibleToken_Ok(t *testing.T) {
 	require.Equal(t, existingTokenTypeID, d.TokenType)
 	require.Equal(t, attributes.Value, d.Value)
 	require.Equal(t, uint64(0), d.Counter)
-	require.Equal(t, uint64(1000), d.Timeout)
+	require.Equal(t, uint64(1000), d.MinLifetime)
 	require.Equal(t, uint64(0), d.Locked)
 	require.Equal(t, attributes.OwnerPredicate, d.Owner())
 }
@@ -1183,7 +1183,7 @@ func initState(t *testing.T) *state.State {
 		Balance:        100,
 		OwnerPredicate: templates.AlwaysTrueBytes(),
 		Counter:        10,
-		Timeout:        100,
+		MinLifetime:    100,
 	}))
 	require.NoError(t, err)
 	return s

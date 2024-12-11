@@ -48,12 +48,12 @@ var (
 
 func TestNewTokenTxSystem_NilPartitionID(t *testing.T) {
 	pdr := types.PartitionDescriptionRecord{
-		Version:             1,
+		Version:     1,
 		NetworkID:   5,
 		PartitionID: 0,
-		TypeIDLen:           8,
-		UnitIDLen:           256,
-		T2Timeout:           2000 * time.Millisecond,
+		TypeIDLen:   8,
+		UnitIDLen:   256,
+		T2Timeout:   2000 * time.Millisecond,
 	}
 	txs, err := NewTxSystem(pdr, types.ShardID{}, nil, WithState(state.NewEmptyState()))
 	require.ErrorContains(t, err, `partition identifier is missing`)
@@ -62,12 +62,12 @@ func TestNewTokenTxSystem_NilPartitionID(t *testing.T) {
 
 func TestNewTokenTxSystem_StateIsNil(t *testing.T) {
 	pdr := types.PartitionDescriptionRecord{
-		Version:             1,
+		Version:     1,
 		NetworkID:   5,
 		PartitionID: tokens.DefaultPartitionID,
-		TypeIDLen:           8,
-		UnitIDLen:           256,
-		T2Timeout:           2000 * time.Millisecond,
+		TypeIDLen:   8,
+		UnitIDLen:   256,
+		T2Timeout:   2000 * time.Millisecond,
 	}
 	txs, err := NewTxSystem(pdr, types.ShardID{}, nil, WithState(nil))
 	require.ErrorContains(t, err, ErrStrStateIsNil)
@@ -1761,7 +1761,7 @@ func newTokenTxSystem(t *testing.T, opts ...Option) (*txsystem.GenericTxSystem, 
 		Balance:        100,
 		OwnerPredicate: templates.AlwaysTrueBytes(),
 		Counter:        10,
-		Timeout:        1000,
+		MinLifetime:    1000,
 	})))
 	summaryValue, summaryHash, err := s.CalculateRoot()
 	require.NoError(t, err)
@@ -1772,12 +1772,12 @@ func newTokenTxSystem(t *testing.T, opts ...Option) (*txsystem.GenericTxSystem, 
 		SummaryValue: util.Uint64ToBytes(summaryValue),
 	}}))
 	pdr := types.PartitionDescriptionRecord{
-		Version:             1,
+		Version:     1,
 		NetworkID:   5,
 		PartitionID: tokens.DefaultPartitionID,
-		TypeIDLen:           8,
-		UnitIDLen:           256,
-		T2Timeout:           2000 * time.Millisecond,
+		TypeIDLen:   8,
+		UnitIDLen:   256,
+		T2Timeout:   2000 * time.Millisecond,
 	}
 
 	opts = append(opts, WithTrustBase(testtb.NewTrustBase(t, verifier)), WithState(s))

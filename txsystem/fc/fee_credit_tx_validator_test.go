@@ -135,7 +135,7 @@ func Test_parseFeeCreditRecord(t *testing.T) {
 		fcr := &fc.FeeCreditRecord{
 			Balance:        1,
 			Counter:        10,
-			Timeout:        2,
+			MinLifetime:    2,
 			OwnerPredicate: ownerPredicate,
 		}
 		unitPart := []byte{1}

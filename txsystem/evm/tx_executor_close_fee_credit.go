@@ -54,9 +54,9 @@ func (f *FeeAccount) validateCloseFC(tx *types.TransactionOrder, attr *fc.CloseF
 		return fmt.Errorf("invalid unit type: not evm object")
 	}
 	fcr := &fc.FeeCreditRecord{
-		Balance: weiToAlpha(stateObj.Account.Balance),
-		Counter: stateObj.AlphaBill.Counter,
-		Timeout: stateObj.AlphaBill.Timeout,
+		Balance:     weiToAlpha(stateObj.Account.Balance),
+		Counter:     stateObj.AlphaBill.Counter,
+		MinLifetime: stateObj.AlphaBill.MinLifetime,
 	}
 	// verify the fee credit record is not locked
 	// P.A.v = S.N[ι].b - the amount is the current balance of the record

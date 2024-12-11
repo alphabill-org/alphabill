@@ -455,10 +455,10 @@ func TestAddFC_ExecuteAddFC_CreateNewFCR(t *testing.T) {
 	require.NoError(t, err)
 	fcr, ok := u.Data().(*fc.FeeCreditRecord)
 	require.True(t, ok)
-	require.EqualValues(t, 49, fcr.Balance) // transferFC.amount (50) - transferFC.fee (0) - addFC.fee (1)
-	require.EqualValues(t, 0, fcr.Counter)  // new unit counter starts from 0
-	require.EqualValues(t, 10, fcr.Timeout) // transferFC.latestAdditionTime
-	require.EqualValues(t, 0, fcr.Locked)   // new unit is created in unlocked status
+	require.EqualValues(t, 49, fcr.Balance)     // transferFC.amount (50) - transferFC.fee (0) - addFC.fee (1)
+	require.EqualValues(t, 0, fcr.Counter)      // new unit counter starts from 0
+	require.EqualValues(t, 10, fcr.MinLifetime) // transferFC.latestAdditionTime
+	require.EqualValues(t, 0, fcr.Locked)       // new unit is created in unlocked status
 
 }
 
@@ -491,10 +491,10 @@ func TestAddFC_ExecuteAddFC_UpdateExistingFCR(t *testing.T) {
 	require.NoError(t, err)
 	fcr, ok := u.Data().(*fc.FeeCreditRecord)
 	require.True(t, ok)
-	require.EqualValues(t, 58, fcr.Balance) // existing (10) + transferFC.amount (50) - transferFC.fee (1) - addFC.fee (1)
-	require.EqualValues(t, 5, fcr.Counter)  // counter is incremented
-	require.EqualValues(t, 10, fcr.Timeout) // transferFC.latestAdditionTime
-	require.EqualValues(t, 0, fcr.Locked)   // unit is automatically unlocked
+	require.EqualValues(t, 58, fcr.Balance)     // existing (10) + transferFC.amount (50) - transferFC.fee (1) - addFC.fee (1)
+	require.EqualValues(t, 5, fcr.Counter)      // counter is incremented
+	require.EqualValues(t, 10, fcr.MinLifetime) // transferFC.latestAdditionTime
+	require.EqualValues(t, 0, fcr.Locked)       // unit is automatically unlocked
 	require.EqualValues(t, existingFCR.OwnerPredicate, fcr.OwnerPredicate)
 }
 

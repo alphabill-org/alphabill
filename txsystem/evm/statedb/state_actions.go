@@ -21,7 +21,7 @@ func CreateAccountAndAddCredit(addr common.Address, ownerPredicate types.Predica
 		Storage: map[common.Hash]common.Hash{},
 		AlphaBill: &AlphaBillLink{
 			Counter:        0,
-			Timeout:        timeout,
+			MinLifetime:    timeout,
 			OwnerPredicate: ownerPredicate,
 		},
 	}
@@ -39,7 +39,7 @@ func UpdateEthAccountAddCredit(id types.UnitID, value *uint256.Int, timeout uint
 		stateObj.Account.Balance = newBalance
 		stateObj.AlphaBill = &AlphaBillLink{
 			Counter:        stateObj.AlphaBill.Counter + 1,
-			Timeout:        max(stateObj.AlphaBill.GetTimeout(), timeout),
+			MinLifetime:    max(stateObj.AlphaBill.GetTimeout(), timeout),
 			OwnerPredicate: newOwnerPredicate,
 		}
 		return stateObj, nil
@@ -58,7 +58,7 @@ func UpdateEthAccountCloseCredit(id types.UnitID, value *uint256.Int) state.Acti
 		stateObj.Account.Balance = newBalance
 		stateObj.AlphaBill = &AlphaBillLink{
 			Counter:        stateObj.AlphaBill.Counter + 1,
-			Timeout:        stateObj.AlphaBill.GetTimeout(),
+			MinLifetime:    stateObj.AlphaBill.GetTimeout(),
 			OwnerPredicate: stateObj.Owner(),
 		}
 		return stateObj, nil

@@ -19,7 +19,7 @@ func TestAddCredit_OK(t *testing.T) {
 	fcr := &fc.FeeCreditRecord{
 		Balance:        1,
 		Counter:        10,
-		Timeout:        2,
+		MinLifetime:    2,
 		OwnerPredicate: ownerPredicate,
 	}
 	tr := state.NewEmptyState()
@@ -38,9 +38,9 @@ func TestAddCredit_OK(t *testing.T) {
 
 func TestDelCredit_OK(t *testing.T) {
 	fcr := &fc.FeeCreditRecord{
-		Balance: 1,
-		Counter: 10,
-		Timeout: 2,
+		Balance:     1,
+		Counter:     10,
+		MinLifetime: 2,
 	}
 	tr := state.NewEmptyState()
 
@@ -61,7 +61,7 @@ func TestIncrCredit_OK(t *testing.T) {
 	fcr := &fc.FeeCreditRecord{
 		Balance:        1,
 		Counter:        9,
-		Timeout:        2,
+		MinLifetime:    2,
 		OwnerPredicate: ownerPredicate,
 	}
 	tr := state.NewEmptyState()
@@ -79,16 +79,16 @@ func TestIncrCredit_OK(t *testing.T) {
 	require.NoError(t, err)
 	unitData := unit.Data().(*fc.FeeCreditRecord)
 	require.EqualValues(t, 100, unitData.Balance)
-	require.EqualValues(t, 200, unitData.Timeout)
+	require.EqualValues(t, 200, unitData.MinLifetime)
 	require.EqualValues(t, 10, unitData.Counter)
 	require.EqualValues(t, ownerPredicate, unitData.OwnerPredicate)
 }
 
 func TestDecrCredit_OK(t *testing.T) {
 	fcr := &fc.FeeCreditRecord{
-		Balance: 100,
-		Counter: 10,
-		Timeout: 2,
+		Balance:     100,
+		Counter:     10,
+		MinLifetime: 2,
 	}
 	tr := state.NewEmptyState()
 
@@ -106,8 +106,8 @@ func TestDecrCredit_OK(t *testing.T) {
 	unitFCR := unit.Data().(*fc.FeeCreditRecord)
 	require.EqualValues(t, 90, unitFCR.Balance)
 
-	// and timeout, counter and locked values are not changed
-	require.Equal(t, fcr.Timeout, unitFCR.Timeout)
+	// and minLifetime, counter and locked values are not changed
+	require.Equal(t, fcr.MinLifetime, unitFCR.MinLifetime)
 	require.Equal(t, fcr.Counter, unitFCR.Counter)
 	require.Equal(t, fcr.Locked, unitFCR.Locked)
 }

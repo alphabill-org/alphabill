@@ -1285,8 +1285,8 @@ func TestNode_RespondToInvalidReplicationRequest(t *testing.T) {
 	require.NotNil(t, resp)
 	require.IsType(t, resp.Message, &replication.LedgerReplicationResponse{})
 	msg = resp.Message.(*replication.LedgerReplicationResponse)
-	require.Equal(t, replication.UnknownPartitionID, msg.Status)
-	require.Contains(t, msg.Message, "Unknown partition identifier: FFFFFFFF")
+	require.Equal(t, replication.WrongShard, msg.Status)
+	require.Equal(t, msg.Message, "Wrong partition/shard: requested FFFFFFFF-, I'm 01010101-")
 	tp.mockNet.ResetSentMessages(network.ProtocolLedgerReplicationResp)
 	// cases where node does not even respond
 	// partition id is nil

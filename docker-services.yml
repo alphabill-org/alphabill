@@ -6,6 +6,17 @@ services:
       dockerfile: ./scripts/Dockerfile
     volumes:
       - ./docker:/docker
+  alphabill-volume-init:
+    image: bash:latest
+    user: root
+    command: >
+      -c "
+      for i in `seq 1 3`; do mkdir -p /genesis/money$$i; done &&
+      for i in `seq 1 3`; do mkdir -p /genesis/tokens$$i; done &&
+      for i in `seq 1 3`; do mkdir -p /genesis/root$$i; done &&
+      chown -R 65532:65532 /genesis"
+    volumes:
+      - genesis:/genesis
   alphabill-root-bootnode:
     extends:
       service: alphabill
@@ -48,7 +59,10 @@ services:
     entrypoint:
       - /busybox/sh
       - -c
-      -  'if [ -z "$(ls -A /genesis)" ]; then alphabill tokens-genesis -g --home /genesis --partition-description /docker/tokens-pdr.json; else echo "Genesis exists"; exit 0; fi'
+      - 'if [ -z "$(ls -A /genesis)" ]; then alphabill tokens-genesis -g --home /genesis --partition-description /docker/tokens-pdr.json; else echo "Genesis exists"; exit 0; fi'
+    depends_on:
+      alphabill-volume-init:
+        condition: service_completed_successfully
   generate-money-genesis:
     extends:
       service: alphabill
@@ -56,6 +70,9 @@ services:
       - /busybox/sh
       - -c
       - 'if [ -z "$(ls -A /genesis)" ]; then alphabill money-genesis -g --home /genesis --partition-description /docker/money-pdr.json -c /docker/money-pdr.json -c /docker/tokens-pdr.json; else echo "Genesis exists"; exit 0; fi'
+    depends_on:
+      alphabill-volume-init:
+        condition: service_completed_successfully
   generate-root-genesis:
     extends:
       service: alphabill
@@ -64,29 +81,29 @@ services:
       - -c
       - 'if [ -z "$(ls -A /genesis)" ]; then alphabill root-genesis new -g --block-rate "400" --consensus-timeout "2500" --total-nodes "3" --home /genesis -p /genesis-nodes/money1/money/node-genesis.json -p /genesis-nodes/money2/money/node-genesis.json -p /genesis-nodes/money3/money/node-genesis.json -p /genesis-nodes/tokens1/tokens/node-genesis.json -p /genesis-nodes/tokens2/tokens/node-genesis.json -p /genesis-nodes/tokens3/tokens/node-genesis.json; else echo "Genesis exists"; exit 0; fi'
     volumes:
-      - ./.genesis:/genesis-nodes
+      - genesis:/genesis-nodes
   combine-root-genesis:
     extends:
       service: alphabill
     entrypoint:
       - /busybox/sh
       - -c
-      - 'alphabill root-genesis combine --home /genesis/root --root-genesis=/genesis/root1/rootchain/root-genesis.json --root-genesis=/genesis/root2/rootchain/root-genesis.json --root-genesis=/genesis/root3/rootchain/root-genesis.json'
+      - "alphabill root-genesis combine --home /genesis/root --root-genesis=/genesis/root1/rootchain/root-genesis.json --root-genesis=/genesis/root2/rootchain/root-genesis.json --root-genesis=/genesis/root3/rootchain/root-genesis.json"
     volumes:
-      - ./.genesis:/genesis
+      - genesis:/genesis
   generate-root-trust-base:
     extends:
       service: alphabill
     entrypoint:
       - /busybox/sh
       - -c
-      - 'alphabill root-genesis gen-trust-base --home /genesis-nodes --root-genesis=/genesis-nodes/root1/rootchain/root-genesis.json --root-genesis=/genesis-nodes/root2/rootchain/root-genesis.json --root-genesis=/genesis-nodes/root3/rootchain/root-genesis.json'
+      - "alphabill root-genesis gen-trust-base --home /genesis-nodes --root-genesis=/genesis-nodes/root1/rootchain/root-genesis.json --root-genesis=/genesis-nodes/root2/rootchain/root-genesis.json --root-genesis=/genesis-nodes/root3/rootchain/root-genesis.json"
     volumes:
-      - ./.genesis:/genesis-nodes
+      - genesis:/genesis-nodes
   sign-root-trust-base:
     extends:
       service: alphabill
     entrypoint:
       - /busybox/sh
       - -c
-      - 'alphabill root-genesis sign-trust-base --home /genesis-nodes -k /genesis/root/rootchain/keys.json'
+      - "alphabill root-genesis sign-trust-base --home /genesis-nodes -k /genesis/root/rootchain/keys.json"

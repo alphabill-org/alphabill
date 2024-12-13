@@ -1,11 +1,15 @@
 services:
+  alphabill-volume-init:
+    extends:
+      file: docker-services.yml
+      service: alphabill-volume-init
   alphabill-root1:
     extends:
       file: docker-services.yml
       service: alphabill-root-bootnode
     volumes:
-      - ./.genesis/root1:/genesis
-      - ./.genesis:/genesis-nodes
+      - { type: volume, source: genesis, target: /genesis, volume: { subpath: root1 } }
+      - genesis:/genesis-nodes
     depends_on:
       sign-root-trust-base1:
         condition: service_completed_successfully
@@ -23,8 +27,8 @@ services:
       file: docker-services.yml
       service: alphabill-root
     volumes:
-      - ./.genesis/root2:/genesis
-      - ./.genesis:/genesis-nodes
+      - { type: volume, source: genesis, target: /genesis, volume: { subpath: root2 } }
+      - genesis:/genesis-nodes
     depends_on:
       sign-root-trust-base1:
         condition: service_completed_successfully
@@ -42,8 +46,8 @@ services:
       file: docker-services.yml
       service: alphabill-root
     volumes:
-      - ./.genesis/root3:/genesis
-      - ./.genesis:/genesis-nodes
+      - { type: volume, source: genesis, target: /genesis, volume: { subpath: root3 } }
+      - genesis:/genesis-nodes
     depends_on:
       sign-root-trust-base1:
         condition: service_completed_successfully
@@ -61,8 +65,8 @@ services:
       file: docker-services.yml
       service: alphabill-money
     volumes:
-      - ./.genesis/money1:/genesis
-      - ./.genesis:/genesis-nodes
+      - { type: volume, source: genesis, target: /genesis, volume: { subpath: money1 } }
+      - genesis:/genesis-nodes
     depends_on:
       alphabill-root1:
         condition: service_healthy
@@ -80,8 +84,8 @@ services:
       file: docker-services.yml
       service: alphabill-money
     volumes:
-      - ./.genesis/money2:/genesis
-      - ./.genesis:/genesis-nodes
+      - { type: volume, source: genesis, target: /genesis, volume: { subpath: money2 } }
+      - genesis:/genesis-nodes
     depends_on:
       alphabill-root1:
         condition: service_healthy
@@ -98,8 +102,8 @@ services:
       file: docker-services.yml
       service: alphabill-money
     volumes:
-      - ./.genesis/money3:/genesis
-      - ./.genesis:/genesis-nodes
+      - { type: volume, source: genesis, target: /genesis, volume: { subpath: money3 } }
+      - genesis:/genesis-nodes
     depends_on:
       alphabill-root1:
         condition: service_healthy
@@ -116,8 +120,8 @@ services:
       file: docker-services.yml
       service: alphabill-tokens
     volumes:
-      - ./.genesis/tokens1:/genesis
-      - ./.genesis:/genesis-nodes
+      - { type: volume, source: genesis, target: /genesis, volume: { subpath: tokens1 } }
+      - genesis:/genesis-nodes
     depends_on:
       generate-tokens-genesis1:
         condition: service_completed_successfully
@@ -136,8 +140,8 @@ services:
       file: docker-services.yml
       service: alphabill-tokens
     volumes:
-      - ./.genesis/tokens2:/genesis
-      - ./.genesis:/genesis-nodes
+      - { type: volume, source: genesis, target: /genesis, volume: { subpath: tokens2 } }
+      - genesis:/genesis-nodes
     depends_on:
       generate-tokens-genesis2:
         condition: service_completed_successfully
@@ -156,8 +160,8 @@ services:
       file: docker-services.yml
       service: alphabill-tokens
     volumes:
-      - ./.genesis/tokens3:/genesis
-      - ./.genesis:/genesis-nodes
+      - { type: volume, source: genesis, target: /genesis, volume: { subpath: tokens3 } }
+      - genesis:/genesis-nodes
     depends_on:
       generate-tokens-genesis3:
           condition: service_completed_successfully
@@ -176,7 +180,7 @@ services:
       file: docker-services.yml
       service: generate-root-genesis
     volumes:
-      - ./.genesis/root1:/genesis
+      - { type: volume, source: genesis, target: /genesis, volume: { subpath: root1 } }
     depends_on:
       generate-money-genesis1:
         condition: service_completed_successfully
@@ -195,7 +199,7 @@ services:
       file: docker-services.yml
       service: generate-root-genesis
     volumes:
-      - ./.genesis/root2:/genesis
+      - { type: volume, source: genesis, target: /genesis, volume: { subpath: root2 } }
     depends_on:
       generate-money-genesis1:
         condition: service_completed_successfully
@@ -214,7 +218,7 @@ services:
       file: docker-services.yml
       service: generate-root-genesis
     volumes:
-      - ./.genesis/root3:/genesis
+      - { type: volume, source: genesis, target: /genesis, volume: { subpath: root3 } }
     depends_on:
       generate-money-genesis1:
         condition: service_completed_successfully
@@ -233,7 +237,7 @@ services:
       file: docker-services.yml
       service: combine-root-genesis
     volumes:
-      - ./.genesis/root1:/genesis/root
+      - { type: volume, source: genesis, target: /genesis/root, volume: { subpath: root1 } }
     depends_on:
       generate-root-genesis1:
           condition: service_completed_successfully
@@ -246,7 +250,7 @@ services:
       file: docker-services.yml
       service: combine-root-genesis
     volumes:
-      - ./.genesis/root2:/genesis/root
+      - { type: volume, source: genesis, target: /genesis/root, volume: { subpath: root2 } }
     depends_on:
       combine-root-genesis1:
         condition: service_completed_successfully
@@ -255,7 +259,7 @@ services:
       file: docker-services.yml
       service: combine-root-genesis
     volumes:
-      - ./.genesis/root3:/genesis/root
+      - { type: volume, source: genesis, target: /genesis/root, volume: { subpath: root3 } }
     depends_on:
       combine-root-genesis2:
         condition: service_completed_successfully
@@ -275,8 +279,8 @@ services:
       file: docker-services.yml
       service: sign-root-trust-base
     volumes:
-      - ./.genesis/root1:/genesis/root
-      - ./.genesis:/genesis-nodes
+      - { type: volume, source: genesis, target: /genesis/root, volume: { subpath: root1 } }
+      - genesis:/genesis-nodes
     depends_on:
       generate-root-trust-base:
         condition: service_completed_successfully
@@ -285,8 +289,8 @@ services:
       file: docker-services.yml
       service: sign-root-trust-base
     volumes:
-      - ./.genesis/root2:/genesis/root
-      - ./.genesis:/genesis-nodes
+      - { type: volume, source: genesis, target: /genesis/root, volume: { subpath: root2 } }
+      - genesis:/genesis-nodes
     depends_on:
       sign-root-trust-base1:
         condition: service_completed_successfully
@@ -295,8 +299,8 @@ services:
       file: docker-services.yml
       service: sign-root-trust-base
     volumes:
-      - ./.genesis/root3:/genesis/root
-      - ./.genesis:/genesis-nodes
+      - { type: volume, source: genesis, target: /genesis/root, volume: { subpath: root3 } }
+      - genesis:/genesis-nodes
     depends_on:
       sign-root-trust-base2:
         condition: service_completed_successfully
@@ -305,36 +309,39 @@ services:
       file: docker-services.yml
       service: generate-tokens-genesis
     volumes:
-      - ./.genesis/tokens1:/genesis
+      - { type: volume, source: genesis, target: /genesis, volume: { subpath: tokens1 } }
   generate-tokens-genesis2:
     extends:
       file: docker-services.yml
       service: generate-tokens-genesis
     volumes:
-      - ./.genesis/tokens2:/genesis
+      - { type: volume, source: genesis, target: /genesis, volume: { subpath: tokens2 } }
   generate-tokens-genesis3:
     extends:
       file: docker-services.yml
       service: generate-tokens-genesis
     volumes:
-      - ./.genesis/tokens3:/genesis
+      - { type: volume, source: genesis, target: /genesis, volume: { subpath: tokens3 } }
   generate-money-genesis1:
     extends:
       file: docker-services.yml
       service: generate-money-genesis
     volumes:
-      - ./.genesis/money1:/genesis
+      - { type: volume, source: genesis, target: /genesis, volume: { subpath: money1 } }
   generate-money-genesis2:
     extends:
       file: docker-services.yml
       service: generate-money-genesis
     volumes:
-      - ./.genesis/money2:/genesis
+      - { type: volume, source: genesis, target: /genesis, volume: { subpath: money2 } }
   generate-money-genesis3:
     extends:
       file: docker-services.yml
       service: generate-money-genesis
     volumes:
-      - ./.genesis/money3:/genesis
+      - { type: volume, source: genesis, target: /genesis, volume: { subpath: money3 } }
 networks:
   default:
+
+volumes:
+  genesis:

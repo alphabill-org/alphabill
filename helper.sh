@@ -42,7 +42,7 @@ function generate_boot_node() {
       exit 1
     fi
     id=$(build/alphabill identifier -k $keyf | tail -n1)
-    echo "$id@/ip4/127.0.0.1/tcp/$rootPort"
+    echo "/ip4/127.0.0.1/tcp/$rootPort/p2p/$id"
 }
 
 # generates genesis files

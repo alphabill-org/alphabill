@@ -9,12 +9,10 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/ainvaltin/httpsrv"
 	"github.com/libp2p/go-libp2p/core/peer"
-	ma "github.com/multiformats/go-multiaddr"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
@@ -50,7 +48,7 @@ type rootNodeConfig struct {
 	AnnounceAddrs      []string // node public ip addresses (libp2p multiaddress format)
 	StoragePath        string   // path to Bolt storage file
 	MaxRequests        uint     // validator partition certification request channel capacity
-	BootStrapAddresses string   // boot strap addresses (libp2p multiaddress format)
+	BootStrapAddresses []string // boot strap addresses (libp2p multiaddress format)
 	RPCServerAddress   string   // address on which http server is exposed with metrics endpoint
 }
 
@@ -74,20 +72,9 @@ func newRootNodeCmd(baseConfig *baseConfiguration) *cobra.Command {
 	cmd.Flags().StringVar(&config.Address, "address", "/ip4/127.0.0.1/tcp/26662", "validator address in libp2p multiaddress-format")
 	cmd.Flags().StringSliceVar(&config.AnnounceAddrs, "announce-addresses", nil, "validator public ip addresses in libp2p multiaddress-format, if specified overwrites any and all default listen addresses")
 	cmd.Flags().UintVar(&config.MaxRequests, "max-requests", 1000, "request buffer capacity")
-	cmd.Flags().StringVar(&config.BootStrapAddresses, rootBootStrapNodesCmdFlag, "", "comma separated list of bootstrap root node addresses id@libp2p-multiaddress-format")
+	cmd.Flags().StringSliceVar(&config.BootStrapAddresses, rootBootStrapNodesCmdFlag, nil, "list of bootstrap root node addresses in libp2p multiaddress format")
 	cmd.Flags().StringVar(&config.RPCServerAddress, "rpc-server-address", "", `Specifies the TCP address for the RPC server to listen on, in the form "host:port". RPC server isn't initialised if address is empty.`)
 	return cmd
-}
-
-// splitAndTrim splits input separated by a comma and trims excessive white space from the substrings.
-func splitAndTrim(input string) (ret []string) {
-	l := strings.Split(input, ",")
-	for _, r := range l {
-		if r = strings.TrimSpace(r); r != "" {
-			ret = append(ret, r)
-		}
-	}
-	return ret
 }
 
 // getGenesisFilePath returns genesis file path if provided, otherwise $AB_HOME/rootchain/root-genesis.json
@@ -122,27 +109,14 @@ func (c *rootNodeConfig) getKeyFilePath() string {
 	return filepath.Join(c.Base.defaultRootchainDir(), defaultKeysFileName)
 }
 
-func getBootStrapNodes(bootNodesStr string) ([]peer.AddrInfo, error) {
-	if bootNodesStr == "" {
-		return []peer.AddrInfo{}, nil
-	}
-	nodeStrings := splitAndTrim(bootNodesStr)
-	bootNodes := make([]peer.AddrInfo, len(nodeStrings))
-	for i, str := range nodeStrings {
-		l := strings.Split(str, "@")
-		if len(l) != 2 {
-			return nil, fmt.Errorf("invalid bootstrap node parameter: %s", str)
-		}
-		id, err := peer.Decode(l[0])
+func getBootStrapNodes(bootNodesStr []string) ([]peer.AddrInfo, error) {
+	bootNodes := make([]peer.AddrInfo, len(bootNodesStr))
+	for i, str := range bootNodesStr {
+		addrInfo, err := peer.AddrInfoFromString(str)
 		if err != nil {
-			return nil, fmt.Errorf("invalid bootstrap node id: %s", l[0])
+			return nil, fmt.Errorf("invalid bootstrap node parameter: %w", err)
 		}
-		addr, err := ma.NewMultiaddr(l[1])
-		if err != nil {
-			return nil, fmt.Errorf("invalid bootstrap node address: %s", l[1])
-		}
-		bootNodes[i].ID = id
-		bootNodes[i].Addrs = []ma.Multiaddr{addr}
+		bootNodes[i] = *addrInfo
 	}
 	return bootNodes, nil
 }

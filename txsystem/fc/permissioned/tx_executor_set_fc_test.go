@@ -97,7 +97,7 @@ func TestValidateSetFC(t *testing.T) {
 	})
 
 	t.Run("Update FCR: ok", func(t *testing.T) {
-		fcrUnit := state.NewUnit(&fc.FeeCreditRecord{Balance: 1e8, Timeout: timeout, OwnerPredicate: fcrOwnerPredicate})
+		fcrUnit := state.NewUnit(&fc.FeeCreditRecord{Balance: 1e8, MinLifetime: timeout, OwnerPredicate: fcrOwnerPredicate})
 		exeCtx := testctx.NewMockExecutionContext(testctx.WithUnit(fcrUnit))
 		counter := uint64(0)
 		tx, attr, authProof, err := newSetFeeCreditTx(adminKeySigner, partitionID, fcrID, fcrOwnerPredicate, &counter, timeout, nil, nil)
@@ -107,7 +107,7 @@ func TestValidateSetFC(t *testing.T) {
 	})
 
 	t.Run("Update FCR: counter is nil", func(t *testing.T) {
-		fcrUnit := state.NewUnit(&fc.FeeCreditRecord{Balance: 1e8, Timeout: timeout, OwnerPredicate: fcrOwnerPredicate})
+		fcrUnit := state.NewUnit(&fc.FeeCreditRecord{Balance: 1e8, MinLifetime: timeout, OwnerPredicate: fcrOwnerPredicate})
 		exeCtx := testctx.NewMockExecutionContext(testctx.WithUnit(fcrUnit))
 		tx, attr, authProof, err := newSetFeeCreditTx(adminKeySigner, partitionID, fcrID, fcrOwnerPredicate, nil, timeout, nil, nil)
 		require.NoError(t, err)
@@ -116,7 +116,7 @@ func TestValidateSetFC(t *testing.T) {
 	})
 
 	t.Run("Update FCR: invalid counter", func(t *testing.T) {
-		fcrUnit := state.NewUnit(&fc.FeeCreditRecord{Balance: 1e8, Timeout: timeout, OwnerPredicate: fcrOwnerPredicate})
+		fcrUnit := state.NewUnit(&fc.FeeCreditRecord{Balance: 1e8, MinLifetime: timeout, OwnerPredicate: fcrOwnerPredicate})
 		exeCtx := testctx.NewMockExecutionContext(testctx.WithUnit(fcrUnit))
 		counter := uint64(1)
 		tx, attr, authProof, err := newSetFeeCreditTx(adminKeySigner, partitionID, fcrID, fcrOwnerPredicate, &counter, timeout, nil, nil)
@@ -126,7 +126,7 @@ func TestValidateSetFC(t *testing.T) {
 	})
 
 	t.Run("Update FCR: invalid target owner predicate", func(t *testing.T) {
-		fcrUnit := state.NewUnit(&fc.FeeCreditRecord{Balance: 1e8, Timeout: timeout, OwnerPredicate: fcrOwnerPredicate})
+		fcrUnit := state.NewUnit(&fc.FeeCreditRecord{Balance: 1e8, MinLifetime: timeout, OwnerPredicate: fcrOwnerPredicate})
 		exeCtx := testctx.NewMockExecutionContext(testctx.WithUnit(fcrUnit))
 		counter := uint64(0)
 
@@ -191,7 +191,7 @@ func TestExecuteSetFC(t *testing.T) {
 	require.True(t, ok)
 	require.EqualValues(t, 1e8, fcr.Balance)
 	require.EqualValues(t, 0, fcr.Counter)
-	require.EqualValues(t, 10, fcr.Timeout)
+	require.EqualValues(t, 10, fcr.MinLifetime)
 	require.EqualValues(t, 0, fcr.Locked)
 	require.EqualValues(t, fcrOwnerPredicate, fcr.OwnerPredicate)
 }

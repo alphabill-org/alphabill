@@ -467,10 +467,10 @@ func TestMintFungibleToken_Ok(t *testing.T) {
 	require.IsType(t, &tokens.FungibleTokenData{}, u.Data())
 
 	d := u.Data().(*tokens.FungibleTokenData)
-	require.Equal(t, existingTokenTypeID, d.TokenType)
+	require.Equal(t, existingTokenTypeID, d.TypeID)
 	require.Equal(t, attributes.Value, d.Value)
 	require.Equal(t, uint64(0), d.Counter)
-	require.Equal(t, uint64(1000), d.Timeout)
+	require.Equal(t, uint64(1000), d.MinLifetime)
 	require.Equal(t, uint64(0), d.Locked)
 	require.Equal(t, attributes.OwnerPredicate, d.Owner())
 }
@@ -897,7 +897,7 @@ func TestBurnFungibleToken_Ok(t *testing.T) {
 	d, ok := u.Data().(*tokens.FungibleTokenData)
 	require.True(t, ok)
 	require.EqualValues(t, templates.AlwaysFalseBytes(), d.Owner())
-	require.Equal(t, existingTokenTypeID, d.TokenType)
+	require.Equal(t, existingTokenTypeID, d.TypeID)
 	require.Equal(t, uint64(0), d.Value)
 	require.Equal(t, uint64(1), d.Counter)
 	require.Equal(t, uint64(0), d.Locked)
@@ -1158,21 +1158,21 @@ func initState(t *testing.T) *state.State {
 	}))
 	require.NoError(t, err)
 	err = s.Apply(state.AddUnit(existingTokenID, &tokens.FungibleTokenData{
-		TokenType:      existingTokenTypeID,
+		TypeID:         existingTokenTypeID,
 		Value:          existingTokenValue,
 		OwnerPredicate: templates.AlwaysTrueBytes(),
 		Counter:        0,
 	}))
 	require.NoError(t, err)
 	err = s.Apply(state.AddUnit(existingTokenID2, &tokens.FungibleTokenData{
-		TokenType:      existingTokenTypeID2,
+		TypeID:         existingTokenTypeID2,
 		Value:          existingTokenValue,
 		OwnerPredicate: templates.AlwaysTrueBytes(),
 		Counter:        0,
 	}))
 	require.NoError(t, err)
 	err = s.Apply(state.AddUnit(existingLockedTokenID, &tokens.FungibleTokenData{
-		TokenType:      existingTokenTypeID,
+		TypeID:         existingTokenTypeID,
 		Value:          existingTokenValue,
 		OwnerPredicate: templates.AlwaysTrueBytes(),
 		Counter:        0,
@@ -1183,7 +1183,7 @@ func initState(t *testing.T) *state.State {
 		Balance:        100,
 		OwnerPredicate: templates.AlwaysTrueBytes(),
 		Counter:        10,
-		Timeout:        100,
+		MinLifetime:    100,
 	}))
 	require.NoError(t, err)
 	return s

@@ -11,7 +11,7 @@ import (
 const (
 	Ok Status = iota
 	InvalidRequestParameters
-	UnknownPartitionID
+	WrongShard
 	BlocksNotFound
 	Unknown
 )
@@ -29,6 +29,7 @@ type (
 		_                struct{} `cbor:",toarray"`
 		UUID             uuid.UUID
 		PartitionID      types.PartitionID
+		ShardID          types.ShardID
 		NodeID           string
 		BeginBlockNumber uint64
 		EndBlockNumber   uint64
@@ -108,8 +109,8 @@ func (s Status) String() string {
 		return "Blocks Not Found"
 	case InvalidRequestParameters:
 		return "Invalid Request Parameters"
-	case UnknownPartitionID:
-		return "Unknown Partition Identifier"
+	case WrongShard:
+		return "Wrong Partition or Shard Identifier"
 	case Unknown:
 		return "Unknown"
 	}

@@ -51,7 +51,7 @@ type startNodeConfiguration struct {
 	LedgerReplicationMaxTx          uint32
 	LedgerReplicationTimeoutMs      uint64
 	BlockSubscriptionTimeoutMs      uint64
-	BootStrapAddresses              string // boot strap addresses (libp2p multiaddress format)
+	BootStrapAddresses              []string // boot strap addresses (libp2p multiaddress format)
 }
 
 func run(ctx context.Context, node *partition.Node, rpcServerConf *rpc.ServerConfiguration, ownerIndexer *partition.OwnerIndexer, obs Observability) error {
@@ -230,7 +230,7 @@ func addCommonNodeConfigurationFlags(nodeCmd *cobra.Command, config *startNodeCo
 	nodeCmd.Flags().StringVarP(&config.Genesis, "genesis", "g", "", fmt.Sprintf("path to the partition genesis file : $AB_HOME/%s/partition-genesis.json)", partitionSuffix))
 	nodeCmd.Flags().StringVarP(&config.StateFile, cmdFlagState, "s", "", fmt.Sprintf("path to the state file : $AB_HOME/%s/node-genesis-state.cbor)", partitionSuffix))
 	nodeCmd.Flags().StringVarP(&config.TrustBaseFile, cmdFlagTrustBaseFile, "t", "", "path to the root trust base file : $AB_HOME/root-trust-base.json)")
-	nodeCmd.Flags().StringVar(&config.BootStrapAddresses, rootBootStrapNodesCmdFlag, "", "comma separated list of bootstrap root node addresses id@libp2p-multiaddress-format")
+	nodeCmd.Flags().StringSliceVar(&config.BootStrapAddresses, rootBootStrapNodesCmdFlag, nil, "list of bootstrap root node addresses libp2p multiaddress format")
 	nodeCmd.Flags().StringVarP(&config.DbFile, "db", "f", "", "path to the block database file; in-memory database is used if not set")
 	nodeCmd.Flags().StringVarP(&config.ShardConfigurationDbFile, "shard-db", "", "", "path to the shard configuration database file; in-memory database is used if not set")
 	nodeCmd.Flags().StringVarP(&config.TxIndexerDBFile, "tx-db", "", "", "path to the transaction indexer database file; in-memory database is used if not set")

@@ -1090,7 +1090,7 @@ func createStateAndTxSystem(t *testing.T) (*state.State, *txsystem.GenericTxSyst
 	// add fee credit record with empty predicate
 	fcrData := &fcsdk.FeeCreditRecord{
 		Balance:        100,
-		Timeout:        100,
+		MinLifetime:    100,
 		OwnerPredicate: templates.AlwaysTrueBytes(),
 	}
 	err = s.Apply(unit.AddCredit(fcrID, fcrData))
@@ -1144,12 +1144,12 @@ func genesisStateWithUC(t *testing.T, initialBill *InitialBill, sdrs []*types.Pa
 
 func createSDRs(fcbID types.UnitID) []*types.PartitionDescriptionRecord {
 	return []*types.PartitionDescriptionRecord{{
-		Version:             1,
+		Version:     1,
 		NetworkID:   5,
 		PartitionID: money.DefaultPartitionID,
-		TypeIDLen:           8,
-		UnitIDLen:           256,
-		T2Timeout:           2500 * time.Millisecond,
+		TypeIDLen:   8,
+		UnitIDLen:   256,
+		T2Timeout:   2500 * time.Millisecond,
 		FeeCreditBill: &types.FeeCreditBill{
 			UnitID:         fcbID,
 			OwnerPredicate: templates.AlwaysTrueBytes(),

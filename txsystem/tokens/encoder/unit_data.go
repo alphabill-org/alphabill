@@ -62,11 +62,11 @@ func udeFungibleTokenTypeData(data types.UnitData, ver uint32) ([]byte, error) {
 func udeFungibleTokenData(data types.UnitData, ver uint32) ([]byte, error) {
 	value := data.(*tokens.FungibleTokenData)
 	buf := encoder.TVEnc{}
-	buf.EncodeTagged(1, value.TokenType)
+	buf.EncodeTagged(1, value.TypeID)
 	buf.EncodeTagged(2, value.Value)
 	//buf.EncodeTagged(3, value.T)
 	buf.EncodeTagged(4, value.Counter)
 	buf.EncodeTagged(5, value.Locked)
-	buf.EncodeTagged(6, value.Timeout)
+	buf.EncodeTagged(6, value.MinLifetime)
 	return buf.Bytes()
 }

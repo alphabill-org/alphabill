@@ -57,6 +57,7 @@ func (a *alphabillApp) addSubcommands(opts []interface{}) {
 	a.baseCmd.AddCommand(newEvmGenesisCmd(a.baseConfig))
 	a.baseCmd.AddCommand(newOrchestrationNodeCmd(a.baseConfig))
 	a.baseCmd.AddCommand(newOrchestrationGenesisCmd(a.baseConfig))
+	a.baseCmd.AddCommand(newVarCmd(a.baseConfig))
 }
 
 func newBaseCmd(obsF Factory) (*cobra.Command, *baseConfiguration) {

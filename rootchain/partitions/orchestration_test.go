@@ -173,6 +173,7 @@ func TestShardConfig(t *testing.T) {
 				ShardID:     shardID,
 				EpochNumber: 0,
 				RoundNumber: 1,
+				Nodes:       make([]NodeInfo, 0),
 			},
 		},
 
@@ -185,6 +186,7 @@ func TestShardConfig(t *testing.T) {
 				ShardID:     shardID,
 				EpochNumber: 0,
 				RoundNumber: 1,
+				Nodes:       make([]NodeInfo, 0),
 			}},
 	}
 	for _, tc := range testCases {
@@ -301,7 +303,7 @@ func createGenesisPartitionRecord(partitionID types.PartitionID, shardID types.S
 			InputRecord:          &types.InputRecord{Epoch: 0, RoundNumber: 1},
 		},
 		PartitionDescription: &types.PartitionDescriptionRecord{
-			Version:             1,
+			Version:     1,
 			NetworkID:   5,
 			PartitionID: partitionID,
 		},

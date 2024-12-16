@@ -41,7 +41,7 @@ func NewVARFromGenesis(gpr *genesis.GenesisPartitionRecord) *ValidatorAssignment
 		ShardID:     uc.ShardTreeCertificate.Shard,
 		EpochNumber: uc.InputRecord.Epoch,
 		RoundNumber: uc.InputRecord.RoundNumber,
-		Nodes:       newVarNodesFromGenesisNodes(gpr.Nodes),
+		Nodes:       NewVarNodesFromGenesisNodes(gpr.Nodes),
 	}
 }
 
@@ -53,11 +53,16 @@ func NewVARNodeFromGenesisNode(pn *genesis.PartitionNode) NodeInfo {
 	}
 }
 
-// Verify verifies the provided VAR extends the previous VAR.
-func (v *ValidatorAssignmentRecord) Verify(prev *ValidatorAssignmentRecord) error {
-	if prev == nil && v.EpochNumber != 0 {
-		return errors.New("previous var cannot be nil")
+func NewVarNodesFromGenesisNodes(genesisNodes []*genesis.PartitionNode) []NodeInfo {
+	nodes := make([]NodeInfo, 0, len(genesisNodes))
+	for _, pn := range genesisNodes {
+		nodes = append(nodes, NewVARNodeFromGenesisNode(pn))
 	}
+	return nodes
+}
+
+// Verify verifies the VAR nodes are correctly calculated and that the VAR extends the previous VAR if provided.
+func (v *ValidatorAssignmentRecord) Verify(prev *ValidatorAssignmentRecord) error {
 	if prev != nil {
 		if v.NetworkID != prev.NetworkID {
 			return fmt.Errorf("invalid network id, provided %d previous %d", v.NetworkID, prev.NetworkID)
@@ -102,12 +107,4 @@ func (v *NodeInfo) Verify() error {
 		return fmt.Errorf("invalid sign key for node %s: %w", v.NodeID, err)
 	}
 	return nil
-}
-
-func newVarNodesFromGenesisNodes(genesisNodes []*genesis.PartitionNode) []NodeInfo {
-	var varNodes []NodeInfo
-	for _, pgNode := range genesisNodes {
-		varNodes = append(varNodes, NewVARNodeFromGenesisNode(pgNode))
-	}
-	return varNodes
 }

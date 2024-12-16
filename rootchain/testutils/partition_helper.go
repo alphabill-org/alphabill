@@ -47,9 +47,8 @@ func CreatePartitionNodesAndPartitionRecord(t *testing.T, ir *types.InputRecord,
 	for i := 0; i < nrOfValidators; i++ {
 		partitionNode := NewTestNode(t)
 
-		rawEncPubKey := partitionNode.PeerConf.KeyPair.PublicKey
-
-		rawSigningPubKey, err := partitionNode.Verifier.MarshalPublicKey()
+		authKey := partitionNode.PeerConf.KeyPair.PublicKey
+		signKey, err := partitionNode.Verifier.MarshalPublicKey()
 		require.NoError(t, err)
 
 		req := &certification.BlockCertificationRequest{
@@ -63,8 +62,8 @@ func CreatePartitionNodesAndPartitionRecord(t *testing.T, ir *types.InputRecord,
 		record.Validators = append(record.Validators, &genesis.PartitionNode{
 			Version:                    1,
 			NodeID:                     partitionNode.PeerConf.ID.String(),
-			SigningPublicKey:           rawSigningPubKey,
-			EncryptionPublicKey:        rawEncPubKey,
+			AuthKey:                    authKey,
+			SignKey:                    signKey,
 			BlockCertificationRequest:  req,
 			PartitionDescriptionRecord: types.PartitionDescriptionRecord{Version: 1},
 		})

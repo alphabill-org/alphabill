@@ -165,8 +165,8 @@ func Test_StartSingleNode(t *testing.T) {
 		partitionGenesis := filepath.Join(homeDir, defaultRootChainDir, "partition-genesis-1.json")
 		pg, err := loadPartitionGenesis(partitionGenesis)
 		require.NoError(t, err)
-		rootValidatorEncryptionKey := pg.RootValidators[0].EncryptionPublicKey
-		rootID, rootAddress, err := getRootValidatorIDAndMultiAddress(rootValidatorEncryptionKey, address)
+		rootValidatorAuthKey := pg.RootValidators[0].AuthKey
+		rootID, rootAddress, err := getRootValidatorIDAndMultiAddress(rootValidatorAuthKey, address)
 		require.NoError(t, err)
 		cfg := &startNodeConfiguration{
 			Address:       "/ip4/127.0.0.1/tcp/26652",
@@ -303,8 +303,8 @@ func Test_Start_2_DRCNodes(t *testing.T) {
 		partitionGenesis := filepath.Join(homeDir, defaultRootChainDir+"1", "partition-genesis-1.json")
 		pg, err := loadPartitionGenesis(partitionGenesis)
 		require.NoError(t, err)
-		rootValidatorEncryptionKey := pg.RootValidators[0].EncryptionPublicKey
-		rootID, rootAddress, err := getRootValidatorIDAndMultiAddress(rootValidatorEncryptionKey, address)
+		rootValidatorAuthKey := pg.RootValidators[0].AuthKey
+		rootID, rootAddress, err := getRootValidatorIDAndMultiAddress(rootValidatorAuthKey, address)
 		require.NoError(t, err)
 		cfg := &startNodeConfiguration{
 			Address: "/ip4/127.0.0.1/tcp/26652",
@@ -333,12 +333,12 @@ func Test_Start_2_DRCNodes(t *testing.T) {
 	})
 }
 
-func getRootValidatorIDAndMultiAddress(rootValidatorEncryptionKey []byte, addressStr string) (peer.ID, multiaddr.Multiaddr, error) {
-	rootEncryptionKey, err := crypto.UnmarshalSecp256k1PublicKey(rootValidatorEncryptionKey)
+func getRootValidatorIDAndMultiAddress(rootAuthKeyBytes []byte, addressStr string) (peer.ID, multiaddr.Multiaddr, error) {
+	rootAuthKey, err := crypto.UnmarshalSecp256k1PublicKey(rootAuthKeyBytes)
 	if err != nil {
 		return "", nil, err
 	}
-	rootID, err := peer.IDFromPublicKey(rootEncryptionKey)
+	rootID, err := peer.IDFromPublicKey(rootAuthKey)
 	if err != nil {
 		return "", nil, err
 	}

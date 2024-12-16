@@ -112,19 +112,19 @@ func rootGenesisRunFunc(config *rootGenesisConfig) error {
 	if err != nil {
 		return fmt.Errorf("genesis partition record generation failed: %w", err)
 	}
-	peerID, err := peer.IDFromPublicKey(keys.EncryptionPrivateKey.GetPublic())
+	peerID, err := peer.IDFromPublicKey(keys.AuthPrivKey.GetPublic())
 	if err != nil {
 		return fmt.Errorf("failed to extract root ID from public key: %w", err)
 	}
-	encPubKeyBytes, err := keys.EncryptionPrivateKey.GetPublic().Raw()
+	authPubKey, err := keys.AuthPrivKey.GetPublic().Raw()
 	if err != nil {
 		return fmt.Errorf("root public key conversion failed: %w", err)
 	}
 
 	rg, pg, err := rootgenesis.NewRootGenesis(
 		peerID.String(),
-		keys.SigningPrivateKey,
-		encPubKeyBytes,
+		keys.SignPrivKey,
+		authPubKey,
 		pr,
 		rootgenesis.WithTotalNodes(config.TotalNodes),
 		rootgenesis.WithBlockRate(config.BlockRateMs),

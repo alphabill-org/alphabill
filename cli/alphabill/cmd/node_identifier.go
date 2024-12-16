@@ -29,7 +29,7 @@ func identifierRunFun(_ context.Context, file string) error {
 	if err != nil {
 		return fmt.Errorf("failed to load keys %v: %w", file, err)
 	}
-	id, err := peer.IDFromPublicKey(keys.EncryptionPrivateKey.GetPublic())
+	id, err := peer.IDFromPublicKey(keys.AuthPrivKey.GetPublic())
 	if err != nil {
 		return err
 	}

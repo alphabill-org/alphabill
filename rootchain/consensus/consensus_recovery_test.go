@@ -798,20 +798,20 @@ func createPartitionRecord(t *testing.T, partitionID abtypes.PartitionID, ir *ab
 	}
 
 	for i := 0; i < nrOfValidators; i++ {
-		nodeID, signer, _, pubKey := generatePeerData(t)
+		nodeID, authSigner, _, authKey := generatePeerData(t)
 
 		req := &certification.BlockCertificationRequest{
 			PartitionID: partitionID,
 			NodeID:      nodeID.String(),
 			InputRecord: ir,
 		}
-		require.NoError(t, req.Sign(signer))
+		require.NoError(t, req.Sign(authSigner))
 
 		record.Validators = append(record.Validators, &genesis.PartitionNode{
 			Version:                    1,
 			NodeID:                     nodeID.String(),
-			SigningPublicKey:           pubKey,
-			EncryptionPublicKey:        pubKey,
+			AuthKey:                    authKey,
+			SignKey:                    authKey,
 			BlockCertificationRequest:  req,
 			PartitionDescriptionRecord: *record.PartitionDescription,
 		})
@@ -823,19 +823,19 @@ func createPartitionRecord(t *testing.T, partitionID abtypes.PartitionID, ir *ab
 func generatePeerData(t *testing.T) (peer.ID, abcrypto.Signer, abcrypto.Verifier, []byte) {
 	t.Helper()
 
-	signer, err := abcrypto.NewInMemorySecp256K1Signer()
+	authSigner, err := abcrypto.NewInMemorySecp256K1Signer()
 	require.NoError(t, err)
 
-	verifier, err := signer.Verifier()
+	authVerifier, err := authSigner.Verifier()
 	require.NoError(t, err)
 
-	pubKey, err := verifier.MarshalPublicKey()
+	authKey, err := authVerifier.MarshalPublicKey()
 	require.NoError(t, err)
 
-	nodeID, err := network.NodeIDFromPublicKeyBytes(pubKey)
+	nodeID, err := network.NodeIDFromPublicKeyBytes(authKey)
 	require.NoError(t, err)
 
-	return nodeID, signer, verifier, pubKey
+	return nodeID, authSigner, authVerifier, authKey
 }
 
 /*

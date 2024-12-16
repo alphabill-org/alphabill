@@ -88,8 +88,8 @@ func newSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, v
 		state.NewEmptyState(),
 		pdr,
 		WithPeerID(peerConf.ID),
-		WithSigningKey(nodeSigner),
-		WithEncryptionPubKey(peerConf.KeyPair.PublicKey),
+		WithSignPrivKey(nodeSigner),
+		WithAuthPubKey(peerConf.KeyPair.PublicKey),
 	)
 	require.NoError(t, err)
 
@@ -125,17 +125,17 @@ func newSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, v
 	require.NoError(t, err)
 	partitionGenesis[0].Keys = []*genesis.PublicKeyInfo{
 		&genesis.PublicKeyInfo{
-			NodeID:              fakeValidatorID.String(),
-			SigningPublicKey:    fakeValidatorPubKeyRaw,
-			EncryptionPublicKey: fakeValidatorPubKeyRaw,
+			NodeID:  fakeValidatorID.String(),
+			SignKey: fakeValidatorPubKeyRaw,
+			AuthKey: fakeValidatorPubKeyRaw,
 		},
 	}
 	if validator {
 		partitionGenesis[0].Keys = append(partitionGenesis[0].Keys,
 			&genesis.PublicKeyInfo{
-				NodeID:              peerConf.ID.String(),
-				SigningPublicKey:    peerConf.KeyPair.PublicKey,
-				EncryptionPublicKey: peerConf.KeyPair.PublicKey,
+				NodeID:  peerConf.ID.String(),
+				SignKey: peerConf.KeyPair.PublicKey,
+				AuthKey: peerConf.KeyPair.PublicKey,
 			})
 	}
 

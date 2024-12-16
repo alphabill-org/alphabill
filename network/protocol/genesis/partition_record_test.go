@@ -22,7 +22,7 @@ var systemDescription = &types.PartitionDescriptionRecord{
 func TestPartitionRecord_IsValid(t *testing.T) {
 	signingKey, err := crypto.NewInMemorySecp256K1Signer()
 	require.NoError(t, err)
-	_, encryptionPubKey := testsig.CreateSignerAndVerifier(t)
+	_, authVerifier := testsig.CreateSignerAndVerifier(t)
 	type fields struct {
 		SystemDescriptionRecord *types.PartitionDescriptionRecord
 		Validators              []*PartitionNode
@@ -64,7 +64,7 @@ func TestPartitionRecord_IsValid(t *testing.T) {
 					UnitIDLen:   256,
 					T2Timeout:   time.Second,
 				},
-				Validators: []*PartitionNode{createPartitionNode(t, nodeID, signingKey, encryptionPubKey)},
+				Validators: []*PartitionNode{createPartitionNode(t, nodeID, signingKey, authVerifier)},
 			},
 			wantErrStr: "invalid partition id: expected 00000002, got 00000001",
 		},
@@ -73,8 +73,8 @@ func TestPartitionRecord_IsValid(t *testing.T) {
 			fields: fields{
 				SystemDescriptionRecord: systemDescription,
 				Validators: []*PartitionNode{
-					createPartitionNode(t, nodeID, signingKey, encryptionPubKey),
-					createPartitionNode(t, nodeID, signingKey, encryptionPubKey),
+					createPartitionNode(t, nodeID, signingKey, authVerifier),
+					createPartitionNode(t, nodeID, signingKey, authVerifier),
 				},
 			},
 			wantErrStr: "validator list error, duplicated node id: 1",
@@ -104,11 +104,11 @@ func TestPartitionRecord_IsValid_Nil(t *testing.T) {
 func TestPartitionRecord_GetPartitionNode(t *testing.T) {
 	signer, err := crypto.NewInMemorySecp256K1Signer()
 	require.NoError(t, err)
-	_, encryptionPubKey := testsig.CreateSignerAndVerifier(t)
+	_, authVerifier := testsig.CreateSignerAndVerifier(t)
 	pr := &PartitionRecord{
 		PartitionDescription: systemDescription,
 		Validators: []*PartitionNode{
-			createPartitionNode(t, nodeID, signer, encryptionPubKey),
+			createPartitionNode(t, nodeID, signer, authVerifier),
 		},
 	}
 	require.NotNil(t, pr.GetPartitionNode(nodeID))

@@ -18,8 +18,8 @@ func TestGenerateAndLoadKeys(t *testing.T) {
 	require.NoError(t, err)
 	loaded, err := LoadKeys(file, false, false)
 	require.NoError(t, err)
-	require.Equal(t, keys.SigningPrivateKey, loaded.SigningPrivateKey)
-	require.Equal(t, keys.EncryptionPrivateKey, loaded.EncryptionPrivateKey)
+	require.Equal(t, keys.SignPrivKey, loaded.SignPrivKey)
+	require.Equal(t, keys.AuthPrivKey, loaded.AuthPrivKey)
 }
 
 func TestLoadKeys_FileNotFound(t *testing.T) {
@@ -36,28 +36,28 @@ func TestLoadKeys_ForceGeneration(t *testing.T) {
 	require.NotNil(t, keys)
 	loaded, err := LoadKeys(file, true, false)
 	require.NoError(t, err)
-	require.Equal(t, keys.SigningPrivateKey, loaded.SigningPrivateKey)
-	require.Equal(t, keys.EncryptionPrivateKey, loaded.EncryptionPrivateKey)
+	require.Equal(t, keys.SignPrivKey, loaded.SignPrivKey)
+	require.Equal(t, keys.AuthPrivKey, loaded.AuthPrivKey)
 	// make sure force generation overwrites existing keys
 	overwritten, err := LoadKeys(file, true, true)
 	require.NoError(t, err)
 	require.NotNil(t, keys)
-	require.NotEqual(t, loaded.SigningPrivateKey, overwritten.SigningPrivateKey)
-	require.NotEqual(t, loaded.EncryptionPrivateKey, overwritten.EncryptionPrivateKey)
+	require.NotEqual(t, loaded.SignPrivKey, overwritten.SignPrivKey)
+	require.NotEqual(t, loaded.AuthPrivKey, overwritten.AuthPrivKey)
 	loadedOverwritten, err := LoadKeys(file, true, false)
 	require.NoError(t, err)
-	require.Equal(t, overwritten.SigningPrivateKey, loadedOverwritten.SigningPrivateKey)
-	require.Equal(t, overwritten.EncryptionPrivateKey, loadedOverwritten.EncryptionPrivateKey)
+	require.Equal(t, overwritten.SignPrivKey, loadedOverwritten.SignPrivKey)
+	require.Equal(t, overwritten.AuthPrivKey, loadedOverwritten.AuthPrivKey)
 }
 
 func TestLoadKeys_InvalidSigningKeyAlgorithm(t *testing.T) {
 	file := filepath.Join(t.TempDir(), "keys.json")
 	kf := &keyFile{
-		SigningPrivateKey: key{
+		SignKey: key{
 			Algorithm:  "invalid_algo",
 			PrivateKey: nil,
 		},
-		EncryptionPrivateKey: key{},
+		AuthKey: key{},
 	}
 	require.NoError(t, util.WriteJsonFile(file, kf))
 	keys, err := LoadKeys(file, false, false)
@@ -65,17 +65,17 @@ func TestLoadKeys_InvalidSigningKeyAlgorithm(t *testing.T) {
 	require.Nil(t, keys)
 }
 
-func TestLoadKeys_InvalidEncryptionKeyAlgorithm(t *testing.T) {
+func TestLoadKeys_InvalidAuthenticationKeyAlgorithm(t *testing.T) {
 	file := filepath.Join(t.TempDir(), "keys.json")
 	signer, _ := testsig.CreateSignerAndVerifier(t)
 	bytes, err := signer.MarshalPrivateKey()
 	require.NoError(t, err)
 	kf := &keyFile{
-		SigningPrivateKey: key{
+		SignKey: key{
 			Algorithm:  secp256k1,
 			PrivateKey: bytes,
 		},
-		EncryptionPrivateKey: key{
+		AuthKey: key{
 			Algorithm:  "invalid_algo",
 			PrivateKey: nil,
 		},
@@ -83,21 +83,21 @@ func TestLoadKeys_InvalidEncryptionKeyAlgorithm(t *testing.T) {
 
 	require.NoError(t, util.WriteJsonFile(file, kf))
 	keys, err := LoadKeys(file, false, false)
-	require.ErrorContains(t, err, "encryption key algorithm invalid_algo is not supported")
+	require.ErrorContains(t, err, "authentication key algorithm invalid_algo is not supported")
 	require.Nil(t, keys)
 }
 
-func TestLoadKeys_InvalidEncryptionKey(t *testing.T) {
+func TestLoadKeys_InvalidAuthenticationKey(t *testing.T) {
 	file := filepath.Join(t.TempDir(), "keys.json")
 	signer, _ := testsig.CreateSignerAndVerifier(t)
 	bytes, err := signer.MarshalPrivateKey()
 	require.NoError(t, err)
 	kf := &keyFile{
-		SigningPrivateKey: key{
+		SignKey: key{
 			Algorithm:  secp256k1,
 			PrivateKey: bytes,
 		},
-		EncryptionPrivateKey: key{
+		AuthKey: key{
 			Algorithm:  secp256k1,
 			PrivateKey: []byte{0, 0, 0},
 		},
@@ -105,7 +105,7 @@ func TestLoadKeys_InvalidEncryptionKey(t *testing.T) {
 
 	require.NoError(t, util.WriteJsonFile(file, kf))
 	keys, err := LoadKeys(file, false, false)
-	require.ErrorContains(t, err, "invalid encryption key")
+	require.ErrorContains(t, err, "invalid authentication key")
 	require.Nil(t, keys)
 }
 
@@ -115,11 +115,11 @@ func TestLoadKeys_InvalidSigningKey(t *testing.T) {
 	bytes, err := signer.MarshalPrivateKey()
 	require.NoError(t, err)
 	kf := &keyFile{
-		SigningPrivateKey: key{
+		SignKey: key{
 			Algorithm:  secp256k1,
 			PrivateKey: []byte{0},
 		},
-		EncryptionPrivateKey: key{
+		AuthKey: key{
 			Algorithm:  secp256k1,
 			PrivateKey: bytes,
 		},

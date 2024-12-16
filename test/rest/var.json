@@ -8,7 +8,7 @@
         {
             "nodeId": "16Uiu2HAkx7G2Sr19HFXNPD6p6cmjx98RPvxCjWX41bHRB56EGVNg",
             "authKey": "0x0227db8563595e33706a673fa4f6c509b52c18e7911322777d2fe862384869e521",
-            "sigKey": "0x02287fbc6f885c171bcecb4b781bec97bc6978b02773a3a1c80afbb32e62c0f340"
+            "signKey": "0x02287fbc6f885c171bcecb4b781bec97bc6978b02773a3a1c80afbb32e62c0f340"
         }
     ]
 }

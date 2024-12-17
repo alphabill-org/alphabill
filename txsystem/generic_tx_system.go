@@ -360,8 +360,8 @@ func (m *GenericTxSystem) validateGenericTransaction(tx *types.TransactionOrder)
 		return err
 	}
 
-	// S.n < T0 – transaction has not expired
-	if m.currentRoundNumber >= tx.Timeout() {
+	// T0 ≥ S.n – transaction has not expired
+	if m.currentRoundNumber > tx.Timeout() {
 		return ErrTransactionExpired
 	}
 	return nil

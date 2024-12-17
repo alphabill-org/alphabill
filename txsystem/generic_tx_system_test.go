@@ -45,12 +45,12 @@ func (t *MockData) Owner() []byte {
 
 func Test_NewGenericTxSystem(t *testing.T) {
 	validPDR := types.PartitionDescriptionRecord{
-		Version:             1,
+		Version:     1,
 		NetworkID:   mockNetworkID,
 		PartitionID: mockPartitionID,
-		TypeIDLen:           8,
-		UnitIDLen:           256,
-		T2Timeout:           2500 * time.Millisecond,
+		TypeIDLen:   8,
+		UnitIDLen:   256,
+		T2Timeout:   2500 * time.Millisecond,
 	}
 	require.NoError(t, validPDR.IsValid())
 
@@ -384,10 +384,15 @@ func Test_GenericTxSystem_validateGenericTransaction(t *testing.T) {
 		txSys := NewTestGenericTxSystem(t, nil)
 		txo := createTxOrder(txSys)
 
+		txSys.currentRoundNumber = txo.Timeout() - 1
+		require.NoError(t, txSys.validateGenericTransaction(txo), "tx.Timeout > currentRoundNumber should be valid")
+
 		txSys.currentRoundNumber = txo.Timeout()
-		require.ErrorIs(t, txSys.validateGenericTransaction(txo), ErrTransactionExpired)
+		require.NoError(t, txSys.validateGenericTransaction(txo), "tx.Timeout == currentRoundNumber should be valid")
+
 		txSys.currentRoundNumber = txo.Timeout() + 1
 		require.ErrorIs(t, txSys.validateGenericTransaction(txo), ErrTransactionExpired)
+
 		txSys.currentRoundNumber = math.MaxUint64
 		require.ErrorIs(t, txSys.validateGenericTransaction(txo), ErrTransactionExpired)
 	})
@@ -469,12 +474,12 @@ func NewTestGenericTxSystem(t *testing.T, modules []txtypes.Module, opts ...txSy
 
 func defaultTestConfiguration(t *testing.T, modules []txtypes.Module) *GenericTxSystem {
 	pdr := types.PartitionDescriptionRecord{
-		Version:             1,
+		Version:     1,
 		NetworkID:   mockNetworkID,
 		PartitionID: mockPartitionID,
-		TypeIDLen:           8,
-		UnitIDLen:           8 * 32,
-		T2Timeout:           2500 * time.Millisecond,
+		TypeIDLen:   8,
+		UnitIDLen:   8 * 32,
+		T2Timeout:   2500 * time.Millisecond,
 	}
 	// default configuration has no fee handling
 	txSys, err := NewGenericTxSystem(pdr, types.ShardID{}, nil, modules, observability.Default(t))

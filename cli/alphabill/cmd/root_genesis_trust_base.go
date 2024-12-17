@@ -123,7 +123,7 @@ func signTrustBaseRunFunc(config *signTrustBaseConfig) error {
 	if err != nil {
 		return fmt.Errorf("failed to read root chain keys from file '%s': %w", config.Keys.GetKeyFileLocation(), err)
 	}
-	peerID, err := peer.IDFromPublicKey(keys.EncryptionPrivateKey.GetPublic())
+	peerID, err := peer.IDFromPublicKey(keys.AuthPrivKey.GetPublic())
 	if err != nil {
 		return fmt.Errorf("failed to extract peer id from key file '%s': %w", config.Keys.GetKeyFileLocation(), err)
 	}
@@ -133,7 +133,7 @@ func signTrustBaseRunFunc(config *signTrustBaseConfig) error {
 		return fmt.Errorf("failed to load trust base file '%s': %w", config.TrustBaseFile, err)
 	}
 	// sign trust base file
-	if err = trustBase.Sign(peerID.String(), keys.SigningPrivateKey); err != nil {
+	if err = trustBase.Sign(peerID.String(), keys.SignPrivKey); err != nil {
 		return fmt.Errorf("root genesis add signature failed: %w", err)
 	}
 	// write trust base file

@@ -18,15 +18,15 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 	require.NoError(t, err)
 	trustBase := testtb.NewTrustBase(t, verifier)
 	keyInfo := &PublicKeyInfo{
-		NodeID:             "1",
-		SigningPublicKey:    pubKey,
-		EncryptionPublicKey: pubKey,
+		NodeID:  "1",
+		SignKey: pubKey,
+		AuthKey: pubKey,
 	}
 
 	rootKeyInfo := &PublicKeyInfo{
-		NodeID:              "1",
-		SigningPublicKey:    pubKey,
-		EncryptionPublicKey: pubKey,
+		NodeID:  "1",
+		SignKey: pubKey,
+		AuthKey: pubKey,
 	}
 	validPDR := &types.PartitionDescriptionRecord{
 		Version:     1,
@@ -98,7 +98,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 				PDR:            validPDR,
 				RootValidators: []*PublicKeyInfo{rootKeyInfo},
 				Keys: []*PublicKeyInfo{
-					{NodeID: "", SigningPublicKey: pubKey, EncryptionPublicKey: test.RandomBytes(33)},
+					{NodeID: "", SignKey: pubKey, AuthKey: test.RandomBytes(33)},
 				},
 			},
 			wantErrStr: "partition keys validation failed, public key info node identifier is empty",
@@ -109,26 +109,26 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 			fields: fields{
 				PDR:            validPDR,
 				RootValidators: []*PublicKeyInfo{rootKeyInfo},
-				Keys:           []*PublicKeyInfo{{NodeID: "111", SigningPublicKey: []byte{0, 0}}},
+				Keys:           []*PublicKeyInfo{{NodeID: "111", SignKey: []byte{0, 0}}},
 			},
 			wantErrStr: "partition keys validation failed, invalid signing key: pubkey must be 33 bytes long, but is 2",
 		},
 		{
-			name: "encryption pub key is invalid",
+			name: "authentication key is invalid",
 			args: args{verifier: trustBase, hashAlgorithm: gocrypto.SHA256},
 			fields: fields{
 				PDR:            validPDR,
 				RootValidators: []*PublicKeyInfo{rootKeyInfo},
-				Keys:           []*PublicKeyInfo{{NodeID: "111", SigningPublicKey: pubKey, EncryptionPublicKey: []byte{0, 0}}},
+				Keys:           []*PublicKeyInfo{{NodeID: "111", SignKey: pubKey, AuthKey: []byte{0, 0}}},
 			},
-			wantErrStr: "partition keys validation failed, invalid encryption key: pubkey must be 33 bytes long, but is 2",
+			wantErrStr: "partition keys validation failed, invalid authentication key: pubkey must be 33 bytes long, but is 2",
 		},
 		{
 			name: "invalid root signing public key",
 			args: args{verifier: trustBase},
 			fields: fields{
 				PDR:            validPDR,
-				RootValidators: []*PublicKeyInfo{{NodeID: "1", SigningPublicKey: []byte{0}, EncryptionPublicKey: pubKey}},
+				RootValidators: []*PublicKeyInfo{{NodeID: "1", SignKey: []byte{0}, AuthKey: pubKey}},
 				Keys:           []*PublicKeyInfo{keyInfo},
 			},
 			wantErrStr: "root node list validation failed, invalid signing key: pubkey must be 33 bytes long, but is 1",
@@ -145,24 +145,24 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 			wantErrStr: ErrPartitionUnicityCertificateIsNil.Error(),
 		},
 		{
-			name: "encryption key is nil",
+			name: "authentication key is nil",
 			args: args{verifier: trustBase, hashAlgorithm: gocrypto.SHA256},
 			fields: fields{
 				PDR:            validPDR,
-				RootValidators: []*PublicKeyInfo{{NodeID: "1", SigningPublicKey: pubKey, EncryptionPublicKey: nil}},
+				RootValidators: []*PublicKeyInfo{{NodeID: "1", SignKey: pubKey, AuthKey: nil}},
 				Keys:           []*PublicKeyInfo{keyInfo},
 			},
-			wantErrStr: "root node list validation failed, public key info encryption key is invalid",
+			wantErrStr: "root node list validation failed, public key info authentication key is invalid",
 		},
 		{
-			name: "encryption key is invalid",
+			name: "authentication key is invalid",
 			args: args{verifier: trustBase, hashAlgorithm: gocrypto.SHA256},
 			fields: fields{
 				PDR:            validPDR,
-				RootValidators: []*PublicKeyInfo{{NodeID: "1", SigningPublicKey: pubKey, EncryptionPublicKey: []byte{0, 0, 0, 0}}},
+				RootValidators: []*PublicKeyInfo{{NodeID: "1", SignKey: pubKey, AuthKey: []byte{0, 0, 0, 0}}},
 				Keys:           []*PublicKeyInfo{keyInfo},
 			},
-			wantErrStr: "root node list validation failed, invalid encryption key: pubkey must be 33 bytes long, but is 4",
+			wantErrStr: "root node list validation failed, invalid authentication key: pubkey must be 33 bytes long, but is 4",
 		},
 	}
 	for _, tt := range tests {

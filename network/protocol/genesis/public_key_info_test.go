@@ -31,9 +31,9 @@ func TestNewValidatorTrustBase(t *testing.T) {
 		{
 			name: "Invalid validator public key",
 			args: args{[]*PublicKeyInfo{{
-				NodeID:              "1",
-				SigningPublicKey:    []byte{1, 1},
-				EncryptionPublicKey: []byte{1, 2}}},
+				NodeID:  "1",
+				SignKey: []byte{1, 1},
+				AuthKey: []byte{1, 2}}},
 			},
 			wantErr: "pubkey must be 33 bytes long, but is 2",
 		},
@@ -51,9 +51,9 @@ func TestPublicKeyInfo_IsValid(t *testing.T) {
 	pubKeyBytes, err := pubKey.MarshalPublicKey()
 	require.NoError(t, err)
 	type fields struct {
-		NodeID              string
-		SigningPublicKey    []byte
-		EncryptionPublicKey []byte
+		NodeID  string
+		SignKey []byte
+		AuthKey []byte
 	}
 	tests := []struct {
 		name    string
@@ -68,7 +68,7 @@ func TestPublicKeyInfo_IsValid(t *testing.T) {
 		{
 			name:    "signing pub key is missing",
 			fields:  fields{"1", nil, pubKeyBytes},
-			wantErr: ErrPubKeyInfoSigningKeyIsInvalid.Error(),
+			wantErr: ErrPubKeyInfoSignKeyIsInvalid.Error(),
 		},
 		{
 			name:    "signing pub key is invalid",
@@ -78,7 +78,7 @@ func TestPublicKeyInfo_IsValid(t *testing.T) {
 		{
 			name:    "enc pub key is missing",
 			fields:  fields{"1", pubKeyBytes, nil},
-			wantErr: ErrPubKeyInfoEncryptionIsInvalid.Error(),
+			wantErr: ErrPubKeyInfoAuthKeyIsInvalid.Error(),
 		},
 		{
 			name:    "enc pub key is invalid",
@@ -89,9 +89,9 @@ func TestPublicKeyInfo_IsValid(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			x := &PublicKeyInfo{
-				NodeID:              tt.fields.NodeID,
-				SigningPublicKey:    tt.fields.SigningPublicKey,
-				EncryptionPublicKey: tt.fields.EncryptionPublicKey,
+				NodeID:  tt.fields.NodeID,
+				SignKey: tt.fields.SignKey,
+				AuthKey: tt.fields.AuthKey,
 			}
 			require.ErrorContains(t, x.IsValid(), tt.wantErr)
 		})
@@ -99,17 +99,17 @@ func TestPublicKeyInfo_IsValid(t *testing.T) {
 }
 
 func TestValidatorInfoUnique(t *testing.T) {
-	_, signPubKey1 := testsig.CreateSignerAndVerifier(t)
-	signPubKey1Bytes, err := signPubKey1.MarshalPublicKey()
+	_, signKey1Verifier := testsig.CreateSignerAndVerifier(t)
+	signKey1, err := signKey1Verifier.MarshalPublicKey()
 	require.NoError(t, err)
-	_, encPubKey1 := testsig.CreateSignerAndVerifier(t)
-	encPubKey1Bytes, err := encPubKey1.MarshalPublicKey()
+	_, authKey1Verifier := testsig.CreateSignerAndVerifier(t)
+	authKey1, err := authKey1Verifier.MarshalPublicKey()
 	require.NoError(t, err)
-	_, signPubKey2 := testsig.CreateSignerAndVerifier(t)
-	signPubKey2Bytes, err := signPubKey2.MarshalPublicKey()
+	_, signKey2Verifier := testsig.CreateSignerAndVerifier(t)
+	signKey2, err := signKey2Verifier.MarshalPublicKey()
 	require.NoError(t, err)
-	_, encPubKey2 := testsig.CreateSignerAndVerifier(t)
-	encPubKey2Bytes, err := encPubKey2.MarshalPublicKey()
+	_, authKey2Verifier := testsig.CreateSignerAndVerifier(t)
+	authKey2, err := authKey2Verifier.MarshalPublicKey()
 	require.NoError(t, err)
 	type args struct {
 		validators []*PublicKeyInfo
@@ -132,33 +132,33 @@ func TestValidatorInfoUnique(t *testing.T) {
 		{
 			name: "Invalid validator public key",
 			args: args{[]*PublicKeyInfo{
-				{NodeID: "1", SigningPublicKey: []byte{1, 1}, EncryptionPublicKey: []byte{1, 2}}},
+				{NodeID: "1", SignKey: []byte{1, 1}, AuthKey: []byte{1, 2}}},
 			},
 			wantErr: "pubkey must be 33 bytes long, but is 2",
 		},
 		{
 			name: "Duplicate node id",
 			args: args{[]*PublicKeyInfo{
-				{NodeID: "1", SigningPublicKey: signPubKey1Bytes, EncryptionPublicKey: encPubKey1Bytes},
-				{NodeID: "1", SigningPublicKey: signPubKey2Bytes, EncryptionPublicKey: encPubKey2Bytes}},
+				{NodeID: "1", SignKey: signKey1, AuthKey: authKey1},
+				{NodeID: "1", SignKey: signKey2, AuthKey: authKey2}},
 			},
-			wantErr: "duplicated node id:",
+			wantErr: "duplicate node id:",
 		},
 		{
-			name: "Duplicate signing pub key",
+			name: "Duplicate sign key",
 			args: args{[]*PublicKeyInfo{
-				{NodeID: "1", SigningPublicKey: signPubKey1Bytes, EncryptionPublicKey: encPubKey1Bytes},
-				{NodeID: "2", SigningPublicKey: signPubKey1Bytes, EncryptionPublicKey: encPubKey2Bytes}},
+				{NodeID: "1", SignKey: signKey1, AuthKey: authKey1},
+				{NodeID: "2", SignKey: signKey1, AuthKey: authKey2}},
 			},
-			wantErr: "duplicated node signing public key:",
+			wantErr: "duplicate node signing key:",
 		},
 		{
-			name: "Duplicate enc pub key",
+			name: "Duplicate auth key",
 			args: args{[]*PublicKeyInfo{
-				{NodeID: "1", SigningPublicKey: signPubKey1Bytes, EncryptionPublicKey: encPubKey1Bytes},
-				{NodeID: "2", SigningPublicKey: signPubKey2Bytes, EncryptionPublicKey: encPubKey1Bytes}},
+				{NodeID: "1", SignKey: signKey1, AuthKey: authKey1},
+				{NodeID: "2", SignKey: signKey2, AuthKey: authKey1}},
 			},
-			wantErr: "duplicated node encryption public key:",
+			wantErr: "duplicate node authentication key:",
 		},
 	}
 	for _, tt := range tests {
@@ -169,36 +169,36 @@ func TestValidatorInfoUnique(t *testing.T) {
 }
 
 func TestPublicKeyInfo_NodeID(t *testing.T) {
-	t.Run("Encryption key nil", func(t *testing.T) {
+	t.Run("Authentication key nil", func(t *testing.T) {
 		x := &PublicKeyInfo{
-			EncryptionPublicKey: nil,
+			AuthKey: nil,
 		}
 		id, err := x.GetNodeID()
-		require.ErrorContains(t, err, "encryption key marshal error: malformed public key: invalid length: 0")
+		require.ErrorContains(t, err, "authentication key marshal error: malformed public key: invalid length: 0")
 		require.Empty(t, id)
 	})
-	t.Run("Encryption key empty", func(t *testing.T) {
+	t.Run("Authentication key empty", func(t *testing.T) {
 		x := &PublicKeyInfo{
-			EncryptionPublicKey: make([]byte, 0),
+			AuthKey: make([]byte, 0),
 		}
 		id, err := x.GetNodeID()
-		require.ErrorContains(t, err, "encryption key marshal error: malformed public key: invalid length: 0")
+		require.ErrorContains(t, err, "authentication key marshal error: malformed public key: invalid length: 0")
 		require.Empty(t, id)
 	})
-	t.Run("Encryption key invalid", func(t *testing.T) {
+	t.Run("Authentication key invalid", func(t *testing.T) {
 		x := &PublicKeyInfo{
-			EncryptionPublicKey: []byte{1, 2, 3},
+			AuthKey: []byte{1, 2, 3},
 		}
 		id, err := x.GetNodeID()
-		require.ErrorContains(t, err, "encryption key marshal error: malformed public key: invalid length: 3")
+		require.ErrorContains(t, err, "authentication key marshal error: malformed public key: invalid length: 3")
 		require.Empty(t, id)
 	})
-	t.Run("Encryption key invalid", func(t *testing.T) {
-		_, pubKey := testsig.CreateSignerAndVerifier(t)
-		pubKeBytes, err := pubKey.MarshalPublicKey()
+	t.Run("Authentication key invalid", func(t *testing.T) {
+		_, verifier := testsig.CreateSignerAndVerifier(t)
+		authKey, err := verifier.MarshalPublicKey()
 		require.NoError(t, err)
 		x := &PublicKeyInfo{
-			EncryptionPublicKey: pubKeBytes,
+			AuthKey: authKey,
 		}
 		id, err := x.GetNodeID()
 		require.NoError(t, err)

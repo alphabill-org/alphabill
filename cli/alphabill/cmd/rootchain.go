@@ -159,7 +159,7 @@ func runRootNode(ctx context.Context, config *rootNodeConfig) error {
 	if err != nil {
 		return fmt.Errorf("partition network initialization failed: %w", err)
 	}
-	ver, err := keys.SigningPrivateKey.Verifier()
+	ver, err := keys.SignPrivKey.Verifier()
 	if err != nil {
 		return fmt.Errorf("invalid root node sign key: %w", err)
 	}
@@ -197,7 +197,7 @@ func runRootNode(ctx context.Context, config *rootNodeConfig) error {
 		trustBase,
 		orchestration,
 		rootNet,
-		keys.SigningPrivateKey,
+		keys.SignPrivKey,
 		obs,
 		consensus.WithStorage(rootStore),
 	)
@@ -250,7 +250,7 @@ func createHost(ctx context.Context, keys *Keys, cfg *rootNodeConfig) (*network.
 	if err != nil {
 		return nil, fmt.Errorf("boot nodes parameter error: %w", err)
 	}
-	keyPair, err := keys.getEncryptionKeyPair()
+	keyPair, err := keys.getAuthKeyPair()
 	if err != nil {
 		return nil, fmt.Errorf("get key pair failed: %w", err)
 	}
@@ -266,12 +266,12 @@ func verifyKeyPresentInGenesis(nodeID peer.ID, rg *genesis.GenesisRootRecord, ve
 	if nodeInfo == nil {
 		return fmt.Errorf("node id/encode key not found in genesis")
 	}
-	signPubKeyBytes, err := ver.MarshalPublicKey()
+	signKey, err := ver.MarshalPublicKey()
 	if err != nil {
 		return fmt.Errorf("invalid root node sign key: %w", err)
 	}
 	// verify that the same public key is present in the genesis file
-	if !bytes.Equal(signPubKeyBytes, nodeInfo.SigningPublicKey) {
+	if !bytes.Equal(signKey, nodeInfo.SignKey) {
 		return fmt.Errorf("signing key not found in genesis file")
 	}
 	return nil

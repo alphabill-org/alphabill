@@ -120,7 +120,7 @@ func run(ctx context.Context, node *partition.Node, rpcServerConf *rpc.ServerCon
 }
 
 func loadPeerConfiguration(keys *Keys, cfg *startNodeConfiguration) (*network.PeerConfiguration, error) {
-	pair, err := keys.getEncryptionKeyPair()
+	pair, err := keys.getAuthKeyPair()
 	if err != nil {
 		return nil, err
 	}
@@ -176,7 +176,7 @@ func createNode(ctx context.Context,
 	node, err := partition.NewNode(
 		ctx,
 		peerConf,
-		keys.SigningPrivateKey,
+		keys.SignPrivKey,
 		txs,
 		pg,
 		trustBase,

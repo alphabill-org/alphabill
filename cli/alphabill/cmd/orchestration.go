@@ -88,7 +88,7 @@ func runOrchestrationNode(ctx context.Context, cfg *orchestrationConfiguration) 
 		return fmt.Errorf("failed to load node keys: %w", err)
 	}
 
-	nodeID, err := peer.IDFromPublicKey(keys.EncryptionPrivateKey.GetPublic())
+	nodeID, err := peer.IDFromPublicKey(keys.AuthPrivKey.GetPublic())
 	if err != nil {
 		return fmt.Errorf("failed to calculate nodeID: %w", err)
 	}

@@ -1785,8 +1785,8 @@ func newVARFromGenesis(genesis *genesis.PartitionGenesis) *partitions.ValidatorA
 	for i, k := range genesis.Keys {
 		validators[i] = partitions.NodeInfo{
 			NodeID:  k.NodeID,
-			AuthKey: k.EncryptionPublicKey,
-			SigKey:  k.SigningPublicKey,
+			AuthKey: k.AuthKey,
+			SignKey: k.SignKey,
 		}
 	}
 

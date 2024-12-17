@@ -25,8 +25,8 @@ const (
 
 type (
 	Keys struct {
-		SigningPrivateKey    abcrypto.Signer
-		EncryptionPrivateKey crypto.PrivKey
+		SignPrivKey abcrypto.Signer
+		AuthPrivKey crypto.PrivKey
 	}
 
 	keysConfig struct {
@@ -38,8 +38,8 @@ type (
 	}
 
 	keyFile struct {
-		SigningPrivateKey    key `json:"signing"`
-		EncryptionPrivateKey key `json:"encryption"`
+		SignKey key `json:"signKey"`
+		AuthKey key `json:"authKey"`
 	}
 
 	key struct {
@@ -59,19 +59,19 @@ func (keysConf *keysConfig) addCmdFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVarP(&keysConf.KeyFilePath, keyFileCmdFlag, "k", "", fmt.Sprintf("path to the keys file (default: %s). If key file does not exist and flag -g is present then new keys are generated.", fullKeysFilePath))
 }
 
-// GenerateKeys generates a new signing and encryption key.
+// GenerateKeys generates a new signing and authentication key.
 func GenerateKeys() (*Keys, error) {
-	signingKey, err := abcrypto.NewInMemorySecp256K1Signer()
+	signKey, err := abcrypto.NewInMemorySecp256K1Signer()
 	if err != nil {
 		return nil, err
 	}
-	encryptionKey, _, err := crypto.GenerateSecp256k1Key(rand.Reader)
+	authPrivKey, _, err := crypto.GenerateSecp256k1Key(rand.Reader)
 	if err != nil {
 		return nil, err
 	}
 	return &Keys{
-		SigningPrivateKey:    signingKey,
-		EncryptionPrivateKey: encryptionKey,
+		SignPrivKey: signKey,
+		AuthPrivKey: authPrivKey,
 	}, nil
 }
 
@@ -82,7 +82,7 @@ func (keysConf *keysConfig) GetKeyFileLocation() string {
 	return filepath.Join(*keysConf.HomeDir, keysConf.defaultKeysRelativeFilePath)
 }
 
-// LoadKeys loads signing and encryption keys.
+// LoadKeys loads signing and authentication keys.
 func LoadKeys(file string, generateNewIfNotExist bool, overwrite bool) (*Keys, error) {
 	exists := util.FileExists(file)
 
@@ -110,34 +110,34 @@ func LoadKeys(file string, generateNewIfNotExist bool, overwrite bool) (*Keys, e
 	if err != nil {
 		return nil, err
 	}
-	if kf.SigningPrivateKey.Algorithm != secp256k1 {
-		return nil, fmt.Errorf("signing key algorithm %v is not supported", kf.SigningPrivateKey.Algorithm)
+	if kf.SignKey.Algorithm != secp256k1 {
+		return nil, fmt.Errorf("signing key algorithm %v is not supported", kf.SignKey.Algorithm)
 	}
-	if kf.EncryptionPrivateKey.Algorithm != secp256k1 {
-		return nil, fmt.Errorf("encryption key algorithm %v is not supported", kf.EncryptionPrivateKey.Algorithm)
+	if kf.AuthKey.Algorithm != secp256k1 {
+		return nil, fmt.Errorf("authentication key algorithm %v is not supported", kf.AuthKey.Algorithm)
 	}
 
-	signingKey, err := abcrypto.NewInMemorySecp256K1SignerFromKey(kf.SigningPrivateKey.PrivateKey)
+	signPrivKey, err := abcrypto.NewInMemorySecp256K1SignerFromKey(kf.SignKey.PrivateKey)
 	if err != nil {
 		return nil, fmt.Errorf("invalid signing key: %w", err)
 	}
-	encryptionKey, err := crypto.UnmarshalSecp256k1PrivateKey(kf.EncryptionPrivateKey.PrivateKey)
+	authPrivKey, err := crypto.UnmarshalSecp256k1PrivateKey(kf.AuthKey.PrivateKey)
 	if err != nil {
-		return nil, fmt.Errorf("invalid encryption key: %w", err)
+		return nil, fmt.Errorf("invalid authentication key: %w", err)
 	}
 
 	return &Keys{
-		SigningPrivateKey:    signingKey,
-		EncryptionPrivateKey: encryptionKey,
+		SignPrivKey: signPrivKey,
+		AuthPrivKey: authPrivKey,
 	}, nil
 }
 
-func (k *Keys) getEncryptionKeyPair() (*network.PeerKeyPair, error) {
-	private, err := k.EncryptionPrivateKey.Raw()
+func (k *Keys) getAuthKeyPair() (*network.PeerKeyPair, error) {
+	private, err := k.AuthPrivKey.Raw()
 	if err != nil {
 		return nil, err
 	}
-	public, err := k.EncryptionPrivateKey.GetPublic().Raw()
+	public, err := k.AuthPrivKey.GetPublic().Raw()
 	if err != nil {
 		return nil, err
 	}
@@ -148,22 +148,22 @@ func (k *Keys) getEncryptionKeyPair() (*network.PeerKeyPair, error) {
 }
 
 func (k *Keys) WriteTo(file string) error {
-	signingKeyBytes, err := k.SigningPrivateKey.MarshalPrivateKey()
+	signPrivKeyBytes, err := k.SignPrivKey.MarshalPrivateKey()
 	if err != nil {
 		return err
 	}
-	encKeyBytes, err := k.EncryptionPrivateKey.Raw()
+	authPrivKeyBytes, err := k.AuthPrivKey.Raw()
 	if err != nil {
 		return err
 	}
 	kf := &keyFile{
-		SigningPrivateKey: key{
+		SignKey: key{
 			Algorithm:  secp256k1,
-			PrivateKey: signingKeyBytes,
+			PrivateKey: signPrivKeyBytes,
 		},
-		EncryptionPrivateKey: key{
+		AuthKey: key{
 			Algorithm:  secp256k1,
-			PrivateKey: encKeyBytes,
+			PrivateKey: authPrivKeyBytes,
 		},
 	}
 	return util.WriteJsonFile(file, kf)

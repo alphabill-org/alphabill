@@ -62,7 +62,7 @@ func TestGenesisRootRecord_FindPubKeyById_Nil(t *testing.T) {
 		_, verifier := testsig.CreateSignerAndVerifier(t)
 		pubKey, err := verifier.MarshalPublicKey()
 		require.NoError(t, err)
-		pubKeyInfo[i] = &PublicKeyInfo{NodeID: fmt.Sprint(i), SigningPublicKey: pubKey, EncryptionPublicKey: pubKey}
+		pubKeyInfo[i] = &PublicKeyInfo{NodeID: fmt.Sprint(i), SignKey: pubKey, AuthKey: pubKey}
 	}
 	rg = &GenesisRootRecord{
 		Version:        1,
@@ -114,14 +114,14 @@ func TestGenesisRootRecord_IsValid(t *testing.T) {
 		{
 			name: "Consensus nil",
 			fields: fields{
-				RootValidators: []*PublicKeyInfo{{NodeID: "test", SigningPublicKey: pubKey, EncryptionPublicKey: pubKey}},
+				RootValidators: []*PublicKeyInfo{{NodeID: "test", SignKey: pubKey, AuthKey: pubKey}},
 				Consensus:      nil},
 			wantErr: ErrConsensusIsNil.Error(),
 		},
 		{
 			name: "Consensus not valid",
 			fields: fields{
-				RootValidators: []*PublicKeyInfo{{NodeID: "test", SigningPublicKey: pubKey, EncryptionPublicKey: pubKey}},
+				RootValidators: []*PublicKeyInfo{{NodeID: "test", SignKey: pubKey, AuthKey: pubKey}},
 				Consensus: &ConsensusParams{
 					Version:             1,
 					TotalRootValidators: totalNodes,
@@ -133,7 +133,7 @@ func TestGenesisRootRecord_IsValid(t *testing.T) {
 		{
 			name: "Not signed by validator",
 			fields: fields{
-				RootValidators: []*PublicKeyInfo{{NodeID: "test", SigningPublicKey: pubKey, EncryptionPublicKey: pubKey}},
+				RootValidators: []*PublicKeyInfo{{NodeID: "test", SignKey: pubKey, AuthKey: pubKey}},
 				Consensus: &ConsensusParams{
 					Version:             1,
 					TotalRootValidators: totalNodes,
@@ -146,8 +146,8 @@ func TestGenesisRootRecord_IsValid(t *testing.T) {
 			name: "Not signed by all validators",
 			fields: fields{
 				RootValidators: []*PublicKeyInfo{
-					{NodeID: "test", SigningPublicKey: pubKey, EncryptionPublicKey: pubKey},
-					{NodeID: "xxx", SigningPublicKey: pubKey2, EncryptionPublicKey: pubKey2},
+					{NodeID: "test", SignKey: pubKey, AuthKey: pubKey},
+					{NodeID: "xxx", SignKey: pubKey2, AuthKey: pubKey2},
 				},
 				Consensus: consensus},
 			wantErr: "consensus parameters is not signed by all validators",
@@ -156,18 +156,18 @@ func TestGenesisRootRecord_IsValid(t *testing.T) {
 			name: "Duplicate validators",
 			fields: fields{
 				RootValidators: []*PublicKeyInfo{
-					{NodeID: "test", SigningPublicKey: pubKey, EncryptionPublicKey: pubKey},
-					{NodeID: "test", SigningPublicKey: pubKey, EncryptionPublicKey: pubKey},
-					{NodeID: "test", SigningPublicKey: pubKey, EncryptionPublicKey: pubKey},
-					{NodeID: "test", SigningPublicKey: pubKey, EncryptionPublicKey: pubKey},
+					{NodeID: "test", SignKey: pubKey, AuthKey: pubKey},
+					{NodeID: "test", SignKey: pubKey, AuthKey: pubKey},
+					{NodeID: "test", SignKey: pubKey, AuthKey: pubKey},
+					{NodeID: "test", SignKey: pubKey, AuthKey: pubKey},
 				},
 				Consensus: consensus},
-			wantErr: "duplicated node id: test",
+			wantErr: "duplicate node id: test",
 		},
 		{
 			name: "Unknown validator",
 			fields: fields{
-				RootValidators: []*PublicKeyInfo{{NodeID: "t", SigningPublicKey: pubKey, EncryptionPublicKey: pubKey}},
+				RootValidators: []*PublicKeyInfo{{NodeID: "t", SignKey: pubKey, AuthKey: pubKey}},
 				Consensus:      consensus},
 			wantErr: "consensus parameters signed by unknown validator:",
 		},
@@ -202,7 +202,7 @@ func TestGenesisRootRecord_IsValidMissingPublicKeyInfo(t *testing.T) {
 	require.NoError(t, err)
 	x := &GenesisRootRecord{
 		Version:        1,
-		RootValidators: []*PublicKeyInfo{{NodeID: "test", SigningPublicKey: pubKey, EncryptionPublicKey: pubKey}},
+		RootValidators: []*PublicKeyInfo{{NodeID: "test", SignKey: pubKey, AuthKey: pubKey}},
 		Consensus:      consensus,
 	}
 	require.ErrorContains(t, x.IsValid(), "consensus parameters signed by unknown validator")
@@ -230,7 +230,7 @@ func TestGenesisRootRecord_VerifyOk(t *testing.T) {
 		require.NoError(t, err)
 		pubKey, err := verifier.MarshalPublicKey()
 		require.NoError(t, err)
-		pubKeyInfo[i] = &PublicKeyInfo{NodeID: fmt.Sprint(i), SigningPublicKey: pubKey, EncryptionPublicKey: pubKey}
+		pubKeyInfo[i] = &PublicKeyInfo{NodeID: fmt.Sprint(i), SignKey: pubKey, AuthKey: pubKey}
 	}
 	var x *GenesisRootRecord
 	t.Run("Verify", func(t *testing.T) {
@@ -267,7 +267,7 @@ func TestGenesisRootRecord_VerifyErrNoteSignedByAll(t *testing.T) {
 		require.NoError(t, err)
 		pubKey, err := verifier.MarshalPublicKey()
 		require.NoError(t, err)
-		pubKeyInfo[i] = &PublicKeyInfo{NodeID: fmt.Sprint(i), SigningPublicKey: pubKey, EncryptionPublicKey: pubKey}
+		pubKeyInfo[i] = &PublicKeyInfo{NodeID: fmt.Sprint(i), SignKey: pubKey, AuthKey: pubKey}
 	}
 	// remove one signature
 	delete(consensus.Signatures, pubKeyInfo[0].NodeID)
@@ -294,7 +294,7 @@ func TestGenesisRootRecord_Verify(t *testing.T) {
 		require.NoError(t, err)
 		pubKey, err := verifier.MarshalPublicKey()
 		require.NoError(t, err)
-		pubKeyInfo[i] = &PublicKeyInfo{NodeID: fmt.Sprint(i), SigningPublicKey: pubKey, EncryptionPublicKey: pubKey}
+		pubKeyInfo[i] = &PublicKeyInfo{NodeID: fmt.Sprint(i), SignKey: pubKey, AuthKey: pubKey}
 	}
 
 	type fields struct {

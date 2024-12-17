@@ -56,7 +56,7 @@ func createVARWithNewNode(t *testing.T, prev *partitions.ValidatorAssignmentReco
 	nodes := append(prev.Nodes, partitions.NodeInfo{
 		NodeID: peerConf.ID.String(),
 		AuthKey: peerConf.KeyPair.PublicKey,
-		SigKey: signKey,
+		SignKey: signKey,
 	})
 
 	return &partitions.ValidatorAssignmentRecord{

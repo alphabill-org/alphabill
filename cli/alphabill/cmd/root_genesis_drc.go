@@ -115,20 +115,20 @@ func signRootGenesisRunFunc(config *signGenesisConfig) error {
 	if err != nil {
 		return fmt.Errorf("failed to read root chain keys from file '%s': %w", config.Keys.GetKeyFileLocation(), err)
 	}
-	peerID, err := peer.IDFromPublicKey(keys.EncryptionPrivateKey.GetPublic())
+	peerID, err := peer.IDFromPublicKey(keys.AuthPrivKey.GetPublic())
 	if err != nil {
 		return fmt.Errorf("failed to extract peer id from key file '%s': %w", config.Keys.GetKeyFileLocation(), err)
 	}
-	encPubKeyBytes, err := keys.EncryptionPrivateKey.GetPublic().Raw()
+	authKey, err := keys.AuthPrivKey.GetPublic().Raw()
 	if err != nil {
-		return fmt.Errorf("failed to extract encryption public key from key file '%s': %w", config.Keys.GetKeyFileLocation(), err)
+		return fmt.Errorf("failed to extract authentication public key from key file '%s': %w", config.Keys.GetKeyFileLocation(), err)
 	}
 	rg, err := util.ReadJsonFile(config.RootGenesisFile, &genesis.RootGenesis{Version: 1})
 	if err != nil {
 		return fmt.Errorf("root genesis file '%s' read error: %w", config.RootGenesisFile, err)
 	}
 	// Combine root genesis files to single distributed genesis file
-	rg, err = rootgenesis.RootGenesisAddSignature(rg, peerID.String(), keys.SigningPrivateKey, encPubKeyBytes)
+	rg, err = rootgenesis.RootGenesisAddSignature(rg, peerID.String(), keys.SignPrivKey, authKey)
 	if err != nil {
 		return fmt.Errorf("root genesis add signature failed: %w", err)
 	}

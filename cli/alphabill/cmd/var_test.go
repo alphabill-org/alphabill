@@ -38,8 +38,8 @@ func Test_VAR_Generate(t *testing.T) {
 		require.Equal(t, uint64(100), rec.RoundNumber)
 		require.Len(t, rec.Nodes, 1)
 		require.Equal(t, nodeGenesis.NodeID, rec.Nodes[0].NodeID)
-		require.EqualValues(t, nodeGenesis.SigningPublicKey, rec.Nodes[0].SigKey)
-		require.EqualValues(t, nodeGenesis.EncryptionPublicKey, rec.Nodes[0].AuthKey)
+		require.EqualValues(t, nodeGenesis.SignKey, rec.Nodes[0].SignKey)
+		require.EqualValues(t, nodeGenesis.AuthKey, rec.Nodes[0].AuthKey)
 	})
 
 	t.Run("multiple node genesis files for different networks nok", func(t *testing.T) {
@@ -80,10 +80,10 @@ func newNodeGenesisFile(t *testing.T, networkID types.NetworkID, partitionID typ
 	require.NoError(t, err)
 
 	nodeGenesis := &genesis.PartitionNode{
-		Version:             1,
-		NodeID:              testNode.PeerConf.ID.String(),
-		SigningPublicKey:    sigPubKey,
-		EncryptionPublicKey: authPubKey,
+		Version: 1,
+		NodeID:  testNode.PeerConf.ID.String(),
+		SignKey: sigPubKey,
+		AuthKey: authPubKey,
 		PartitionDescriptionRecord: types.PartitionDescriptionRecord{
 			Version:     1,
 			NetworkID:   networkID,

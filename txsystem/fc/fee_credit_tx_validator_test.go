@@ -12,11 +12,9 @@ import (
 )
 
 var (
-	moneyPartitionID        types.PartitionID = 0x00000001
-	recordID                                  = []byte{0}
-	feeProof                                  = []byte{1}
-	ownerPredicate                            = []byte{2}
-	feeCreditRecordUnitType                   = []byte{0xff}
+	moneyPartitionID types.PartitionID = 0x00000001
+	recordID                           = []byte{0}
+	feeProof                           = []byte{1}
 )
 
 type testData struct {
@@ -128,7 +126,13 @@ func TestValidateCloseFC(t *testing.T) {
 }
 
 func Test_parseFeeCreditRecord(t *testing.T) {
-	feeCreditRecordUnitType = []byte{0x0a}
+	const feeCreditRecordUnitType = 0x0a
+	pdr := types.PartitionDescriptionRecord{
+		UnitIDLen: 32 * 8,
+		TypeIDLen: 8,
+	}
+	fcrID, err := pdr.ComposeUnitID(types.ShardID{}, feeCreditRecordUnitType, func(b []byte) error { return nil })
+	require.NoError(t, err)
 
 	t.Run("ok", func(t *testing.T) {
 		s := state.NewEmptyState()
@@ -136,38 +140,35 @@ func Test_parseFeeCreditRecord(t *testing.T) {
 			Balance:        1,
 			Counter:        10,
 			MinLifetime:    2,
-			OwnerPredicate: ownerPredicate,
+			OwnerPredicate: []byte{2},
 		}
-		unitPart := []byte{1}
-		fcrID := types.NewUnitID(33, nil, unitPart, feeCreditRecordUnitType)
 		require.NoError(t, s.Apply(state.AddUnit(fcrID, fcr)))
-		unitData, err := parseFeeCreditRecord(fcrID, feeCreditRecordUnitType, s)
+		unitData, err := parseFeeCreditRecord(&pdr, fcrID, feeCreditRecordUnitType, s)
 		require.NoError(t, err)
 		require.EqualValues(t, fcr, unitData)
 	})
+
 	t.Run("unit id is not fee credit type", func(t *testing.T) {
 		s := state.NewEmptyState()
 		unitID := []byte{1}
 		require.NoError(t, s.Apply(state.AddUnit(unitID, &fc.FeeCreditRecord{})))
-		unitData, err := parseFeeCreditRecord(unitID, feeCreditRecordUnitType, s)
+		unitData, err := parseFeeCreditRecord(&pdr, unitID, feeCreditRecordUnitType, s)
 		require.EqualError(t, err, "invalid unit identifier: type is not fee credit record")
 		require.Nil(t, unitData)
 	})
+
 	t.Run("fcr unit not found", func(t *testing.T) {
 		s := state.NewEmptyState()
-		unitPart := []byte{1}
-		fcrID := types.NewUnitID(33, nil, unitPart, feeCreditRecordUnitType)
-		unitData, err := parseFeeCreditRecord(fcrID, feeCreditRecordUnitType, s)
-		require.EqualError(t, err, "get fcr unit error: item 00000000000000000000000000000000000000000000000000000000000000010A does not exist: not found")
+		unitData, err := parseFeeCreditRecord(&pdr, fcrID, feeCreditRecordUnitType, s)
+		require.EqualError(t, err, "get fcr unit error: item 00000000000000000000000000000000000000000000000000000000000000000A does not exist: not found")
 		require.Nil(t, unitData)
 	})
+
 	t.Run("unit data is not of type fee credit", func(t *testing.T) {
 		s := state.NewEmptyState()
 		fcr := &testData{}
-		unitPart := []byte{1}
-		fcrID := types.NewUnitID(33, nil, unitPart, feeCreditRecordUnitType)
 		require.NoError(t, s.Apply(state.AddUnit(fcrID, fcr)))
-		unitData, err := parseFeeCreditRecord(fcrID, feeCreditRecordUnitType, s)
+		unitData, err := parseFeeCreditRecord(&pdr, fcrID, feeCreditRecordUnitType, s)
 		require.EqualError(t, err, "invalid unit type: unit is not fee credit record")
 		require.Nil(t, unitData)
 	})

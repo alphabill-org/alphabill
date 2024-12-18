@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
+	moneyid "github.com/alphabill-org/alphabill-go-base/testutils/money"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/txsystem/fc/testutils"
 	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
@@ -15,6 +16,7 @@ func TestTxRecording(t *testing.T) {
 	const unknownPartitionID types.PartitionID = 0x01020304
 	f := newFeeCreditTxRecorder(nil, 0, nil)
 	signer, _ := abcrypto.NewInMemorySecp256K1Signer()
+	pdr := moneyid.PDR()
 
 	transferFCAmount := uint64(10)
 	transferFCFee := uint64(1)
@@ -42,10 +44,10 @@ func TestTxRecording(t *testing.T) {
 			ServerMetadata:   &types.ServerMetadata{ActualFee: closeFCFee},
 		},
 	})
-	newReclaimFCAttr := testutils.NewReclaimFCAttr(t, signer, closureTx)
+	newReclaimFCAttr := testutils.NewReclaimFCAttr(t, &pdr, signer, closureTx)
 	f.recordReclaimFC(
 		&reclaimFeeCreditTx{
-			tx:            testutils.NewReclaimFC(t, signer, newReclaimFCAttr, testtransaction.WithPartitionID(moneyPartitionID)),
+			tx:            testutils.NewReclaimFC(t, &pdr, signer, newReclaimFCAttr, testtransaction.WithPartitionID(moneyPartitionID)),
 			attr:          newReclaimFCAttr,
 			reclaimAmount: closeFCAttr.Amount - closeFCFee,
 			reclaimFee:    reclaimFCFee,

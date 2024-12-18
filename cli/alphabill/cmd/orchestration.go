@@ -66,7 +66,9 @@ func runOrchestrationNode(ctx context.Context, cfg *orchestrationConfiguration) 
 	if stateFilePath == "" {
 		stateFilePath = filepath.Join(cfg.Base.HomeDir, orchestrationPartitionDir, orchestrationGenesisFileName)
 	}
-	state, err := loadStateFile(stateFilePath, sdkorchestration.NewVarData)
+	state, err := loadStateFile(stateFilePath, func(ui types.UnitID) (types.UnitData, error) {
+		return sdkorchestration.NewUnitData(ui, pg.PartitionDescription)
+	})
 	if err != nil {
 		return fmt.Errorf("loading state (file %s): %w", cfg.Node.StateFile, err)
 	}

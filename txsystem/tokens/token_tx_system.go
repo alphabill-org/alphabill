@@ -45,15 +45,15 @@ func NewTxSystem(pdr basetypes.PartitionDescriptionRecord, shardID basetypes.Sha
 		return nil, errors.New(ErrStrStateIsNil)
 	}
 
-	nft, err := NewNonFungibleTokensModule(options)
+	nft, err := NewNonFungibleTokensModule(pdr, options)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load NFT module: %w", err)
 	}
-	fungible, err := NewFungibleTokensModule(options)
+	fungible, err := NewFungibleTokensModule(pdr, options)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load fungible tokens module: %w", err)
 	}
-	lockTokens, err := NewLockTokensModule(options)
+	lockTokens, err := NewLockTokensModule(pdr, options)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load lock tokens module: %w", err)
 	}
@@ -61,7 +61,7 @@ func NewTxSystem(pdr basetypes.PartitionDescriptionRecord, shardID basetypes.Sha
 	var feeCreditModule txtypes.FeeCreditModule
 	if len(options.adminOwnerPredicate) > 0 {
 		feeCreditModule, err = permissioned.NewFeeCreditModule(
-			pdr.NetworkID, pdr.PartitionID, options.state, tokens.FeeCreditRecordUnitType, options.adminOwnerPredicate,
+			pdr, options.state, tokens.FeeCreditRecordUnitType, options.adminOwnerPredicate,
 			permissioned.WithHashAlgorithm(options.hashAlgorithm),
 			permissioned.WithFeelessMode(options.feelessMode),
 		)
@@ -69,7 +69,7 @@ func NewTxSystem(pdr basetypes.PartitionDescriptionRecord, shardID basetypes.Sha
 			return nil, fmt.Errorf("failed to load permissioned fee credit module: %w", err)
 		}
 	} else {
-		feeCreditModule, err = fc.NewFeeCreditModule(pdr.NetworkID, pdr.PartitionID, options.moneyPartitionID, options.state, options.trustBase,
+		feeCreditModule, err = fc.NewFeeCreditModule(pdr, options.moneyPartitionID, options.state, options.trustBase,
 			fc.WithHashAlgorithm(options.hashAlgorithm),
 			fc.WithFeeCreditRecordUnitType(tokens.FeeCreditRecordUnitType),
 		)

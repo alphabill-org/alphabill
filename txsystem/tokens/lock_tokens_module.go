@@ -4,6 +4,7 @@ import (
 	"crypto"
 
 	"github.com/alphabill-org/alphabill-go-base/txsystem/tokens"
+	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/state"
 	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
@@ -15,13 +16,15 @@ type LockTokensModule struct {
 	state         *state.State
 	hashAlgorithm crypto.Hash
 	execPredicate predicates.PredicateRunner
+	pdr           types.PartitionDescriptionRecord
 }
 
-func NewLockTokensModule(options *Options) (*LockTokensModule, error) {
+func NewLockTokensModule(pdr types.PartitionDescriptionRecord, options *Options) (*LockTokensModule, error) {
 	return &LockTokensModule{
 		state:         options.state,
 		hashAlgorithm: options.hashAlgorithm,
 		execPredicate: predicates.NewPredicateRunner(options.exec),
+		pdr:           pdr,
 	}, nil
 }
 

@@ -21,32 +21,30 @@ const (
 var _ txtypes.FeeCreditModule = (*FeeCreditModule)(nil)
 
 var (
-	ErrNetworkIDMissing = errors.New("network identifier is missing")
-	ErrPartitionIDMissing       = errors.New("partition identifier is missing")
-	ErrMoneyPartitionIDMissing  = errors.New("money transaction partition identifier is missing")
-	ErrStateIsNil               = errors.New("state is nil")
-	ErrTrustBaseIsNil           = errors.New("trust base is nil")
+	ErrNetworkIDMissing        = errors.New("network identifier is missing")
+	ErrPartitionIDMissing      = errors.New("partition identifier is missing")
+	ErrMoneyPartitionIDMissing = errors.New("money transaction partition identifier is missing")
+	ErrStateIsNil              = errors.New("state is nil")
+	ErrTrustBaseIsNil          = errors.New("trust base is nil")
 )
 
 type (
 	// FeeCreditModule contains fee credit related functionality.
 	FeeCreditModule struct {
-		networkID               types.NetworkID
-		partitionID             types.PartitionID
 		moneyPartitionID        types.PartitionID
 		state                   *state.State
 		hashAlgorithm           crypto.Hash
 		trustBase               types.RootTrustBase
 		execPredicate           predicates.PredicateRunner
 		feeBalanceValidator     *FeeBalanceValidator
-		feeCreditRecordUnitType []byte
+		feeCreditRecordUnitType uint32
+		pdr                     types.PartitionDescriptionRecord
 	}
 )
 
-func NewFeeCreditModule(networkID types.NetworkID, partitionID types.PartitionID, moneyPartitionID types.PartitionID, state *state.State, trustBase types.RootTrustBase, opts ...Option) (*FeeCreditModule, error) {
+func NewFeeCreditModule(pdr types.PartitionDescriptionRecord, moneyPartitionID types.PartitionID, state *state.State, trustBase types.RootTrustBase, opts ...Option) (*FeeCreditModule, error) {
 	m := &FeeCreditModule{
-		networkID:        networkID,
-		partitionID:      partitionID,
+		pdr:              pdr,
 		moneyPartitionID: moneyPartitionID,
 		state:            state,
 		trustBase:        trustBase,
@@ -63,7 +61,7 @@ func NewFeeCreditModule(networkID types.NetworkID, partitionID types.PartitionID
 		m.execPredicate = predicates.NewPredicateRunner(predEng.Execute)
 	}
 	if m.feeBalanceValidator == nil {
-		m.feeBalanceValidator = NewFeeBalanceValidator(m.state, m.execPredicate, m.feeCreditRecordUnitType)
+		m.feeBalanceValidator = NewFeeBalanceValidator(m.pdr, m.state, m.execPredicate, m.feeCreditRecordUnitType)
 	}
 	if err := m.IsValid(); err != nil {
 		return nil, fmt.Errorf("invalid fee credit module configuration: %w", err)
@@ -98,11 +96,8 @@ func (f *FeeCreditModule) IsFeeCreditTx(tx *types.TransactionOrder) bool {
 }
 
 func (f *FeeCreditModule) IsValid() error {
-	if f.networkID == 0 {
-		return ErrNetworkIDMissing
-	}
-	if f.partitionID == 0 {
-		return ErrPartitionIDMissing
+	if err := f.pdr.IsValid(); err != nil {
+		return fmt.Errorf("invalid PDR: %w", err)
 	}
 	if f.moneyPartitionID == 0 {
 		return ErrMoneyPartitionIDMissing

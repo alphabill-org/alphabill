@@ -28,13 +28,13 @@ func (m *FungibleTokensModule) validateMintFT(tx *types.TransactionOrder, attr *
 	tokenTypeID := attr.TypeID
 
 	// verify tx.unitID (new token id) has correct embedded type
-	if !tokenID.HasType(tokens.FungibleTokenUnitType) {
-		return errors.New(ErrStrInvalidUnitID)
+	if err := tokenID.TypeMustBe(tokens.FungibleTokenUnitType, &m.pdr); err != nil {
+		return fmt.Errorf("invalid unit ID: %w", err)
 	}
 
 	// verify token type has correct embedded type
-	if !tokenTypeID.HasType(tokens.FungibleTokenTypeUnitType) {
-		return errors.New(ErrStrInvalidTokenTypeID)
+	if err := tokenTypeID.TypeMustBe(tokens.FungibleTokenTypeUnitType, &m.pdr); err != nil {
+		return fmt.Errorf("invalid token type: %w", err)
 	}
 
 	// verify token does not exist yet
@@ -65,11 +65,10 @@ func (m *FungibleTokensModule) validateMintFT(tx *types.TransactionOrder, attr *
 	}
 
 	// verify token id is correctly generated
-	unitPart, err := tokens.HashForNewTokenID(tx, m.hashAlgorithm)
+	newTokenID, err := m.pdr.ComposeUnitID(types.ShardID{}, tokens.FungibleTokenUnitType, tokens.PrndSh(tx))
 	if err != nil {
 		return err
 	}
-	newTokenID := tokens.NewFungibleTokenID(tokenTypeID, unitPart)
 	if !newTokenID.Eq(tokenID) {
 		return errors.New("invalid token id")
 	}

@@ -16,6 +16,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
 
+	orchid "github.com/alphabill-org/alphabill-go-base/testutils/orchestration"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/orchestration"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/util"
@@ -37,12 +38,12 @@ func TestRunOrchestrationNode_Ok(t *testing.T) {
 	partitionGenesisFileLocation := filepath.Join(homeDir, "partition-genesis.json")
 	trustBaseFileLocation := filepath.Join(homeDir, rootTrustBaseFileName)
 	pdr := types.PartitionDescriptionRecord{
-		Version:           1,
-		NetworkID: 5,
-		PartitionID:       orchestration.DefaultPartitionID,
-		TypeIDLen:         8,
-		UnitIDLen:         256,
-		T2Timeout:         2500 * time.Millisecond,
+		Version:     1,
+		NetworkID:   5,
+		PartitionID: orchestration.DefaultPartitionID,
+		TypeIDLen:   8,
+		UnitIDLen:   256,
+		T2Timeout:   2500 * time.Millisecond,
 	}
 	pdrFilename := filepath.Join(homeDir, "pdr.json")
 	require.NoError(t, util.WriteJsonFile(pdrFilename, &pdr))
@@ -128,11 +129,13 @@ func TestRunOrchestrationNode_Ok(t *testing.T) {
 		attr := &orchestration.AddVarAttributes{}
 		attrBytes, err := types.Cbor.Marshal(attr)
 		require.NoError(t, err)
+		varID, err := pdr.ComposeUnitID(types.ShardID{}, orchestration.VarUnitType, orchid.Random)
+		require.NoError(t, err)
 		tx := &types.TransactionOrder{
 			Version: 1,
 			Payload: types.Payload{
 				Type:           orchestration.TransactionTypeAddVAR,
-				UnitID:         orchestration.NewVarID(nil, testutils.RandomBytes(32)),
+				UnitID:         varID,
 				ClientMetadata: &types.ClientMetadata{Timeout: 10},
 				PartitionID:    orchestration.DefaultPartitionID,
 				Attributes:     attrBytes,

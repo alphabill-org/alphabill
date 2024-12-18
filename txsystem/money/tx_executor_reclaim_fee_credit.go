@@ -84,8 +84,8 @@ func (m *Module) validateReclaimFCTx(tx *types.TransactionOrder, attr *fc.Reclai
 	if err = txo.UnmarshalAttributes(closeFCAttr); err != nil {
 		return fmt.Errorf("invalid close fee credit attributes: %w", err)
 	}
-	if m.networkID != txo.NetworkID {
-		return fmt.Errorf("invalid network id: %d (expected %d)", txo.NetworkID, m.networkID)
+	if m.pdr.NetworkID != txo.NetworkID {
+		return fmt.Errorf("invalid network id: %d (expected %d)", txo.NetworkID, m.pdr.NetworkID)
 	}
 	if !bytes.Equal(tx.UnitID, closeFCAttr.TargetUnitID) {
 		return ErrReclaimFCInvalidTargetUnit

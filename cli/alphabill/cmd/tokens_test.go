@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	ethrpc "github.com/ethereum/go-ethereum/rpc"
 	"github.com/libp2p/go-libp2p/core/crypto"
@@ -19,6 +18,7 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/tokens"
 	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	"github.com/alphabill-org/alphabill-go-base/util"
 
 	test "github.com/alphabill-org/alphabill/internal/testutils"
@@ -39,12 +39,12 @@ func TestRunTokensNode(t *testing.T) {
 	partitionGenesisFileLocation := filepath.Join(homeDir, "partition-genesis.json")
 	trustBaseFileLocation := filepath.Join(homeDir, rootTrustBaseFileName)
 	pdr := types.PartitionDescriptionRecord{
-		Version:             1,
+		Version:     1,
 		NetworkID:   5,
 		PartitionID: tokens.DefaultPartitionID,
-		TypeIDLen:           8,
-		UnitIDLen:           256,
-		T2Timeout:           2500 * time.Millisecond,
+		TypeIDLen:   8,
+		UnitIDLen:   256,
+		T2Timeout:   2500 * time.Millisecond,
 	}
 	pdrFilename := filepath.Join(homeDir, "pdr.json")
 	require.NoError(t, util.WriteJsonFile(pdrFilename, &pdr))
@@ -121,7 +121,6 @@ func TestRunTokensNode(t *testing.T) {
 
 		// Test
 		// green path
-		id := tokens.NewNonFungibleTokenTypeID(nil, test.RandomBytes(32))
 		attr := &tokens.DefineNonFungibleTokenAttributes{
 			Symbol:                   "Test",
 			ParentTypeID:             []byte{0},
@@ -135,13 +134,14 @@ func TestRunTokensNode(t *testing.T) {
 		tx := &types.TransactionOrder{
 			Version: 1,
 			Payload: types.Payload{
-				PartitionID:    tokens.DefaultPartitionID,
+				NetworkID:      pdr.NetworkID,
+				PartitionID:    pdr.PartitionID,
 				Type:           tokens.TransactionTypeDefineNFT,
-				UnitID:         id[:],
 				Attributes:     attrBytes,
 				ClientMetadata: &types.ClientMetadata{Timeout: 10},
 			},
 		}
+		require.NoError(t, tokens.GenerateUnitID(tx, types.ShardID{}, &pdr))
 		txBytes, err := types.Cbor.Marshal(tx)
 		require.NoError(t, err)
 		var res hex.Bytes

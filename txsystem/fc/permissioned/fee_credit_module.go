@@ -17,7 +17,7 @@ import (
 var _ txtypes.FeeCreditModule = (*FeeCreditModule)(nil)
 
 var (
-	ErrMissingNetworkID       = errors.New("network identifier is missing")
+	ErrMissingNetworkID               = errors.New("network identifier is missing")
 	ErrMissingPartitionID             = errors.New("partition identifier is missing")
 	ErrStateIsNil                     = errors.New("state is nil")
 	ErrMissingFeeCreditRecordUnitType = errors.New("fee credit record unit type is missing")
@@ -39,35 +39,31 @@ In normal mode the non-fee transaction costs are calculated normally.
 In feeless mode the non-fee transactions are "free" i.e. no actual fees are charged.
 */
 type FeeCreditModule struct {
-	networkID               types.NetworkID
-	partitionID             types.PartitionID
 	state                   *state.State
 	hashAlgorithm           crypto.Hash
 	execPredicate           predicates.PredicateRunner
-	feeCreditRecordUnitType []byte
+	feeCreditRecordUnitType uint32
 	feeBalanceValidator     *feeModule.FeeBalanceValidator
 	adminOwnerPredicate     types.PredicateBytes
 	feelessMode             bool
+	pdr                     types.PartitionDescriptionRecord
 }
 
-func NewFeeCreditModule(networkID types.NetworkID, partitionID types.PartitionID, state *state.State, feeCreditRecordUnitType []byte, adminOwnerPredicate []byte, opts ...Option) (*FeeCreditModule, error) {
-	if networkID == 0 {
-		return nil, ErrMissingPartitionID
-	}
-	if partitionID == 0 {
-		return nil, ErrMissingPartitionID
+func NewFeeCreditModule(pdr types.PartitionDescriptionRecord, state *state.State, feeCreditRecordUnitType uint32, adminOwnerPredicate []byte, opts ...Option) (*FeeCreditModule, error) {
+	if err := pdr.IsValid(); err != nil {
+		return nil, fmt.Errorf("invalid target PDR: %w", err)
 	}
 	if state == nil {
 		return nil, ErrStateIsNil
 	}
-	if len(feeCreditRecordUnitType) == 0 {
+	if feeCreditRecordUnitType == 0 {
 		return nil, ErrMissingFeeCreditRecordUnitType
 	}
 	if len(adminOwnerPredicate) == 0 {
 		return nil, ErrMissingAdminOwnerPredicate
 	}
 	m := &FeeCreditModule{
-		partitionID:     partitionID,
+		pdr:                     pdr,
 		state:                   state,
 		feeCreditRecordUnitType: feeCreditRecordUnitType,
 		adminOwnerPredicate:     adminOwnerPredicate,
@@ -84,7 +80,7 @@ func NewFeeCreditModule(networkID types.NetworkID, partitionID types.PartitionID
 		m.execPredicate = predicates.NewPredicateRunner(predEng.Execute)
 	}
 	if m.feeBalanceValidator == nil {
-		m.feeBalanceValidator = feeModule.NewFeeBalanceValidator(m.state, m.execPredicate, m.feeCreditRecordUnitType)
+		m.feeBalanceValidator = feeModule.NewFeeBalanceValidator(m.pdr, m.state, m.execPredicate, m.feeCreditRecordUnitType)
 	}
 	return m, nil
 }

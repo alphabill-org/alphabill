@@ -20,7 +20,7 @@ func (f *FeeCreditModule) validateDeleteFC(tx *types.TransactionOrder, attr *per
 
 	// verify unit id has the correct type byte
 	unitID := tx.GetUnitID()
-	if ok := unitID.HasType(f.feeCreditRecordUnitType); !ok {
+	if err := unitID.TypeMustBe(f.feeCreditRecordUnitType, &f.pdr); err != nil {
 		return fmt.Errorf("invalid unit type for unitID: %s", unitID)
 	}
 

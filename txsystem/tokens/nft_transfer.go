@@ -34,8 +34,8 @@ func (n *NonFungibleTokensModule) executeTransferNFT(tx *types.TransactionOrder,
 
 func (n *NonFungibleTokensModule) validateTransferNFT(tx *types.TransactionOrder, attr *tokens.TransferNonFungibleTokenAttributes, authProof *tokens.TransferNonFungibleTokenAuthProof, exeCtx txtypes.ExecutionContext) error {
 	unitID := tx.GetUnitID()
-	if !unitID.HasType(tokens.NonFungibleTokenUnitType) {
-		return errors.New(ErrStrInvalidUnitID)
+	if err := unitID.TypeMustBe(tokens.NonFungibleTokenUnitType, &n.pdr); err != nil {
+		return fmt.Errorf("invalid type ID: %w", err)
 	}
 	u, err := n.state.GetUnit(unitID, false)
 	if err != nil {

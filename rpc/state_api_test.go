@@ -27,8 +27,6 @@ import (
 	"github.com/alphabill-org/alphabill/txsystem"
 )
 
-var unitID = types.NewUnitID(33, nil, []byte{5}, []byte{0xFF})
-
 func TestGetRoundNumber(t *testing.T) {
 	observe := testobservability.Default(t)
 	node := &MockNode{}
@@ -53,9 +51,10 @@ func TestGetRoundNumber(t *testing.T) {
 
 func TestGetUnit(t *testing.T) {
 	observe := testobservability.Default(t)
+	unitID := test.RandomBytes(33)
 	node := &MockNode{
 		txs: &testtxsystem.CounterTxSystem{
-			FixedState: prepareState(t),
+			FixedState: prepareState(t, unitID),
 		},
 	}
 	api := NewStateAPI(node, nil, observe)
@@ -120,19 +119,31 @@ func TestGetUnitsByOwnerID(t *testing.T) {
 
 func TestSendTransaction(t *testing.T) {
 	observe := testobservability.Default(t)
-	node := &MockNode{}
-	api := NewStateAPI(node, nil, observe)
 
 	t.Run("ok", func(t *testing.T) {
+		node := &MockNode{}
+		api := NewStateAPI(node, nil, observe)
 		tx := createTransactionOrder(t, []byte{1})
 		txHash, err := api.SendTransaction(context.Background(), tx)
 		require.NoError(t, err)
 		require.NotNil(t, txHash)
 	})
+
 	t.Run("err", func(t *testing.T) {
+		expErr := errors.New("failed to process tx")
+		failingUnitID := test.RandomBytes(33)
+		node := &MockNode{
+			onSubmitTx: func(ctx context.Context, to *types.TransactionOrder) ([]byte, error) {
+				if bytes.Equal(to.UnitID, failingUnitID) {
+					return nil, expErr
+				}
+				return nil, nil
+			},
+		}
+		api := NewStateAPI(node, nil, observe)
 		tx := createTransactionOrder(t, failingUnitID)
 		txHash, err := api.SendTransaction(context.Background(), tx)
-		require.ErrorContains(t, err, "failed")
+		require.ErrorIs(t, err, expErr)
 		require.Nil(t, txHash)
 	})
 }
@@ -219,7 +230,7 @@ func TestGetTrustBase(t *testing.T) {
 	})
 }
 
-func prepareState(t *testing.T) *state.State {
+func prepareState(t *testing.T, unitID types.UnitID) *state.State {
 	s := state.NewEmptyState()
 	require.NoError(t, s.Apply(
 		state.AddUnit(unitID, &unitData{I: 10, O: templates.AlwaysTrueBytes()}),
@@ -266,8 +277,6 @@ func (ud *unitData) Owner() []byte {
 	return ud.O
 }
 
-var failingUnitID = types.NewUnitID(33, nil, []byte{5}, []byte{1})
-
 type (
 	MockNode struct {
 		maxBlockNumber uint64
@@ -276,6 +285,8 @@ type (
 		err            error
 		txs            txsystem.TransactionSystem
 		trustBase      types.RootTrustBase
+
+		onSubmitTx func(context.Context, *types.TransactionOrder) ([]byte, error)
 	}
 
 	MockOwnerIndex struct {
@@ -295,10 +306,11 @@ func (mn *MockNode) GetTransactionRecordProof(_ context.Context, hash []byte) (*
 	return &types.TxRecordProof{}, nil
 }
 
-func (mn *MockNode) SubmitTx(_ context.Context, tx *types.TransactionOrder) ([]byte, error) {
-	if bytes.Equal(tx.UnitID, failingUnitID) {
-		return nil, errors.New("failed")
+func (mn *MockNode) SubmitTx(ctx context.Context, tx *types.TransactionOrder) ([]byte, error) {
+	if mn.onSubmitTx != nil {
+		return mn.onSubmitTx(ctx, tx)
 	}
+
 	mn.transactions = append(mn.transactions, tx)
 	return tx.Hash(crypto.SHA256)
 }

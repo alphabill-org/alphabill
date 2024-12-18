@@ -17,14 +17,16 @@ type FungibleTokensModule struct {
 	hashAlgorithm crypto.Hash
 	trustBase     types.RootTrustBase
 	execPredicate predicates.PredicateRunner
+	pdr           types.PartitionDescriptionRecord
 }
 
-func NewFungibleTokensModule(options *Options) (*FungibleTokensModule, error) {
+func NewFungibleTokensModule(pdr types.PartitionDescriptionRecord, options *Options) (*FungibleTokensModule, error) {
 	return &FungibleTokensModule{
 		state:         options.state,
 		hashAlgorithm: options.hashAlgorithm,
 		trustBase:     options.trustBase,
 		execPredicate: predicates.NewPredicateRunner(options.exec),
+		pdr:           pdr,
 	}, nil
 }
 

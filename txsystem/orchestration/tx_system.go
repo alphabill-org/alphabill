@@ -16,7 +16,7 @@ func NewTxSystem(pdr types.PartitionDescriptionRecord, shardID types.ShardID, ob
 	for _, option := range opts {
 		option(options)
 	}
-	module, err := NewModule(options)
+	module, err := NewModule(pdr, options)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load module: %w", err)
 	}

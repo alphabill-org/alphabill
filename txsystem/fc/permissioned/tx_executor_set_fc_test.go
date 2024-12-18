@@ -5,6 +5,8 @@ import (
 
 	"github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
+	moneyid "github.com/alphabill-org/alphabill-go-base/testutils/money"
+	tokenid "github.com/alphabill-org/alphabill-go-base/testutils/tokens"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/fc/permissioned"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/tokens"
@@ -27,17 +29,17 @@ func TestValidateSetFC(t *testing.T) {
 
 	// create fee credit module
 	stateTree := state.NewEmptyState()
-	networkID := types.NetworkID(5)
+	targetPDR := tokenid.PDR()
 	partitionID := types.PartitionID(5)
-	fcrUnitType := tokens.FeeCreditRecordUnitType
 	adminOwnerPredicate := templates.NewP2pkh256BytesFromKey(adminPubKey)
-	m, err := NewFeeCreditModule(networkID, partitionID, stateTree, fcrUnitType, adminOwnerPredicate)
+	m, err := NewFeeCreditModule(targetPDR, stateTree, tokens.FeeCreditRecordUnitType, adminOwnerPredicate)
 	require.NoError(t, err)
 
 	// common default values used in each test
 	fcrOwnerPredicate := templates.NewP2pkh256BytesFromKey(userPubKey)
 	timeout := uint64(10)
-	fcrID := newFeeCreditRecordID(t, fcrOwnerPredicate, fcrUnitType, timeout)
+	fcrID, err := targetPDR.ComposeUnitID(types.ShardID{}, tokens.FeeCreditRecordUnitType, fc.PrndSh(fcrOwnerPredicate, timeout))
+	require.NoError(t, err)
 
 	t.Run("FeeCreditRecordID is not nil", func(t *testing.T) {
 		tx, attr, authProof, err := newSetFeeCreditTx(adminKeySigner, partitionID, fcrID, fcrOwnerPredicate, nil, timeout, []byte{1}, nil)
@@ -55,8 +57,8 @@ func TestValidateSetFC(t *testing.T) {
 
 	t.Run("Invalid unit type byte", func(t *testing.T) {
 		// create new fcrID with invalid type byte
-		fcrUnitType := []byte{2}
-		fcrID := newFeeCreditRecordID(t, fcrOwnerPredicate, fcrUnitType, timeout)
+		fcrID, err := targetPDR.ComposeUnitID(types.ShardID{}, 2, fc.PrndSh(fcrOwnerPredicate, timeout))
+		require.NoError(t, err)
 		tx, attr, authProof, err := newSetFeeCreditTx(adminKeySigner, partitionID, fcrID, fcrOwnerPredicate, nil, timeout, nil, nil)
 		require.NoError(t, err)
 		err = m.validateSetFC(tx, attr, authProof, testctx.NewMockExecutionContext())
@@ -155,17 +157,18 @@ func TestExecuteSetFC(t *testing.T) {
 
 	// create fee credit module
 	stateTree := state.NewEmptyState()
-	networkID := types.NetworkID(5)
+	targetPDR := moneyid.PDR()
 	partitionID := types.PartitionID(5)
-	fcrUnitType := []byte{1}
+	const fcrUnitType = 1
 	adminOwnerPredicate := templates.NewP2pkh256BytesFromKey(adminPubKey)
-	m, err := NewFeeCreditModule(networkID, partitionID, stateTree, fcrUnitType, adminOwnerPredicate)
+	m, err := NewFeeCreditModule(targetPDR, stateTree, fcrUnitType, adminOwnerPredicate)
 	require.NoError(t, err)
 
 	// create tx
 	fcrOwnerPredicate := templates.NewP2pkh256BytesFromKey(userPubKey)
 	timeout := uint64(10)
-	fcrID := newFeeCreditRecordID(t, fcrOwnerPredicate, fcrUnitType, timeout)
+	fcrID, err := targetPDR.ComposeUnitID(types.ShardID{}, fcrUnitType, fc.PrndSh(fcrOwnerPredicate, timeout))
+	require.NoError(t, err)
 
 	tx, attr, authProof, err := newSetFeeCreditTx(adminKeySigner, partitionID, fcrID, fcrOwnerPredicate, nil, timeout, nil, nil)
 	require.NoError(t, err)
@@ -194,12 +197,6 @@ func TestExecuteSetFC(t *testing.T) {
 	require.EqualValues(t, 10, fcr.MinLifetime)
 	require.EqualValues(t, 0, fcr.Locked)
 	require.EqualValues(t, fcrOwnerPredicate, fcr.OwnerPredicate)
-}
-
-func newFeeCreditRecordID(t *testing.T, ownerPredicate []byte, fcrUnitType []byte, timeout uint64) types.UnitID {
-	unitPart, err := fc.NewFeeCreditRecordUnitPart(ownerPredicate, timeout)
-	require.NoError(t, err)
-	return types.NewUnitID(33, nil, unitPart, fcrUnitType)
 }
 
 func newSetFeeCreditTx(adminKey crypto.Signer, partitionID types.PartitionID, unitID, fcrOwnerPredicate []byte, counter *uint64, timeout uint64, fcrID, feeProof []byte) (*types.TransactionOrder, *permissioned.SetFeeCreditAttributes, *permissioned.SetFeeCreditAuthProof, error) {

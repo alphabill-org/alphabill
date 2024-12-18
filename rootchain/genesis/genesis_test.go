@@ -33,7 +33,7 @@ func getPublicKeyAndVerifier(signer abcrypto.Signer) ([]byte, abcrypto.Verifier,
 func createPartition(t *testing.T, partitionID types.PartitionID, nodeID string, partitionSigner abcrypto.Signer) *genesis.PartitionRecord {
 	t.Helper()
 	req := createInputRequest(t, partitionID, nodeID, partitionSigner)
-	pubKey, _, err := getPublicKeyAndVerifier(partitionSigner)
+	signKey, _, err := getPublicKeyAndVerifier(partitionSigner)
 	require.NoError(t, err)
 
 	return &genesis.PartitionRecord{
@@ -48,8 +48,8 @@ func createPartition(t *testing.T, partitionID types.PartitionID, nodeID string,
 		Validators: []*genesis.PartitionNode{{
 			Version:                    1,
 			NodeID:                     nodeID,
-			SigningPublicKey:           pubKey,
-			EncryptionPublicKey:        pubKey,
+			AuthKey:                    signKey,
+			SignKey:                    signKey,
 			BlockCertificationRequest:  req,
 			PartitionDescriptionRecord: types.PartitionDescriptionRecord{Version: 1},
 		}},
@@ -59,14 +59,14 @@ func createPartition(t *testing.T, partitionID types.PartitionID, nodeID string,
 func createPartitionNode(t *testing.T, partitionID types.PartitionID, nodeID string, partitionSigner abcrypto.Signer) *genesis.PartitionNode {
 	t.Helper()
 	req := createInputRequest(t, partitionID, nodeID, partitionSigner)
-	pubKey, _, err := getPublicKeyAndVerifier(partitionSigner)
+	signKey, _, err := getPublicKeyAndVerifier(partitionSigner)
 	require.NoError(t, err)
 
 	return &genesis.PartitionNode{
 		Version:                   1,
 		NodeID:                    nodeID,
-		SigningPublicKey:          pubKey,
-		EncryptionPublicKey:       pubKey,
+		AuthKey:                   signKey,
+		SignKey:                   signKey,
 		BlockCertificationRequest: req,
 		PartitionDescriptionRecord: types.PartitionDescriptionRecord{
 			Version:     1,
@@ -105,13 +105,13 @@ func Test_rootGenesisConf_isValid(t *testing.T) {
 	pubKey, err := ver.MarshalPublicKey()
 	require.NoError(t, err)
 	type fields struct {
-		peerID                string
-		encryptionPubKeyBytes []byte
-		signer                abcrypto.Signer
-		totalValidators       uint32
-		blockRateMs           uint32
-		consensusTimeoutMs    uint32
-		hashAlgorithm         gocrypto.Hash
+		peerID             string
+		authPubKeyBytes    []byte
+		signer             abcrypto.Signer
+		totalValidators    uint32
+		blockRateMs        uint32
+		consensusTimeoutMs uint32
+		hashAlgorithm      gocrypto.Hash
 	}
 	tests := []struct {
 		name    string
@@ -121,25 +121,25 @@ func Test_rootGenesisConf_isValid(t *testing.T) {
 		{
 			name: "ok",
 			fields: fields{
-				peerID:                "1",
-				encryptionPubKeyBytes: pubKey,
-				signer:                sig,
-				totalValidators:       1,
-				blockRateMs:           genesis.MinBlockRateMs,
-				consensusTimeoutMs:    genesis.MinBlockRateMs + genesis.MinConsensusTimeout,
-				hashAlgorithm:         gocrypto.SHA256,
+				peerID:             "1",
+				authPubKeyBytes:    pubKey,
+				signer:             sig,
+				totalValidators:    1,
+				blockRateMs:        genesis.MinBlockRateMs,
+				consensusTimeoutMs: genesis.MinBlockRateMs + genesis.MinConsensusTimeout,
+				hashAlgorithm:      gocrypto.SHA256,
 			},
 		},
 		{
 			name: "no peer id",
 			fields: fields{
-				peerID:                "",
-				encryptionPubKeyBytes: pubKey,
-				signer:                sig,
-				totalValidators:       1,
-				blockRateMs:           genesis.MinBlockRateMs,
-				consensusTimeoutMs:    genesis.MinConsensusTimeout,
-				hashAlgorithm:         gocrypto.SHA256,
+				peerID:             "",
+				authPubKeyBytes:    pubKey,
+				signer:             sig,
+				totalValidators:    1,
+				blockRateMs:        genesis.MinBlockRateMs,
+				consensusTimeoutMs: genesis.MinConsensusTimeout,
+				hashAlgorithm:      gocrypto.SHA256,
 			},
 			wantErr: genesis.ErrNodeIDIsEmpty.Error(),
 		},
@@ -153,13 +153,13 @@ func Test_rootGenesisConf_isValid(t *testing.T) {
 				consensusTimeoutMs: genesis.MinConsensusTimeout,
 				hashAlgorithm:      gocrypto.SHA256,
 			},
-			wantErr: ErrEncryptionPubKeyIsNil.Error(),
+			wantErr: ErrAuthPubKeyIsNil.Error(),
 		},
 		{
 			name: "no signer",
 			fields: fields{
 				peerID:                "1",
-				encryptionPubKeyBytes: pubKey,
+				authPubKeyBytes: pubKey,
 				totalValidators:       1,
 				blockRateMs:           genesis.MinBlockRateMs,
 				consensusTimeoutMs:    genesis.MinConsensusTimeout,
@@ -170,39 +170,39 @@ func Test_rootGenesisConf_isValid(t *testing.T) {
 		{
 			name: "invalid validators",
 			fields: fields{
-				peerID:                "1",
-				encryptionPubKeyBytes: pubKey,
-				signer:                sig,
-				totalValidators:       0,
-				blockRateMs:           genesis.MinBlockRateMs,
-				consensusTimeoutMs:    genesis.MinConsensusTimeout,
-				hashAlgorithm:         gocrypto.SHA256,
+				peerID:             "1",
+				authPubKeyBytes:    pubKey,
+				signer:             sig,
+				totalValidators:    0,
+				blockRateMs:        genesis.MinBlockRateMs,
+				consensusTimeoutMs: genesis.MinConsensusTimeout,
+				hashAlgorithm:      gocrypto.SHA256,
 			},
 			wantErr: genesis.ErrInvalidNumberOfRootValidators.Error(),
 		},
 		{
 			name: "invalid consensus timeout",
 			fields: fields{
-				peerID:                "1",
-				encryptionPubKeyBytes: pubKey,
-				signer:                sig,
-				totalValidators:       1,
-				blockRateMs:           genesis.MinBlockRateMs,
-				consensusTimeoutMs:    genesis.MinConsensusTimeout - 1,
-				hashAlgorithm:         gocrypto.SHA256,
+				peerID:             "1",
+				authPubKeyBytes:    pubKey,
+				signer:             sig,
+				totalValidators:    1,
+				blockRateMs:        genesis.MinBlockRateMs,
+				consensusTimeoutMs: genesis.MinConsensusTimeout - 1,
+				hashAlgorithm:      gocrypto.SHA256,
 			},
 			wantErr: fmt.Sprintf("invalid consensus timeout, must be at least %v", genesis.MinConsensusTimeout),
 		},
 		{
 			name: "invalid block rate",
 			fields: fields{
-				peerID:                "1",
-				encryptionPubKeyBytes: pubKey,
-				signer:                sig,
-				totalValidators:       1,
-				blockRateMs:           genesis.MinBlockRateMs - 1,
-				consensusTimeoutMs:    genesis.DefaultConsensusTimeout,
-				hashAlgorithm:         gocrypto.SHA256,
+				peerID:             "1",
+				authPubKeyBytes:    pubKey,
+				signer:             sig,
+				totalValidators:    1,
+				blockRateMs:        genesis.MinBlockRateMs - 1,
+				consensusTimeoutMs: genesis.DefaultConsensusTimeout,
+				hashAlgorithm:      gocrypto.SHA256,
 			},
 			wantErr: fmt.Sprintf("invalid block rate, must be at least %v", genesis.MinBlockRateMs),
 		},
@@ -210,13 +210,13 @@ func Test_rootGenesisConf_isValid(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			c := &rootGenesisConf{
-				peerID:                tt.fields.peerID,
-				encryptionPubKeyBytes: tt.fields.encryptionPubKeyBytes,
-				signer:                tt.fields.signer,
-				totalValidators:       tt.fields.totalValidators,
-				blockRateMs:           tt.fields.blockRateMs,
-				consensusTimeoutMs:    tt.fields.consensusTimeoutMs,
-				hashAlgorithm:         tt.fields.hashAlgorithm,
+				peerID:             tt.fields.peerID,
+				authKey:            tt.fields.authPubKeyBytes,
+				signer:             tt.fields.signer,
+				totalValidators:    tt.fields.totalValidators,
+				blockRateMs:        tt.fields.blockRateMs,
+				consensusTimeoutMs: tt.fields.consensusTimeoutMs,
+				hashAlgorithm:      tt.fields.hashAlgorithm,
 			}
 			err = c.isValid()
 			if tt.wantErr != "" {
@@ -262,21 +262,21 @@ func TestNewGenesis_ConsensusNotPossible(t *testing.T) {
 	req.InputRecord.Hash = []byte{1, 1, 1, 1}
 	req.InputRecord.BlockHash = []byte{2, 2, 2, 2}
 	require.NoError(t, req.Sign(partitionSigner2))
-	pubKey, _, err := getPublicKeyAndVerifier(partitionSigner2)
+	signKey, _, err := getPublicKeyAndVerifier(partitionSigner2)
 	require.NoError(t, err)
 	pr := &genesis.PartitionNode{
 		Version:                   1,
 		NodeID:                    "2",
-		SigningPublicKey:          pubKey,
-		EncryptionPublicKey:       pubKey,
+		AuthKey:                   signKey,
+		SignKey:                   signKey,
 		BlockCertificationRequest: req,
 	}
 	partition.Validators = append(partition.Validators, pr)
 
 	rootChainSigner, err := abcrypto.NewInMemorySecp256K1Signer()
 	require.NoError(t, err)
-	_, encPubKey := testsig.CreateSignerAndVerifier(t)
-	rootPubKeyBytes, err := encPubKey.MarshalPublicKey()
+	_, authVerifier := testsig.CreateSignerAndVerifier(t)
+	rootPubKeyBytes, err := authVerifier.MarshalPublicKey()
 	require.NoError(t, err)
 	_, _, err = NewRootGenesis("test", rootChainSigner, rootPubKeyBytes, []*genesis.PartitionRecord{partition})
 	require.ErrorContains(t, err, "invalid partition record: partition id 00000001 node 2 input record is different")

@@ -162,7 +162,7 @@ func (x *RootGenesis) GenerateTrustBase(opts ...types.Option) (*types.RootTrustB
 	var trustBaseNodes []*types.NodeInfo
 	var unicityTreeRootHash []byte
 	for _, rn := range x.Root.RootValidators {
-		verifier, err := abcrypto.NewVerifierSecp256k1(rn.SigningPublicKey)
+		verifier, err := abcrypto.NewVerifierSecp256k1(rn.SignKey)
 		if err != nil {
 			return nil, err
 		}

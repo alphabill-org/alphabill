@@ -5,8 +5,8 @@
     "rootValidators": [
       {
         "nodeId": "16Uiu2HAmKjh7BaTGsg2LuxbQLEVHpMtTh4cu5fTHqSiN3hB83ykB",
-        "signingPublicKey": "0x02a409c054cb1579862874c6ff06d576a6e9a870166de5f9af90508dfe54d7029b",
-        "encryptionPublicKey": "0x02a409c054cb1579862874c6ff06d576a6e9a870166de5f9af90508dfe54d7029b"
+        "signKey": "0x02a409c054cb1579862874c6ff06d576a6e9a870166de5f9af90508dfe54d7029b",
+        "authKey": "0x02a409c054cb1579862874c6ff06d576a6e9a870166de5f9af90508dfe54d7029b"
       }
     ],
     "consensus": {
@@ -27,8 +27,8 @@
         {
           "version": 1,
           "nodeId": "16Uiu2HAmGzjBwdBocQFgzVN7yxVtru8itbA5WjZVNp5bFdxerA2e",
-          "signingPublicKey": "0x024636bbba1fbf6d838831875cefa0368808b09415b419ca5a1c36e4b696543b5c",
-          "encryptionPublicKey": "0x03407d389a975d0d128afdf17b543be0122ca46fd0482ee97d50fa50bd2e5202fb",
+          "signKey": "0x024636bbba1fbf6d838831875cefa0368808b09415b419ca5a1c36e4b696543b5c",
+          "authKey": "0x03407d389a975d0d128afdf17b543be0122ca46fd0482ee97d50fa50bd2e5202fb",
           "blockCertificationRequest": {
             "partitionId": 1,
             "shardId": "0x80",

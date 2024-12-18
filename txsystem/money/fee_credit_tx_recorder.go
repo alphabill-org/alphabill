@@ -12,7 +12,7 @@ import (
 
 // feeCreditTxRecorder container struct for recording fee credit transactions
 type feeCreditTxRecorder struct {
-	sdrs  map[types.PartitionID]*types.PartitionDescriptionRecord
+	pdrs  map[types.PartitionID]*types.PartitionDescriptionRecord
 	state *state.State
 	// recorded fee credit transfers indexed by partition_identifier
 	transferFeeCredits map[types.PartitionID][]*transferFeeCreditTx
@@ -41,7 +41,7 @@ func newFeeCreditTxRecorder(s *state.State, partitionID types.PartitionID, recor
 		sdrs[record.PartitionID] = record
 	}
 	return &feeCreditTxRecorder{
-		sdrs:                sdrs,
+		pdrs:                sdrs,
 		state:               s,
 		partitionID: partitionID,
 		transferFeeCredits:  make(map[types.PartitionID][]*transferFeeCreditTx),
@@ -102,7 +102,7 @@ func (f *feeCreditTxRecorder) reset() {
 
 func (f *feeCreditTxRecorder) consolidateFees() error {
 	// update fee credit bills for all known partitions with added and removed credits
-	for sid, pdr := range f.sdrs {
+	for sid, pdr := range f.pdrs {
 		addedCredit := f.getAddedCredit(sid)
 		reclaimedCredit := f.getReclaimedCredit(sid)
 		if addedCredit == reclaimedCredit {
@@ -136,7 +136,7 @@ func (f *feeCreditTxRecorder) consolidateFees() error {
 	// increment money fee credit bill with spent fees
 	spentFeeSum := f.getSpentFeeSum()
 	if spentFeeSum > 0 {
-		moneyFCUnitID := f.sdrs[f.partitionID].FeeCreditBill.UnitID
+		moneyFCUnitID := f.pdrs[f.partitionID].FeeCreditBill.UnitID
 		_, err := f.state.GetUnit(moneyFCUnitID, false)
 		if err != nil {
 			return fmt.Errorf("could not find money fee credit bill: %w", err)

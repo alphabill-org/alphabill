@@ -88,11 +88,11 @@ func evmGenesisRunFun(_ context.Context, config *evmGenesisConfig) error {
 
 	genesisState := state.NewEmptyState()
 
-	peerID, err := peer.IDFromPublicKey(keys.EncryptionPrivateKey.GetPublic())
+	peerID, err := peer.IDFromPublicKey(keys.AuthPrivKey.GetPublic())
 	if err != nil {
 		return err
 	}
-	encryptionPublicKeyBytes, err := keys.EncryptionPrivateKey.GetPublic().Raw()
+	authPubKey, err := keys.AuthPrivKey.GetPublic().Raw()
 	if err != nil {
 		return err
 	}
@@ -105,8 +105,8 @@ func evmGenesisRunFun(_ context.Context, config *evmGenesisConfig) error {
 		genesisState,
 		*pdr,
 		partition.WithPeerID(peerID),
-		partition.WithSigningKey(keys.SigningPrivateKey),
-		partition.WithEncryptionPubKey(encryptionPublicKeyBytes),
+		partition.WithSignPrivKey(keys.SignPrivKey),
+		partition.WithAuthPubKey(authPubKey),
 		partition.WithParams(params),
 	)
 	if err != nil {

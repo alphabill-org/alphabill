@@ -89,7 +89,7 @@ func TestVerify(t *testing.T) {
 					{
 						NodeID:  node1ID,
 						AuthKey: node1AuthKey,
-						SigKey: []byte{1},
+						SignKey: []byte{1},
 					},
 				}},
 			errMsg: "invalid node at idx 0: invalid sign key for node",
@@ -102,7 +102,7 @@ func TestVerify(t *testing.T) {
 					{
 						NodeID:  node1ID,
 						AuthKey: node1AuthKey,
-						SigKey:  node1AuthKey,
+						SignKey: node1AuthKey,
 					},
 				}},
 		},

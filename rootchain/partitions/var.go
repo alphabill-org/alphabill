@@ -25,9 +25,9 @@ type (
 
 	NodeInfo struct {
 		_       struct{}  `cbor:",toarray"`
-		NodeID  string    `json:"nodeId"`  // libp2p node id (hash of libp2p encryption public key)
-		AuthKey hex.Bytes `json:"authKey"` // libp2p encryption public key
-		SigKey  hex.Bytes `json:"sigKey"`  // alphabill signing public key
+		NodeID  string    `json:"nodeId"`  // libp2p node identifier (derived from auth key)
+		AuthKey hex.Bytes `json:"authKey"` // libp2p authentication key
+		SignKey hex.Bytes `json:"signKey"` // alphabill signing key
 	}
 )
 
@@ -48,8 +48,8 @@ func NewVARFromGenesis(gpr *genesis.GenesisPartitionRecord) *ValidatorAssignment
 func NewVARNodeFromGenesisNode(pn *genesis.PartitionNode) NodeInfo {
 	return NodeInfo{
 		NodeID:  pn.NodeID,
-		AuthKey: pn.EncryptionPublicKey,
-		SigKey:  pn.SigningPublicKey,
+		AuthKey: pn.AuthKey,
+		SignKey: pn.SignKey,
 	}
 }
 
@@ -103,7 +103,7 @@ func (v *NodeInfo) Verify() error {
 	if nodeID.String() != v.NodeID {
 		return errors.New("node id is not hash of auth key")
 	}
-	if _, err := crypto.NewVerifierSecp256k1(v.SigKey); err != nil {
+	if _, err := crypto.NewVerifierSecp256k1(v.SignKey); err != nil {
 		return fmt.Errorf("invalid sign key for node %s: %w", v.NodeID, err)
 	}
 	return nil

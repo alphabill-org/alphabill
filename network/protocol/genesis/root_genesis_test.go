@@ -17,9 +17,9 @@ func TestRootGenesis_IsValid(t *testing.T) {
 	pubKey, err := verifier.MarshalPublicKey()
 	require.NoError(t, err)
 	rootKeyInfo := &PublicKeyInfo{
-		NodeID:              "1",
-		SigningPublicKey:    pubKey,
-		EncryptionPublicKey: pubKey,
+		NodeID:  "1",
+		SignKey: pubKey,
+		AuthKey: pubKey,
 	}
 	rootConsensus := &ConsensusParams{
 		Version:             1,
@@ -63,10 +63,10 @@ func TestRootGenesis_IsValid(t *testing.T) {
 			fields: fields{
 				Root: &GenesisRootRecord{
 					Version:        1,
-					RootValidators: []*PublicKeyInfo{{NodeID: "111", SigningPublicKey: nil, EncryptionPublicKey: nil}},
+					RootValidators: []*PublicKeyInfo{{NodeID: "111", SignKey: nil, AuthKey: nil}},
 					Consensus:      rootConsensus},
 			},
-			wantErr: ErrPubKeyInfoSigningKeyIsInvalid.Error(),
+			wantErr: ErrPubKeyInfoSignKeyIsInvalid.Error(),
 		},
 		{
 			name: "partitions not found",
@@ -97,13 +97,13 @@ func TestRootGenesis_IsValid(t *testing.T) {
 				Partitions: []*GenesisPartitionRecord{
 					{
 						Version:              1,
-						Nodes:                []*PartitionNode{{Version: 1, NodeID: "1", SigningPublicKey: nil, EncryptionPublicKey: nil, BlockCertificationRequest: nil}},
+						Nodes:                []*PartitionNode{{Version: 1, NodeID: "1", SignKey: nil, AuthKey: nil, BlockCertificationRequest: nil}},
 						Certificate:          nil,
 						PartitionDescription: &types.PartitionDescriptionRecord{Version: 1, NetworkID: 5, PartitionID: 1, T2Timeout: time.Second},
 					},
 					{
 						Version:              1,
-						Nodes:                []*PartitionNode{{Version: 1, NodeID: "1", SigningPublicKey: nil, EncryptionPublicKey: nil, BlockCertificationRequest: nil}},
+						Nodes:                []*PartitionNode{{Version: 1, NodeID: "1", SignKey: nil, AuthKey: nil, BlockCertificationRequest: nil}},
 						Certificate:          nil,
 						PartitionDescription: &types.PartitionDescriptionRecord{Version: 1, NetworkID: 5, PartitionID: 1, T2Timeout: time.Second},
 					},
@@ -139,9 +139,9 @@ func TestRootGenesis_Verify_Nil(t *testing.T) {
 
 func TestRootGenesis(t *testing.T) {
 	signingKey, _ := testsig.CreateSignerAndVerifier(t)
-	_, encryptionPubKey := testsig.CreateSignerAndVerifier(t)
+	_, authVerifier := testsig.CreateSignerAndVerifier(t)
 	hash := []byte{2}
-	node := createPartitionNode(t, nodeID, signingKey, encryptionPubKey)
+	node := createPartitionNode(t, nodeID, signingKey, authVerifier)
 	consensus := &ConsensusParams{
 		Version:             1,
 		TotalRootValidators: 1,
@@ -151,10 +151,11 @@ func TestRootGenesis(t *testing.T) {
 	}
 	// create root node
 	rSigner, rVerifier := testsig.CreateSignerAndVerifier(t)
-	rVerifyPubKey, err := rVerifier.MarshalPublicKey()
+	rSignKey, err := rVerifier.MarshalPublicKey()
 	require.NoError(t, err)
-	_, rEncryption := testsig.CreateSignerAndVerifier(t)
-	rEncPubKey, err := rEncryption.MarshalPublicKey()
+
+	_, rAuthVerifier := testsig.CreateSignerAndVerifier(t)
+	rAuthKey, err := rAuthVerifier.MarshalPublicKey()
 	require.NoError(t, err)
 	rootID := "root"
 	unicitySeal := &types.UnicitySeal{
@@ -195,7 +196,7 @@ func TestRootGenesis(t *testing.T) {
 	rg.Root = &GenesisRootRecord{
 		Version: 1,
 		RootValidators: []*PublicKeyInfo{
-			{NodeID: rootID, SigningPublicKey: rVerifyPubKey, EncryptionPublicKey: rEncPubKey},
+			{NodeID: rootID, SignKey: rSignKey, AuthKey: rAuthKey},
 		},
 		Consensus: consensus,
 	}

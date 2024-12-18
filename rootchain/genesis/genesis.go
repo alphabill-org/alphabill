@@ -17,18 +17,18 @@ import (
 	rctypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
 )
 
-var ErrEncryptionPubKeyIsNil = errors.New("encryption public key is nil")
+var ErrAuthPubKeyIsNil = errors.New("authentication public key is nil")
 var ErrSignerIsNil = errors.New("signer is nil")
 
 type (
 	rootGenesisConf struct {
-		peerID                string
-		encryptionPubKeyBytes []byte
-		signer                abcrypto.Signer
-		totalValidators       uint32
-		blockRateMs           uint32
-		consensusTimeoutMs    uint32
-		hashAlgorithm         crypto.Hash
+		peerID             string
+		authKey            []byte
+		signer             abcrypto.Signer
+		totalValidators    uint32
+		blockRateMs        uint32
+		consensusTimeoutMs uint32
+		hashAlgorithm      crypto.Hash
 	}
 
 	Option func(c *rootGenesisConf)
@@ -43,8 +43,8 @@ func (c *rootGenesisConf) isValid() error {
 	if c.signer == nil {
 		return ErrSignerIsNil
 	}
-	if len(c.encryptionPubKeyBytes) == 0 {
-		return ErrEncryptionPubKeyIsNil
+	if len(c.authKey) == 0 {
+		return ErrAuthPubKeyIsNil
 	}
 	if c.totalValidators < 1 {
 		return genesis.ErrInvalidNumberOfRootValidators
@@ -137,18 +137,18 @@ func NewPartitionRecordFromNodes(nodes []*genesis.PartitionNode) ([]*genesis.Par
 func NewRootGenesis(
 	nodeID string,
 	s abcrypto.Signer,
-	encPubKey []byte,
+	authKey []byte,
 	partitions []*genesis.PartitionRecord,
 	opts ...Option,
 ) (*genesis.RootGenesis, []*genesis.PartitionGenesis, error) {
 	c := &rootGenesisConf{
-		peerID:                nodeID,
-		signer:                s,
-		encryptionPubKeyBytes: encPubKey,
-		totalValidators:       1,
-		blockRateMs:           genesis.DefaultBlockRateMs,
-		consensusTimeoutMs:    genesis.DefaultConsensusTimeout,
-		hashAlgorithm:         crypto.SHA256,
+		peerID:             nodeID,
+		signer:             s,
+		authKey:            authKey,
+		totalValidators:    1,
+		blockRateMs:        genesis.DefaultBlockRateMs,
+		consensusTimeoutMs: genesis.DefaultConsensusTimeout,
+		hashAlgorithm:      crypto.SHA256,
 	}
 	for _, option := range opts {
 		option(c)
@@ -268,9 +268,9 @@ func NewRootGenesis(
 	// Add local root node info to partition record
 	var rootValidatorInfo = make([]*genesis.PublicKeyInfo, 1)
 	rootValidatorInfo[0] = &genesis.PublicKeyInfo{
-		NodeID:              c.peerID,
-		SigningPublicKey:    rootPublicKey,
-		EncryptionPublicKey: c.encryptionPubKeyBytes,
+		NodeID:  c.peerID,
+		SignKey: rootPublicKey,
+		AuthKey: c.authKey,
 	}
 	// generate genesis structs
 	for i, partition := range partitions {
@@ -351,9 +351,9 @@ func partitionGenesisFromRoot(rg *genesis.RootGenesis) []*genesis.PartitionGenes
 		var keys = make([]*genesis.PublicKeyInfo, len(partition.Nodes))
 		for j, v := range partition.Nodes {
 			keys[j] = &genesis.PublicKeyInfo{
-				NodeID:              v.NodeID,
-				SigningPublicKey:    v.SigningPublicKey,
-				EncryptionPublicKey: v.EncryptionPublicKey,
+				NodeID:  v.NodeID,
+				SignKey: v.SignKey,
+				AuthKey: v.AuthKey,
 			}
 		}
 		partitionGenesis[i] = &genesis.PartitionGenesis{
@@ -458,7 +458,7 @@ func MergeRootGenesisFiles(rootGenesis []*genesis.RootGenesis) (*genesis.RootGen
 	return rg, partitionGenesis, nil
 }
 
-func RootGenesisAddSignature(rootGenesis *genesis.RootGenesis, id string, s abcrypto.Signer, encPubKey []byte) (*genesis.RootGenesis, error) {
+func RootGenesisAddSignature(rootGenesis *genesis.RootGenesis, id string, s abcrypto.Signer, authKey []byte) (*genesis.RootGenesis, error) {
 	if rootGenesis == nil {
 		return nil, fmt.Errorf("error, root genesis is nil")
 	}
@@ -484,9 +484,9 @@ func RootGenesisAddSignature(rootGenesis *genesis.RootGenesis, id string, s abcr
 		return nil, fmt.Errorf("marshal public key failed: %w", err)
 	}
 	node := &genesis.PublicKeyInfo{
-		NodeID:              id,
-		SigningPublicKey:    rootPublicKey,
-		EncryptionPublicKey: encPubKey,
+		NodeID:  id,
+		SignKey: rootPublicKey,
+		AuthKey: authKey,
 	}
 	rootGenesis.Root.RootValidators = append(rootGenesis.Root.RootValidators, node)
 	// Update partition records

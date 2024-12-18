@@ -84,11 +84,11 @@ func utGenesisRunFun(_ context.Context, config *userTokenPartitionGenesisConfig)
 
 	genesisState := state.NewEmptyState()
 
-	peerID, err := peer.IDFromPublicKey(keys.EncryptionPrivateKey.GetPublic())
+	peerID, err := peer.IDFromPublicKey(keys.AuthPrivKey.GetPublic())
 	if err != nil {
 		return err
 	}
-	encryptionPublicKeyBytes, err := keys.EncryptionPrivateKey.GetPublic().Raw()
+	authPubKey, err := keys.AuthPrivKey.GetPublic().Raw()
 	if err != nil {
 		return err
 	}
@@ -101,8 +101,8 @@ func utGenesisRunFun(_ context.Context, config *userTokenPartitionGenesisConfig)
 		genesisState,
 		*pdr,
 		partition.WithPeerID(peerID),
-		partition.WithSigningKey(keys.SigningPrivateKey),
-		partition.WithEncryptionPubKey(encryptionPublicKeyBytes),
+		partition.WithSignPrivKey(keys.SignPrivKey),
+		partition.WithAuthPubKey(authPubKey),
 		partition.WithParams(params),
 	)
 	if err != nil {

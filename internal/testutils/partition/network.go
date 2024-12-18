@@ -132,7 +132,7 @@ func newRootPartition(t *testing.T, nofRootNodes uint8, nodePartitions []*NodePa
 	// generates keys and sorts them in lexical order - meaning root node 0 is the first leader
 	rootPeerCfg, _, err := createPeerConfs(nofRootNodes)
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate encryption keypairs, %w", err)
+		return nil, fmt.Errorf("failed to generate peer configuration, %w", err)
 	}
 	for i, peerCfg := range rootPeerCfg {
 		nodeGenesisFiles := getGenesisFiles(nodePartitions)
@@ -276,8 +276,8 @@ func NewPartition(t *testing.T, nodeCount uint8, txSystemProvider func(trustBase
 			state,
 			pdr,
 			partition.WithPeerID(peerConf.ID),
-			partition.WithSigningKey(signer),
-			partition.WithEncryptionPubKey(peerConf.KeyPair.PublicKey),
+			partition.WithSignPrivKey(signer),
+			partition.WithAuthPubKey(peerConf.KeyPair.PublicKey),
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create node genesis, %w", err)
@@ -720,7 +720,7 @@ func createSigners(count uint8) ([]abcrypto.Signer, error) {
 func createPeerConfs(count uint8) ([]*network.PeerConfiguration, peer.IDSlice, error) {
 	var peerConfs = make([]*network.PeerConfiguration, count)
 
-	// generate connection encryption key pairs
+	// generate authentication keypairs
 	keyPairs, err := generateKeyPairs(count)
 	if err != nil {
 		return nil, nil, err
@@ -731,7 +731,7 @@ func createPeerConfs(count uint8) ([]*network.PeerConfiguration, peer.IDSlice, e
 		peerConfs[i], err = network.NewPeerConfiguration(
 			"/ip4/127.0.0.1/tcp/0",
 			nil,
-			keyPairs[i], // connection encryption key. The ID of the node is derived from this keypair.
+			keyPairs[i], // authentication keypair. The ID of the node is derived from this keypair.
 			nil,
 		)
 		if err != nil {

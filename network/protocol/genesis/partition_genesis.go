@@ -103,7 +103,7 @@ func (x *PartitionGenesis) GenerateRootTrustBase() (types.RootTrustBase, error) 
 func newTrustBaseNodes(publicKeyInfo []*PublicKeyInfo) ([]*types.NodeInfo, error) {
 	var nodeInfo []*types.NodeInfo
 	for _, info := range publicKeyInfo {
-		verifier, err := crypto.NewVerifierSecp256k1(info.SigningPublicKey)
+		verifier, err := crypto.NewVerifierSecp256k1(info.SignKey)
 		if err != nil {
 			return nil, err
 		}

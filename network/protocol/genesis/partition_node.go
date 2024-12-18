@@ -11,18 +11,18 @@ import (
 )
 
 var (
-	ErrPartitionNodeIsNil           = errors.New("partition node is nil")
-	ErrNodeIDIsEmpty                = errors.New("node identifier is empty")
-	ErrSigningPublicKeyIsInvalid    = errors.New("signing public key is invalid")
-	ErrEncryptionPublicKeyIsInvalid = errors.New("encryption public key is invalid")
+	ErrPartitionNodeIsNil = errors.New("partition node is nil")
+	ErrNodeIDIsEmpty      = errors.New("node identifier is empty")
+	ErrSignKeyIsInvalid   = errors.New("signing key is invalid")
+	ErrAuthKeyIsInvalid   = errors.New("authentication key is invalid")
 )
 
 type PartitionNode struct {
 	_                          struct{}                                 `cbor:",toarray"`
 	Version                    types.ABVersion                          `json:"version"`
 	NodeID                     string                                   `json:"nodeId"`
-	SigningPublicKey           hex.Bytes                                `json:"signingPublicKey"`
-	EncryptionPublicKey        hex.Bytes                                `json:"encryptionPublicKey"`
+	AuthKey                    hex.Bytes                                `json:"authKey"`
+	SignKey                    hex.Bytes                                `json:"signKey"`
 	BlockCertificationRequest  *certification.BlockCertificationRequest `json:"blockCertificationRequest"`
 	PartitionDescriptionRecord types.PartitionDescriptionRecord         `json:"partitionDescriptionRecord"`
 	Params                     hex.Bytes                                `json:"params,omitempty"`
@@ -60,20 +60,20 @@ func (x *PartitionNode) IsValid() error {
 	if x.NodeID == "" {
 		return ErrNodeIDIsEmpty
 	}
-	if len(x.SigningPublicKey) == 0 {
-		return ErrSigningPublicKeyIsInvalid
+	if len(x.SignKey) == 0 {
+		return ErrSignKeyIsInvalid
 	}
-	signingPubKey, err := crypto.NewVerifierSecp256k1(x.SigningPublicKey)
+	signKey, err := crypto.NewVerifierSecp256k1(x.SignKey)
 	if err != nil {
 		return fmt.Errorf("invalid signing public key, %w", err)
 	}
-	if len(x.EncryptionPublicKey) == 0 {
-		return ErrEncryptionPublicKeyIsInvalid
+	if len(x.AuthKey) == 0 {
+		return ErrAuthKeyIsInvalid
 	}
-	if _, err = crypto.NewVerifierSecp256k1(x.EncryptionPublicKey); err != nil {
-		return fmt.Errorf("invalid encryption public key, %w", err)
+	if _, err = crypto.NewVerifierSecp256k1(x.AuthKey); err != nil {
+		return fmt.Errorf("invalid authentication public key, %w", err)
 	}
-	if err = x.BlockCertificationRequest.IsValid(signingPubKey); err != nil {
+	if err = x.BlockCertificationRequest.IsValid(signKey); err != nil {
 		return fmt.Errorf("block certification request validation failed, %w", err)
 	}
 	return nil
@@ -81,8 +81,8 @@ func (x *PartitionNode) IsValid() error {
 
 func nodesUnique(x []*PartitionNode) error {
 	var ids = make(map[string]string)
-	var signingKeys = make(map[string]hex.Bytes)
-	var encryptionKeys = make(map[string]hex.Bytes)
+	var signKeys = make(map[string]hex.Bytes)
+	var authKeys = make(map[string]hex.Bytes)
 	for _, node := range x {
 		if err := node.IsValid(); err != nil {
 			return err
@@ -93,17 +93,17 @@ func nodesUnique(x []*PartitionNode) error {
 		}
 		ids[id] = id
 
-		signingPubKey := string(node.SigningPublicKey)
-		if _, f := signingKeys[signingPubKey]; f {
-			return fmt.Errorf("duplicated node signing public key: %X", node.SigningPublicKey)
+		sigKey := string(node.SignKey)
+		if _, f := signKeys[sigKey]; f {
+			return fmt.Errorf("duplicated node signing key: %X", node.SignKey)
 		}
-		signingKeys[signingPubKey] = node.SigningPublicKey
+		signKeys[sigKey] = node.SignKey
 
-		encPubKey := string(node.EncryptionPublicKey)
-		if _, f := encryptionKeys[encPubKey]; f {
-			return fmt.Errorf("duplicated node encryption public key: %X", node.EncryptionPublicKey)
+		authKey := string(node.AuthKey)
+		if _, f := authKeys[authKey]; f {
+			return fmt.Errorf("duplicated node authentication key: %X", node.AuthKey)
 		}
-		encryptionKeys[encPubKey] = node.EncryptionPublicKey
+		authKeys[authKey] = node.AuthKey
 	}
 	return nil
 }

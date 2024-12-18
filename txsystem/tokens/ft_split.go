@@ -20,11 +20,10 @@ func (m *FungibleTokensModule) executeSplitFT(tx *types.TransactionOrder, attr *
 	ftData := u.Data().(*tokens.FungibleTokenData)
 
 	// add new token unit
-	unitPart, err := tokens.HashForNewTokenID(tx, m.hashAlgorithm)
+	newTokenID, err := m.pdr.ComposeUnitID(types.ShardID{}, tokens.FungibleTokenUnitType, tokens.PrndSh(tx))
 	if err != nil {
 		return nil, err
 	}
-	newTokenID := tokens.NewFungibleTokenID(unitID, unitPart)
 
 	// update state
 	if err = m.state.Apply(
@@ -52,7 +51,7 @@ func (m *FungibleTokensModule) executeSplitFT(tx *types.TransactionOrder, attr *
 }
 
 func (m *FungibleTokensModule) validateSplitFT(tx *types.TransactionOrder, attr *tokens.SplitFungibleTokenAttributes, authProof *tokens.SplitFungibleTokenAuthProof, exeCtx txtypes.ExecutionContext) error {
-	tokenData, err := getFungibleTokenData(tx.UnitID, m.state)
+	tokenData, err := m.getFungibleTokenData(tx.UnitID)
 	if err != nil {
 		return err
 	}

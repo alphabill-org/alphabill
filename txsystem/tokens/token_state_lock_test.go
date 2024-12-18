@@ -19,8 +19,8 @@ import (
 // TestTransferNFT_StateLock locks NFT with a transfer tx to pk1, then unlocks it with an update tx
 func TestTransferNFT_StateLock(t *testing.T) {
 	w1Signer, w1PubKey := createSigner(t)
-	txs, _ := newTokenTxSystem(t)
-	unitID := defineNFTAndMintToken(t, txs, nftTypeID2)
+	txs, _, pdr := newTokenTxSystem(t)
+	unitID := defineNFTAndMintToken(t, txs, &pdr, nftTypeID2)
 
 	// transfer NFT to pk1 with state lock
 	transferTx := testtransaction.NewTransactionOrder(

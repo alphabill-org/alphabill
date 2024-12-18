@@ -5,11 +5,10 @@ import (
 	"math"
 	"testing"
 
-	testctx "github.com/alphabill-org/alphabill/txsystem/testutils/exec_context"
-	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
+	tokenid "github.com/alphabill-org/alphabill-go-base/testutils/tokens"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/tokens"
 	"github.com/alphabill-org/alphabill-go-base/types"
@@ -19,7 +18,9 @@ import (
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtb "github.com/alphabill-org/alphabill/internal/testutils/trustbase"
 	"github.com/alphabill-org/alphabill/state"
+	testctx "github.com/alphabill-org/alphabill/txsystem/testutils/exec_context"
 	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
+	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 )
 
 const (
@@ -34,28 +35,29 @@ const (
 )
 
 var (
-	existingTokenTypeID   = tokens.NewFungibleTokenTypeID(nil, []byte{1})
-	existingTokenTypeID2  = tokens.NewFungibleTokenTypeID(nil, []byte{1, 0, 0, 1})
-	existingTokenID       = tokens.NewFungibleTokenID(nil, []byte{0x02})
-	existingTokenID2      = tokens.NewFungibleTokenID(nil, []byte{0xaa})
-	existingLockedTokenID = tokens.NewFungibleTokenID(nil, []byte{0xbb})
+	existingTokenTypeID  types.UnitID = append(make([]byte, 31), 1, tokens.FungibleTokenTypeUnitType)
+	existingTokenTypeID2 types.UnitID = append(make([]byte, 31), 11, tokens.FungibleTokenTypeUnitType)
 
-	nonExistingTokenTypeID = tokens.NewFungibleTokenTypeID(nil, []byte{100})
-	nonExistingTokenID     = tokens.NewFungibleTokenID(nil, []byte{100})
+	existingTokenID       types.UnitID = append(make([]byte, 31), 0x02, tokens.FungibleTokenUnitType)
+	existingTokenID2      types.UnitID = append(make([]byte, 31), 0xaa, tokens.FungibleTokenUnitType)
+	existingLockedTokenID types.UnitID = append(make([]byte, 31), 0xbb, tokens.FungibleTokenUnitType)
 
-	invalidFungibleTokenTypeID = tokens.NewNonFungibleTokenTypeID(nil, []byte{0x02}) // use non-fungible type id
-	invalidFungibleTokenID     = tokens.NewNonFungibleTokenID(nil, []byte{1})        // use non-fungible type id
+	nonExistingTokenTypeID types.UnitID = append(make([]byte, 31), 100, tokens.FungibleTokenTypeUnitType)
+	nonExistingTokenID     types.UnitID = append(make([]byte, 31), 100, tokens.FungibleTokenUnitType)
+
+	invalidFungibleTokenTypeID types.UnitID = append(make([]byte, 31), 2, tokens.NonFungibleTokenTypeUnitType) // use non-fungible type id
+	invalidFungibleTokenID     types.UnitID = append(make([]byte, 31), 1, tokens.NonFungibleTokenUnitType)     // use non-fungible type id
 )
 
 func TestCreateFungibleTokenType_NotOk(t *testing.T) {
-	unitID, err := tokens.NewRandomFungibleTokenTypeID(nil)
-	require.NoError(t, err)
+	ftTypeID := tokenid.NewFungibleTokenTypeID(t)
+	ftTokenID := tokenid.NewFungibleTokenID(t)
 
 	validTxOrder := &types.TransactionOrder{
 		Version: 1,
 		Payload: types.Payload{
 			Type:   tokens.TransactionTypeDefineFT,
-			UnitID: unitID,
+			UnitID: ftTypeID,
 		},
 	}
 	tests := []struct {
@@ -103,10 +105,10 @@ func TestCreateFungibleTokenType_NotOk(t *testing.T) {
 					UnitID: existingTokenTypeID,
 				},
 			},
-			attr:       &tokens.DefineFungibleTokenAttributes{ParentTypeID: existingTokenID},
+			attr:       &tokens.DefineFungibleTokenAttributes{ParentTypeID: ftTokenID},
 			authProof:  &tokens.DefineFungibleTokenAuthProof{},
 			options:    defaultOpts(t),
-			wantErrStr: "invalid parent type ID",
+			wantErrStr: "invalid parent type: expected type 0X1, got 0X3",
 		},
 		{
 			name:       "symbol length exceeds the allowed maximum",
@@ -180,14 +182,14 @@ func TestCreateFungibleTokenType_NotOk(t *testing.T) {
 		{
 			name:       "parent does not exist",
 			tx:         validTxOrder,
-			attr:       &tokens.DefineFungibleTokenAttributes{Symbol: validSymbol, DecimalPlaces: 6, ParentTypeID: unitID},
+			attr:       &tokens.DefineFungibleTokenAttributes{Symbol: validSymbol, DecimalPlaces: 6, ParentTypeID: ftTypeID},
 			authProof:  &tokens.DefineFungibleTokenAuthProof{},
 			options:    defaultOpts(t),
-			wantErrStr: fmt.Sprintf("item %s does not exist", unitID),
+			wantErrStr: fmt.Sprintf("item %s does not exist", ftTypeID),
 		},
 	}
 
-	m, err := NewFungibleTokensModule(defaultOpts(t))
+	m, err := NewFungibleTokensModule(tokenid.PDR(), defaultOpts(t))
 	require.NoError(t, err)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -209,9 +211,14 @@ func TestCreateFungibleTokenType_CreateSingleType_Ok(t *testing.T) {
 		TokenMintingPredicate:    templates.AlwaysTrueBytes(),
 		TokenTypeOwnerPredicate:  templates.NewP2pkh256BytesFromKeyHash(make([]byte, 32)),
 	}
-	unitID := tokens.NewFungibleTokenTypeID(nil, []byte{7})
+	unitID := tokenid.NewFungibleTokenTypeID(t)
+	pdr := types.PartitionDescriptionRecord{
+		PartitionID: tokens.DefaultPartitionID,
+		UnitIDLen:   8 * 32,
+		TypeIDLen:   8,
+	}
 
-	m, err := NewFungibleTokensModule(opts)
+	m, err := NewFungibleTokensModule(pdr, opts)
 	require.NoError(t, err)
 	txExecutors := make(txtypes.TxExecutors)
 	require.NoError(t, txExecutors.Add(m.TxHandlers()))
@@ -243,6 +250,11 @@ func TestCreateFungibleTokenType_CreateSingleType_Ok(t *testing.T) {
 
 func TestCreateFungibleTokenType_CreateTokenTypeChain_Ok(t *testing.T) {
 	opts := defaultOpts(t)
+	pdr := types.PartitionDescriptionRecord{
+		PartitionID: tokens.DefaultPartitionID,
+		UnitIDLen:   8 * 32,
+		TypeIDLen:   8,
+	}
 
 	parentAttributes := &tokens.DefineFungibleTokenAttributes{
 		Symbol:                   validSymbol,
@@ -254,10 +266,10 @@ func TestCreateFungibleTokenType_CreateTokenTypeChain_Ok(t *testing.T) {
 		TokenMintingPredicate:    templates.AlwaysFalseBytes(),
 		TokenTypeOwnerPredicate:  templates.NewP2pkh256BytesFromKeyHash(make([]byte, 32)),
 	}
-	parentID := tokens.NewFungibleTokenTypeID(nil, []byte{19})
+	parentID := tokenid.NewFungibleTokenTypeID(t)
 	parentTx := createTxOrder(t, parentID, tokens.TransactionTypeDefineFT, parentAttributes)
 
-	childID := tokens.NewFungibleTokenTypeID(nil, []byte{20})
+	childID := tokenid.NewFungibleTokenTypeID(t)
 	childAttributes := &tokens.DefineFungibleTokenAttributes{
 		Symbol:                   validSymbol + "_CHILD",
 		Name:                     validName + "_CHILD",
@@ -270,7 +282,7 @@ func TestCreateFungibleTokenType_CreateTokenTypeChain_Ok(t *testing.T) {
 	}
 	childTx := createTxOrder(t, childID, tokens.TransactionTypeDefineFT, childAttributes, testtransaction.WithAuthProof(tokens.DefineFungibleTokenAuthProof{SubTypeCreationProofs: [][]byte{templates.EmptyArgument()}}))
 
-	m, err := NewFungibleTokensModule(opts)
+	m, err := NewFungibleTokensModule(pdr, opts)
 	require.NoError(t, err)
 	txExecutors := make(txtypes.TxExecutors)
 	require.NoError(t, txExecutors.Add(m.TxHandlers()))
@@ -310,10 +322,10 @@ func TestCreateFungibleTokenType_CreateTokenTypeChain_InvalidCreationProof(t *te
 		TokenMintingPredicate:    templates.AlwaysFalseBytes(),
 		TokenTypeOwnerPredicate:  templates.NewP2pkh256BytesFromKeyHash(make([]byte, 32)),
 	}
-	parentID := tokens.NewFungibleTokenTypeID(nil, []byte{19})
+	parentID := tokenid.NewFungibleTokenTypeID(t)
 	parentTx := createTxOrder(t, parentID, tokens.TransactionTypeDefineFT, parentAttributes)
 
-	childID := tokens.NewFungibleTokenTypeID(nil, []byte{20})
+	childID := tokenid.NewFungibleTokenTypeID(t)
 	childAttributes := &tokens.DefineFungibleTokenAttributes{
 		Symbol:                   validSymbol + "_CHILD",
 		ParentTypeID:             parentID,
@@ -323,7 +335,7 @@ func TestCreateFungibleTokenType_CreateTokenTypeChain_InvalidCreationProof(t *te
 		TokenTypeOwnerPredicate:  templates.AlwaysTrueBytes(),
 	}
 	childTx := createTxOrder(t, childID, tokens.TransactionTypeDefineFT, childAttributes, testtransaction.WithAuthProof(tokens.DefineFungibleTokenAuthProof{SubTypeCreationProofs: [][]byte{[]byte("invalid")}}))
-	m, err := NewFungibleTokensModule(opts)
+	m, err := NewFungibleTokensModule(tokenid.PDR(), opts)
 	require.NoError(t, err)
 	txExecutors := make(txtypes.TxExecutors)
 	require.NoError(t, txExecutors.Add(m.TxHandlers()))
@@ -382,7 +394,7 @@ func TestMintFungibleToken_NotOk(t *testing.T) {
 			},
 			attr:       &tokens.MintFungibleTokenAttributes{TypeID: invalidFungibleTokenTypeID},
 			authProof:  &tokens.MintFungibleTokenAuthProof{},
-			wantErrStr: "invalid token type ID",
+			wantErrStr: "invalid token type: expected type 0X1, got 0X2",
 		},
 		{
 			name: "unit type with given ID does not exist",
@@ -433,7 +445,7 @@ func TestMintFungibleToken_NotOk(t *testing.T) {
 		},
 	}
 
-	m, err := NewFungibleTokensModule(defaultOpts(t))
+	m, err := NewFungibleTokensModule(tokenid.PDR(), defaultOpts(t))
 	require.NoError(t, err)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -445,14 +457,16 @@ func TestMintFungibleToken_NotOk(t *testing.T) {
 
 func TestMintFungibleToken_Ok(t *testing.T) {
 	opts := defaultOpts(t)
+	pdr := tokenid.PDR()
 	attributes := &tokens.MintFungibleTokenAttributes{
 		OwnerPredicate: templates.AlwaysTrueBytes(),
 		TypeID:         existingTokenTypeID,
 		Value:          existingTokenValue,
 	}
 	tx := createTxOrder(t, nil, tokens.TransactionTypeMintFT, attributes)
-	tx.UnitID = newFungibleTokenID(t, tx)
-	m, err := NewFungibleTokensModule(opts)
+	tx.NetworkID = pdr.NetworkID
+	require.NoError(t, tokens.GenerateUnitID(tx, types.ShardID{}, &pdr))
+	m, err := NewFungibleTokensModule(pdr, opts)
 	require.NoError(t, err)
 	txExecutors := make(txtypes.TxExecutors)
 	require.NoError(t, txExecutors.Add(m.TxHandlers()))
@@ -476,6 +490,7 @@ func TestMintFungibleToken_Ok(t *testing.T) {
 }
 
 func TestTransferFungibleToken_NotOk(t *testing.T) {
+	ftUnitID := tokenid.NewFungibleTokenID(t)
 	tests := []struct {
 		name       string
 		tx         *types.TransactionOrder
@@ -499,10 +514,10 @@ func TestTransferFungibleToken_NotOk(t *testing.T) {
 		},
 		{
 			name:       "fungible token does not exists",
-			tx:         createTxOrder(t, tokens.NewFungibleTokenID(nil, []byte{42}), tokens.TransactionTypeTransferFT, nil),
+			tx:         createTxOrder(t, ftUnitID, tokens.TransactionTypeTransferFT, nil),
 			attr:       &tokens.TransferFungibleTokenAttributes{},
 			authProof:  &tokens.TransferFungibleTokenAuthProof{},
-			wantErrStr: fmt.Sprintf("unit %s does not exist", tokens.NewFungibleTokenID(nil, []byte{42})),
+			wantErrStr: fmt.Sprintf("unit %s does not exist", ftUnitID),
 		},
 		{
 			name: "token locked",
@@ -563,7 +578,7 @@ func TestTransferFungibleToken_NotOk(t *testing.T) {
 		},
 	}
 
-	m, err := NewFungibleTokensModule(defaultOpts(t))
+	m, err := NewFungibleTokensModule(tokenid.PDR(), defaultOpts(t))
 	require.NoError(t, err)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -586,7 +601,7 @@ func TestTransferFungibleToken_Ok(t *testing.T) {
 	}
 	uID := existingTokenID
 	tx := createTxOrder(t, uID, tokens.TransactionTypeTransferFT, transferAttributes, testtransaction.WithAuthProof(authProof))
-	m, err := NewFungibleTokensModule(opts)
+	m, err := NewFungibleTokensModule(tokenid.PDR(), opts)
 	require.NoError(t, err)
 	txExecutors := make(txtypes.TxExecutors)
 	require.NoError(t, txExecutors.Add(m.TxHandlers()))
@@ -608,6 +623,7 @@ func TestTransferFungibleToken_Ok(t *testing.T) {
 }
 
 func TestSplitFungibleToken_NotOk(t *testing.T) {
+	ftUnitID := tokenid.NewFungibleTokenID(t)
 	tests := []struct {
 		name       string
 		tx         *types.TransactionOrder
@@ -630,10 +646,10 @@ func TestSplitFungibleToken_NotOk(t *testing.T) {
 		},
 		{
 			name:       "fungible token does not exists",
-			tx:         createTxOrder(t, tokens.NewFungibleTokenID(nil, []byte{42}), tokens.TransactionTypeSplitFT, nil),
+			tx:         createTxOrder(t, ftUnitID, tokens.TransactionTypeSplitFT, nil),
 			attr:       &tokens.SplitFungibleTokenAttributes{},
 			authProof:  &tokens.SplitFungibleTokenAuthProof{},
-			wantErrStr: fmt.Sprintf("unit %s does not exist", tokens.NewFungibleTokenID(nil, []byte{42})),
+			wantErrStr: fmt.Sprintf("unit %s does not exist", ftUnitID),
 		},
 		{
 			name: "token locked",
@@ -718,7 +734,7 @@ func TestSplitFungibleToken_NotOk(t *testing.T) {
 		},
 	}
 
-	m, err := NewFungibleTokensModule(defaultOpts(t))
+	m, err := NewFungibleTokensModule(tokenid.PDR(), defaultOpts(t))
 	require.NoError(t, err)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -730,6 +746,7 @@ func TestSplitFungibleToken_NotOk(t *testing.T) {
 
 func TestSplitFungibleToken_Ok(t *testing.T) {
 	opts := defaultOpts(t)
+	pdr := tokenid.PDR()
 
 	var remainingBillValue uint64 = 10
 	attr := &tokens.SplitFungibleTokenAttributes{
@@ -742,7 +759,7 @@ func TestSplitFungibleToken_Ok(t *testing.T) {
 	uID := existingTokenID
 	tx := createTxOrder(t, uID, tokens.TransactionTypeSplitFT, attr, testtransaction.WithAuthProof(authProof))
 	var roundNo uint64 = 10
-	m, err := NewFungibleTokensModule(opts)
+	m, err := NewFungibleTokensModule(pdr, opts)
 	require.NoError(t, err)
 	require.NoError(t, m.validateSplitFT(tx, attr, authProof, testctx.NewMockExecutionContext(testctx.WithCurrentRound(roundNo))))
 	sm, err := m.executeSplitFT(tx, attr, authProof, testctx.NewMockExecutionContext(testctx.WithCurrentRound(roundNo)))
@@ -758,9 +775,8 @@ func TestSplitFungibleToken_Ok(t *testing.T) {
 	require.Equal(t, remainingBillValue, d.Value)
 	require.Equal(t, uint64(1), d.Counter)
 
-	unitPart, err := tokens.HashForNewTokenID(tx, opts.hashAlgorithm)
+	newUnitID, err := pdr.ComposeUnitID(types.ShardID{}, tokens.FungibleTokenUnitType, tokens.PrndSh(tx))
 	require.NoError(t, err)
-	newUnitID := tokens.NewFungibleTokenID(uID, unitPart)
 	newUnit, err := opts.state.GetUnit(newUnitID, false)
 	require.NoError(t, err)
 	require.NotNil(t, newUnit)
@@ -774,6 +790,7 @@ func TestSplitFungibleToken_Ok(t *testing.T) {
 }
 
 func TestBurnFungibleToken_NotOk(t *testing.T) {
+	ftUnitID := tokenid.NewFungibleTokenID(t)
 	tests := []struct {
 		name       string
 		tx         *types.TransactionOrder
@@ -797,10 +814,10 @@ func TestBurnFungibleToken_NotOk(t *testing.T) {
 		},
 		{
 			name:       "fungible token does not exists",
-			tx:         createTxOrder(t, tokens.NewFungibleTokenID(nil, []byte{42}), tokens.TransactionTypeBurnFT, nil),
+			tx:         createTxOrder(t, ftUnitID, tokens.TransactionTypeBurnFT, nil),
 			attr:       &tokens.BurnFungibleTokenAttributes{},
 			authProof:  &tokens.BurnFungibleTokenAuthProof{},
-			wantErrStr: fmt.Sprintf("unit %s does not exist", tokens.NewFungibleTokenID(nil, []byte{42})),
+			wantErrStr: fmt.Sprintf("unit %s does not exist", ftUnitID),
 		},
 		{
 			name: "token locked",
@@ -843,8 +860,7 @@ func TestBurnFungibleToken_NotOk(t *testing.T) {
 			tx:   createTxOrder(t, existingTokenID, tokens.TransactionTypeBurnFT, nil),
 			attr: &tokens.BurnFungibleTokenAttributes{
 				TypeID: func() []byte {
-					r := tokens.NewFungibleTokenTypeID(nil, []byte{42})
-					return r[:]
+					return tokenid.NewFungibleTokenTypeID(t)
 				}(),
 				Value:              existingTokenValue,
 				TargetTokenCounter: 0,
@@ -855,7 +871,7 @@ func TestBurnFungibleToken_NotOk(t *testing.T) {
 		},
 	}
 
-	m, err := NewFungibleTokensModule(defaultOpts(t))
+	m, err := NewFungibleTokensModule(tokenid.PDR(), defaultOpts(t))
 	require.NoError(t, err)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -878,7 +894,7 @@ func TestBurnFungibleToken_Ok(t *testing.T) {
 	tx := createTxOrder(t, uID, tokens.TransactionTypeBurnFT, burnAttributes, testtransaction.WithAuthProof(authProof))
 	roundNo := uint64(10)
 
-	m, err := NewFungibleTokensModule(opts)
+	m, err := NewFungibleTokensModule(tokenid.PDR(), opts)
 	require.NoError(t, err)
 	txExecutors := make(txtypes.TxExecutors)
 	require.NoError(t, txExecutors.Add(m.TxHandlers()))
@@ -907,7 +923,7 @@ func TestJoinFungibleToken_Ok(t *testing.T) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	opts := defaultOpts(t)
 	opts.trustBase = testtb.NewTrustBase(t, verifier)
-	m, err := NewFungibleTokensModule(opts)
+	m, err := NewFungibleTokensModule(tokenid.PDR(), opts)
 	require.NoError(t, err)
 	txExecutors := make(txtypes.TxExecutors)
 	require.NoError(t, txExecutors.Add(m.TxHandlers()))
@@ -976,7 +992,7 @@ func TestJoinFungibleToken_NotOk(t *testing.T) {
 		TargetTokenCounter: 0,
 		Counter:            0,
 	})
-	maxUintValueTokenID := tokens.NewFungibleTokenID(nil, []byte{1, 0, 0, 2})
+	maxUintValueTokenID := tokenid.NewFungibleTokenID(t)
 	burnTx3 := createTxRecord(t, maxUintValueTokenID, tokens.TransactionTypeBurnFT, &tokens.BurnFungibleTokenAttributes{
 		TypeID:             existingTokenTypeID2,
 		Value:              math.MaxUint64,
@@ -1004,11 +1020,14 @@ func TestJoinFungibleToken_NotOk(t *testing.T) {
 	proofBurnTx3 := testblock.CreateTxRecordProof(t, burnTx3, signer)
 
 	// create block with 3 burn txs
+	pdr := tokenid.PDR()
 	var burnTxRecordProofs []*types.TxRecordProof
 	for i := uint8(3); i >= 1; i-- {
+		unitID, err := pdr.ComposeUnitID(types.ShardID{}, tokens.FungibleTokenUnitType, func(b []byte) error { b[len(b)-1] = i; return nil })
+		require.NoError(t, err)
 		burnAuthProof := &tokens.BurnFungibleTokenAuthProof{TokenTypeOwnerProofs: [][]byte{templates.EmptyArgument()}}
 		burnTxRecord := createTxRecord(t,
-			tokens.NewFungibleTokenID(nil, []byte{i}),
+			unitID,
 			tokens.TransactionTypeBurnFT,
 			&tokens.BurnFungibleTokenAttributes{
 				TypeID:             existingTokenTypeID,
@@ -1023,6 +1042,7 @@ func TestJoinFungibleToken_NotOk(t *testing.T) {
 		burnTxRecordProofs = append(burnTxRecordProofs, burnTxRecordProof)
 	}
 
+	ftUnitID := tokenid.NewFungibleTokenID(t)
 	tests := []struct {
 		name       string
 		tx         *types.TransactionOrder
@@ -1040,8 +1060,8 @@ func TestJoinFungibleToken_NotOk(t *testing.T) {
 		},
 		{
 			name:       "fungible token does not exists",
-			tx:         createTxOrder(t, tokens.NewFungibleTokenID(nil, []byte{42}), tokens.TransactionTypeJoinFT, &tokens.JoinFungibleTokenAttributes{}),
-			wantErrStr: fmt.Sprintf("unit %s does not exist", tokens.NewFungibleTokenID(nil, []byte{42})),
+			tx:         createTxOrder(t, ftUnitID, tokens.TransactionTypeJoinFT, &tokens.JoinFungibleTokenAttributes{}),
+			wantErrStr: fmt.Sprintf("unit %s does not exist", ftUnitID),
 		},
 		{
 			name: "token identifiers in wrong order",
@@ -1111,7 +1131,7 @@ func TestJoinFungibleToken_NotOk(t *testing.T) {
 		},
 	}
 
-	m, err := NewFungibleTokensModule(opts)
+	m, err := NewFungibleTokensModule(tokenid.PDR(), opts)
 	require.NoError(t, err)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

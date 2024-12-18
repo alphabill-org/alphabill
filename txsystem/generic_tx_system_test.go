@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	abhash "github.com/alphabill-org/alphabill-go-base/hash"
 	"github.com/stretchr/testify/require"
 
+	abhash "github.com/alphabill-org/alphabill-go-base/hash"
 	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
 	fcsdk "github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/types"
@@ -180,7 +180,7 @@ func Test_GenericTxSystem_Execute(t *testing.T) {
 		expErr := errors.New("nope!")
 		m := NewMockTxModule(expErr)
 		unitID := test.RandomBytes(33)
-		fcrID := types.NewUnitID(33, nil, []byte{1}, []byte{0xff})
+		fcrID := test.RandomBytes(33)
 		txSys := NewTestGenericTxSystem(t,
 			[]txtypes.Module{m},
 			withStateUnit(fcrID, &fcsdk.FeeCreditRecord{Balance: 10, OwnerPredicate: templates.AlwaysTrueBytes()}, nil),
@@ -222,7 +222,7 @@ func Test_GenericTxSystem_Execute(t *testing.T) {
 		expErr := errors.New("nope!")
 		m := NewMockTxModule(expErr)
 		unitID := test.RandomBytes(33)
-		fcrID := types.NewUnitID(33, nil, []byte{1}, []byte{0xff})
+		fcrID := test.RandomBytes(33)
 		txSys := NewTestGenericTxSystem(t,
 			[]txtypes.Module{m},
 			withStateUnit(fcrID, &fcsdk.FeeCreditRecord{Balance: 10, OwnerPredicate: templates.AlwaysTrueBytes()}, nil),
@@ -304,7 +304,7 @@ func Test_GenericTxSystem_Execute(t *testing.T) {
 	t.Run("lock success", func(t *testing.T) {
 		m := NewMockTxModule(nil)
 		unitID := test.RandomBytes(33)
-		fcrID := types.NewUnitID(33, nil, []byte{1}, []byte{0xff})
+		fcrID := test.RandomBytes(33)
 		txSys := NewTestGenericTxSystem(t, []txtypes.Module{m},
 			withStateUnit(unitID, &MockData{Value: 1, OwnerPredicate: templates.AlwaysTrueBytes()}, nil),
 			withStateUnit(fcrID, &fcsdk.FeeCreditRecord{Balance: 10, OwnerPredicate: templates.AlwaysTrueBytes()}, nil))
@@ -329,7 +329,7 @@ func Test_GenericTxSystem_Execute(t *testing.T) {
 
 	t.Run("success", func(t *testing.T) {
 		m := NewMockTxModule(nil)
-		fcrID := types.NewUnitID(33, nil, []byte{1}, []byte{0xff})
+		fcrID := test.RandomBytes(33)
 		txSys := NewTestGenericTxSystem(t, []txtypes.Module{m},
 			withStateUnit(fcrID, &fcsdk.FeeCreditRecord{Balance: 10, OwnerPredicate: templates.AlwaysTrueBytes()}, nil))
 		txo := transaction.NewTransactionOrder(t,

@@ -72,7 +72,9 @@ func runTokensNode(ctx context.Context, cfg *tokensConfiguration) error {
 	if stateFilePath == "" {
 		stateFilePath = filepath.Join(cfg.Base.HomeDir, utDir, utGenesisStateFileName)
 	}
-	state, err := loadStateFile(stateFilePath, tokenssdk.NewUnitData)
+	state, err := loadStateFile(stateFilePath, func(ui types.UnitID) (types.UnitData, error) {
+		return tokenssdk.NewUnitData(ui, pg.PartitionDescription)
+	})
 	if err != nil {
 		return fmt.Errorf("loading state (file %s): %w", cfg.Node.StateFile, err)
 	}

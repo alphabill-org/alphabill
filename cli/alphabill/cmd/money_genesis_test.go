@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
+	moneyid "github.com/alphabill-org/alphabill-go-base/testutils/money"
 	moneysdk "github.com/alphabill-org/alphabill-go-base/txsystem/money"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/util"
@@ -116,17 +117,18 @@ func Test_MoneyGenesis(t *testing.T) {
 	t.Run("ParamsCanBeChanged", func(t *testing.T) {
 		homeDir := t.TempDir()
 		pdr := &types.PartitionDescriptionRecord{
-			Version:           1,
-			NetworkID: 5,
-			PartitionID:       moneysdk.DefaultPartitionID,
-			TypeIDLen:         4,
-			UnitIDLen:         300,
-			T2Timeout:         10 * time.Second,
+			Version:     1,
+			NetworkID:   5,
+			PartitionID: moneysdk.DefaultPartitionID,
+			TypeIDLen:   8,
+			UnitIDLen:   256,
+			T2Timeout:   10 * time.Second,
 			FeeCreditBill: &types.FeeCreditBill{
-				UnitID:         moneysdk.NewBillID(nil, []byte{2}),
 				OwnerPredicate: templates.AlwaysFalseBytes(),
 			},
 		}
+		pdr.FeeCreditBill.UnitID, err = pdr.ComposeUnitID(types.ShardID{}, moneysdk.BillUnitType, moneyid.Random)
+		require.NoError(t, err)
 		pdrFile, err := createPDRFile(homeDir, pdr)
 		require.NoError(t, err)
 
@@ -142,7 +144,9 @@ func Test_MoneyGenesis(t *testing.T) {
 
 		stateFile, err := os.Open(filepath.Join(homeDir, moneyPartitionDir, moneyGenesisStateFileName))
 		require.NoError(t, err)
-		s, err := state.NewRecoveredState(stateFile, moneysdk.NewUnitData)
+		s, err := state.NewRecoveredState(stateFile, func(ui types.UnitID) (types.UnitData, error) {
+			return moneysdk.NewUnitData(ui, pdr)
+		})
 		require.NoError(t, err)
 		unit, err := s.GetUnit(defaultInitialBillID, false)
 		require.NoError(t, err)
@@ -158,10 +162,12 @@ func Test_MoneyGenesis(t *testing.T) {
 		require.NoError(t, os.MkdirAll(filepath.Join(homeDir, moneyPartitionDir), 0700))
 
 		pdr := &types.PartitionDescriptionRecord{
-			Version:             1,
+			Version:     1,
 			NetworkID:   5,
 			PartitionID: moneysdk.DefaultPartitionID,
-			T2Timeout:           10 * time.Second,
+			TypeIDLen:   8,
+			UnitIDLen:   256,
+			T2Timeout:   10 * time.Second,
 			FeeCreditBill: &types.FeeCreditBill{
 				UnitID:         defaultInitialBillID,
 				OwnerPredicate: templates.AlwaysFalseBytes(),
@@ -182,10 +188,12 @@ func Test_MoneyGenesis(t *testing.T) {
 		require.NoError(t, os.MkdirAll(filepath.Join(homeDir, moneyPartitionDir), 0700))
 
 		pdr := &types.PartitionDescriptionRecord{
-			Version:             1,
+			Version:     1,
 			NetworkID:   5,
 			PartitionID: moneysdk.DefaultPartitionID,
-			T2Timeout:           10 * time.Second,
+			TypeIDLen:   8,
+			UnitIDLen:   256,
+			T2Timeout:   10 * time.Second,
 			FeeCreditBill: &types.FeeCreditBill{
 				UnitID:         money.DustCollectorMoneySupplyID,
 				OwnerPredicate: templates.AlwaysFalseBytes(),
@@ -206,17 +214,18 @@ func Test_MoneyGenesis(t *testing.T) {
 		nodeGenesisFile := filepath.Join(homeDir, moneyPartitionDir, evmGenesisFileName)
 
 		pdr := types.PartitionDescriptionRecord{
-			Version:             1,
+			Version:     1,
 			NetworkID:   5,
 			PartitionID: 55,
-			TypeIDLen:           4,
-			UnitIDLen:           300,
-			T2Timeout:           10 * time.Second,
+			TypeIDLen:   4,
+			UnitIDLen:   300,
+			T2Timeout:   10 * time.Second,
 			FeeCreditBill: &types.FeeCreditBill{
-				UnitID:         moneysdk.NewBillID(nil, []byte{2}),
 				OwnerPredicate: templates.AlwaysFalseBytes(),
 			},
 		}
+		pdr.FeeCreditBill.UnitID, err = pdr.ComposeUnitID(types.ShardID{}, moneysdk.BillUnitType, moneyid.Random)
+		require.NoError(t, err)
 		pdrFile, err := createPDRFile(homeDir, &pdr)
 		require.NoError(t, err)
 

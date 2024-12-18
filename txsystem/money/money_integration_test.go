@@ -5,7 +5,6 @@ import (
 	"crypto"
 	"sort"
 	"testing"
-	"time"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
@@ -39,35 +38,29 @@ var (
 func TestPartition_Ok(t *testing.T) {
 	const moneyInvariant = uint64(10000 * 1e8)
 	total := moneyInvariant
+	const fcrAmount = uint64(1e8)
 	ib := &InitialBill{
 		ID:    []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1},
 		Value: moneyInvariant,
 		Owner: templates.AlwaysTrueBytes(),
 	}
-	pdr := types.PartitionDescriptionRecord{
-		Version:             1,
-		NetworkID:   5,
-		PartitionID: money.DefaultPartitionID,
-		TypeIDLen:           8,
-		UnitIDLen:           256,
-		T2Timeout:           2000 * time.Millisecond,
-	}
-	sdrs := createSDRs(newBillID(2))
-	s := genesisState(t, ib, sdrs)
+	pdrs := createPDRs(t)
+	moneyPDR := *pdrs[0]
+	s := genesisState(t, ib, pdrs)
 	moneyPrt, err := testpartition.NewPartition(t, 3, func(tb types.RootTrustBase) txsystem.TransactionSystem {
 		s = s.Clone()
 		system, err := NewTxSystem(
-			pdr,
+			moneyPDR,
 			types.ShardID{},
 			observability.Default(t),
 			WithState(s),
 			WithHashAlgorithm(crypto.SHA256),
-			WithPartitionDescriptionRecords(sdrs),
+			WithPartitionDescriptionRecords(pdrs),
 			WithTrustBase(tb),
 		)
 		require.NoError(t, err)
 		return system
-	}, pdr, s)
+	}, moneyPDR, s)
 	require.NoError(t, err)
 	abNet, err := testpartition.NewAlphabillPartition(t, []*testpartition.NodePartition{moneyPrt})
 
@@ -86,6 +79,7 @@ func TestPartition_Ok(t *testing.T) {
 		),
 		testtransaction.WithUnitID(ib.ID),
 		testtransaction.WithTransactionType(fcsdk.TransactionTypeTransferFeeCredit),
+		testtransaction.WithPartition(&moneyPDR),
 	)
 	require.NoError(t, moneyPrt.SubmitTx(transferFC))
 	transferFCProof, err := testpartition.WaitTxProof(t, moneyPrt, transferFC)
@@ -97,7 +91,7 @@ func TestPartition_Ok(t *testing.T) {
 	require.Equal(t, moneyInvariant-fcrAmount, billState.Value)
 
 	// verify proof
-	ucv, err := abNet.GetValidator(pdr.PartitionID)
+	ucv, err := abNet.GetValidator(moneyPDR.PartitionID)
 	require.NoError(t, err)
 	require.NoError(t, unitAndProof.Proof.Verify(crypto.SHA256, unitAndProof.UnitData, ucv))
 
@@ -108,6 +102,7 @@ func TestPartition_Ok(t *testing.T) {
 			testutils.WithFeeCreditOwnerPredicate(templates.AlwaysTrueBytes()),
 		),
 		testtransaction.WithUnitID(fcrID),
+		testtransaction.WithPartition(&moneyPDR),
 		testtransaction.WithTransactionType(fcsdk.TransactionTypeAddFeeCredit),
 	)
 	require.NoError(t, moneyPrt.SubmitTx(addFC))
@@ -168,40 +163,33 @@ func TestPartition_Ok(t *testing.T) {
 func TestPartition_SwapDCOk(t *testing.T) {
 	const moneyInvariant = uint64(10000 * 1e8)
 	const nofDustToSwap = 3
+	const fcrAmount = uint64(1e8)
 
-	var (
-		txsState    *state.State
-		initialBill = &InitialBill{
-			ID:    money.NewBillID(nil, []byte{1}),
-			Value: moneyInvariant,
-			Owner: templates.AlwaysTrueBytes(),
-		}
-	)
-	pdr := types.PartitionDescriptionRecord{
-		Version:             1,
-		NetworkID:   networkID,
-		PartitionID: money.DefaultPartitionID,
-		TypeIDLen:           8,
-		UnitIDLen:           256,
-		T2Timeout:           2000 * time.Millisecond,
+	pdrs := createPDRs(t)
+	moneyPDR := *pdrs[0]
+	var err error
+	initialBill := &InitialBill{
+		Value: moneyInvariant,
+		Owner: templates.AlwaysTrueBytes(),
 	}
+	initialBill.ID, err = pdrs[0].ComposeUnitID(types.ShardID{}, money.BillUnitType, func(b []byte) error { b[len(b)-1] = 1; return nil })
+	require.NoError(t, err)
 	total := moneyInvariant
-	sdrs := createSDRs(newBillID(99))
-	txsState = genesisState(t, initialBill, sdrs)
+	txsState := genesisState(t, initialBill, pdrs)
 	moneyPrt, err := testpartition.NewPartition(t, 3, func(tb types.RootTrustBase) txsystem.TransactionSystem {
 		txsState = txsState.Clone()
 		system, err := NewTxSystem(
-			pdr,
+			moneyPDR,
 			types.ShardID{},
 			observability.Default(t),
 			WithHashAlgorithm(crypto.SHA256),
-			WithPartitionDescriptionRecords(sdrs),
+			WithPartitionDescriptionRecords(pdrs),
 			WithTrustBase(tb),
 			WithState(txsState),
 		)
 		require.NoError(t, err)
 		return system
-	}, pdr, txsState)
+	}, moneyPDR, txsState)
 	require.NoError(t, err)
 	abNet, err := testpartition.NewAlphabillPartition(t, []*testpartition.NodePartition{moneyPrt})
 	require.NoError(t, err)
@@ -218,7 +206,7 @@ func TestPartition_SwapDCOk(t *testing.T) {
 			testutils.WithTargetRecordID(fcrID),
 		),
 		testtransaction.WithUnitID(initialBill.ID),
-
+		testtransaction.WithPartition(&moneyPDR),
 		testtransaction.WithTransactionType(fcsdk.TransactionTypeTransferFeeCredit),
 	)
 	require.NoError(t, moneyPrt.SubmitTx(transferFC))
@@ -234,6 +222,7 @@ func TestPartition_SwapDCOk(t *testing.T) {
 			testutils.WithTransferFCProof(transferFCProof),
 			testutils.WithFeeCreditOwnerPredicate(templates.AlwaysTrueBytes()),
 		),
+		testtransaction.WithPartition(&moneyPDR),
 		testtransaction.WithUnitID(fcrID),
 		testtransaction.WithTransactionType(fcsdk.TransactionTypeAddFeeCredit),
 	)
@@ -248,6 +237,7 @@ func TestPartition_SwapDCOk(t *testing.T) {
 
 	// transfer initial bill to pubKey1
 	transferInitialBillTx, _, _ := createBillTransfer(t, initialBill.ID, fcrID, total-fcrAmount, templates.NewP2pkh256BytesFromKeyHash(decodeAndHashHex(pubKey1)), 1)
+	transferInitialBillTx.NetworkID = moneyPDR.NetworkID
 	require.NoError(t, moneyPrt.SubmitTx(transferInitialBillTx))
 	// wait for transaction to be added to block
 	txRecordProof, err := testpartition.WaitTxProof(t, moneyPrt, transferInitialBillTx)
@@ -270,6 +260,7 @@ func TestPartition_SwapDCOk(t *testing.T) {
 		amount++
 	}
 	splitTx := createSplitTx(t, initialBill.ID, fcrID, 2, targetUnits)
+	splitTx.NetworkID = moneyPDR.NetworkID
 	require.NoError(t, moneyPrt.SubmitTx(splitTx))
 
 	// wait for transaction to be added to block
@@ -279,10 +270,10 @@ func TestPartition_SwapDCOk(t *testing.T) {
 
 	// create dust payments from splits
 	dcBillIds := make([]types.UnitID, nofDustToSwap)
+	idGen := money.PrndSh(splitTx)
 	for i := 0; i < nofDustToSwap; i++ {
-		unitPart, err := money.HashForNewBillID(splitTx, uint32(i), crypto.SHA256)
+		dcBillIds[i], err = moneyPDR.ComposeUnitID(types.ShardID{}, money.BillUnitType, idGen)
 		require.NoError(t, err)
-		dcBillIds[i] = money.NewBillID(nil, unitPart)
 	}
 	// sort bill id's
 	sort.Slice(dcBillIds, func(i, j int) bool {
@@ -305,8 +296,8 @@ func TestPartition_SwapDCOk(t *testing.T) {
 	swapTx := &types.TransactionOrder{
 		Version: 1,
 		Payload: types.Payload{
-			NetworkID:   pdr.NetworkID,
-			PartitionID: pdr.PartitionID,
+			NetworkID:   moneyPDR.NetworkID,
+			PartitionID: moneyPDR.PartitionID,
 			Type:        money.TransactionTypeSwapDC,
 			UnitID:      initialBill.ID,
 			Attributes:  swapAttrBytes,
@@ -377,8 +368,4 @@ func decodeAndHashHex(hex string) []byte {
 func decodeHex(hex string) []byte {
 	decoded, _ := hexutil.Decode(hex)
 	return decoded
-}
-
-func newBillID(unitPart byte) types.UnitID {
-	return money.NewBillID(nil, []byte{unitPart})
 }

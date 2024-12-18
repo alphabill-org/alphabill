@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
+	tokenid "github.com/alphabill-org/alphabill-go-base/testutils/tokens"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/tokens"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
@@ -19,7 +20,7 @@ import (
 
 func TestUnlockFT_Ok(t *testing.T) {
 	opts := defaultLockOpts(t)
-	m, err := NewLockTokensModule(opts)
+	m, err := NewLockTokensModule(tokenid.PDR(), opts)
 	require.NoError(t, err)
 	txExecutors := make(txtypes.TxExecutors)
 	require.NoError(t, txExecutors.Add(m.TxHandlers()))
@@ -45,7 +46,10 @@ func TestUnlockFT_NotOk(t *testing.T) {
 	_, verifier := testsig.CreateSignerAndVerifier(t)
 	opts := defaultLockOpts(t)
 	opts.trustBase = testtb.NewTrustBase(t, verifier)
-	m, err := NewLockTokensModule(opts)
+	pdr := tokenid.PDR()
+	m, err := NewLockTokensModule(pdr, opts)
+	require.NoError(t, err)
+	ftID, err := pdr.ComposeUnitID(types.ShardID{}, tokens.FungibleTokenUnitType, func(b []byte) error { b[len(b)-1] = 42; return nil })
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -65,8 +69,8 @@ func TestUnlockFT_NotOk(t *testing.T) {
 		},
 		{
 			name:       "fungible token does not exists",
-			tx:         createTxOrder(t, tokens.NewFungibleTokenID(nil, []byte{42}), tokens.TransactionTypeUnlockToken, nil),
-			wantErrStr: fmt.Sprintf("unit %s does not exist", tokens.NewFungibleTokenID(nil, []byte{42})),
+			tx:         createTxOrder(t, ftID, tokens.TransactionTypeUnlockToken, nil),
+			wantErrStr: fmt.Sprintf("unit %s does not exist", ftID),
 		},
 		{
 			name:       "token is already unlocked",
@@ -105,7 +109,7 @@ func TestUnlockFT_NotOk(t *testing.T) {
 
 func TestUnlockNFT_Ok(t *testing.T) {
 	opts := defaultLockOpts(t)
-	m, err := NewLockTokensModule(opts)
+	m, err := NewLockTokensModule(tokenid.PDR(), opts)
 	require.NoError(t, err)
 	txExecutors := make(txtypes.TxExecutors)
 	require.NoError(t, txExecutors.Add(m.TxHandlers()))
@@ -159,6 +163,7 @@ func TestUnlockNFT_NotOk(t *testing.T) {
 		Locked:              1,
 	}))
 	require.NoError(t, err)
+	nftID := tokenid.NewNonFungibleTokenID(t)
 
 	tests := []struct {
 		name       string
@@ -177,8 +182,8 @@ func TestUnlockNFT_NotOk(t *testing.T) {
 		},
 		{
 			name:       "fungible token does not exists",
-			tx:         createTxOrder(t, tokens.NewNonFungibleTokenID(nil, []byte{42}), tokens.TransactionTypeUnlockToken, nil),
-			wantErrStr: fmt.Sprintf("unit %s does not exist", tokens.NewNonFungibleTokenID(nil, []byte{42})),
+			tx:         createTxOrder(t, nftID, tokens.TransactionTypeUnlockToken, nil),
+			wantErrStr: fmt.Sprintf("unit %s does not exist", nftID),
 		},
 		{
 			name:       "token is already unlocked",
@@ -202,7 +207,7 @@ func TestUnlockNFT_NotOk(t *testing.T) {
 		},
 	}
 
-	m, err := NewLockTokensModule(opts)
+	m, err := NewLockTokensModule(tokenid.PDR(), opts)
 	require.NoError(t, err)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

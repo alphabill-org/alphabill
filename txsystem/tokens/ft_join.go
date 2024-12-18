@@ -36,7 +36,7 @@ func (m *FungibleTokensModule) executeJoinFT(tx *types.TransactionOrder, _ *toke
 }
 
 func (m *FungibleTokensModule) validateJoinFT(tx *types.TransactionOrder, attr *tokens.JoinFungibleTokenAttributes, authProof *tokens.JoinFungibleTokenAuthProof, exeCtx txtypes.ExecutionContext) error {
-	tokenData, err := getFungibleTokenData(tx.UnitID, m.state)
+	tokenData, err := m.getFungibleTokenData(tx.UnitID)
 	if err != nil {
 		return err
 	}

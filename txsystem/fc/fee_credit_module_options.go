@@ -12,7 +12,7 @@ func WithHashAlgorithm(hashAlgorithm crypto.Hash) Option {
 	}
 }
 
-func WithFeeCreditRecordUnitType(feeCreditRecordUnitType []byte) Option {
+func WithFeeCreditRecordUnitType(feeCreditRecordUnitType uint32) Option {
 	return func(f *FeeCreditModule) {
 		f.feeCreditRecordUnitType = feeCreditRecordUnitType
 	}

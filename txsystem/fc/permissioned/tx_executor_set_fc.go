@@ -23,7 +23,7 @@ func (f *FeeCreditModule) validateSetFC(tx *types.TransactionOrder, attr *permis
 
 	// verify unit id has the correct type byte
 	unitID := tx.GetUnitID()
-	if !unitID.HasType(f.feeCreditRecordUnitType) {
+	if err := unitID.TypeMustBe(f.feeCreditRecordUnitType, &f.pdr); err != nil {
 		return fmt.Errorf("invalid unit type for unitID: %s", unitID)
 	}
 
@@ -91,10 +91,5 @@ func (f *FeeCreditModule) executeSetFC(tx *types.TransactionOrder, attr *permiss
 }
 
 func (f *FeeCreditModule) NewFeeCreditRecordID(unitID []byte, ownerPredicate []byte, timeout uint64) (types.UnitID, error) {
-	unitPart, err := fc.NewFeeCreditRecordUnitPart(ownerPredicate, timeout)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create fee credit record unit part: %w", err)
-	}
-	unitIdLen := len(unitPart) + len(f.feeCreditRecordUnitType)
-	return types.NewUnitID(unitIdLen, unitID, unitPart, f.feeCreditRecordUnitType), nil
+	return f.pdr.ComposeUnitID(types.ShardID{}, f.feeCreditRecordUnitType, fc.PrndSh(ownerPredicate, timeout))
 }

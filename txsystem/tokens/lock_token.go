@@ -11,12 +11,17 @@ import (
 	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 )
 
-func (m *LockTokensModule) updateLockTokenData(data types.UnitData, tx *types.TransactionOrder, attr *tokens.LockTokenAttributes, roundNumber uint64) (types.UnitData, error) {
-	if tx.UnitID.HasType(tokens.FungibleTokenUnitType) {
+func (m *LockTokensModule) updateLockTokenData(data types.UnitData, tx *types.TransactionOrder, attr *tokens.LockTokenAttributes) (types.UnitData, error) {
+	tid, err := m.pdr.ExtractUnitType(tx.UnitID)
+	if err != nil {
+		return nil, fmt.Errorf("determining unit type: %w", err)
+	}
+	switch tid {
+	case tokens.FungibleTokenUnitType:
 		return updateLockFungibleTokenData(data, tx, attr)
-	} else if tx.UnitID.HasType(tokens.NonFungibleTokenUnitType) {
+	case tokens.NonFungibleTokenUnitType:
 		return updateLockNonFungibleTokenData(data, tx, attr)
-	} else {
+	default:
 		return nil, fmt.Errorf("unit id '%s' is not of fungible nor non-fungible token type", tx.UnitID)
 	}
 }
@@ -44,7 +49,7 @@ func updateLockFungibleTokenData(data types.UnitData, tx *types.TransactionOrder
 func (m *LockTokensModule) executeLockTokensTx(tx *types.TransactionOrder, attr *tokens.LockTokenAttributes, _ *tokens.LockTokenAuthProof, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
 	updateFn := state.UpdateUnitData(tx.UnitID,
 		func(data types.UnitData) (types.UnitData, error) {
-			return m.updateLockTokenData(data, tx, attr, exeCtx.CurrentRound())
+			return m.updateLockTokenData(data, tx, attr)
 		},
 	)
 	if err := m.state.Apply(updateFn); err != nil {
@@ -70,11 +75,16 @@ func (m *LockTokensModule) validateLockTokenTx(tx *types.TransactionOrder, attr 
 		return err
 	}
 
-	if tx.UnitID.HasType(tokens.FungibleTokenUnitType) {
+	tid, err := m.pdr.ExtractUnitType(tx.UnitID)
+	if err != nil {
+		return fmt.Errorf("determining unit type: %w", err)
+	}
+	switch tid {
+	case tokens.FungibleTokenUnitType:
 		return m.validateFungibleLockToken(tx, attr, authProof, u, exeCtx)
-	} else if tx.UnitID.HasType(tokens.NonFungibleTokenUnitType) {
+	case tokens.NonFungibleTokenUnitType:
 		return m.validateNonFungibleLockToken(tx, attr, authProof, u, exeCtx)
-	} else {
+	default:
 		return fmt.Errorf("unit id '%s' is not of fungible nor non-fungible token type", tx.UnitID)
 	}
 }

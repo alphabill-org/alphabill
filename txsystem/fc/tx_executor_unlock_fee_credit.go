@@ -37,7 +37,7 @@ func (f *FeeCreditModule) validateUnlockFC(tx *types.TransactionOrder, attr *fc.
 		return fmt.Errorf("invalid fee credit transaction: %w", err)
 	}
 	// ι identifies an existing fee credit record
-	fcr, err := parseFeeCreditRecord(tx.UnitID, f.feeCreditRecordUnitType, f.state)
+	fcr, err := parseFeeCreditRecord(&f.pdr, tx.UnitID, f.feeCreditRecordUnitType, f.state)
 	if err != nil {
 		return fmt.Errorf("get unit error: %w", err)
 	}

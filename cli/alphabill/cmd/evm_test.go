@@ -30,12 +30,12 @@ func TestRunEvmNode_StartStop(t *testing.T) {
 	partitionGenesisFileLocation := filepath.Join(homeDir, "evm-genesis.json")
 	trustBaseFileLocation := filepath.Join(homeDir, rootTrustBaseFileName)
 	pdr := types.PartitionDescriptionRecord{
-		Version:           1,
-		NetworkID: 5,
-		PartitionID:       33,
-		TypeIDLen:         8,
-		UnitIDLen:         256,
-		T2Timeout:         2500 * time.Millisecond,
+		Version:     1,
+		NetworkID:   5,
+		PartitionID: 33,
+		TypeIDLen:   8,
+		UnitIDLen:   256,
+		T2Timeout:   2500 * time.Millisecond,
 	}
 	pdrFilename := filepath.Join(homeDir, "pdr.json")
 	require.NoError(t, util.WriteJsonFile(pdrFilename, &pdr))
@@ -56,17 +56,17 @@ func TestRunEvmNode_StartStop(t *testing.T) {
 	pn, err := util.ReadJsonFile(nodeGenesisFileLocation, &genesis.PartitionNode{Version: 1})
 	require.NoError(t, err)
 
-	// use same keys for signing and communication encryption.
+	// use same keys for signing and authenticatoin.
 	rootSigner, verifier := testsig.CreateSignerAndVerifier(t)
 	rootPubKeyBytes, err := verifier.MarshalPublicKey()
 	require.NoError(t, err)
 	pr, err := rootgenesis.NewPartitionRecordFromNodes([]*genesis.PartitionNode{pn})
 	require.NoError(t, err)
-	rootEncryptionKey, err := crypto.UnmarshalSecp256k1PublicKey(rootPubKeyBytes)
+	rootAuthKey, err := crypto.UnmarshalSecp256k1PublicKey(rootPubKeyBytes)
 	require.NoError(t, err)
-	rootID, err := peer.IDFromPublicKey(rootEncryptionKey)
+	rootID, err := peer.IDFromPublicKey(rootAuthKey)
 	require.NoError(t, err)
-	bootNodeStr := fmt.Sprintf("%s@/ip4/127.0.0.1/tcp/26662", rootID.String())
+	bootNodeStr := fmt.Sprintf("/ip4/127.0.0.1/tcp/26662/p2p/%s", rootID.String())
 	rootGenesis, partitionGenesisFiles, err := rootgenesis.NewRootGenesis(rootID.String(), rootSigner, rootPubKeyBytes, pr)
 	require.NoError(t, err)
 	err = util.WriteJsonFile(partitionGenesisFileLocation, partitionGenesisFiles[0])

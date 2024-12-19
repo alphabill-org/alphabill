@@ -73,7 +73,9 @@ func runMoneyNode(ctx context.Context, cfg *moneyNodeConfiguration) error {
 	if stateFilePath == "" {
 		stateFilePath = filepath.Join(cfg.Base.HomeDir, moneyPartitionDir, moneyGenesisStateFileName)
 	}
-	state, err := loadStateFile(stateFilePath, moneysdk.NewUnitData)
+	state, err := loadStateFile(stateFilePath, func(ui types.UnitID) (types.UnitData, error) {
+		return moneysdk.NewUnitData(ui, pg.PartitionDescription)
+	})
 	if err != nil {
 		return fmt.Errorf("loading state (file %s): %w", cfg.Node.StateFile, err)
 	}
@@ -95,7 +97,7 @@ func runMoneyNode(ctx context.Context, cfg *moneyNodeConfiguration) error {
 		return fmt.Errorf("failed to load node keys: %w", err)
 	}
 
-	nodeID, err := peer.IDFromPublicKey(keys.EncryptionPrivateKey.GetPublic())
+	nodeID, err := peer.IDFromPublicKey(keys.AuthPrivKey.GetPublic())
 	if err != nil {
 		return fmt.Errorf("failed to calculate nodeID: %w", err)
 	}

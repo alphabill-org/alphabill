@@ -15,7 +15,8 @@ const defaultDustBillDeletionTimeout uint64 = 65536
 
 var (
 	// The ID of the dust collector money supply
-	DustCollectorMoneySupplyID = money.NewBillID(nil, nil)
+	// TODO: can't be hardcoded, depends on the PDR (AB-1819)
+	DustCollectorMoneySupplyID = append(make(types.UnitID, 32), money.BillUnitType)
 
 	// Dust collector predicate
 	DustCollectorPredicate = templates.NewP2pkh256BytesFromKeyHash(hash.Sum256([]byte("dust collector")))

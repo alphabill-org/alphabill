@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	moneyid "github.com/alphabill-org/alphabill-go-base/testutils/money"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
@@ -18,10 +19,11 @@ func TestFeeCredit_validateUnlockFC(t *testing.T) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	trustBase := testtb.NewTrustBase(t, verifier)
 	fcrID := testutils.NewFeeCreditRecordID(t, signer)
+	targetPDR := moneyid.PDR()
 
 	t.Run("ok", func(t *testing.T) {
 		tx := testutils.NewUnlockFC(t, signer, nil)
-		feeModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID, &fc.FeeCreditRecord{Balance: 50, Counter: 4, Locked: 1}))
+		feeModule := newTestFeeModule(t, &targetPDR, trustBase, withStateUnit(tx.UnitID, &fc.FeeCreditRecord{Balance: 50, Counter: 4, Locked: 1}))
 		var attr fc.UnlockFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		var authProof fc.UnlockFeeCreditAuthProof
@@ -31,7 +33,7 @@ func TestFeeCredit_validateUnlockFC(t *testing.T) {
 	})
 	t.Run("unit does not exist", func(t *testing.T) {
 		tx := testutils.NewUnlockFC(t, signer, nil)
-		feeModule := newTestFeeModule(t, trustBase)
+		feeModule := newTestFeeModule(t, &targetPDR, trustBase)
 		var attr fc.UnlockFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		var authProof fc.UnlockFeeCreditAuthProof
@@ -41,10 +43,10 @@ func TestFeeCredit_validateUnlockFC(t *testing.T) {
 			fmt.Sprintf("get unit error: get fcr unit error: item %s does not exist: not found", fcrID))
 	})
 	t.Run("unit id type part is not fee credit record", func(t *testing.T) {
-		tx := testutils.NewUnlockFC(t, signer, testutils.NewUnlockFCAttr(), testtransaction.WithUnitID(
-			types.NewUnitID(33, nil, []byte{1}, []byte{0xfe})),
-		)
-		feeModule := newTestFeeModule(t, trustBase, withFeeCreditType([]byte{0xff}), withStateUnit(tx.UnitID, &fc.FeeCreditRecord{Balance: 50, Counter: 4}))
+		invalidUID, err := targetPDR.ComposeUnitID(types.ShardID{}, 0xfe, moneyid.Random)
+		require.NoError(t, err)
+		tx := testutils.NewUnlockFC(t, signer, testutils.NewUnlockFCAttr(), testtransaction.WithUnitID(invalidUID))
+		feeModule := newTestFeeModule(t, &targetPDR, trustBase, withFeeCreditType(0xff), withStateUnit(tx.UnitID, &fc.FeeCreditRecord{Balance: 50, Counter: 4}))
 		var attr fc.UnlockFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		var authProof fc.UnlockFeeCreditAuthProof
@@ -55,7 +57,7 @@ func TestFeeCredit_validateUnlockFC(t *testing.T) {
 	})
 	t.Run("invalid unit data type", func(t *testing.T) {
 		tx := testutils.NewUnlockFC(t, signer, nil)
-		feeModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID, &testData{}))
+		feeModule := newTestFeeModule(t, &targetPDR, trustBase, withStateUnit(tx.UnitID, &testData{}))
 		var attr fc.UnlockFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		var authProof fc.UnlockFeeCreditAuthProof
@@ -66,7 +68,7 @@ func TestFeeCredit_validateUnlockFC(t *testing.T) {
 	})
 	t.Run("FCR is already unlocked", func(t *testing.T) {
 		tx := testutils.NewUnlockFC(t, signer, nil)
-		feeModule := newTestFeeModule(t, trustBase,
+		feeModule := newTestFeeModule(t, &targetPDR, trustBase,
 			withStateUnit(tx.UnitID, &fc.FeeCreditRecord{Balance: 50, Counter: 4, Locked: 0}))
 		var attr fc.UnlockFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
@@ -78,7 +80,7 @@ func TestFeeCredit_validateUnlockFC(t *testing.T) {
 	})
 	t.Run("invalid counter", func(t *testing.T) {
 		tx := testutils.NewUnlockFC(t, signer, testutils.NewUnlockFCAttr(testutils.WithUnlockFCCounter(3)))
-		feeModule := newTestFeeModule(t, trustBase,
+		feeModule := newTestFeeModule(t, &targetPDR, trustBase,
 			withStateUnit(tx.UnitID, &fc.FeeCreditRecord{Balance: 50, Counter: 4, Locked: 1}))
 		var attr fc.UnlockFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
@@ -91,7 +93,7 @@ func TestFeeCredit_validateUnlockFC(t *testing.T) {
 	t.Run("max fee exceeds balance", func(t *testing.T) {
 		tx := testutils.NewUnlockFC(t, signer, nil,
 			testtransaction.WithClientMetadata(&types.ClientMetadata{MaxTransactionFee: 51}))
-		feeModule := newTestFeeModule(t, trustBase,
+		feeModule := newTestFeeModule(t, &targetPDR, trustBase,
 			withStateUnit(tx.UnitID, &fc.FeeCreditRecord{Balance: 50, Counter: 4, Locked: 1}))
 		var attr fc.UnlockFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
@@ -104,7 +106,7 @@ func TestFeeCredit_validateUnlockFC(t *testing.T) {
 	t.Run("FeeCreditRecordID is not nil", func(t *testing.T) {
 		tx := testutils.NewUnlockFC(t, signer, nil,
 			testtransaction.WithClientMetadata(&types.ClientMetadata{FeeCreditRecordID: recordID}))
-		feeModule := newTestFeeModule(t, trustBase,
+		feeModule := newTestFeeModule(t, &targetPDR, trustBase,
 			withStateUnit(tx.UnitID, &fc.FeeCreditRecord{Balance: 50, Counter: 4, Locked: 1}))
 		var attr fc.UnlockFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
@@ -116,7 +118,7 @@ func TestFeeCredit_validateUnlockFC(t *testing.T) {
 	})
 	t.Run("fee proof is not nil", func(t *testing.T) {
 		tx := testutils.NewUnlockFC(t, signer, nil, testtransaction.WithFeeProof(feeProof))
-		feeModule := newTestFeeModule(t, trustBase,
+		feeModule := newTestFeeModule(t, &targetPDR, trustBase,
 			withStateUnit(tx.UnitID, &fc.FeeCreditRecord{Balance: 50, Counter: 4, Locked: 1}))
 		var attr fc.UnlockFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
@@ -129,11 +131,12 @@ func TestFeeCredit_validateUnlockFC(t *testing.T) {
 }
 
 func TestFeeCredit_executeUnlockFC(t *testing.T) {
+	targetPDR := moneyid.PDR()
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	trustBase := testtb.NewTrustBase(t, verifier)
 	tx := testutils.NewUnlockFC(t, signer, nil)
 	initialFcr := &fc.FeeCreditRecord{Balance: 50, Counter: 4, Locked: 1}
-	feeModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID, initialFcr))
+	feeModule := newTestFeeModule(t, &targetPDR, trustBase, withStateUnit(tx.UnitID, initialFcr))
 	var attr fc.UnlockFeeCreditAttributes
 	require.NoError(t, tx.UnmarshalAttributes(&attr))
 	var authProof fc.UnlockFeeCreditAuthProof

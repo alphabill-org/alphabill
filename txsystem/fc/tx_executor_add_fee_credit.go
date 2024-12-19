@@ -40,7 +40,7 @@ func (f *FeeCreditModule) validateAddFC(tx *types.TransactionOrder, attr *fc.Add
 	}
 
 	// target unit is a fee credit record (either new or pre-existing)
-	fcr, err := parseFeeCreditRecord(tx.UnitID, f.feeCreditRecordUnitType, f.state)
+	fcr, err := parseFeeCreditRecord(&f.pdr, tx.UnitID, f.feeCreditRecordUnitType, f.state)
 	if err != nil && !errors.Is(err, avl.ErrNotFound) {
 		return fmt.Errorf("get fcr error: %w", err)
 	}
@@ -104,15 +104,15 @@ func (f *FeeCreditModule) checkTransferFC(tx *types.TransactionOrder, attr *fc.A
 	if err != nil {
 		return nil, fmt.Errorf("failed to get transaction order: %w", err)
 	}
-	if txo.NetworkID != f.networkID {
-		return nil, fmt.Errorf("invalid transferFC network identifier %d (expected %d)", txo.NetworkID, f.networkID)
+	if txo.NetworkID != f.pdr.NetworkID {
+		return nil, fmt.Errorf("invalid transferFC network identifier %d (expected %d)", txo.NetworkID, f.pdr.NetworkID)
 	}
 	// bill was transferred in correct partition
 	if txo.PartitionID != f.moneyPartitionID {
 		return nil, fmt.Errorf("invalid transferFC money partition identifier %d (expected %d)", txo.PartitionID, f.moneyPartitionID)
 	}
-	if transAttr.TargetPartitionID != f.partitionID {
-		return nil, fmt.Errorf("invalid transferFC target partition identifier %d (expected %d)", transAttr.TargetPartitionID, f.partitionID)
+	if transAttr.TargetPartitionID != f.pdr.PartitionID {
+		return nil, fmt.Errorf("invalid transferFC target partition identifier %d (expected %d)", transAttr.TargetPartitionID, f.pdr.PartitionID)
 	}
 	// bill was transferred to correct target record
 	if !bytes.Equal(transAttr.TargetRecordID, tx.UnitID) {
@@ -157,11 +157,6 @@ func getTransferFC(addFeeCreditProof *types.TxRecordProof) (*fc.TransferFeeCredi
 	return transferAttributes, nil
 }
 
-func (f *FeeCreditModule) NewFeeCreditRecordID(unitID []byte, ownerPredicate []byte, timeout uint64) (types.UnitID, error) {
-	unitPart, err := fc.NewFeeCreditRecordUnitPart(ownerPredicate, timeout)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create fee credit record unit part: %w", err)
-	}
-	unitIdLen := len(unitPart) + len(f.feeCreditRecordUnitType)
-	return types.NewUnitID(unitIdLen, unitID, unitPart, f.feeCreditRecordUnitType), nil
+func (f *FeeCreditModule) NewFeeCreditRecordID(unitID types.UnitID, ownerPredicate []byte, timeout uint64) (types.UnitID, error) {
+	return f.pdr.ComposeUnitID(types.ShardID{}, f.feeCreditRecordUnitType, fc.PrndSh(ownerPredicate, timeout))
 }

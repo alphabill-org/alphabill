@@ -301,7 +301,7 @@ func Test_ShardInfo_nextRound(t *testing.T) {
 			Nodes: []partitions.NodeInfo{
 				{
 					NodeID: "2222",
-					SigKey: pubKey,
+					SignKey: pubKey,
 				},
 			},
 		}
@@ -358,7 +358,7 @@ func Test_ShardInfo_NextEpoch(t *testing.T) {
 		Nodes: []partitions.NodeInfo{
 			{
 				NodeID: "2222",
-				SigKey: validKey,
+				SignKey: validKey,
 			},
 		},
 	}
@@ -490,7 +490,7 @@ func Test_NewShardInfoFromGenesis(t *testing.T) {
 	pgEpoch1 := &genesis.GenesisPartitionRecord{
 		Version: 1,
 		Nodes: []*genesis.PartitionNode{
-			{NodeID: nodeID, EncryptionPublicKey: authKey, SigningPublicKey: validKey},
+			{NodeID: nodeID, AuthKey: authKey, SignKey: validKey},
 		},
 		Certificate:          testcertificates.CreateUnicityCertificate(t, signer, ir, pdr, 1, zH, zH),
 		PartitionDescription: pdr,
@@ -520,7 +520,7 @@ func Test_NewShardInfoFromGenesis(t *testing.T) {
 	t.Run("invalid key", func(t *testing.T) {
 		pg := *pgEpoch1
 		pg.Nodes = []*genesis.PartitionNode{
-			{NodeID: "1111", SigningPublicKey: []byte{1, 2, 3}},
+			{NodeID: "1111", SignKey: []byte{1, 2, 3}},
 		}
 		si, err := NewShardInfoFromGenesis(&pg)
 		require.EqualError(t, err, `shard info init: creating verifier for the node "1111": pubkey must be 33 bytes long, but is 3`)

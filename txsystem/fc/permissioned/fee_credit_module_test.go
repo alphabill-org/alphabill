@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	predtempl "github.com/alphabill-org/alphabill-go-base/predicates/templates"
-	"github.com/alphabill-org/alphabill-go-base/types"
+	moneyid "github.com/alphabill-org/alphabill-go-base/testutils/money"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/stretchr/testify/require"
@@ -15,43 +15,38 @@ func TestNewFeeCreditModule(t *testing.T) {
 	pubKey, err := verifier.MarshalPublicKey()
 	require.NoError(t, err)
 	stateTree := state.NewEmptyState()
-	networkID := types.NetworkID(5)
-	partitionID := types.PartitionID(5)
-	feeCreditRecordUnitType := []byte{1}
+	const feeCreditRecordUnitType = 1
 	adminOwnerPredicate := predtempl.NewP2pkh256BytesFromKey(pubKey)
+	targetPDR := moneyid.PDR()
 
-	t.Run("missing network id", func(t *testing.T) {
-		m, err := NewFeeCreditModule(0, partitionID, stateTree, feeCreditRecordUnitType, adminOwnerPredicate)
+	t.Run("invalid target PDR", func(t *testing.T) {
+		invalidPDR := targetPDR
+		invalidPDR.NetworkID = 0
+		m, err := NewFeeCreditModule(invalidPDR, stateTree, feeCreditRecordUnitType, adminOwnerPredicate)
 		require.Nil(t, m)
-		require.ErrorIs(t, err, ErrMissingPartitionID)
-	})
-
-	t.Run("missing partition id", func(t *testing.T) {
-		m, err := NewFeeCreditModule(networkID, 0, stateTree, feeCreditRecordUnitType, adminOwnerPredicate)
-		require.Nil(t, m)
-		require.ErrorIs(t, err, ErrMissingPartitionID)
+		require.EqualError(t, err, `invalid target PDR: invalid network identifier: 0`)
 	})
 
 	t.Run("state is nil", func(t *testing.T) {
-		m, err := NewFeeCreditModule(networkID, partitionID, nil, feeCreditRecordUnitType, adminOwnerPredicate)
+		m, err := NewFeeCreditModule(targetPDR, nil, feeCreditRecordUnitType, adminOwnerPredicate)
 		require.Nil(t, m)
 		require.ErrorIs(t, err, ErrStateIsNil)
 	})
 
 	t.Run("fee credit record unit type is nil", func(t *testing.T) {
-		m, err := NewFeeCreditModule(networkID, partitionID, stateTree, nil, adminOwnerPredicate)
+		m, err := NewFeeCreditModule(targetPDR, stateTree, 0, adminOwnerPredicate)
 		require.Nil(t, m)
 		require.ErrorIs(t, err, ErrMissingFeeCreditRecordUnitType)
 	})
 
 	t.Run("admin owner predicate is nil", func(t *testing.T) {
-		m, err := NewFeeCreditModule(networkID, partitionID, stateTree, feeCreditRecordUnitType, nil)
+		m, err := NewFeeCreditModule(targetPDR, stateTree, feeCreditRecordUnitType, nil)
 		require.Nil(t, m)
 		require.ErrorIs(t, err, ErrMissingAdminOwnerPredicate)
 	})
 
 	t.Run("ok", func(t *testing.T) {
-		m, err := NewFeeCreditModule(networkID, partitionID, stateTree, feeCreditRecordUnitType, adminOwnerPredicate)
+		m, err := NewFeeCreditModule(targetPDR, stateTree, feeCreditRecordUnitType, adminOwnerPredicate)
 		require.NoError(t, err)
 		require.NotNil(t, m)
 		require.NotNil(t, m.execPredicate, "execPredicate should not be nil")

@@ -52,8 +52,8 @@ func TestNewOrchestration(t *testing.T) {
 		varNodes := recA.Nodes
 		require.Len(t, varNodes, 1)
 		require.EqualValues(t, pgPartition.Nodes[0].NodeID, varNodes[0].NodeID)
-		require.EqualValues(t, pgPartition.Nodes[0].SigningPublicKey, varNodes[0].SigKey)
-		require.EqualValues(t, pgPartition.Nodes[0].EncryptionPublicKey, varNodes[0].AuthKey)
+		require.EqualValues(t, pgPartition.Nodes[0].SignKey, varNodes[0].SignKey)
+		require.EqualValues(t, pgPartition.Nodes[0].AuthKey, varNodes[0].AuthKey)
 
 		// if we now reopen the DB with different genesis file the original
 		// data must be preserved and new seed ignored
@@ -173,6 +173,7 @@ func TestShardConfig(t *testing.T) {
 				ShardID:     shardID,
 				EpochNumber: 0,
 				RoundNumber: 1,
+				Nodes:       make([]NodeInfo, 0),
 			},
 		},
 
@@ -185,6 +186,7 @@ func TestShardConfig(t *testing.T) {
 				ShardID:     shardID,
 				EpochNumber: 0,
 				RoundNumber: 1,
+				Nodes:       make([]NodeInfo, 0),
 			}},
 	}
 	for _, tc := range testCases {
@@ -301,7 +303,7 @@ func createGenesisPartitionRecord(partitionID types.PartitionID, shardID types.S
 			InputRecord:          &types.InputRecord{Epoch: 0, RoundNumber: 1},
 		},
 		PartitionDescription: &types.PartitionDescriptionRecord{
-			Version:             1,
+			Version:     1,
 			NetworkID:   5,
 			PartitionID: partitionID,
 		},

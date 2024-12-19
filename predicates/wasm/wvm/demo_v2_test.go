@@ -18,6 +18,8 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/hash"
 	predtempl "github.com/alphabill-org/alphabill-go-base/predicates/templates"
 	"github.com/alphabill-org/alphabill-go-base/predicates/wasm"
+	moneyid "github.com/alphabill-org/alphabill-go-base/testutils/money"
+	tokenid "github.com/alphabill-org/alphabill-go-base/testutils/tokens"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/tokens"
 	"github.com/alphabill-org/alphabill-go-base/types"
@@ -71,9 +73,8 @@ func Test_conference_tickets_v2(t *testing.T) {
 	templateEng, err := predicates.Dispatcher(templates.New())
 	require.NoError(t, err)
 
-	nftTypeID := tokens.NewNonFungibleTokenTypeID(nil, []byte{7, 7, 7, 7, 7, 7, 7})
-	tokenID, err := tokens.NewRandomNonFungibleTokenID(nil)
-	require.NoError(t, err)
+	nftTypeID := tokenid.NewNonFungibleTokenTypeID(t)
+	tokenID := tokenid.NewNonFungibleTokenID(t)
 
 	t.Run("type_bearer", func(t *testing.T) {
 		t.SkipNow() // TODO AB-1724
@@ -374,7 +375,7 @@ func proofOfPayment(t *testing.T, signer abcrypto.Signer, receiverPK []byte, val
 		Payload: types.Payload{
 			PartitionID: money.DefaultPartitionID,
 			Type:        money.TransactionTypeTransfer,
-			UnitID:      money.NewBillID(nil, []byte{8, 1, 1, 1}),
+			UnitID:      moneyid.NewBillID(t),
 			ClientMetadata: &types.ClientMetadata{
 				ReferenceNumber: refNo,
 			},

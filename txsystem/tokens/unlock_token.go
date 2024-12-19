@@ -11,12 +11,17 @@ import (
 	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 )
 
-func (m *LockTokensModule) updateUnlockTokenData(data types.UnitData, tx *types.TransactionOrder, roundNumber uint64) (types.UnitData, error) {
-	if tx.GetUnitID().HasType(tokens.FungibleTokenUnitType) {
+func (m *LockTokensModule) updateUnlockTokenData(data types.UnitData, tx *types.TransactionOrder) (types.UnitData, error) {
+	tid, err := m.pdr.ExtractUnitType(tx.UnitID)
+	if err != nil {
+		return nil, fmt.Errorf("determining unit type: %w", err)
+	}
+	switch tid {
+	case tokens.FungibleTokenUnitType:
 		return updateUnlockFungibleTokenData(data, tx)
-	} else if tx.GetUnitID().HasType(tokens.NonFungibleTokenUnitType) {
+	case tokens.NonFungibleTokenUnitType:
 		return updateUnlockNonFungibleTokenData(data, tx)
-	} else {
+	default:
 		return nil, fmt.Errorf("unit id '%s' is not of fungible nor non-fungible token type", tx.UnitID)
 	}
 }
@@ -45,7 +50,7 @@ func (m *LockTokensModule) executeUnlockTokenTx(tx *types.TransactionOrder, _ *t
 	// update lock status, round number and counter
 	updateFn := state.UpdateUnitData(tx.UnitID,
 		func(data types.UnitData) (types.UnitData, error) {
-			return m.updateUnlockTokenData(data, tx, exeCtx.CurrentRound())
+			return m.updateUnlockTokenData(data, tx)
 		})
 	if err := m.state.Apply(updateFn); err != nil {
 		return nil, fmt.Errorf("failed to update state: %w", err)
@@ -63,11 +68,16 @@ func (m *LockTokensModule) validateUnlockTokenTx(tx *types.TransactionOrder, att
 		return err
 	}
 
-	if tx.UnitID.HasType(tokens.FungibleTokenUnitType) {
+	tid, err := m.pdr.ExtractUnitType(tx.UnitID)
+	if err != nil {
+		return fmt.Errorf("determining unit type: %w", err)
+	}
+	switch tid {
+	case tokens.FungibleTokenUnitType:
 		return m.validateUnlockFungibleToken(tx, attr, authProof, u, exeCtx)
-	} else if tx.UnitID.HasType(tokens.NonFungibleTokenUnitType) {
+	case tokens.NonFungibleTokenUnitType:
 		return m.validateUnlockNonFungibleToken(tx, attr, authProof, u, exeCtx)
-	} else {
+	default:
 		return fmt.Errorf("unit id '%s' is not of fungible nor non-fungible token type", tx.UnitID)
 	}
 }

@@ -7,9 +7,8 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/util"
-	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
-
 	"github.com/alphabill-org/alphabill/state"
+	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 )
 
 func (m *Module) executeSplitTx(tx *types.TransactionOrder, attr *money.SplitAttributes, _ *money.SplitAuthProof, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
@@ -18,12 +17,12 @@ func (m *Module) executeSplitTx(tx *types.TransactionOrder, attr *money.SplitAtt
 	// add new units
 	var actions []state.Action
 	var sum uint64
-	for i, targetUnit := range attr.TargetUnits {
-		newUnitPart, err := money.HashForNewBillID(tx, uint32(i), m.hashAlgorithm)
+	idGen := money.PrndSh(tx)
+	for _, targetUnit := range attr.TargetUnits {
+		newUnitID, err := m.pdr.ComposeUnitID(types.ShardID{}, money.BillUnitType, idGen)
 		if err != nil {
-			return nil, fmt.Errorf("failed to generate hash for new bill id: %w", err)
+			return nil, fmt.Errorf("failed to generate new bill id: %w", err)
 		}
-		newUnitID := money.NewBillID(unitID, newUnitPart)
 		targetUnitIDs = append(targetUnitIDs, newUnitID)
 		newUnitData := money.NewBillData(targetUnit.Amount, targetUnit.OwnerPredicate)
 		actions = append(actions, state.AddUnit(newUnitID, newUnitData))

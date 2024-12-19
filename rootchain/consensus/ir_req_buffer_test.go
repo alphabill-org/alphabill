@@ -24,8 +24,8 @@ func (x *mockIRVerifier) VerifyIRChangeReq(_ uint64, irChReq *drctypes.IRChangeR
 	return &storage.InputData{Partition: irChReq.Partition, IR: irChReq.Requests[0].InputRecord, PDRHash: []byte{0, 0, 0, 0, 1}}, nil
 }
 
-const sysID1 types.PartitionID = 1
-const sysID2 types.PartitionID = 2
+const partitionID1 types.PartitionID = 1
+const partitionID2 types.PartitionID = 2
 
 var inputRecord1 = &types.InputRecord{
 	Version:         1,
@@ -57,12 +57,12 @@ func TestIrReqBuffer_Add(t *testing.T) {
 	ver := NewAlwaysTrueIRReqVerifier()
 	// add a request that reached consensus
 	req1 := &certification.BlockCertificationRequest{
-		PartitionID: sysID1,
+		PartitionID: partitionID1,
 		NodeID:      "1",
 		InputRecord: inputRecord1,
 	}
 	IrChReqMsg := &drctypes.IRChangeReq{
-		Partition:  sysID1,
+		Partition:  partitionID1,
 		CertReason: drctypes.Quorum,
 		Requests:   []*certification.BlockCertificationRequest{req1},
 	}
@@ -73,11 +73,11 @@ func TestIrReqBuffer_Add(t *testing.T) {
 	// no requests, generate payload
 	payload := reqBuffer.GeneratePayload(3, timeouts, isPending)
 	require.Empty(t, payload.Requests)
-	require.False(t, reqBuffer.IsChangeInBuffer(sysID1))
+	require.False(t, reqBuffer.IsChangeInBuffer(partitionID1))
 	// add request
 	require.NoError(t, reqBuffer.Add(3, IrChReqMsg, ver))
 	// sysID1 change is in buffer
-	require.True(t, reqBuffer.IsChangeInBuffer(sysID1))
+	require.True(t, reqBuffer.IsChangeInBuffer(partitionID1))
 	// try to add the same again, considered duplicate no error
 	require.NoError(t, reqBuffer.Add(3, IrChReqMsg, ver))
 	// change reason and try to add, must be rejected as equivocating, we already have a valid request
@@ -100,24 +100,24 @@ func TestIrReqBuffer_Add(t *testing.T) {
 	// generate payload again, but now it is empty
 	payloadNowEmpty := reqBuffer.GeneratePayload(4, timeouts, isPending)
 	require.Empty(t, payloadNowEmpty.Requests)
-	require.False(t, reqBuffer.IsChangeInBuffer(sysID1))
+	require.False(t, reqBuffer.IsChangeInBuffer(partitionID1))
 	// finally verify that we got the original message back
 	require.Equal(t, IrChReqMsg, payload.Requests[0])
 }
 
 func TestIrReqBuffer_TimeoutReq(t *testing.T) {
 	reqBuffer := NewIrReqBuffer(logger.New(t))
-	timeouts := []types.PartitionID{sysID1, sysID2}
+	timeouts := []types.PartitionID{partitionID1, partitionID2}
 	isPending := func(id types.PartitionID, _ types.ShardID) *types.InputRecord {
 		return nil
 	}
 	payload := reqBuffer.GeneratePayload(3, timeouts, isPending)
 	require.Len(t, payload.Requests, 2)
 	// if both then prefer to make progress over timeout
-	require.Equal(t, sysID1, payload.Requests[0].Partition)
+	require.Equal(t, partitionID1, payload.Requests[0].Partition)
 	require.Equal(t, drctypes.T2Timeout, payload.Requests[0].CertReason)
 	require.Empty(t, payload.Requests[0].Requests)
-	require.Equal(t, sysID2, payload.Requests[1].Partition)
+	require.Equal(t, partitionID2, payload.Requests[1].Partition)
 	require.Equal(t, drctypes.T2Timeout, payload.Requests[1].CertReason)
 	require.Empty(t, payload.Requests[1].Requests)
 }
@@ -127,16 +127,16 @@ func TestIrReqBuffer_TimeoutAndNewReq(t *testing.T) {
 	ver := NewAlwaysTrueIRReqVerifier()
 	// add a request that reached consensus
 	req1 := &certification.BlockCertificationRequest{
-		PartitionID: sysID1,
+		PartitionID: partitionID1,
 		NodeID:      "1",
 		InputRecord: inputRecord1,
 	}
 	IrChReqMsg := &drctypes.IRChangeReq{
-		Partition:  sysID1,
+		Partition:  partitionID1,
 		CertReason: drctypes.Quorum,
 		Requests:   []*certification.BlockCertificationRequest{req1},
 	}
-	timeouts := []types.PartitionID{sysID1}
+	timeouts := []types.PartitionID{partitionID1}
 	isPending := func(id types.PartitionID, _ types.ShardID) *types.InputRecord {
 		return nil
 	}
@@ -152,16 +152,16 @@ func TestIrReqBuffer_TimeoutAndReqButAChangeIsPending(t *testing.T) {
 	ver := NewAlwaysTrueIRReqVerifier()
 	// add a request that reached consensus
 	req1 := &certification.BlockCertificationRequest{
-		PartitionID: sysID1,
+		PartitionID: partitionID1,
 		NodeID:      "1",
 		InputRecord: inputRecord1,
 	}
 	IrChReqMsg := &drctypes.IRChangeReq{
-		Partition:  sysID1,
+		Partition:  partitionID1,
 		CertReason: drctypes.Quorum,
 		Requests:   []*certification.BlockCertificationRequest{req1},
 	}
-	timeouts := []types.PartitionID{sysID1}
+	timeouts := []types.PartitionID{partitionID1}
 	isPending := func(id types.PartitionID, _ types.ShardID) *types.InputRecord {
 		return &types.InputRecord{Version: 1}
 	}

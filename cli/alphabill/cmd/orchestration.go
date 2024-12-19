@@ -66,7 +66,9 @@ func runOrchestrationNode(ctx context.Context, cfg *orchestrationConfiguration) 
 	if stateFilePath == "" {
 		stateFilePath = filepath.Join(cfg.Base.HomeDir, orchestrationPartitionDir, orchestrationGenesisFileName)
 	}
-	state, err := loadStateFile(stateFilePath, sdkorchestration.NewVarData)
+	state, err := loadStateFile(stateFilePath, func(ui types.UnitID) (types.UnitData, error) {
+		return sdkorchestration.NewUnitData(ui, pg.PartitionDescription)
+	})
 	if err != nil {
 		return fmt.Errorf("loading state (file %s): %w", cfg.Node.StateFile, err)
 	}
@@ -88,7 +90,7 @@ func runOrchestrationNode(ctx context.Context, cfg *orchestrationConfiguration) 
 		return fmt.Errorf("failed to load node keys: %w", err)
 	}
 
-	nodeID, err := peer.IDFromPublicKey(keys.EncryptionPrivateKey.GetPublic())
+	nodeID, err := peer.IDFromPublicKey(keys.AuthPrivKey.GetPublic())
 	if err != nil {
 		return fmt.Errorf("failed to calculate nodeID: %w", err)
 	}

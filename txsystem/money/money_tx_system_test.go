@@ -7,11 +7,12 @@ import (
 	"testing"
 	"time"
 
-	abhash "github.com/alphabill-org/alphabill-go-base/hash"
 	"github.com/stretchr/testify/require"
 
 	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
+	abhash "github.com/alphabill-org/alphabill-go-base/hash"
 	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
+	moneyid "github.com/alphabill-org/alphabill-go-base/testutils/money"
 	fcsdk "github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
 	"github.com/alphabill-org/alphabill-go-base/types"
@@ -39,18 +40,17 @@ type InitialBill struct {
 
 var (
 	initialBill = &InitialBill{
-		ID:    money.NewBillID(nil, test.RandomBytes(money.UnitPartLength)),
+		ID:    append(make([]byte, 25), 5, 6, 1, 9, 0, 7, 8, money.BillUnitType),
 		Value: 110,
 		Owner: templates.AlwaysTrueBytes(),
 	}
-	fcrAmount        = uint64(1e8)
 	moneyPartitionID = money.DefaultPartitionID
-	networkID        = types.NetworkID(5)
+	networkID        = types.NetworkID(3)
 )
 
 func TestNewTxSystem(t *testing.T) {
 	var (
-		sdrs        = createSDRs(newBillID(3))
+		sdrs        = createPDRs(t)
 		txsState    = genesisStateWithUC(t, initialBill, sdrs)
 		_, verifier = testsig.CreateSignerAndVerifier(t)
 		trustBase   = testtb.NewTrustBase(t, verifier)
@@ -81,7 +81,7 @@ func TestNewTxSystem(t *testing.T) {
 }
 
 func TestNewTxSystem_RecoveredState(t *testing.T) {
-	sdrs := createSDRs(newBillID(2))
+	sdrs := createPDRs(t)
 	s := genesisStateWithUC(t, initialBill, sdrs)
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	trustBase := testtb.NewTrustBase(t, verifier)
@@ -103,9 +103,10 @@ func TestNewTxSystem_RecoveredState(t *testing.T) {
 		testutils.NewTransferFCAttr(t, signer,
 			testutils.WithCounter(0),
 			testutils.WithAmount(20),
-			testutils.WithTargetRecordID(money.NewFeeCreditRecordID(nil, []byte{100})),
+			testutils.WithTargetRecordID(moneyid.NewFeeCreditRecordID(t)),
 		),
 		testtransaction.WithUnitID(initialBill.ID),
+		testtransaction.WithPartition(sdrs[0]),
 	)
 	txr, err := originalTxs.Execute(transFC)
 	require.NoError(t, err)
@@ -123,7 +124,7 @@ func TestNewTxSystem_RecoveredState(t *testing.T) {
 	require.NoError(t, originalTxs.State().Serialize(buf, true))
 
 	// Create a recovered state and txSystem from the serialized state
-	recoveredState, err := state.NewRecoveredState(buf, money.NewUnitData, state.WithHashAlgorithm(crypto.SHA256))
+	recoveredState, err := state.NewRecoveredState(buf, func(ui types.UnitID) (types.UnitData, error) { return money.NewUnitData(ui, sdrs[0]) }, state.WithHashAlgorithm(crypto.SHA256))
 	require.NoError(t, err)
 	recoveredTxs, err := NewTxSystem(
 		*sdrs[0],
@@ -156,11 +157,13 @@ func TestNewTxSystem_RecoveredState(t *testing.T) {
 }
 
 func TestExecute_TransferOk(t *testing.T) {
-	rmaTree, txSystem, _ := createStateAndTxSystem(t)
+	pdrs := createPDRs(t)
+	rmaTree, txSystem, _ := createStateAndTxSystem(t, pdrs)
 	_, data := getBill(t, rmaTree, initialBill.ID)
 	fcrID := testutils.NewFeeCreditRecordIDAlwaysTrue(t)
 
 	transferOk, _, _ := createBillTransfer(t, initialBill.ID, fcrID, initialBill.Value, templates.AlwaysFalseBytes(), 0)
+	transferOk.NetworkID = pdrs[0].NetworkID
 	roundNumber := uint64(10)
 	err := txSystem.BeginBlock(roundNumber)
 	require.NoError(t, err)
@@ -182,7 +185,8 @@ func TestExecute_TransferOk(t *testing.T) {
 }
 
 func TestExecute_Split2WayOk(t *testing.T) {
-	rmaTree, txSystem, _ := createStateAndTxSystem(t)
+	pdrs := createPDRs(t)
+	rmaTree, txSystem, _ := createStateAndTxSystem(t, pdrs)
 	totalValue, _, err := rmaTree.CalculateRoot()
 	require.NoError(t, err)
 	_, initBillData := getBill(t, rmaTree, initialBill.ID)
@@ -190,6 +194,7 @@ func TestExecute_Split2WayOk(t *testing.T) {
 	amount := initialBill.Value - remaining
 	fcrID := testutils.NewFeeCreditRecordIDAlwaysTrue(t)
 	splitOk, splitAttr, _ := createSplit(t, initialBill.ID, fcrID, []*money.TargetUnit{{Amount: amount, OwnerPredicate: templates.AlwaysTrueBytes()}}, initBillData.Counter)
+	splitOk.NetworkID = pdrs[0].NetworkID
 	roundNumber := uint64(1)
 	err = txSystem.BeginBlock(roundNumber)
 	require.NoError(t, err)
@@ -197,9 +202,9 @@ func TestExecute_Split2WayOk(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, txr)
 	require.Equal(t, types.TxStatusSuccessful, txr.ServerMetadata.SuccessIndicator)
-	unitPart, err := money.HashForNewBillID(splitOk, 0, crypto.SHA256)
+
+	expectedNewUnitID, err := pdrs[0].ComposeUnitID(types.ShardID{}, money.BillUnitType, money.PrndSh(splitOk))
 	require.NoError(t, err)
-	expectedNewUnitID := money.NewBillID(nil, unitPart)
 	require.Equal(t, []types.UnitID{splitOk.UnitID, expectedNewUnitID, fcrID}, txr.TargetUnits())
 	require.True(t, txr.ServerMetadata.ActualFee > 0)
 	stateSummary, err := txSystem.EndBlock()
@@ -236,7 +241,8 @@ func TestExecute_Split2WayOk(t *testing.T) {
 }
 
 func TestExecute_SplitNWayOk(t *testing.T) {
-	rmaTree, txSystem, _ := createStateAndTxSystem(t)
+	pdrs := createPDRs(t)
+	rmaTree, txSystem, _ := createStateAndTxSystem(t, pdrs)
 	totalValue, _, err := rmaTree.CalculateRoot()
 	require.NoError(t, err)
 	_, initBillData := getBill(t, rmaTree, initialBill.ID)
@@ -250,6 +256,7 @@ func TestExecute_SplitNWayOk(t *testing.T) {
 		remaining -= amount
 	}
 	splitOk, splitAttr, _ := createSplit(t, initialBill.ID, fcrID, targetUnits, initBillData.Counter)
+	splitOk.NetworkID = pdrs[0].NetworkID
 	roundNumber := uint64(1)
 	err = txSystem.BeginBlock(roundNumber)
 	require.NoError(t, err)
@@ -282,10 +289,10 @@ func TestExecute_SplitNWayOk(t *testing.T) {
 	// counter was incremented
 	require.Equal(t, initBillData.Counter+1, initBillDataAfterUpdate.Counter)
 
-	for i := range targetUnits {
-		unitPart, err := money.HashForNewBillID(splitOk, uint32(i), crypto.SHA256)
+	idGen := money.PrndSh(splitOk)
+	for i := 0; i < len(targetUnits); i++ {
+		expectedNewUnitId, err := pdrs[0].ComposeUnitID(types.ShardID{}, money.BillUnitType, idGen)
 		require.NoError(t, err)
-		expectedNewUnitId := money.NewBillID(nil, unitPart)
 		require.Contains(t, txr.TargetUnits(), expectedNewUnitId) // target, new bills and fcr
 		newBill, newBillData := getBill(t, rmaTree, expectedNewUnitId)
 		require.NotNil(t, newBill)
@@ -297,12 +304,14 @@ func TestExecute_SplitNWayOk(t *testing.T) {
 }
 
 func TestExecuteTransferDC_OK(t *testing.T) {
-	rmaTree, txSystem, _ := createStateAndTxSystem(t)
+	pdrs := createPDRs(t)
+	rmaTree, txSystem, _ := createStateAndTxSystem(t, pdrs)
 	_, initialBillData := getBill(t, rmaTree, initialBill.ID)
 	var remaining uint64 = 10
 	amount := initialBill.Value - remaining
 	fcrID := testutils.NewFeeCreditRecordIDAlwaysTrue(t)
 	splitOk, _, _ := createSplit(t, initialBill.ID, fcrID, []*money.TargetUnit{{Amount: amount, OwnerPredicate: templates.AlwaysTrueBytes()}}, initialBillData.Counter)
+	splitOk.NetworkID = pdrs[0].NetworkID
 	roundNumber := uint64(10)
 	err := txSystem.BeginBlock(roundNumber)
 	require.NoError(t, err)
@@ -311,12 +320,12 @@ func TestExecuteTransferDC_OK(t *testing.T) {
 	require.NotNil(t, txr)
 	require.Equal(t, types.TxStatusSuccessful, txr.ServerMetadata.SuccessIndicator)
 	require.True(t, txr.ServerMetadata.ActualFee > 0)
-	unitPart, err := money.HashForNewBillID(splitOk, 0, crypto.SHA256)
+	billID, err := pdrs[0].ComposeUnitID(types.ShardID{}, money.BillUnitType, money.PrndSh(splitOk))
 	require.NoError(t, err)
-	billID := money.NewBillID(nil, unitPart)
 	_, splitBillData := getBill(t, rmaTree, billID)
 
 	transferDCOk, _, _ := createDCTransfer(t, billID, fcrID, splitBillData.Value, splitBillData.Counter, test.RandomBytes(32), 0)
+	transferDCOk.NetworkID = pdrs[0].NetworkID
 	require.NoError(t, err)
 
 	txr, err = txSystem.Execute(transferDCOk)
@@ -333,7 +342,8 @@ func TestExecuteTransferDC_OK(t *testing.T) {
 }
 
 func TestExecute_SwapOk(t *testing.T) {
-	s, txSystem, signer := createStateAndTxSystem(t)
+	pdrs := createPDRs(t)
+	s, txSystem, signer := createStateAndTxSystem(t, pdrs)
 	_, initBillData := getBill(t, s, initialBill.ID)
 	fcrID := testutils.NewFeeCreditRecordIDAlwaysTrue(t)
 
@@ -343,12 +353,12 @@ func TestExecute_SwapOk(t *testing.T) {
 	amount := initialBill.Value - remaining
 	counter := initBillData.Counter
 	splitOk, _, _ := createSplit(t, initialBill.ID, fcrID, []*money.TargetUnit{{Amount: amount, OwnerPredicate: templates.AlwaysTrueBytes()}}, counter)
+	splitOk.NetworkID = pdrs[0].NetworkID
 
 	err := txSystem.BeginBlock(roundNumber)
 	require.NoError(t, err)
-	unitPart, err := money.HashForNewBillID(splitOk, 0, crypto.SHA256)
+	splitBillID, err := pdrs[0].ComposeUnitID(types.ShardID{}, money.BillUnitType, money.PrndSh(splitOk))
 	require.NoError(t, err)
-	splitBillID := money.NewBillID(nil, unitPart)
 	txr, err := txSystem.Execute(splitOk)
 	require.NoError(t, err)
 	require.NotNil(t, txr)
@@ -358,6 +368,7 @@ func TestExecute_SwapOk(t *testing.T) {
 	// execute lock transaction to verify swap unlocks locked unit
 	counter += 1
 	lockTx, _, _ := createLockTx(t, initialBill.ID, fcrID, counter)
+	lockTx.NetworkID = pdrs[0].NetworkID
 	txr, err = txSystem.Execute(lockTx)
 	require.NoError(t, err)
 	require.NotNil(t, txr)
@@ -432,7 +443,8 @@ func TestExecute_SwapOk(t *testing.T) {
 }
 
 func TestExecute_LockAndUnlockOk(t *testing.T) {
-	rmaTree, txSystem, _ := createStateAndTxSystem(t)
+	pdrs := createPDRs(t)
+	rmaTree, txSystem, _ := createStateAndTxSystem(t, pdrs)
 	fcrID := testutils.NewFeeCreditRecordIDAlwaysTrue(t)
 	lockTx, _, _ := createLockTx(t, initialBill.ID, fcrID, 0)
 
@@ -520,7 +532,8 @@ func TestBillData_AddToHasher(t *testing.T) {
 
 func TestEndBlock_DustBillsAreRemoved(t *testing.T) {
 	t.Skip("TODO AB-1133 implement dust bills deletion")
-	rmaTree, txSystem, signer := createStateAndTxSystem(t)
+	pdrs := createPDRs(t)
+	rmaTree, txSystem, signer := createStateAndTxSystem(t, pdrs)
 	_, initBillData := getBill(t, rmaTree, initialBill.ID)
 	remaining := initBillData.Value
 	var splitBillIDs = make([]types.UnitID, 10)
@@ -532,9 +545,8 @@ func TestEndBlock_DustBillsAreRemoved(t *testing.T) {
 		roundNumber := uint64(10)
 		err := txSystem.BeginBlock(roundNumber)
 		require.NoError(t, err)
-		unitPart, err := money.HashForNewBillID(splitOk, uint32(i), crypto.SHA256)
+		splitBillIDs[i], err = pdrs[0].ComposeUnitID(types.ShardID{}, money.BillUnitType, money.PrndSh(splitOk))
 		require.NoError(t, err)
-		splitBillIDs[i] = money.NewBillID(splitOk.UnitID, unitPart)
 		txr, err := txSystem.Execute(splitOk)
 		require.NoError(t, err)
 		require.NotNil(t, txr)
@@ -595,7 +607,8 @@ func TestEndBlock_DustBillsAreRemoved(t *testing.T) {
 // 2) process reclaim FC closeFC(amount=50, fee=1)
 // 3) end block (moneyFCB=51-50+1+1=3)
 func TestEndBlock_FeesConsolidation(t *testing.T) {
-	rmaTree, txSystem, signer := createStateAndTxSystem(t)
+	pdrs := createPDRs(t)
+	rmaTree, txSystem, signer := createStateAndTxSystem(t, pdrs)
 
 	// process transferFC with amount 50 and fees 1
 	err := txSystem.BeginBlock(0)
@@ -604,6 +617,7 @@ func TestEndBlock_FeesConsolidation(t *testing.T) {
 		testutils.NewTransferFCAttr(t, signer,
 			testutils.WithCounter(0),
 		),
+		testtransaction.WithPartition(pdrs[0]),
 		testtransaction.WithUnitID(initialBill.ID),
 	)
 
@@ -619,7 +633,7 @@ func TestEndBlock_FeesConsolidation(t *testing.T) {
 	require.NoError(t, txSystem.Commit(createUC(stateSummary, 2)))
 
 	// verify that money fee credit bill is 50
-	moneyFeeCreditBillID := money.NewBillID(nil, []byte{2})
+	moneyFeeCreditBillID := moneyid.BillIDWithSuffix(t, 2, nil)
 	moneyFeeCreditBill, err := rmaTree.GetUnit(moneyFeeCreditBillID, false)
 
 	require.NoError(t, err)
@@ -636,6 +650,7 @@ func TestEndBlock_FeesConsolidation(t *testing.T) {
 			testutils.WithCloseFCTargetUnitCounter(1),
 		),
 	)
+	closeFC.NetworkID = pdrs[0].NetworkID
 	closeFCRecord := &types.TransactionRecord{
 		Version:          1,
 		TransactionOrder: testtransaction.TxoToBytes(t, closeFC),
@@ -643,10 +658,11 @@ func TestEndBlock_FeesConsolidation(t *testing.T) {
 	}
 	closureTxProof := testblock.CreateTxRecordProof(t, closeFCRecord, signer)
 
-	reclaimFC := testutils.NewReclaimFC(t, signer,
-		testutils.NewReclaimFCAttr(t, signer,
+	reclaimFC := testutils.NewReclaimFC(t, pdrs[0], signer,
+		testutils.NewReclaimFCAttr(t, pdrs[0], signer,
 			testutils.WithReclaimFCClosureProof(closureTxProof),
 		),
+		testtransaction.WithPartition(pdrs[0]),
 		testtransaction.WithUnitID(initialBill.ID),
 		testtransaction.WithTransactionType(fcsdk.TransactionTypeReclaimFeeCredit),
 	)
@@ -668,7 +684,8 @@ func TestEndBlock_FeesConsolidation(t *testing.T) {
 }
 
 func TestRegisterData_RevertSplit(t *testing.T) {
-	rmaTree, txSystem, _ := createStateAndTxSystem(t)
+	pdrs := createPDRs(t)
+	rmaTree, txSystem, _ := createStateAndTxSystem(t, pdrs)
 	_, initBillData := getBill(t, rmaTree, initialBill.ID)
 	fcrID := testutils.NewFeeCreditRecordIDAlwaysTrue(t)
 
@@ -697,7 +714,8 @@ func TestRegisterData_RevertSplit(t *testing.T) {
 }
 
 func TestRegisterData_RevertTransDC(t *testing.T) {
-	rmaTree, txSystem, _ := createStateAndTxSystem(t)
+	pdrs := createPDRs(t)
+	rmaTree, txSystem, _ := createStateAndTxSystem(t, pdrs)
 	_, initBillData := getBill(t, rmaTree, initialBill.ID)
 	unitBearer := bytes.Clone(initBillData.OwnerPredicate)
 	vdState, err := txSystem.StateSummary()
@@ -730,7 +748,9 @@ func TestRegisterData_RevertTransDC(t *testing.T) {
 
 // Test Transfer->Add->Lock->Close->Reclaim sequence OK
 func TestExecute_FeeCreditSequence_OK(t *testing.T) {
-	rmaTree, txSystem, signer := createStateAndTxSystem(t)
+	pdrs := createPDRs(t)
+	moneyPDR := pdrs[0]
+	rmaTree, txSystem, signer := createStateAndTxSystem(t, pdrs)
 	initialBillID := initialBill.ID
 	txAmount := uint64(20)
 	fcrID := testutils.NewFeeCreditRecordID(t, signer)
@@ -745,6 +765,7 @@ func TestExecute_FeeCreditSequence_OK(t *testing.T) {
 			testutils.WithAmount(txAmount),
 			testutils.WithTargetRecordID(fcrID),
 		),
+		testtransaction.WithPartition(moneyPDR),
 		testtransaction.WithUnitID(initialBillID),
 	)
 	txr, err := txSystem.Execute(transferFC)
@@ -770,6 +791,7 @@ func TestExecute_FeeCreditSequence_OK(t *testing.T) {
 		testutils.NewAddFCAttr(t, signer,
 			testutils.WithTransferFCProof(transferFCProof),
 		),
+		testtransaction.WithPartition(moneyPDR),
 		testtransaction.WithUnitID(fcrID),
 	)
 	authProof := &fcsdk.AddFeeCreditAuthProof{OwnerProof: testsig.NewAuthProofSignature(t, addFC, signer)}
@@ -818,6 +840,7 @@ func TestExecute_FeeCreditSequence_OK(t *testing.T) {
 			testutils.WithCloseFCTargetUnitCounter(2),
 		),
 		testtransaction.WithUnitID(fcrID),
+		testtransaction.WithPartition(moneyPDR),
 	)
 	closeFCAuthProof := &fcsdk.CloseFeeCreditAuthProof{OwnerProof: testsig.NewAuthProofSignature(t, closeFC, signer)}
 	require.NoError(t, closeFC.SetAuthProof(closeFCAuthProof))
@@ -841,12 +864,13 @@ func TestExecute_FeeCreditSequence_OK(t *testing.T) {
 		ServerMetadata:   txr.ServerMetadata,
 	}
 	closeFCProof := testblock.CreateTxRecordProof(t, closeFCTransactionRecord, signer)
-	reclaimFC := testutils.NewReclaimFC(t, signer,
-		testutils.NewReclaimFCAttr(t, signer,
+	reclaimFC := testutils.NewReclaimFC(t, moneyPDR, signer,
+		testutils.NewReclaimFCAttr(t, pdrs[0], signer,
 			testutils.WithReclaimFCClosureProof(closeFCProof),
 		),
 		testtransaction.WithUnitID(initialBillID),
 		testtransaction.WithTransactionType(fcsdk.TransactionTypeReclaimFeeCredit),
+		testtransaction.WithPartition(moneyPDR),
 	)
 	txr, err = txSystem.Execute(reclaimFC)
 	require.NoError(t, err)
@@ -871,7 +895,8 @@ func TestExecute_FeeCreditSequence_OK(t *testing.T) {
 
 // Test LockFC -> UnlockFC
 func TestExecute_AddFeeCreditWithLocking_OK(t *testing.T) {
-	rmaTree, txSystem, _ := createStateAndTxSystem(t)
+	pdrs := createPDRs(t)
+	rmaTree, txSystem, _ := createStateAndTxSystem(t, pdrs)
 	err := txSystem.BeginBlock(1)
 	require.NoError(t, err)
 	signer, _ := testsig.CreateSignerAndVerifier(t)
@@ -881,6 +906,7 @@ func TestExecute_AddFeeCreditWithLocking_OK(t *testing.T) {
 	lockFCAttr := testutils.NewLockFCAttr(testutils.WithLockFCCounter(0))
 	lockFC := testutils.NewLockFC(t, signer, lockFCAttr,
 		testtransaction.WithUnitID(fcrID),
+		testtransaction.WithPartition(pdrs[0]),
 	)
 	txr, err := txSystem.Execute(lockFC)
 	require.NoError(t, err)
@@ -897,7 +923,7 @@ func TestExecute_AddFeeCreditWithLocking_OK(t *testing.T) {
 
 	// unlock fee credit record
 	unlockFCAttr := testutils.NewUnlockFCAttr(testutils.WithUnlockFCCounter(1))
-	unlockFC := testutils.NewUnlockFC(t, signer, unlockFCAttr, testtransaction.WithUnitID(fcrID))
+	unlockFC := testutils.NewUnlockFC(t, signer, unlockFCAttr, testtransaction.WithUnitID(fcrID), testtransaction.WithPartition(pdrs[0]))
 	txr, err = txSystem.Execute(unlockFC)
 	require.NoError(t, err)
 	require.NotNil(t, txr)
@@ -1065,18 +1091,19 @@ func createTx(fromID types.UnitID, fcrID types.UnitID, transactionType uint16) *
 	return tx
 }
 
-func createStateAndTxSystem(t *testing.T) (*state.State, *txsystem.GenericTxSystem, abcrypto.Signer) {
-	sdrs := createSDRs(newBillID(2))
-	s := genesisStateWithUC(t, initialBill, sdrs)
+func createStateAndTxSystem(t *testing.T, pdrs []*types.PartitionDescriptionRecord) (*state.State, *txsystem.GenericTxSystem, abcrypto.Signer) {
+	require.Greater(t, len(pdrs), 0, "at least one PDR must be provided")
+	require.Equal(t, money.PartitionTypeID, pdrs[0].PartitionTypeID, "first PDR must be for the money partition")
+	s := genesisStateWithUC(t, initialBill, pdrs)
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	trustBase := testtb.NewTrustBase(t, verifier)
 	fcrID := testutils.NewFeeCreditRecordIDAlwaysTrue(t)
 
 	mss, err := NewTxSystem(
-		*sdrs[0],
+		*pdrs[0],
 		types.ShardID{},
 		observability.Default(t),
-		WithPartitionDescriptionRecords(sdrs),
+		WithPartitionDescriptionRecords(pdrs),
 		WithState(s),
 		WithTrustBase(trustBase),
 	)
@@ -1142,16 +1169,17 @@ func genesisStateWithUC(t *testing.T, initialBill *InitialBill, sdrs []*types.Pa
 	return s
 }
 
-func createSDRs(fcbID types.UnitID) []*types.PartitionDescriptionRecord {
+func createPDRs(t *testing.T) []*types.PartitionDescriptionRecord {
 	return []*types.PartitionDescriptionRecord{{
-		Version:     1,
-		NetworkID:   5,
-		PartitionID: money.DefaultPartitionID,
-		TypeIDLen:   8,
-		UnitIDLen:   256,
-		T2Timeout:   2500 * time.Millisecond,
+		Version:         1,
+		PartitionTypeID: money.PartitionTypeID,
+		NetworkID:       types.NetworkLocal,
+		PartitionID:     money.DefaultPartitionID,
+		TypeIDLen:       8,
+		UnitIDLen:       256,
+		T2Timeout:       2500 * time.Millisecond,
 		FeeCreditBill: &types.FeeCreditBill{
-			UnitID:         fcbID,
+			UnitID:         moneyid.BillIDWithSuffix(t, 2, nil),
 			OwnerPredicate: templates.AlwaysTrueBytes(),
 		},
 	}}
@@ -1175,20 +1203,20 @@ func withStateUnit(unitID []byte, data types.UnitData) moneyModuleOption {
 }
 
 func newTestMoneyModule(t *testing.T, verifier abcrypto.Verifier, opts ...moneyModuleOption) *Module {
-	module := defaultMoneyModule(t, verifier)
+	module := defaultMoneyModule(t, moneyid.PDR(), verifier)
 	for _, opt := range opts {
 		require.NoError(t, opt(module))
 	}
 	return module
 }
 
-func defaultMoneyModule(t *testing.T, verifier abcrypto.Verifier) *Module {
+func defaultMoneyModule(t *testing.T, pdr types.PartitionDescriptionRecord, verifier abcrypto.Verifier) *Module {
 	// NB! using the same pubkey for trust base and unit bearer! TODO: use different keys...
 	options, err := defaultOptions()
 	require.NoError(t, err)
 	options.trustBase = testtb.NewTrustBase(t, verifier)
 	options.state = state.NewEmptyState()
-	module, err := NewMoneyModule(5, money.DefaultPartitionID, options)
+	module, err := NewMoneyModule(pdr, options)
 	require.NoError(t, err)
 	return module
 }

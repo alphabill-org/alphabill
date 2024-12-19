@@ -6,14 +6,14 @@ import (
 	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill/internal/testutils/block"
+	testblock "github.com/alphabill-org/alphabill/internal/testutils/block"
 	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
 	"github.com/stretchr/testify/require"
 )
 
-func NewReclaimFC(t *testing.T, signer abcrypto.Signer, reclaimFCAttr *fc.ReclaimFeeCreditAttributes, opts ...testtransaction.Option) *types.TransactionOrder {
+func NewReclaimFC(t *testing.T, pdr *types.PartitionDescriptionRecord, signer abcrypto.Signer, reclaimFCAttr *fc.ReclaimFeeCreditAttributes, opts ...testtransaction.Option) *types.TransactionOrder {
 	if reclaimFCAttr == nil {
-		reclaimFCAttr = NewReclaimFCAttr(t, signer)
+		reclaimFCAttr = NewReclaimFCAttr(t, pdr, signer)
 	}
 	tx := testtransaction.NewTransactionOrder(t,
 		testtransaction.WithUnitID(DefaultMoneyUnitID()),
@@ -27,16 +27,16 @@ func NewReclaimFC(t *testing.T, signer abcrypto.Signer, reclaimFCAttr *fc.Reclai
 	return tx
 }
 
-func NewReclaimFCAttr(t *testing.T, signer abcrypto.Signer, opts ...ReclaimFCOption) *fc.ReclaimFeeCreditAttributes {
-	defaultReclaimFC := NewDefaultReclaimFCAttr(t, signer)
+func NewReclaimFCAttr(t *testing.T, pdr *types.PartitionDescriptionRecord, signer abcrypto.Signer, opts ...ReclaimFCOption) *fc.ReclaimFeeCreditAttributes {
+	defaultReclaimFC := NewDefaultReclaimFCAttr(t, pdr, signer)
 	for _, opt := range opts {
 		opt(defaultReclaimFC)
 	}
 	return defaultReclaimFC
 }
 
-func NewDefaultReclaimFCAttr(t *testing.T, signer abcrypto.Signer) *fc.ReclaimFeeCreditAttributes {
-	tx, err := (newCloseFC(t)).MarshalCBOR()
+func NewDefaultReclaimFCAttr(t *testing.T, pdr *types.PartitionDescriptionRecord, signer abcrypto.Signer) *fc.ReclaimFeeCreditAttributes {
+	tx, err := (newCloseFC(t, pdr)).MarshalCBOR()
 	require.NoError(t, err)
 	txr := &types.TransactionRecord{
 		Version:          1,
@@ -58,7 +58,7 @@ func WithReclaimFCClosureProof(proof *types.TxRecordProof) ReclaimFCOption {
 	}
 }
 
-func newCloseFC(t *testing.T) *types.TransactionOrder {
+func newCloseFC(t *testing.T, pdr *types.PartitionDescriptionRecord) *types.TransactionOrder {
 	attr := &fc.CloseFeeCreditAttributes{
 		Amount:            amount,
 		TargetUnitID:      DefaultMoneyUnitID(),
@@ -68,5 +68,6 @@ func newCloseFC(t *testing.T) *types.TransactionOrder {
 		testtransaction.WithUnitID(DefaultMoneyUnitID()),
 		testtransaction.WithAttributes(attr),
 		testtransaction.WithTransactionType(fc.TransactionTypeCloseFeeCredit),
+		testtransaction.WithPartition(pdr),
 	)
 }

@@ -36,7 +36,7 @@ func (f *FeeCreditModule) validateCloseFC(tx *types.TransactionOrder, attr *fc.C
 	// ι identifies an existing fee credit record
 	// ExtrType(P.ι) = fcr – target unit is a fee credit record
 	// S.N[P.ι] != ⊥ - ι identifies an existing fee credit record
-	fcr, err := parseFeeCreditRecord(tx.UnitID, f.feeCreditRecordUnitType, f.state)
+	fcr, err := parseFeeCreditRecord(&f.pdr, tx.UnitID, f.feeCreditRecordUnitType, f.state)
 	if err != nil {
 		return fmt.Errorf("fee credit error: %w", err)
 	}

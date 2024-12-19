@@ -53,7 +53,7 @@ func TestNewExecutedBlockFromGenesis(t *testing.T) {
 		varNodes = append(varNodes, partitions.NodeInfo{
 			NodeID:  pn.PeerConf.ID.String(),
 			AuthKey: pn.PeerConf.KeyPair.PublicKey,
-			SigKey:  pn.PeerConf.KeyPair.PublicKey,
+			SignKey: pn.PeerConf.KeyPair.PublicKey,
 		})
 	}
 	b, err := NewGenesisBlock(hash, rootGenesis.Partitions)
@@ -92,7 +92,7 @@ func TestExecutedBlock_Extend(t *testing.T) {
 		varNodes = append(varNodes, partitions.NodeInfo{
 			NodeID:  pn.PeerConf.ID.String(),
 			AuthKey: pn.PeerConf.KeyPair.PublicKey,
-			SigKey:  pn.PeerConf.KeyPair.PublicKey,
+			SignKey: pn.PeerConf.KeyPair.PublicKey,
 		})
 	}
 	orchestration := mockOrchestration{

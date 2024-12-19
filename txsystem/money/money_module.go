@@ -7,10 +7,9 @@ import (
 	fcsdk "github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
 	"github.com/alphabill-org/alphabill-go-base/types"
-	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
-
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/state"
+	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 )
 
 var _ txtypes.Module = (*Module)(nil)
@@ -18,17 +17,16 @@ var _ txtypes.Module = (*Module)(nil)
 type (
 	Module struct {
 		state               *state.State
-		networkID           types.NetworkID
-		partitionID         types.PartitionID
 		trustBase           types.RootTrustBase
 		hashAlgorithm       crypto.Hash
 		dustCollector       *DustCollector
 		feeCreditTxRecorder *feeCreditTxRecorder
 		execPredicate       predicates.PredicateRunner
+		pdr                 types.PartitionDescriptionRecord
 	}
 )
 
-func NewMoneyModule(networkID types.NetworkID, partitionID types.PartitionID, options *Options) (*Module, error) {
+func NewMoneyModule(pdr types.PartitionDescriptionRecord, options *Options) (*Module, error) {
 	if options == nil {
 		return nil, errors.New("money module options are missing")
 	}
@@ -38,11 +36,10 @@ func NewMoneyModule(networkID types.NetworkID, partitionID types.PartitionID, op
 
 	m := &Module{
 		state:               options.state,
-		networkID:           networkID,
-		partitionID:         partitionID,
+		pdr:                 pdr,
 		trustBase:           options.trustBase,
 		hashAlgorithm:       options.hashAlgorithm,
-		feeCreditTxRecorder: newFeeCreditTxRecorder(options.state, partitionID, options.partitionDescriptionRecords),
+		feeCreditTxRecorder: newFeeCreditTxRecorder(options.state, pdr.PartitionID, options.partitionDescriptionRecords),
 		dustCollector:       NewDustCollector(options.state),
 		execPredicate:       predicates.NewPredicateRunner(options.exec),
 	}

@@ -64,7 +64,7 @@ func TestGenerateDistributedGenesisFiles(t *testing.T) {
 		rootNodeDir := filepath.Join(homeDir, defaultRootChainDir+strconv.Itoa(i))
 		keys, err := LoadKeys(filepath.Join(rootNodeDir, defaultKeysFileName), false, false)
 		require.NoError(t, err)
-		id, err := peer.IDFromPublicKey(keys.EncryptionPrivateKey.GetPublic())
+		id, err := peer.IDFromPublicKey(keys.AuthPrivKey.GetPublic())
 		require.NoError(t, err)
 		require.NotNil(t, rootGenesis.Root.FindPubKeyById(id.String()))
 		// make sure the root node is also present in partition genesis

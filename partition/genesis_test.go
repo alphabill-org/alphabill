@@ -54,21 +54,21 @@ func TestNewGenesisPartitionNode_NotOk(t *testing.T) {
 			args: args{
 				state: state.NewEmptyState(),
 				pdr:   validPDR,
-				opts:  []GenesisOption{WithPeerID("1"), WithEncryptionPubKey(pubKeyBytes)},
+				opts:  []GenesisOption{WithPeerID("1"), WithAuthPubKey(pubKeyBytes)},
 			},
 			wantErr: ErrSignerIsNil,
 		},
 		{
-			name: "encryption public key is nil",
+			name: "authentication public key is nil",
 			args: args{
 				state: state.NewEmptyState(),
 				pdr:   validPDR,
 				opts: []GenesisOption{
-					WithSigningKey(signer),
-					WithEncryptionPubKey(nil),
+					WithSignPrivKey(signer),
+					WithAuthPubKey(nil),
 					WithPeerID("1")},
 			},
-			wantErr: ErrEncryptionPubKeyIsNil,
+			wantErr: ErrAuthPubKeyIsNil,
 		},
 		{
 			name: "peer ID is empty",
@@ -76,7 +76,7 @@ func TestNewGenesisPartitionNode_NotOk(t *testing.T) {
 				state: state.NewEmptyState(),
 				pdr:   validPDR,
 				opts: []GenesisOption{
-					WithSigningKey(signer),
+					WithSignPrivKey(signer),
 					WithPeerID(""),
 				},
 			},
@@ -97,8 +97,8 @@ func TestNewGenesisPartitionNode_NotOk(t *testing.T) {
 		state.NewEmptyState(),
 		types.PartitionDescriptionRecord{Version: 1, NetworkID: 5, PartitionID: 0},
 		WithPeerID("1"),
-		WithSigningKey(signer),
-		WithEncryptionPubKey(pubKeyBytes),
+		WithSignPrivKey(signer),
+		WithAuthPubKey(pubKeyBytes),
 		WithHashAlgorithm(gocrypto.SHA256),
 	)
 	require.Nil(t, got)
@@ -115,7 +115,7 @@ func TestNewGenesisPartitionNode_Ok(t *testing.T) {
 	pn := createPartitionNode(t, signer, authKey, pdr, nodeID)
 	require.NotNil(t, pn)
 	require.Equal(t, base58.Encode([]byte(nodeID)), pn.NodeID)
-	require.Equal(t, hex.Bytes(pubKey), pn.SigningPublicKey)
+	require.Equal(t, hex.Bytes(pubKey), pn.SignKey)
 	blockCertificationRequestRequest := pn.BlockCertificationRequest
 	require.Equal(t, pdr.PartitionID, blockCertificationRequestRequest.PartitionID)
 	require.NoError(t, blockCertificationRequestRequest.IsValid(verifier))
@@ -133,8 +133,8 @@ func createPartitionNode(t *testing.T, nodeSigningKey crypto.Signer, authKey []b
 		state.NewEmptyState(),
 		pdr,
 		WithPeerID(nodeID),
-		WithSigningKey(nodeSigningKey),
-		WithEncryptionPubKey(authKey),
+		WithSignPrivKey(nodeSigningKey),
+		WithAuthPubKey(authKey),
 	)
 	require.NoError(t, err)
 	return pn

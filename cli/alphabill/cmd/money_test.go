@@ -318,15 +318,15 @@ func TestRunMoneyNode_Ok(t *testing.T) {
 		pn, err := util.ReadJsonFile(nodeGenesisFileLocation, &genesis.PartitionNode{Version: 1})
 		require.NoError(t, err)
 
-		// use same keys for signing and communication encryption.
+		// use same keys for signing and authentication.
 		rootSigner, verifier := testsig.CreateSignerAndVerifier(t)
 		rootPubKeyBytes, err := verifier.MarshalPublicKey()
 		require.NoError(t, err)
 		pr, err := rootgenesis.NewPartitionRecordFromNodes([]*genesis.PartitionNode{pn})
 		require.NoError(t, err)
-		rootEncryptionKey, err := crypto.UnmarshalSecp256k1PublicKey(rootPubKeyBytes)
+		rootAuthKey, err := crypto.UnmarshalSecp256k1PublicKey(rootPubKeyBytes)
 		require.NoError(t, err)
-		rootID, err := peer.IDFromPublicKey(rootEncryptionKey)
+		rootID, err := peer.IDFromPublicKey(rootAuthKey)
 		require.NoError(t, err)
 		rootGenesis, partitionGenesisFiles, err := rootgenesis.NewRootGenesis(rootID.String(), rootSigner, rootPubKeyBytes, pr)
 		require.NoError(t, err)

@@ -48,7 +48,7 @@ func (m *Module) GenericTransactionValidator() genericTransactionValidator {
 		if ctx.Tx.PartitionID != ctx.PartitionID {
 			return txsystem.ErrInvalidPartitionID
 		}
-		if ctx.BlockNumber >= ctx.Tx.Timeout() {
+		if ctx.BlockNumber > ctx.Tx.Timeout() {
 			return txsystem.ErrTransactionExpired
 		}
 		return nil

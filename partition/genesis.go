@@ -17,15 +17,15 @@ import (
 
 var ErrStateIsNil = errors.New("state is nil")
 var ErrSignerIsNil = errors.New("signer is nil")
-var ErrEncryptionPubKeyIsNil = errors.New("encryption public key is nil")
+var ErrAuthPubKeyIsNil = errors.New("authentication public key is nil")
 
 type (
 	genesisConf struct {
-		peerID                peer.ID
-		hashAlgorithm         gocrypto.Hash
-		signer                crypto.Signer
-		encryptionPubKeyBytes []byte
-		params                []byte
+		peerID        peer.ID
+		hashAlgorithm gocrypto.Hash
+		signer        crypto.Signer
+		authPubKey    []byte
+		params        []byte
 	}
 
 	GenesisOption func(c *genesisConf)
@@ -38,8 +38,8 @@ func (c *genesisConf) isValid() error {
 	if c.signer == nil {
 		return ErrSignerIsNil
 	}
-	if len(c.encryptionPubKeyBytes) == 0 {
-		return ErrEncryptionPubKeyIsNil
+	if len(c.authPubKey) == 0 {
+		return ErrAuthPubKeyIsNil
 	}
 
 	return nil
@@ -57,15 +57,15 @@ func WithHashAlgorithm(hashAlgorithm gocrypto.Hash) GenesisOption {
 	}
 }
 
-func WithSigningKey(signer crypto.Signer) GenesisOption {
+func WithSignPrivKey(signer crypto.Signer) GenesisOption {
 	return func(c *genesisConf) {
 		c.signer = signer
 	}
 }
 
-func WithEncryptionPubKey(encryptionPubKey []byte) GenesisOption {
+func WithAuthPubKey(authPubKey []byte) GenesisOption {
 	return func(c *genesisConf) {
-		c.encryptionPubKeyBytes = encryptionPubKey
+		c.authPubKey = authPubKey
 	}
 }
 
@@ -76,7 +76,7 @@ func WithParams(params []byte) GenesisOption {
 }
 
 // NewNodeGenesis creates a new genesis.PartitionNode from the given inputs.
-// Must contain PeerID, signer, and public encryption key configuration.
+// Must contain PeerID, signer, and authentication key configuration.
 //
 // This function must be called by all partition nodes in the network.
 func NewNodeGenesis(state *state.State, pdr types.PartitionDescriptionRecord, opts ...GenesisOption) (*genesis.PartitionNode, error) {
@@ -155,7 +155,7 @@ func NewNodeGenesis(state *state.State, pdr types.PartitionDescriptionRecord, op
 		return nil, err
 	}
 
-	signingPubKey, err := verifier.MarshalPublicKey()
+	signKey, err := verifier.MarshalPublicKey()
 	if err != nil {
 		return nil, err
 	}
@@ -164,11 +164,11 @@ func NewNodeGenesis(state *state.State, pdr types.PartitionDescriptionRecord, op
 	node := &genesis.PartitionNode{
 		Version:                    1,
 		NodeID:                     id,
-		SigningPublicKey:           signingPubKey,
-		EncryptionPublicKey:        c.encryptionPubKeyBytes,
+		AuthKey:                    c.authPubKey,
+		SignKey:                    signKey,
 		BlockCertificationRequest:  blockCertificationRequest,
-		Params:                     c.params,
 		PartitionDescriptionRecord: pdr,
+		Params:                     c.params,
 	}
 	if err := node.IsValid(); err != nil {
 		return nil, err

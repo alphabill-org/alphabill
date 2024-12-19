@@ -87,38 +87,34 @@ func generateSingleNodeSetup(t *testing.T, homeDir string) (string, string) {
 
 func Test_rootNodeConfig_getBootStrapNodes(t *testing.T) {
 	t.Run("ok: nil", func(t *testing.T) {
-		bootNodes, err := getBootStrapNodes("")
+		bootNodes, err := getBootStrapNodes(nil)
 		require.NoError(t, err)
 		require.NotNil(t, bootNodes)
 		require.Empty(t, bootNodes)
 	})
-	t.Run("err: invalid parameter", func(t *testing.T) {
-		bootNodes, err := getBootStrapNodes("blah")
-		require.ErrorContains(t, err, "invalid bootstrap node parameter: blah")
-		require.Nil(t, bootNodes)
-	})
-	t.Run("err: invalid node description", func(t *testing.T) {
-		bootNodes, err := getBootStrapNodes("blah@someip@someif")
-		require.ErrorContains(t, err, "invalid bootstrap node parameter: blah@someip@someif")
-		require.Nil(t, bootNodes)
-	})
-	t.Run("err: invalid node id", func(t *testing.T) {
-		bootNodes, err := getBootStrapNodes("blah@someip")
-		require.ErrorContains(t, err, "invalid bootstrap node id: blah")
-		require.Nil(t, bootNodes)
-	})
-	t.Run("err: invalid address", func(t *testing.T) {
-		bootNodes, err := getBootStrapNodes("16Uiu2HAmLEmba2HMEEMe4NYsKnqKToAgi1FueNJaDiAnLeJpKktz@someip")
-		require.ErrorContains(t, err, "invalid bootstrap node address: someip")
-		require.Nil(t, bootNodes)
-	})
 	t.Run("ok", func(t *testing.T) {
-		bootNodes, err := getBootStrapNodes("16Uiu2HAmLEmba2HMEEMe4NYsKnqKToAgi1FueNJaDiAnLeJpKktz@/ip4/127.0.0.1/tcp/1366")
+		bootNodes, err := getBootStrapNodes([]string{"/ip4/127.0.0.1/tcp/1366/p2p/16Uiu2HAmLEmba2HMEEMe4NYsKnqKToAgi1FueNJaDiAnLeJpKktz"})
 		require.NoError(t, err)
 		require.Len(t, bootNodes, 1)
 		require.Equal(t, bootNodes[0].ID.String(), "16Uiu2HAmLEmba2HMEEMe4NYsKnqKToAgi1FueNJaDiAnLeJpKktz")
 		require.Len(t, bootNodes[0].Addrs, 1)
 		require.Equal(t, bootNodes[0].Addrs[0].String(), "/ip4/127.0.0.1/tcp/1366")
+	})
+	t.Run("multiple nodes ok", func(t *testing.T) {
+		bootNodes, err := getBootStrapNodes([]string{
+			"/ip4/127.0.0.1/tcp/1366/p2p/16Uiu2HAmLEmba2HMEEMe4NYsKnqKToAgi1FueNJaDiAnLeJpKktz",
+			"/ip4/127.0.0.1/tcp/1367/p2p/16Uiu2HAmLEmba2HMEEMe4NYsKnqKToAgi1FueNJaDiAnLeJpKktx",
+		})
+		require.NoError(t, err)
+		require.Len(t, bootNodes, 2)
+
+		require.Equal(t, bootNodes[0].ID.String(), "16Uiu2HAmLEmba2HMEEMe4NYsKnqKToAgi1FueNJaDiAnLeJpKktz")
+		require.Len(t, bootNodes[0].Addrs, 1)
+		require.Equal(t, bootNodes[0].Addrs[0].String(), "/ip4/127.0.0.1/tcp/1366")
+
+		require.Equal(t, bootNodes[1].ID.String(), "16Uiu2HAmLEmba2HMEEMe4NYsKnqKToAgi1FueNJaDiAnLeJpKktx")
+		require.Len(t, bootNodes[1].Addrs, 1)
+		require.Equal(t, bootNodes[1].Addrs[0].String(), "/ip4/127.0.0.1/tcp/1367")
 	})
 }
 
@@ -165,8 +161,8 @@ func Test_StartSingleNode(t *testing.T) {
 		partitionGenesis := filepath.Join(homeDir, defaultRootChainDir, "partition-genesis-1.json")
 		pg, err := loadPartitionGenesis(partitionGenesis)
 		require.NoError(t, err)
-		rootValidatorEncryptionKey := pg.RootValidators[0].EncryptionPublicKey
-		rootID, rootAddress, err := getRootValidatorIDAndMultiAddress(rootValidatorEncryptionKey, address)
+		rootValidatorAuthKey := pg.RootValidators[0].AuthKey
+		rootID, rootAddress, err := getRootValidatorIDAndMultiAddress(rootValidatorAuthKey, address)
 		require.NoError(t, err)
 		cfg := &startNodeConfiguration{
 			Address:       "/ip4/127.0.0.1/tcp/26652",
@@ -303,8 +299,8 @@ func Test_Start_2_DRCNodes(t *testing.T) {
 		partitionGenesis := filepath.Join(homeDir, defaultRootChainDir+"1", "partition-genesis-1.json")
 		pg, err := loadPartitionGenesis(partitionGenesis)
 		require.NoError(t, err)
-		rootValidatorEncryptionKey := pg.RootValidators[0].EncryptionPublicKey
-		rootID, rootAddress, err := getRootValidatorIDAndMultiAddress(rootValidatorEncryptionKey, address)
+		rootValidatorAuthKey := pg.RootValidators[0].AuthKey
+		rootID, rootAddress, err := getRootValidatorIDAndMultiAddress(rootValidatorAuthKey, address)
 		require.NoError(t, err)
 		cfg := &startNodeConfiguration{
 			Address: "/ip4/127.0.0.1/tcp/26652",
@@ -333,12 +329,12 @@ func Test_Start_2_DRCNodes(t *testing.T) {
 	})
 }
 
-func getRootValidatorIDAndMultiAddress(rootValidatorEncryptionKey []byte, addressStr string) (peer.ID, multiaddr.Multiaddr, error) {
-	rootEncryptionKey, err := crypto.UnmarshalSecp256k1PublicKey(rootValidatorEncryptionKey)
+func getRootValidatorIDAndMultiAddress(rootAuthKeyBytes []byte, addressStr string) (peer.ID, multiaddr.Multiaddr, error) {
+	rootAuthKey, err := crypto.UnmarshalSecp256k1PublicKey(rootAuthKeyBytes)
 	if err != nil {
 		return "", nil, err
 	}
-	rootID, err := peer.IDFromPublicKey(rootEncryptionKey)
+	rootID, err := peer.IDFromPublicKey(rootAuthKey)
 	if err != nil {
 		return "", nil, err
 	}

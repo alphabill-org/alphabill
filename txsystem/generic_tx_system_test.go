@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	abhash "github.com/alphabill-org/alphabill-go-base/hash"
 	"github.com/stretchr/testify/require"
 
+	abhash "github.com/alphabill-org/alphabill-go-base/hash"
 	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
 	fcsdk "github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/types"
@@ -45,12 +45,12 @@ func (t *MockData) Owner() []byte {
 
 func Test_NewGenericTxSystem(t *testing.T) {
 	validPDR := types.PartitionDescriptionRecord{
-		Version:             1,
+		Version:     1,
 		NetworkID:   mockNetworkID,
 		PartitionID: mockPartitionID,
-		TypeIDLen:           8,
-		UnitIDLen:           256,
-		T2Timeout:           2500 * time.Millisecond,
+		TypeIDLen:   8,
+		UnitIDLen:   256,
+		T2Timeout:   2500 * time.Millisecond,
 	}
 	require.NoError(t, validPDR.IsValid())
 
@@ -180,7 +180,7 @@ func Test_GenericTxSystem_Execute(t *testing.T) {
 		expErr := errors.New("nope!")
 		m := NewMockTxModule(expErr)
 		unitID := test.RandomBytes(33)
-		fcrID := types.NewUnitID(33, nil, []byte{1}, []byte{0xff})
+		fcrID := test.RandomBytes(33)
 		txSys := NewTestGenericTxSystem(t,
 			[]txtypes.Module{m},
 			withStateUnit(fcrID, &fcsdk.FeeCreditRecord{Balance: 10, OwnerPredicate: templates.AlwaysTrueBytes()}, nil),
@@ -222,7 +222,7 @@ func Test_GenericTxSystem_Execute(t *testing.T) {
 		expErr := errors.New("nope!")
 		m := NewMockTxModule(expErr)
 		unitID := test.RandomBytes(33)
-		fcrID := types.NewUnitID(33, nil, []byte{1}, []byte{0xff})
+		fcrID := test.RandomBytes(33)
 		txSys := NewTestGenericTxSystem(t,
 			[]txtypes.Module{m},
 			withStateUnit(fcrID, &fcsdk.FeeCreditRecord{Balance: 10, OwnerPredicate: templates.AlwaysTrueBytes()}, nil),
@@ -304,7 +304,7 @@ func Test_GenericTxSystem_Execute(t *testing.T) {
 	t.Run("lock success", func(t *testing.T) {
 		m := NewMockTxModule(nil)
 		unitID := test.RandomBytes(33)
-		fcrID := types.NewUnitID(33, nil, []byte{1}, []byte{0xff})
+		fcrID := test.RandomBytes(33)
 		txSys := NewTestGenericTxSystem(t, []txtypes.Module{m},
 			withStateUnit(unitID, &MockData{Value: 1, OwnerPredicate: templates.AlwaysTrueBytes()}, nil),
 			withStateUnit(fcrID, &fcsdk.FeeCreditRecord{Balance: 10, OwnerPredicate: templates.AlwaysTrueBytes()}, nil))
@@ -329,7 +329,7 @@ func Test_GenericTxSystem_Execute(t *testing.T) {
 
 	t.Run("success", func(t *testing.T) {
 		m := NewMockTxModule(nil)
-		fcrID := types.NewUnitID(33, nil, []byte{1}, []byte{0xff})
+		fcrID := test.RandomBytes(33)
 		txSys := NewTestGenericTxSystem(t, []txtypes.Module{m},
 			withStateUnit(fcrID, &fcsdk.FeeCreditRecord{Balance: 10, OwnerPredicate: templates.AlwaysTrueBytes()}, nil))
 		txo := transaction.NewTransactionOrder(t,
@@ -384,10 +384,15 @@ func Test_GenericTxSystem_validateGenericTransaction(t *testing.T) {
 		txSys := NewTestGenericTxSystem(t, nil)
 		txo := createTxOrder(txSys)
 
+		txSys.currentRoundNumber = txo.Timeout() - 1
+		require.NoError(t, txSys.validateGenericTransaction(txo), "tx.Timeout > currentRoundNumber should be valid")
+
 		txSys.currentRoundNumber = txo.Timeout()
-		require.ErrorIs(t, txSys.validateGenericTransaction(txo), ErrTransactionExpired)
+		require.NoError(t, txSys.validateGenericTransaction(txo), "tx.Timeout == currentRoundNumber should be valid")
+
 		txSys.currentRoundNumber = txo.Timeout() + 1
 		require.ErrorIs(t, txSys.validateGenericTransaction(txo), ErrTransactionExpired)
+
 		txSys.currentRoundNumber = math.MaxUint64
 		require.ErrorIs(t, txSys.validateGenericTransaction(txo), ErrTransactionExpired)
 	})
@@ -469,12 +474,12 @@ func NewTestGenericTxSystem(t *testing.T, modules []txtypes.Module, opts ...txSy
 
 func defaultTestConfiguration(t *testing.T, modules []txtypes.Module) *GenericTxSystem {
 	pdr := types.PartitionDescriptionRecord{
-		Version:             1,
+		Version:     1,
 		NetworkID:   mockNetworkID,
 		PartitionID: mockPartitionID,
-		TypeIDLen:           8,
-		UnitIDLen:           8 * 32,
-		T2Timeout:           2500 * time.Millisecond,
+		TypeIDLen:   8,
+		UnitIDLen:   8 * 32,
+		T2Timeout:   2500 * time.Millisecond,
 	}
 	// default configuration has no fee handling
 	txSys, err := NewGenericTxSystem(pdr, types.ShardID{}, nil, modules, observability.Default(t))

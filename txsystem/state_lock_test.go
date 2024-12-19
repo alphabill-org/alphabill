@@ -3,19 +3,20 @@ package txsystem
 import (
 	"testing"
 
+	"github.com/fxamacker/cbor/v2"
+	"github.com/stretchr/testify/require"
+
 	basetemplates "github.com/alphabill-org/alphabill-go-base/predicates/templates"
+	moneyid "github.com/alphabill-org/alphabill-go-base/testutils/money"
 	fcsdk "github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
-	abfc "github.com/alphabill-org/alphabill/txsystem/fc"
-	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
-	"github.com/fxamacker/cbor/v2"
-
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/predicates/templates"
+	abfc "github.com/alphabill-org/alphabill/txsystem/fc"
 	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
-	"github.com/stretchr/testify/require"
+	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 )
 
 func Test_StateUnlockProofFromBytes(t *testing.T) {
@@ -84,7 +85,7 @@ func Test_proof_check_with_nil(t *testing.T) {
 
 func TestGenericTxSystem_handleUnlockUnitState(t *testing.T) {
 	t.Run("ok - unit not found", func(t *testing.T) {
-		unitID := money.NewBillID(nil, []byte{2})
+		unitID := moneyid.NewBillID(t)
 		txSys := NewTestGenericTxSystem(t, nil)
 		tx := testtransaction.NewTransactionOrder(
 			t,
@@ -99,7 +100,7 @@ func TestGenericTxSystem_handleUnlockUnitState(t *testing.T) {
 		require.Nil(t, sm)
 	})
 	t.Run("ok - unit is already unlocked", func(t *testing.T) {
-		unitID := money.NewBillID(nil, []byte{2})
+		unitID := moneyid.NewBillID(t)
 		txSys := NewTestGenericTxSystem(t, nil, withStateUnit(unitID, &money.BillData{Value: 1, Counter: 1, OwnerPredicate: basetemplates.AlwaysTrueBytes()}, nil))
 		tx := testtransaction.NewTransactionOrder(
 			t,
@@ -114,7 +115,7 @@ func TestGenericTxSystem_handleUnlockUnitState(t *testing.T) {
 		require.Nil(t, sm)
 	})
 	t.Run("ok - unit is already unlocked", func(t *testing.T) {
-		unitID := money.NewBillID(nil, []byte{2})
+		unitID := moneyid.NewBillID(t)
 		txSys := NewTestGenericTxSystem(t, nil, withStateUnit(unitID, &money.BillData{Value: 1, Counter: 1, OwnerPredicate: basetemplates.AlwaysTrueBytes()}, nil))
 		tx := testtransaction.NewTransactionOrder(
 			t,
@@ -132,7 +133,7 @@ func TestGenericTxSystem_handleUnlockUnitState(t *testing.T) {
 		_, ver1 := testsig.CreateSignerAndVerifier(t)
 		pubKey1, err := ver1.MarshalPublicKey()
 		require.NoError(t, err)
-		unitID := money.NewBillID(nil, []byte{2})
+		unitID := moneyid.NewBillID(t)
 		txSys := NewTestGenericTxSystem(t, nil, withStateUnit(
 			unitID,
 			&money.BillData{Value: 1, Counter: 1, OwnerPredicate: basetemplates.AlwaysTrueBytes()},
@@ -154,7 +155,7 @@ func TestGenericTxSystem_handleUnlockUnitState(t *testing.T) {
 		_, ver1 := testsig.CreateSignerAndVerifier(t)
 		pubKey1, err := ver1.MarshalPublicKey()
 		require.NoError(t, err)
-		unitID := money.NewBillID(nil, []byte{2})
+		unitID := moneyid.NewBillID(t)
 		txSys := NewTestGenericTxSystem(t, nil, withStateUnit(
 			unitID,
 			&money.BillData{Value: 1, Counter: 1, OwnerPredicate: basetemplates.AlwaysTrueBytes()},
@@ -178,8 +179,10 @@ func TestGenericTxSystem_handleUnlockUnitState(t *testing.T) {
 		_, ver1 := testsig.CreateSignerAndVerifier(t)
 		pubKey1, err := ver1.MarshalPublicKey()
 		require.NoError(t, err)
-		unitID := money.NewBillID(nil, []byte{2})
-		fcrID := types.NewUnitID(33, nil, []byte{1}, []byte{0xff})
+		unitID := moneyid.NewBillID(t)
+		targetPDR := moneyid.PDR()
+		fcrID, err := targetPDR.ComposeUnitID(types.ShardID{}, 0xff, moneyid.Random)
+		require.NoError(t, err)
 		txSys := NewTestGenericTxSystem(t, nil,
 			withStateUnit(fcrID, &fcsdk.FeeCreditRecord{Balance: 10, OwnerPredicate: basetemplates.AlwaysTrueBytes()}, nil),
 			withStateUnit(unitID, &money.BillData{Value: 1, Counter: 1, OwnerPredicate: basetemplates.AlwaysTrueBytes()},
@@ -208,7 +211,7 @@ func TestGenericTxSystem_handleUnlockUnitState(t *testing.T) {
 		_, ver1 := testsig.CreateSignerAndVerifier(t)
 		pubKey1, err := ver1.MarshalPublicKey()
 		require.NoError(t, err)
-		unitID := money.NewBillID(nil, []byte{2})
+		unitID := moneyid.NewBillID(t)
 		txSys := NewTestGenericTxSystem(t, nil, withStateUnit(
 			unitID,
 			&money.BillData{Value: 1, Counter: 1, OwnerPredicate: basetemplates.AlwaysTrueBytes()},
@@ -232,7 +235,7 @@ func TestGenericTxSystem_handleUnlockUnitState(t *testing.T) {
 		sig1, ver1 := testsig.CreateSignerAndVerifier(t)
 		pubKey1, err := ver1.MarshalPublicKey()
 		require.NoError(t, err)
-		unitID := money.NewBillID(nil, []byte{2})
+		unitID := moneyid.NewBillID(t)
 		txSys := NewTestGenericTxSystem(t, nil, withStateUnit(
 			unitID,
 			&money.BillData{Value: 1, Counter: 1, OwnerPredicate: basetemplates.AlwaysTrueBytes()},
@@ -259,7 +262,7 @@ func TestGenericTxSystem_handleUnlockUnitState(t *testing.T) {
 
 func TestGenericTxSystem_executeLockUnitState(t *testing.T) {
 	t.Run("err - invalid state lock", func(t *testing.T) {
-		unitID := money.NewBillID(nil, []byte{2})
+		unitID := moneyid.NewBillID(t)
 		txSys := NewTestGenericTxSystem(t, nil, withStateUnit(unitID, &money.BillData{Value: 1, Counter: 1, OwnerPredicate: basetemplates.AlwaysTrueBytes()}, nil))
 		tx := testtransaction.NewTransactionOrder(
 			t,
@@ -275,7 +278,7 @@ func TestGenericTxSystem_executeLockUnitState(t *testing.T) {
 		require.Nil(t, sm)
 	})
 	t.Run("err - invalid state lock, missing rollback", func(t *testing.T) {
-		unitID := money.NewBillID(nil, []byte{2})
+		unitID := moneyid.NewBillID(t)
 		txSys := NewTestGenericTxSystem(t, nil, withStateUnit(unitID, &money.BillData{Value: 1, Counter: 1, OwnerPredicate: basetemplates.AlwaysTrueBytes()}, nil))
 		tx := testtransaction.NewTransactionOrder(
 			t,
@@ -291,7 +294,7 @@ func TestGenericTxSystem_executeLockUnitState(t *testing.T) {
 		require.Nil(t, sm)
 	})
 	t.Run("ok", func(t *testing.T) {
-		unitID := money.NewBillID(nil, []byte{2})
+		unitID := moneyid.NewBillID(t)
 		txSys := NewTestGenericTxSystem(t, nil, withStateUnit(unitID, &money.BillData{Value: 1, Counter: 1, OwnerPredicate: basetemplates.AlwaysTrueBytes()}, nil))
 		tx := testtransaction.NewTransactionOrder(
 			t,

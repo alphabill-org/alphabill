@@ -10,7 +10,7 @@ import (
 
 var (
 	ErrStateContainsUncommittedChanges = errors.New("state contains uncommitted changes")
-	ErrTransactionExpired              = errors.New("transaction timeout must be greater than current block number")
+	ErrTransactionExpired              = errors.New("transaction timeout must be greater than or equal to the current round number")
 	ErrInvalidPartitionID              = errors.New("error invalid partition identifier")
 )
 

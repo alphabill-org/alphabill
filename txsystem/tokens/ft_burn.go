@@ -37,7 +37,7 @@ func (m *FungibleTokensModule) executeBurnFT(tx *types.TransactionOrder, _ *toke
 }
 
 func (m *FungibleTokensModule) validateBurnFT(tx *types.TransactionOrder, attr *tokens.BurnFungibleTokenAttributes, authProof *tokens.BurnFungibleTokenAuthProof, exeCtx txtypes.ExecutionContext) error {
-	tokenData, err := getFungibleTokenData(tx.UnitID, m.state)
+	tokenData, err := m.getFungibleTokenData(tx.UnitID)
 	if err != nil {
 		return err
 	}

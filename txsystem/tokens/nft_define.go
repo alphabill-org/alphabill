@@ -24,11 +24,13 @@ func (n *NonFungibleTokensModule) executeDefineNFT(tx *types.TransactionOrder, a
 
 func (n *NonFungibleTokensModule) validateDefineNFT(tx *types.TransactionOrder, attr *tokens.DefineNonFungibleTokenAttributes, authProof *tokens.DefineNonFungibleTokenAuthProof, exeCtx txtypes.ExecutionContext) error {
 	unitID := tx.GetUnitID()
-	if !unitID.HasType(tokens.NonFungibleTokenTypeUnitType) {
-		return fmt.Errorf("create nft type: %s", ErrStrInvalidUnitID)
+	if err := unitID.TypeMustBe(tokens.NonFungibleTokenTypeUnitType, &n.pdr); err != nil {
+		return fmt.Errorf("invalid nft ID: %w", err)
 	}
-	if attr.ParentTypeID != nil && !attr.ParentTypeID.HasType(tokens.NonFungibleTokenTypeUnitType) {
-		return fmt.Errorf("create nft type: %s", ErrStrInvalidParentTypeID)
+	if attr.ParentTypeID != nil {
+		if err := attr.ParentTypeID.TypeMustBe(tokens.NonFungibleTokenTypeUnitType, &n.pdr); err != nil {
+			return fmt.Errorf("invalid parent type ID: %w", err)
+		}
 	}
 	if len(attr.Symbol) > maxSymbolLength {
 		return fmt.Errorf("create nft type: %s", ErrStrInvalidSymbolLength)

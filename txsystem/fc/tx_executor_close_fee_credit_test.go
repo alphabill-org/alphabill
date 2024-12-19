@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
+	moneyid "github.com/alphabill-org/alphabill-go-base/testutils/money"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
 	"github.com/alphabill-org/alphabill-go-base/types"
@@ -20,13 +21,14 @@ import (
 )
 
 func TestCloseFC_ValidateAndExecute(t *testing.T) {
+	targetPDR := moneyid.PDR()
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	trustBase := testtb.NewTrustBase(t, verifier)
 	// create existing fee credit record for closeFC
 	attr := testfc.NewCloseFCAttr()
 	authProof := &fc.CloseFeeCreditAuthProof{OwnerProof: templates.EmptyArgument()}
 	tx := testfc.NewCloseFC(t, signer, attr, testtransaction.WithAuthProof(authProof))
-	feeCreditModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID, &fc.FeeCreditRecord{Balance: 50}))
+	feeCreditModule := newTestFeeModule(t, &targetPDR, trustBase, withStateUnit(tx.UnitID, &fc.FeeCreditRecord{Balance: 50}))
 	// execute closeFC transaction
 	require.NoError(t, feeCreditModule.validateCloseFC(tx, attr, authProof, testctx.NewMockExecutionContext(testctx.WithCurrentRound(10))))
 	sm, err := feeCreditModule.executeCloseFC(tx, attr, authProof, testctx.NewMockExecutionContext(testctx.WithCurrentRound(10)))
@@ -43,10 +45,11 @@ func TestCloseFC_ValidateAndExecute(t *testing.T) {
 func TestFeeCredit_validateCloseFC(t *testing.T) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	trustBase := testtb.NewTrustBase(t, verifier)
+	targetPDR := moneyid.PDR()
 
 	t.Run("Ok", func(t *testing.T) {
 		tx := testfc.NewCloseFC(t, signer, nil)
-		feeModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID, &fc.FeeCreditRecord{Balance: 50}))
+		feeModule := newTestFeeModule(t, &targetPDR, trustBase, withStateUnit(tx.UnitID, &fc.FeeCreditRecord{Balance: 50}))
 		var attr fc.CloseFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		var authProof fc.CloseFeeCreditAuthProof
@@ -58,7 +61,7 @@ func TestFeeCredit_validateCloseFC(t *testing.T) {
 		tx := testfc.NewCloseFC(t, signer, nil,
 			testtransaction.WithClientMetadata(&types.ClientMetadata{FeeCreditRecordID: recordID}),
 		)
-		feeModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID, &fc.FeeCreditRecord{Balance: 50}))
+		feeModule := newTestFeeModule(t, &targetPDR, trustBase, withStateUnit(tx.UnitID, &fc.FeeCreditRecord{Balance: 50}))
 		var attr fc.CloseFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		var authProof fc.CloseFeeCreditAuthProof
@@ -70,8 +73,8 @@ func TestFeeCredit_validateCloseFC(t *testing.T) {
 	t.Run("UnitID has wrong type", func(t *testing.T) {
 		tx := testfc.NewCloseFC(t, signer, nil,
 			testtransaction.WithUnitID([]byte{8}))
-		feeModule := newTestFeeModule(t, trustBase,
-			withFeeCreditType([]byte{0xFF}),
+		feeModule := newTestFeeModule(t, &targetPDR, trustBase,
+			withFeeCreditType(0xFF),
 			withStateUnit(tx.UnitID, &fc.FeeCreditRecord{Balance: 50}))
 		var attr fc.CloseFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
@@ -84,7 +87,7 @@ func TestFeeCredit_validateCloseFC(t *testing.T) {
 	t.Run("Fee proof exists", func(t *testing.T) {
 		tx := testfc.NewCloseFC(t, signer, nil,
 			testtransaction.WithFeeProof(feeProof))
-		feeModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID, &fc.FeeCreditRecord{Balance: 50}))
+		feeModule := newTestFeeModule(t, &targetPDR, trustBase, withStateUnit(tx.UnitID, &fc.FeeCreditRecord{Balance: 50}))
 		var attr fc.CloseFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		var authProof fc.CloseFeeCreditAuthProof
@@ -95,7 +98,7 @@ func TestFeeCredit_validateCloseFC(t *testing.T) {
 	})
 	t.Run("Invalid unit type", func(t *testing.T) {
 		tx := testfc.NewCloseFC(t, signer, nil)
-		feeModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID, &testData{}))
+		feeModule := newTestFeeModule(t, &targetPDR, trustBase, withStateUnit(tx.UnitID, &testData{}))
 		var attr fc.CloseFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		var authProof fc.CloseFeeCreditAuthProof
@@ -106,7 +109,7 @@ func TestFeeCredit_validateCloseFC(t *testing.T) {
 	})
 	t.Run("Invalid amount", func(t *testing.T) {
 		tx := testfc.NewCloseFC(t, signer, testfc.NewCloseFCAttr(testfc.WithCloseFCAmount(51)))
-		feeModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID, &fc.FeeCreditRecord{Balance: 50}))
+		feeModule := newTestFeeModule(t, &targetPDR, trustBase, withStateUnit(tx.UnitID, &fc.FeeCreditRecord{Balance: 50}))
 		var attr fc.CloseFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		var authProof fc.CloseFeeCreditAuthProof
@@ -117,7 +120,7 @@ func TestFeeCredit_validateCloseFC(t *testing.T) {
 	})
 	t.Run("Invalid counter", func(t *testing.T) {
 		tx := testfc.NewCloseFC(t, signer, testfc.NewCloseFCAttr(testfc.WithCloseFCAmount(50), testfc.WithCloseFCCounter(10)))
-		feeModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID, &fc.FeeCreditRecord{Counter: 11, Balance: 50}))
+		feeModule := newTestFeeModule(t, &targetPDR, trustBase, withStateUnit(tx.UnitID, &fc.FeeCreditRecord{Counter: 11, Balance: 50}))
 		var attr fc.CloseFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		var authProof fc.CloseFeeCreditAuthProof
@@ -128,7 +131,7 @@ func TestFeeCredit_validateCloseFC(t *testing.T) {
 	})
 	t.Run("Nil target unit id", func(t *testing.T) {
 		tx := testfc.NewCloseFC(t, signer, testfc.NewCloseFCAttr(testfc.WithCloseFCTargetUnitID(nil)))
-		feeModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID, &fc.FeeCreditRecord{Balance: 50}))
+		feeModule := newTestFeeModule(t, &targetPDR, trustBase, withStateUnit(tx.UnitID, &fc.FeeCreditRecord{Balance: 50}))
 		var attr fc.CloseFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		var authProof fc.CloseFeeCreditAuthProof
@@ -139,7 +142,7 @@ func TestFeeCredit_validateCloseFC(t *testing.T) {
 	})
 	t.Run("Empty target unit id", func(t *testing.T) {
 		tx := testfc.NewCloseFC(t, signer, testfc.NewCloseFCAttr(testfc.WithCloseFCTargetUnitID([]byte{})))
-		feeModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID, &fc.FeeCreditRecord{Balance: 50}))
+		feeModule := newTestFeeModule(t, &targetPDR, trustBase, withStateUnit(tx.UnitID, &fc.FeeCreditRecord{Balance: 50}))
 		var attr fc.CloseFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		var authProof fc.CloseFeeCreditAuthProof
@@ -151,7 +154,7 @@ func TestFeeCredit_validateCloseFC(t *testing.T) {
 	t.Run("Empty target unit id", func(t *testing.T) {
 		tx := testfc.NewCloseFC(t, signer, nil,
 			testtransaction.WithClientMetadata(&types.ClientMetadata{MaxTransactionFee: 51}))
-		feeModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID, &fc.FeeCreditRecord{Balance: 50}))
+		feeModule := newTestFeeModule(t, &targetPDR, trustBase, withStateUnit(tx.UnitID, &fc.FeeCreditRecord{Balance: 50}))
 		var attr fc.CloseFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		var authProof fc.CloseFeeCreditAuthProof
@@ -162,7 +165,7 @@ func TestFeeCredit_validateCloseFC(t *testing.T) {
 	})
 	t.Run("Close locked credit", func(t *testing.T) {
 		tx := testfc.NewCloseFC(t, signer, nil)
-		feeModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID, &fc.FeeCreditRecord{Locked: 1, Balance: 50}))
+		feeModule := newTestFeeModule(t, &targetPDR, trustBase, withStateUnit(tx.UnitID, &fc.FeeCreditRecord{Locked: 1, Balance: 50}))
 		var attr fc.CloseFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
 		var authProof fc.CloseFeeCreditAuthProof
@@ -182,7 +185,7 @@ func withStateUnit(unitID []byte, data types.UnitData) feeTestOption {
 	}
 }
 
-func withFeeCreditType(feeType []byte) feeTestOption {
+func withFeeCreditType(feeType uint32) feeTestOption {
 	return func(m *FeeCreditModule) error {
 		m.feeCreditRecordUnitType = feeType
 		return nil
@@ -196,12 +199,11 @@ func withFeePredicateRunner(r predicates.PredicateRunner) feeTestOption {
 	}
 }
 
-func newTestFeeModule(t *testing.T, tb types.RootTrustBase, opts ...feeTestOption) *FeeCreditModule {
+func newTestFeeModule(t *testing.T, pdr *types.PartitionDescriptionRecord, tb types.RootTrustBase, opts ...feeTestOption) *FeeCreditModule {
 	m := &FeeCreditModule{
 		hashAlgorithm:    crypto.SHA256,
 		state:            state.NewEmptyState(),
-		networkID:        5,
-		partitionID:      moneyPartitionID,
+		pdr:              *pdr,
 		moneyPartitionID: moneyPartitionID,
 		trustBase:        tb,
 		execPredicate: func(predicate types.PredicateBytes, args []byte, sigBytesFn func() ([]byte, error), env predicates.TxContext) error {

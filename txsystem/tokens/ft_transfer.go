@@ -36,7 +36,7 @@ func (m *FungibleTokensModule) executeTransferFT(tx *types.TransactionOrder, att
 }
 
 func (m *FungibleTokensModule) validateTransferFT(tx *types.TransactionOrder, attr *tokens.TransferFungibleTokenAttributes, authProof *tokens.TransferFungibleTokenAuthProof, exeCtx txtypes.ExecutionContext) error {
-	tokenData, err := getFungibleTokenData(tx.UnitID, m.state)
+	tokenData, err := m.getFungibleTokenData(tx.UnitID)
 	if err != nil {
 		return err
 	}
@@ -72,12 +72,12 @@ func (m *FungibleTokensModule) validateTransferFT(tx *types.TransactionOrder, at
 	return nil
 }
 
-func getFungibleTokenData(unitID types.UnitID, s *state.State) (*tokens.FungibleTokenData, error) {
-	if !unitID.HasType(tokens.FungibleTokenUnitType) {
-		return nil, errors.New(ErrStrInvalidUnitID)
+func (m *FungibleTokensModule) getFungibleTokenData(unitID types.UnitID) (*tokens.FungibleTokenData, error) {
+	if err := unitID.TypeMustBe(tokens.FungibleTokenUnitType, &m.pdr); err != nil {
+		return nil, fmt.Errorf("invalid unit ID: %w", err)
 	}
 
-	u, err := s.GetUnit(unitID, false)
+	u, err := m.state.GetUnit(unitID, false)
 	if err != nil {
 		if errors.Is(err, avl.ErrNotFound) {
 			return nil, fmt.Errorf("unit %v does not exist: %w", unitID, err)

@@ -8,10 +8,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
+	orchid "github.com/alphabill-org/alphabill-go-base/testutils/orchestration"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/orchestration"
 	"github.com/alphabill-org/alphabill-go-base/types"
 
-	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/state"
@@ -25,12 +25,12 @@ func TestNewTxSystem_OK(t *testing.T) {
 	pubKey, err := verifier.MarshalPublicKey()
 	require.NoError(t, err)
 	pdr := types.PartitionDescriptionRecord{
-		Version:             1,
+		Version:     1,
 		NetworkID:   5,
 		PartitionID: orchestration.DefaultPartitionID,
-		TypeIDLen:           8,
-		UnitIDLen:           256,
-		T2Timeout:           2000 * time.Millisecond,
+		TypeIDLen:   8,
+		UnitIDLen:   256,
+		T2Timeout:   2000 * time.Millisecond,
 	}
 	txSystem, err := NewTxSystem(
 		pdr,
@@ -43,7 +43,8 @@ func TestNewTxSystem_OK(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, txSystem)
 
-	unitID := orchestration.NewVarID(nil, test.RandomBytes(32))
+	unitID, err := pdr.ComposeUnitID(types.ShardID{}, orchestration.VarUnitType, orchid.Random)
+	require.NoError(t, err)
 	roundNumber := uint64(10)
 	txo, _ := createAddVarTx(t, signer, &orchestration.AddVarAttributes{},
 		testtransaction.WithUnitID(unitID),

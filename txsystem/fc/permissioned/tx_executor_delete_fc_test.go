@@ -5,6 +5,7 @@ import (
 
 	"github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
+	moneyid "github.com/alphabill-org/alphabill-go-base/testutils/money"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/fc/permissioned"
 	"github.com/alphabill-org/alphabill-go-base/types"
@@ -27,17 +28,18 @@ func TestValidateDeleteFCR(t *testing.T) {
 
 	// create fee credit module
 	stateTree := state.NewEmptyState()
-	networkID := types.NetworkID(5)
+	targetPDR := moneyid.PDR()
 	partitionID := types.PartitionID(5)
-	fcrUnitType := []byte{1}
+	const fcrUnitType = 1
 	adminOwnerPredicate := templates.NewP2pkh256BytesFromKey(adminPubKey)
-	m, err := NewFeeCreditModule(networkID, partitionID, stateTree, fcrUnitType, adminOwnerPredicate)
+	m, err := NewFeeCreditModule(targetPDR, stateTree, fcrUnitType, adminOwnerPredicate)
 	require.NoError(t, err)
 
 	// common default values used in each test
 	fcrOwnerPredicate := templates.NewP2pkh256BytesFromKey(userPubKey)
 	timeout := uint64(10)
-	fcrID := newFeeCreditRecordID(t, fcrOwnerPredicate, fcrUnitType, timeout)
+	fcrID, err := targetPDR.ComposeUnitID(types.ShardID{}, fcrUnitType, fc.PrndSh(fcrOwnerPredicate, timeout))
+	require.NoError(t, err)
 
 	t.Run("ok", func(t *testing.T) {
 		tx, attr, authProof, err := newDeleteFeeTx(adminKeySigner, partitionID, fcrID, timeout, nil, nil)
@@ -65,7 +67,8 @@ func TestValidateDeleteFCR(t *testing.T) {
 	t.Run("Invalid unit type byte", func(t *testing.T) {
 		// create new fcrID with invalid type byte
 		fcrUnitType := []byte{2}
-		fcrID := newFeeCreditRecordID(t, fcrOwnerPredicate, fcrUnitType, timeout)
+		fcrID, err := targetPDR.ComposeUnitID(types.ShardID{}, uint32(fcrUnitType[0]), fc.PrndSh(fcrOwnerPredicate, timeout))
+		require.NoError(t, err)
 		tx, attr, authProof, err := newDeleteFeeTx(adminKeySigner, partitionID, fcrID, timeout, nil, nil)
 		require.NoError(t, err)
 		err = m.validateDeleteFC(tx, attr, authProof, testctx.NewMockExecutionContext())
@@ -112,17 +115,18 @@ func TestExecuteDeleteFCR(t *testing.T) {
 
 	// create fee credit module
 	stateTree := state.NewEmptyState()
-	networkID := types.NetworkID(5)
+	targetPDR := moneyid.PDR()
 	partitionID := types.PartitionID(5)
-	fcrUnitType := []byte{1}
+	const fcrUnitType = 1
 	adminOwnerPredicate := templates.NewP2pkh256BytesFromKey(adminPubKey)
-	m, err := NewFeeCreditModule(networkID, partitionID, stateTree, fcrUnitType, adminOwnerPredicate)
+	m, err := NewFeeCreditModule(targetPDR, stateTree, fcrUnitType, adminOwnerPredicate)
 	require.NoError(t, err)
 
 	// add unit to state tree
 	fcrOwnerPredicate := templates.NewP2pkh256BytesFromKey(userPubKey)
 	timeout := uint64(10)
-	fcrID := newFeeCreditRecordID(t, fcrOwnerPredicate, fcrUnitType, timeout)
+	fcrID, err := targetPDR.ComposeUnitID(types.ShardID{}, fcrUnitType, fc.PrndSh(fcrOwnerPredicate, timeout))
+	require.NoError(t, err)
 	err = stateTree.Apply(state.AddUnit(fcrID, &fc.FeeCreditRecord{}))
 	require.NoError(t, err)
 

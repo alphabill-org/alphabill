@@ -1,9 +1,11 @@
 package money
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
+	moneyid "github.com/alphabill-org/alphabill-go-base/testutils/money"
 	fcsdk "github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
 	"github.com/alphabill-org/alphabill-go-base/types"
@@ -22,49 +24,49 @@ func TestModule_validateTransferDCTx(t *testing.T) {
 	const value = 100
 	var targetUnitID = test.RandomBytes(32)
 	t.Run("ok", func(t *testing.T) {
-		unitID := money.NewBillID(nil, []byte{2})
+		unitID := moneyid.NewBillID(t)
 		tx, attr, authProof := createDCTransfer(t, unitID, fcrID, value, counter, targetUnitID, targetCounter)
 		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, &money.BillData{Value: value, Counter: counter, OwnerPredicate: templates.AlwaysTrueBytes()}))
 		exeCtx := testctx.NewMockExecutionContext()
 		require.NoError(t, module.validateTransferDCTx(tx, attr, authProof, exeCtx))
 	})
 	t.Run("unit does not exist", func(t *testing.T) {
-		unitID := money.NewBillID(nil, []byte{2})
+		unitID := moneyid.NewBillID(t)
 		tx, attr, authProof := createDCTransfer(t, unitID, fcrID, value, counter, targetUnitID, targetCounter)
 		module := newTestMoneyModule(t, verifier)
 		exeCtx := testctx.NewMockExecutionContext()
-		require.EqualError(t, module.validateTransferDCTx(tx, attr, authProof, exeCtx), "validateTransferDC error: item 000000000000000000000000000000000000000000000000000000000000000201 does not exist: not found")
+		require.EqualError(t, module.validateTransferDCTx(tx, attr, authProof, exeCtx), fmt.Sprintf("validateTransferDC error: item %s does not exist: not found", unitID))
 	})
 	t.Run("unit is not bill data", func(t *testing.T) {
-		unitID := money.NewBillID(nil, []byte{2})
+		unitID := moneyid.NewBillID(t)
 		tx, attr, authProof := createDCTransfer(t, unitID, fcrID, value, counter, targetUnitID, targetCounter)
 		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, &fcsdk.FeeCreditRecord{Balance: value, OwnerPredicate: templates.AlwaysTrueBytes()}))
 		exeCtx := testctx.NewMockExecutionContext()
 		require.EqualError(t, module.validateTransferDCTx(tx, attr, authProof, exeCtx), "validateTransferDC error: invalid unit data type")
 	})
 	t.Run("bill is locked", func(t *testing.T) {
-		unitID := money.NewBillID(nil, []byte{2})
+		unitID := moneyid.NewBillID(t)
 		tx, attr, authProof := createDCTransfer(t, unitID, fcrID, value, counter, targetUnitID, targetCounter)
 		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, &money.BillData{Locked: 1, Value: value, Counter: counter, OwnerPredicate: templates.AlwaysTrueBytes()}))
 		exeCtx := testctx.NewMockExecutionContext()
 		require.EqualError(t, module.validateTransferDCTx(tx, attr, authProof, exeCtx), "validateTransferDC error: the bill is locked")
 	})
 	t.Run("bill is locked", func(t *testing.T) {
-		unitID := money.NewBillID(nil, []byte{2})
+		unitID := moneyid.NewBillID(t)
 		tx, attr, authProof := createDCTransfer(t, unitID, fcrID, value, counter, targetUnitID, targetCounter)
 		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, &money.BillData{Value: value + 1, Counter: counter, OwnerPredicate: templates.AlwaysTrueBytes()}))
 		exeCtx := testctx.NewMockExecutionContext()
 		require.EqualError(t, module.validateTransferDCTx(tx, attr, authProof, exeCtx), "validateTransferDC error: the transaction value is not equal to the bill value")
 	})
 	t.Run("invalid counter - replay attack", func(t *testing.T) {
-		unitID := money.NewBillID(nil, []byte{2})
+		unitID := moneyid.NewBillID(t)
 		tx, attr, authProof := createDCTransfer(t, unitID, fcrID, value, counter-1, targetUnitID, targetCounter)
 		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, &money.BillData{Value: value, Counter: counter, OwnerPredicate: templates.AlwaysTrueBytes()}))
 		exeCtx := testctx.NewMockExecutionContext()
 		require.EqualError(t, module.validateTransferDCTx(tx, attr, authProof, exeCtx), "validateTransferDC error: the transaction counter is not equal to the bill counter")
 	})
 	t.Run("owner error", func(t *testing.T) {
-		unitID := money.NewBillID(nil, []byte{2})
+		unitID := moneyid.NewBillID(t)
 		tx, attr, authProof := createDCTransfer(t, unitID, fcrID, value, counter, targetUnitID, targetCounter)
 		pubKey, err := verifier.MarshalPublicKey()
 		require.NoError(t, err)
@@ -78,7 +80,7 @@ func TestModule_executeTransferDCTx(t *testing.T) {
 	const counter = 6
 	const value = 100
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
-	unitID := money.NewBillID(nil, []byte{2})
+	unitID := moneyid.NewBillID(t)
 	fcrID := testutils.NewFeeCreditRecordID(t, signer)
 	tx, attr, authProof := createDCTransfer(t, unitID, fcrID, value, counter, test.RandomBytes(32), 4)
 	module := newTestMoneyModule(t, verifier,

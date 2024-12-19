@@ -3,13 +3,14 @@ package fc
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
+	moneyid "github.com/alphabill-org/alphabill-go-base/testutils/money"
 	fcsdk "github.com/alphabill-org/alphabill-go-base/txsystem/fc"
-	"github.com/alphabill-org/alphabill-go-base/types"
 
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtb "github.com/alphabill-org/alphabill/internal/testutils/trustbase"
 	"github.com/alphabill-org/alphabill/state"
-	"github.com/stretchr/testify/require"
 )
 
 func TestFC_Validation(t *testing.T) {
@@ -19,33 +20,32 @@ func TestFC_Validation(t *testing.T) {
 	trustBase := testtb.NewTrustBase(t, verifier)
 	s := state.NewEmptyState()
 	partitionID := moneyPartitionID
-	networkID := types.NetworkID(5)
+	targetPDR := moneyid.PDR()
 
 	t.Run("new fc module validation errors", func(t *testing.T) {
-		_, err := NewFeeCreditModule(0, partitionID, partitionID, s, trustBase)
-		require.ErrorIs(t, err, ErrNetworkIDMissing)
+		invalidPDR := targetPDR
+		invalidPDR.PartitionID = 0
+		_, err := NewFeeCreditModule(invalidPDR, partitionID, s, trustBase)
+		require.EqualError(t, err, `invalid fee credit module configuration: invalid PDR: invalid partition identifier: 00000000`)
 
-		_, err = NewFeeCreditModule(networkID, 0, partitionID, s, trustBase)
-		require.ErrorIs(t, err, ErrPartitionIDMissing)
-
-		_, err = NewFeeCreditModule(networkID, partitionID, 0, s, trustBase)
+		_, err = NewFeeCreditModule(targetPDR, 0, s, trustBase)
 		require.ErrorIs(t, err, ErrMoneyPartitionIDMissing)
 
-		_, err = NewFeeCreditModule(networkID, partitionID, partitionID, nil, trustBase)
+		_, err = NewFeeCreditModule(targetPDR, partitionID, nil, trustBase)
 		require.ErrorIs(t, err, ErrStateIsNil)
 
-		_, err = NewFeeCreditModule(networkID, partitionID, partitionID, s, nil)
+		_, err = NewFeeCreditModule(targetPDR, partitionID, s, nil)
 		require.ErrorIs(t, err, ErrTrustBaseIsNil)
 	})
 
 	t.Run("new fc module validation", func(t *testing.T) {
-		fc, err := NewFeeCreditModule(networkID, partitionID, partitionID, s, trustBase)
+		fc, err := NewFeeCreditModule(targetPDR, partitionID, s, trustBase)
 		require.NoError(t, err)
 		require.NotNil(t, fc)
 	})
 
 	t.Run("new fc module executors", func(t *testing.T) {
-		fc, err := NewFeeCreditModule(networkID, partitionID, partitionID, s, trustBase)
+		fc, err := NewFeeCreditModule(targetPDR, partitionID, s, trustBase)
 		require.NoError(t, err)
 		fcExecutors := fc.TxHandlers()
 		require.Len(t, fcExecutors, 4)
@@ -62,7 +62,7 @@ func TestFC_Validation(t *testing.T) {
 func TestFC_CalculateCost(t *testing.T) {
 	_, verifier := testsig.CreateSignerAndVerifier(t)
 	trustBase := testtb.NewTrustBase(t, verifier)
-	fcModule, err := NewFeeCreditModule(5, 10, 1, state.NewEmptyState(), trustBase)
+	fcModule, err := NewFeeCreditModule(moneyid.PDR(), 1, state.NewEmptyState(), trustBase)
 	require.NoError(t, err)
 	require.NotNil(t, fcModule)
 	gas := fcModule.BuyGas(10)

@@ -33,18 +33,18 @@ const (
 )
 
 var (
-	defaultInitialBillID             = moneysdk.NewBillID(nil, []byte{1})
+	defaultInitialBillID             = append(make(types.UnitID, 31), 1, moneysdk.BillUnitType)
 	defaultInitialBillOwnerPredicate = templates.AlwaysTrueBytes()
 
 	defaultMoneyPDR = &types.PartitionDescriptionRecord{
-		Version:           1,
-		NetworkID: types.NetworkLocal,
-		PartitionID:       moneysdk.DefaultPartitionID,
-		TypeIDLen:         8,
-		UnitIDLen:         256,
-		T2Timeout:         2500 * time.Millisecond,
+		Version:     1,
+		NetworkID:   types.NetworkLocal,
+		PartitionID: moneysdk.DefaultPartitionID,
+		TypeIDLen:   8,
+		UnitIDLen:   256,
+		T2Timeout:   2500 * time.Millisecond,
 		FeeCreditBill: &types.FeeCreditBill{
-			UnitID:         moneysdk.NewBillID(nil, []byte{2}),
+			UnitID:         append(make(types.UnitID, 31), 2, moneysdk.BillUnitType),
 			OwnerPredicate: templates.AlwaysTrueBytes(),
 		},
 	}
@@ -260,8 +260,8 @@ func addInitialFeeCreditBills(s *state.State, config *moneyGenesisConfig) error 
 		if fcb == nil {
 			return fmt.Errorf("fee credit bill is nil in system description record")
 		}
-		if !fcb.UnitID.HasType(moneysdk.BillUnitType) {
-			return fmt.Errorf("fee credit bill ID has wrong unit type")
+		if err := fcb.UnitID.TypeMustBe(moneysdk.BillUnitType, pdr); err != nil {
+			return fmt.Errorf("fee credit bill ID has wrong unit type: %w", err)
 		}
 		if bytes.Equal(fcb.UnitID, money.DustCollectorMoneySupplyID) || bytes.Equal(fcb.UnitID, config.InitialBillID) {
 			return fmt.Errorf("fee credit bill ID may not be equal to DC money supply ID or initial bill ID")

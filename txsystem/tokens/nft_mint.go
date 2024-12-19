@@ -25,13 +25,13 @@ func (n *NonFungibleTokensModule) validateMintNFT(tx *types.TransactionOrder, at
 	tokenID := tx.GetUnitID()
 	tokenTypeID := attr.TypeID
 
-	if !tokenID.HasType(tokens.NonFungibleTokenUnitType) {
-		return errors.New(ErrStrInvalidUnitID)
+	if err := tokenID.TypeMustBe(tokens.NonFungibleTokenUnitType, &n.pdr); err != nil {
+		return fmt.Errorf("invalid unit ID: %w", err)
 	}
 
 	// verify token type has correct embedded type
-	if !tokenTypeID.HasType(tokens.NonFungibleTokenTypeUnitType) {
-		return errors.New(ErrStrInvalidTokenTypeID)
+	if err := tokenTypeID.TypeMustBe(tokens.NonFungibleTokenTypeUnitType, &n.pdr); err != nil {
+		return fmt.Errorf("invalid token type ID: %w", err)
 	}
 
 	// verify max allowed sizes
@@ -74,11 +74,10 @@ func (n *NonFungibleTokensModule) validateMintNFT(tx *types.TransactionOrder, at
 	}
 
 	// verify token id is correctly generated
-	unitPart, err := tokens.HashForNewTokenID(tx, n.hashAlgorithm)
+	newTokenID, err := n.pdr.ComposeUnitID(types.ShardID{}, tokens.NonFungibleTokenUnitType, tokens.PrndSh(tx))
 	if err != nil {
 		return err
 	}
-	newTokenID := tokens.NewNonFungibleTokenID(tokenTypeID, unitPart)
 	if !newTokenID.Eq(tokenID) {
 		return errors.New("invalid token id")
 	}

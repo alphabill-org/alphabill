@@ -30,6 +30,14 @@ func defaultClientMetadata() *types.ClientMetadata {
 
 type Option func(*types.TransactionOrder) error
 
+func WithPartition(pdr *types.PartitionDescriptionRecord) Option {
+	return func(tx *types.TransactionOrder) error {
+		tx.NetworkID = pdr.NetworkID
+		tx.PartitionID = pdr.PartitionID
+		return nil
+	}
+}
+
 func WithNetworkID(id types.NetworkID) Option {
 	return func(tx *types.TransactionOrder) error {
 		tx.NetworkID = id

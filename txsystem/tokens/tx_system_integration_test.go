@@ -6,7 +6,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
+	tokenid "github.com/alphabill-org/alphabill-go-base/testutils/tokens"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/tokens"
 	"github.com/alphabill-org/alphabill-go-base/types"
@@ -18,11 +21,10 @@ import (
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/txsystem/fc/unit"
 	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
-	"github.com/stretchr/testify/require"
 )
 
 var (
-	feeCreditID = tokens.NewFeeCreditRecordID(nil, []byte{42})
+	feeCreditID types.UnitID = append(make(types.UnitID, 31), 42, tokens.FeeCreditRecordUnitType)
 
 	defaultClientMetadata = &types.ClientMetadata{
 		Timeout:           20,
@@ -55,7 +57,6 @@ func TestInitPartitionAndDefineNFT_Ok(t *testing.T) {
 	tx := testtransaction.NewTransactionOrder(t,
 		testtransaction.WithTransactionType(tokens.TransactionTypeDefineNFT),
 		testtransaction.WithPartitionID(pdr.PartitionID),
-		testtransaction.WithUnitID(tokens.NewNonFungibleTokenTypeID(nil, []byte{1})),
 		testtransaction.WithAuthProof(&tokens.DefineNonFungibleTokenAuthProof{}),
 		testtransaction.WithAttributes(&tokens.DefineNonFungibleTokenAttributes{
 			Symbol:                   "Test",
@@ -70,6 +71,8 @@ func TestInitPartitionAndDefineNFT_Ok(t *testing.T) {
 		testtransaction.WithFeeProof(nil),
 		testtransaction.WithClientMetadata(createClientMetadata()),
 	)
+	tx.UnitID, err = pdr.ComposeUnitID(types.ShardID{}, tokens.NonFungibleTokenTypeUnitType, tokens.PrndSh(tx))
+	require.NoError(t, err)
 	require.NoError(t, tokenPrt.BroadcastTx(tx))
 	require.Eventually(t, testpartition.BlockchainContainsSuccessfulTx(t, tokenPrt, tx), test.WaitDuration, test.WaitTick)
 }
@@ -78,7 +81,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	var (
 		hashAlgorithm       = gocrypto.SHA256
 		states              []*state.State
-		fungibleTokenTypeID        = tokens.NewFungibleTokenTypeID(nil, []byte{1})
+		fungibleTokenTypeID        = tokenid.NewFungibleTokenTypeID(t)
 		totalValue          uint64 = 1000
 		splitValue1         uint64 = 100
 		splitValue2         uint64 = 10
@@ -165,8 +168,8 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		testtransaction.WithFeeProof(nil),
 		testtransaction.WithClientMetadata(createClientMetadata()),
 	)
-	mintedTokenID := newFungibleTokenID(t, mintTx)
-	mintTx.UnitID = mintedTokenID
+	require.NoError(t, tokens.GenerateUnitID(mintTx, types.ShardID{}, &pdr))
+	mintedTokenID := mintTx.UnitID
 	require.NoError(t, tokenPrt.BroadcastTx(mintTx))
 	minTxProof, err := testpartition.WaitTxProof(t, tokenPrt, mintTx)
 	require.NoError(t, err, "token mint transaction failed")
@@ -208,9 +211,8 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		tokenValue: totalValue - splitValue1,
 	})
 
-	unitPart, err := tokens.HashForNewTokenID(splitTx1, hashAlgorithm)
+	sUnitID1, err := pdr.ComposeUnitID(types.ShardID{}, tokens.FungibleTokenUnitType, tokens.PrndSh(splitTx1))
 	require.NoError(t, err)
-	sUnitID1 := tokens.NewFungibleTokenID(nil, unitPart)
 	RequireFungibleTokenState(t, state0, fungibleTokenUnitData{
 		unitID:     sUnitID1,
 		typeUnitID: fungibleTokenTypeID,
@@ -248,9 +250,8 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		tokenValue: totalValue - splitValue1 - splitValue2,
 	})
 
-	unitPart, err = tokens.HashForNewTokenID(splitTx2, hashAlgorithm)
+	sUnitID2, err := pdr.ComposeUnitID(types.ShardID{}, tokens.FungibleTokenUnitType, tokens.PrndSh(splitTx2))
 	require.NoError(t, err)
-	sUnitID2 := tokens.NewFungibleTokenID(nil, unitPart)
 	RequireFungibleTokenState(t, state0, fungibleTokenUnitData{
 		unitID:     sUnitID2,
 		typeUnitID: fungibleTokenTypeID,
@@ -440,16 +441,4 @@ func newStateWithFeeCredit(t *testing.T, feeCreditID types.UnitID) *state.State 
 	_, _, err := s.CalculateRoot()
 	require.NoError(t, err)
 	return s
-}
-
-func newFungibleTokenID(t *testing.T, tx *types.TransactionOrder) types.UnitID {
-	unitPart, err := tokens.HashForNewTokenID(tx, gocrypto.SHA256)
-	require.NoError(t, err)
-	return tokens.NewFungibleTokenID(nil, unitPart)
-}
-
-func newNonFungibleTokenID(t *testing.T, tx *types.TransactionOrder) types.UnitID {
-	unitPart, err := tokens.HashForNewTokenID(tx, gocrypto.SHA256)
-	require.NoError(t, err)
-	return tokens.NewNonFungibleTokenID(nil, unitPart)
 }

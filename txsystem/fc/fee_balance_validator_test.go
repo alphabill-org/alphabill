@@ -3,6 +3,7 @@ package fc
 import (
 	"testing"
 
+	moneyid "github.com/alphabill-org/alphabill-go-base/testutils/money"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
@@ -14,13 +15,22 @@ import (
 )
 
 func TestCheckFeeCreditBalance(t *testing.T) {
-	sharedState := state.NewEmptyState()
 	_, verifier := testsig.CreateSignerAndVerifier(t)
 	trustBase := testtb.NewTrustBase(t, verifier)
+	ownerPredicate := []byte{2}
+
+	pdr := moneyid.PDR()
+	missingID, err := pdr.ComposeUnitID(types.ShardID{}, 0xFC, moneyid.Random)
+	require.NoError(t, err)
+	recordID, err := pdr.ComposeUnitID(types.ShardID{}, 0xFC, moneyid.Random)
+	require.NoError(t, err)
 	existingFCR := &fc.FeeCreditRecord{Balance: 10, Counter: 0, Locked: 1, OwnerPredicate: ownerPredicate}
+
+	sharedState := state.NewEmptyState()
 	require.NoError(t, sharedState.Apply(state.AddUnit(recordID, existingFCR)))
 	require.NoError(t, sharedState.AddUnitLog(recordID, []byte{9}))
-	fcModule, err := NewFeeCreditModule(5, moneyPartitionID, moneyPartitionID, sharedState, trustBase)
+
+	fcModule, err := NewFeeCreditModule(pdr, moneyPartitionID, sharedState, trustBase, WithFeeCreditRecordUnitType(0xFC))
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -37,7 +47,7 @@ func TestCheckFeeCreditBalance(t *testing.T) {
 			name: "fee credit record unit is nil",
 			tx: testtransaction.NewTransactionOrder(t,
 				testtransaction.WithTransactionType(22),
-				testtransaction.WithClientMetadata(&types.ClientMetadata{FeeCreditRecordID: []byte{1}}),
+				testtransaction.WithClientMetadata(&types.ClientMetadata{FeeCreditRecordID: missingID}),
 			),
 			expectedError: "fee credit record unit is nil",
 		},

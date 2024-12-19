@@ -5,23 +5,25 @@ import (
 
 	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
-	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
+	moneyid "github.com/alphabill-org/alphabill-go-base/testutils/money"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/stretchr/testify/require"
 )
 
 func NewFeeCreditRecordID(t *testing.T, signer abcrypto.Signer) types.UnitID {
+	pdr := moneyid.PDR()
 	ownerPredicate := NewP2pkhPredicate(t, signer)
-	unitPart, err := fc.NewFeeCreditRecordUnitPart(ownerPredicate, latestAdditionTime)
+	uid, err := money.NewFeeCreditRecordIDFromOwnerPredicate(&pdr, types.ShardID{}, ownerPredicate, latestAdditionTime)
 	require.NoError(t, err)
-	return money.NewFeeCreditRecordID(nil, unitPart)
+	return uid
 }
 
 func NewFeeCreditRecordIDAlwaysTrue(t *testing.T) types.UnitID {
-	unitPart, err := fc.NewFeeCreditRecordUnitPart(templates.AlwaysTrueBytes(), latestAdditionTime)
+	pdr := moneyid.PDR()
+	uid, err := money.NewFeeCreditRecordIDFromOwnerPredicate(&pdr, types.ShardID{}, templates.AlwaysTrueBytes(), latestAdditionTime)
 	require.NoError(t, err)
-	return money.NewFeeCreditRecordID(nil, unitPart)
+	return uid
 }
 
 func NewP2pkhPredicate(t *testing.T, signer abcrypto.Signer) types.PredicateBytes {
@@ -33,5 +35,5 @@ func NewP2pkhPredicate(t *testing.T, signer abcrypto.Signer) types.PredicateByte
 }
 
 func DefaultMoneyUnitID() types.UnitID {
-	return types.NewUnitID(money.UnitIDLength, nil, make([]byte, 32), money.BillUnitType)
+	return append(make([]byte, 32), money.BillUnitType)
 }

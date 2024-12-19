@@ -6,6 +6,7 @@ import (
 
 	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
+	moneyid "github.com/alphabill-org/alphabill-go-base/testutils/money"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	testblock "github.com/alphabill-org/alphabill/internal/testutils/block"
@@ -21,12 +22,14 @@ import (
 func TestAddFC_ValidateAddFC(t *testing.T) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	trustBase := testtb.NewTrustBase(t, verifier)
+	targetPDR := moneyid.PDR()
+	targetPDR.NetworkID = 5
 
 	t.Run("ok - empty", func(t *testing.T) {
-		feeCreditModule := newTestFeeModule(t, trustBase)
+		feeCreditModule := newTestFeeModule(t, &targetPDR, trustBase)
 		attr := testfc.NewAddFCAttr(t, signer)
 		authProof := &fc.AddFeeCreditAuthProof{OwnerProof: templates.EmptyArgument()}
-		tx := testfc.NewAddFC(t, signer, attr, testtransaction.WithAuthProof(authProof))
+		tx := testfc.NewAddFC(t, signer, attr, testtransaction.WithAuthProof(authProof), testtransaction.WithPartition(&targetPDR))
 		require.NoError(t, feeCreditModule.validateAddFC(tx, attr, authProof, testctx.NewMockExecutionContext(testctx.WithCurrentRound(10))))
 	})
 	t.Run("transferFC transaction record is nil", func(t *testing.T) {
@@ -34,7 +37,7 @@ func TestAddFC_ValidateAddFC(t *testing.T) {
 		attr.FeeCreditTransferProof.TxRecord = nil
 		authProof := &fc.AddFeeCreditAuthProof{OwnerProof: templates.EmptyArgument()}
 		tx := testfc.NewAddFC(t, signer, attr, testtransaction.WithAuthProof(authProof))
-		feeCreditModule := newTestFeeModule(t, trustBase)
+		feeCreditModule := newTestFeeModule(t, &targetPDR, trustBase)
 		execCtx := testctx.NewMockExecutionContext(testctx.WithCurrentRound(5))
 		require.EqualError(t, feeCreditModule.validateAddFC(tx, attr, authProof, execCtx),
 			"add fee credit validation failed: invalid transferFC transaction record proof: transaction record is nil")
@@ -44,7 +47,7 @@ func TestAddFC_ValidateAddFC(t *testing.T) {
 		attr.FeeCreditTransferProof.TxRecord.TransactionOrder = nil
 		authProof := &fc.AddFeeCreditAuthProof{OwnerProof: templates.EmptyArgument()}
 		tx := testfc.NewAddFC(t, signer, attr, testtransaction.WithAuthProof(authProof))
-		feeCreditModule := newTestFeeModule(t, trustBase)
+		feeCreditModule := newTestFeeModule(t, &targetPDR, trustBase)
 		execCtx := testctx.NewMockExecutionContext(testctx.WithCurrentRound(5))
 		require.EqualError(t, feeCreditModule.validateAddFC(tx, attr, authProof, execCtx),
 			"add fee credit validation failed: invalid transferFC transaction record proof: transaction order is nil")
@@ -54,7 +57,7 @@ func TestAddFC_ValidateAddFC(t *testing.T) {
 		attr.FeeCreditTransferProof.TxProof = nil
 		authProof := &fc.AddFeeCreditAuthProof{OwnerProof: templates.EmptyArgument()}
 		tx := testfc.NewAddFC(t, signer, attr, testtransaction.WithAuthProof(authProof))
-		feeCreditModule := newTestFeeModule(t, trustBase)
+		feeCreditModule := newTestFeeModule(t, &targetPDR, trustBase)
 		execCtx := testctx.NewMockExecutionContext(testctx.WithCurrentRound(5))
 		require.EqualError(t, feeCreditModule.validateAddFC(tx, attr, authProof, execCtx),
 			"add fee credit validation failed: invalid transferFC transaction record proof: transaction proof is nil")
@@ -72,7 +75,7 @@ func TestAddFC_ValidateAddFC(t *testing.T) {
 				}),
 			),
 		)
-		feeCreditModule := newTestFeeModule(t, trustBase)
+		feeCreditModule := newTestFeeModule(t, &targetPDR, trustBase)
 		execCtx := testctx.NewMockExecutionContext(testctx.WithCurrentRound(5))
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
@@ -94,7 +97,7 @@ func TestAddFC_ValidateAddFC(t *testing.T) {
 				}),
 			),
 		)
-		feeCreditModule := newTestFeeModule(t, trustBase)
+		feeCreditModule := newTestFeeModule(t, &targetPDR, trustBase)
 		execCtx := testctx.NewMockExecutionContext(testctx.WithCurrentRound(5))
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
@@ -117,7 +120,7 @@ func TestAddFC_ValidateAddFC(t *testing.T) {
 				}),
 			),
 		)
-		feeCreditModule := newTestFeeModule(t, trustBase)
+		feeCreditModule := newTestFeeModule(t, &targetPDR, trustBase)
 		execCtx := testctx.NewMockExecutionContext(testctx.WithCurrentRound(5))
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
@@ -130,7 +133,7 @@ func TestAddFC_ValidateAddFC(t *testing.T) {
 		tx := testfc.NewAddFC(t, signer, nil,
 			testtransaction.WithClientMetadata(&types.ClientMetadata{FeeCreditRecordID: recordID}),
 		)
-		feeCreditModule := newTestFeeModule(t, trustBase)
+		feeCreditModule := newTestFeeModule(t, &targetPDR, trustBase)
 		execCtx := testctx.NewMockExecutionContext(testctx.WithCurrentRound(5))
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
@@ -152,7 +155,7 @@ func TestAddFC_ValidateAddFC(t *testing.T) {
 				}),
 			),
 		)
-		feeCreditModule := newTestFeeModule(t, trustBase)
+		feeCreditModule := newTestFeeModule(t, &targetPDR, trustBase)
 		execCtx := testctx.NewMockExecutionContext(testctx.WithCurrentRound(5))
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
@@ -164,7 +167,7 @@ func TestAddFC_ValidateAddFC(t *testing.T) {
 	t.Run("invalid fee credit owner predicate", func(t *testing.T) {
 		tx := testfc.NewAddFC(t, signer,
 			testfc.NewAddFCAttr(t, signer))
-		feeCreditModule := newTestFeeModule(t, trustBase, withFeePredicateRunner(func(predicate types.PredicateBytes, args []byte, sigBytesFn func() ([]byte, error), env predicates.TxContext) error {
+		feeCreditModule := newTestFeeModule(t, &targetPDR, trustBase, withFeePredicateRunner(func(predicate types.PredicateBytes, args []byte, sigBytesFn func() ([]byte, error), env predicates.TxContext) error {
 			return fmt.Errorf("predicate error")
 		}))
 		execCtx := testctx.NewMockExecutionContext(testctx.WithCurrentRound(5))
@@ -188,7 +191,7 @@ func TestAddFC_ValidateAddFC(t *testing.T) {
 				}),
 			),
 		)
-		feeCreditModule := newTestFeeModule(t, trustBase)
+		feeCreditModule := newTestFeeModule(t, &targetPDR, trustBase)
 		execCtx := testctx.NewMockExecutionContext(testctx.WithCurrentRound(5))
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
@@ -210,7 +213,7 @@ func TestAddFC_ValidateAddFC(t *testing.T) {
 				}),
 			),
 		)
-		feeCreditModule := newTestFeeModule(t, trustBase)
+		feeCreditModule := newTestFeeModule(t, &targetPDR, trustBase)
 		execCtx := testctx.NewMockExecutionContext(testctx.WithCurrentRound(5))
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
@@ -232,7 +235,7 @@ func TestAddFC_ValidateAddFC(t *testing.T) {
 				}),
 			),
 		)
-		feeCreditModule := newTestFeeModule(t, trustBase)
+		feeCreditModule := newTestFeeModule(t, &targetPDR, trustBase)
 		execCtx := testctx.NewMockExecutionContext(testctx.WithCurrentRound(5))
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
@@ -254,7 +257,7 @@ func TestAddFC_ValidateAddFC(t *testing.T) {
 				}),
 			),
 		)
-		feeCreditModule := newTestFeeModule(t, trustBase)
+		feeCreditModule := newTestFeeModule(t, &targetPDR, trustBase)
 		execCtx := testctx.NewMockExecutionContext(testctx.WithCurrentRound(5))
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
@@ -276,7 +279,7 @@ func TestAddFC_ValidateAddFC(t *testing.T) {
 				}),
 			),
 		)
-		feeCreditModule := newTestFeeModule(t, trustBase)
+		feeCreditModule := newTestFeeModule(t, &targetPDR, trustBase)
 		execCtx := testctx.NewMockExecutionContext(testctx.WithCurrentRound(5))
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
@@ -298,7 +301,7 @@ func TestAddFC_ValidateAddFC(t *testing.T) {
 				}),
 			),
 		)
-		feeCreditModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID, &fc.FeeCreditRecord{Counter: 11}))
+		feeCreditModule := newTestFeeModule(t, &targetPDR, trustBase, withStateUnit(tx.UnitID, &fc.FeeCreditRecord{Counter: 11}))
 		execCtx := testctx.NewMockExecutionContext(testctx.WithCurrentRound(5))
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
@@ -320,7 +323,7 @@ func TestAddFC_ValidateAddFC(t *testing.T) {
 				}),
 			),
 		)
-		feeCreditModule := newTestFeeModule(t, trustBase,
+		feeCreditModule := newTestFeeModule(t, &targetPDR, trustBase,
 			withStateUnit(tx.UnitID, &fc.FeeCreditRecord{Counter: 11}))
 		execCtx := testctx.NewMockExecutionContext(testctx.WithCurrentRound(5))
 		var attr fc.AddFeeCreditAttributes
@@ -346,7 +349,7 @@ func TestAddFC_ValidateAddFC(t *testing.T) {
 		feePredicateRunner := func(predicate types.PredicateBytes, args []byte, sigBytesFn func() ([]byte, error), env predicates.TxContext) error {
 			return fmt.Errorf("predicate error")
 		}
-		feeCreditModule := newTestFeeModule(t, trustBase,
+		feeCreditModule := newTestFeeModule(t, &targetPDR, trustBase,
 			withFeePredicateRunner(feePredicateRunner),
 			withStateUnit(tx.UnitID, &fc.FeeCreditRecord{Balance: 10, Counter: 10}))
 		execCtx := testctx.NewMockExecutionContext(testctx.WithCurrentRound(5))
@@ -370,7 +373,7 @@ func TestAddFC_ValidateAddFC(t *testing.T) {
 				}),
 			),
 		)
-		feeCreditModule := newTestFeeModule(t, trustBase)
+		feeCreditModule := newTestFeeModule(t, &targetPDR, trustBase)
 		execCtx := testctx.NewMockExecutionContext(testctx.WithCurrentRound(11))
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
@@ -389,7 +392,7 @@ func TestAddFC_ValidateAddFC(t *testing.T) {
 		tx := testfc.NewAddFC(t, signer,
 			testfc.NewAddFCAttr(t, signer, testfc.WithTransferFCProof(transTxProof)),
 		)
-		feeCreditModule := newTestFeeModule(t, trustBase)
+		feeCreditModule := newTestFeeModule(t, &targetPDR, trustBase)
 		execCtx := testctx.NewMockExecutionContext(testctx.WithCurrentRound(10))
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
@@ -411,7 +414,7 @@ func TestAddFC_ValidateAddFC(t *testing.T) {
 			),
 			testtransaction.WithClientMetadata(&types.ClientMetadata{MaxTransactionFee: 101}),
 		)
-		feeCreditModule := newTestFeeModule(t, trustBase)
+		feeCreditModule := newTestFeeModule(t, &targetPDR, trustBase)
 		execCtx := testctx.NewMockExecutionContext(testctx.WithCurrentRound(5))
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
@@ -426,7 +429,7 @@ func TestAddFC_ValidateAddFC(t *testing.T) {
 				testfc.WithTransferFCProof(newInvalidProof(t, signer)),
 			),
 		)
-		feeCreditModule := newTestFeeModule(t, trustBase)
+		feeCreditModule := newTestFeeModule(t, &targetPDR, trustBase)
 		execCtx := testctx.NewMockExecutionContext(testctx.WithCurrentRound(5))
 		var attr fc.AddFeeCreditAttributes
 		require.NoError(t, tx.UnmarshalAttributes(&attr))
@@ -438,9 +441,11 @@ func TestAddFC_ValidateAddFC(t *testing.T) {
 }
 
 func TestAddFC_ExecuteAddFC_CreateNewFCR(t *testing.T) {
+	targetPDR := moneyid.PDR()
+	targetPDR.NetworkID = 5
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	trustBase := testtb.NewTrustBase(t, verifier)
-	feeCreditModule := newTestFeeModule(t, trustBase)
+	feeCreditModule := newTestFeeModule(t, &targetPDR, trustBase)
 	attr := testfc.NewAddFCAttr(t, signer)
 	authProof := &fc.AddFeeCreditAuthProof{OwnerProof: templates.EmptyArgument()}
 	tx := testfc.NewAddFC(t, signer, attr, testtransaction.WithAuthProof(authProof))
@@ -463,6 +468,8 @@ func TestAddFC_ExecuteAddFC_CreateNewFCR(t *testing.T) {
 }
 
 func TestAddFC_ExecuteAddFC_UpdateExistingFCR(t *testing.T) {
+	targetPDR := moneyid.PDR()
+	targetPDR.NetworkID = 5
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	trustBase := testtb.NewTrustBase(t, verifier)
 	transTxRecord := &types.TransactionRecord{
@@ -479,7 +486,7 @@ func TestAddFC_ExecuteAddFC_UpdateExistingFCR(t *testing.T) {
 	authProof := &fc.AddFeeCreditAuthProof{OwnerProof: templates.EmptyArgument()}
 	tx := testfc.NewAddFC(t, signer, attr, testtransaction.WithAuthProof(authProof))
 	existingFCR := &fc.FeeCreditRecord{Balance: 10, Counter: 4, Locked: 1, OwnerPredicate: attr.FeeCreditOwnerPredicate}
-	feeCreditModule := newTestFeeModule(t, trustBase, withStateUnit(tx.UnitID, existingFCR))
+	feeCreditModule := newTestFeeModule(t, &targetPDR, trustBase, withStateUnit(tx.UnitID, existingFCR))
 
 	exeCtx := testctx.NewMockExecutionContext(testctx.WithCurrentRound(10))
 	require.NoError(t, feeCreditModule.validateAddFC(tx, attr, authProof, exeCtx))

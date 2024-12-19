@@ -293,6 +293,44 @@ func TestAddShardConfig(t *testing.T) {
 	}
 }
 
+func TestAddShardConfig_TestAddingVarForPreviousEpoch(t *testing.T) {
+	// create orchestration
+	networkID := types.NetworkID(5)
+	partitionID := types.PartitionID(1)
+	shardID := types.ShardID{}
+	rg := &genesis.RootGenesis{
+		Version: 1,
+		Partitions: []*genesis.GenesisPartitionRecord{
+			createGenesisPartitionRecord(partitionID, shardID),
+		},
+	}
+	dbPath := filepath.Join(t.TempDir(), "orchestration.db")
+	o, err := NewOrchestration(rg, dbPath)
+	require.NoError(t, err)
+	require.NotNil(t, o)
+	t.Cleanup(func() { _ = o.db.Close() })
+
+	// add second VAR
+	epochVar2 := &ValidatorAssignmentRecord{
+		NetworkID:   networkID,
+		PartitionID: partitionID,
+		ShardID:     shardID,
+		EpochNumber: 1,
+		RoundNumber: 100,
+	}
+	require.NoError(t, o.AddShardConfig(epochVar2))
+
+	// try to add third VAR with epoch number same as the previous VAR
+	epochVar3 := &ValidatorAssignmentRecord{
+		NetworkID:   networkID,
+		PartitionID: partitionID,
+		ShardID:     shardID,
+		EpochNumber: 1,
+		RoundNumber: 200,
+	}
+	require.ErrorContains(t, o.AddShardConfig(epochVar3), "invalid epoch number, provided 1 previous 1")
+}
+
 func createGenesisPartitionRecord(partitionID types.PartitionID, shardID types.ShardID) *genesis.GenesisPartitionRecord {
 	return &genesis.GenesisPartitionRecord{
 		Version: 1,

@@ -26,8 +26,8 @@ type (
 	NodeInfo struct {
 		_       struct{}  `cbor:",toarray"`
 		NodeID  string    `json:"nodeId"`  // libp2p node identifier (derived from auth key)
-		AuthKey hex.Bytes `json:"authKey"` // libp2p authentication key
 		SignKey hex.Bytes `json:"signKey"` // alphabill signing key
+		AuthKey hex.Bytes `json:"authKey"` // libp2p authentication key
 	}
 )
 

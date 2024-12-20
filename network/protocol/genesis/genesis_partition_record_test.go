@@ -23,12 +23,12 @@ func TestGenesisPartitionRecord_IsValid(t *testing.T) {
 	_, authVerifier1 := testsig.CreateSignerAndVerifier(t)
 	_, authVerifier2 := testsig.CreateSignerAndVerifier(t)
 	validPDR := &types.PartitionDescriptionRecord{
-		Version:             1,
+		Version:     1,
 		NetworkID:   5,
 		PartitionID: 1,
-		TypeIDLen:           8,
-		UnitIDLen:           256,
-		T2Timeout:           1 * time.Second,
+		TypeIDLen:   8,
+		UnitIDLen:   256,
+		T2Timeout:   1 * time.Second,
 	}
 
 	type fields struct {
@@ -157,7 +157,7 @@ func createPartitionNode(t *testing.T, nodeID string, signer abcrypto.Signer, au
 			Version:      1,
 			PreviousHash: make([]byte, 32),
 			Hash:         make([]byte, 32),
-			BlockHash:    make([]byte, 32),
+			BlockHash:    nil,
 			SummaryValue: make([]byte, 32),
 			RoundNumber:  1,
 			Timestamp:    types.NewTimestamp(),

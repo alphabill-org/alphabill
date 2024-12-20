@@ -255,8 +255,6 @@ func (s *State) Commit(uc *types.UnicityCertificate) error {
 	if sp.Root() != nil {
 		summaryValue = sp.Root().Value().subTreeSummaryValue
 		summaryHash = sp.Root().Value().subTreeSummaryHash
-	} else {
-		summaryHash = make([]byte, s.hashAlgorithm.Size())
 	}
 
 	if !bytes.Equal(uc.InputRecord.Hash, summaryHash) {

@@ -174,7 +174,7 @@ func (si *ShardInfo) IsValid() error {
 		return errors.New("system description hash not set")
 	}
 
-	if err := si.UC.IsValid(crypto.SHA256, si.Partition, si.PDRHash); err != nil {
+	if err := si.UC.IsValid(si.Partition, si.PDRHash); err != nil {
 		return fmt.Errorf("invalid UC: %w", err)
 	}
 	if err := si.TR.IsValid(); err != nil {

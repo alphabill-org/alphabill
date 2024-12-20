@@ -41,11 +41,11 @@ func newFeeCreditTxRecorder(s *state.State, partitionID types.PartitionID, recor
 		sdrs[record.PartitionID] = record
 	}
 	return &feeCreditTxRecorder{
-		pdrs:                sdrs,
-		state:               s,
-		partitionID: partitionID,
-		transferFeeCredits:  make(map[types.PartitionID][]*transferFeeCreditTx),
-		reclaimFeeCredits:   make(map[types.PartitionID][]*reclaimFeeCreditTx),
+		pdrs:               sdrs,
+		state:              s,
+		partitionID:        partitionID,
+		transferFeeCredits: make(map[types.PartitionID][]*transferFeeCreditTx),
+		reclaimFeeCredits:  make(map[types.PartitionID][]*reclaimFeeCreditTx),
 	}
 }
 
@@ -127,7 +127,7 @@ func (f *feeCreditTxRecorder) consolidateFees() error {
 			return fmt.Errorf("failed to update [%x] partition's fee credit bill: %w", pdr.PartitionID, err)
 		}
 
-		err = f.state.AddUnitLog(fcUnitID, make([]byte, f.state.HashAlgorithm().Size()))
+		err = f.state.AddUnitLog(fcUnitID, nil)
 		if err != nil {
 			return fmt.Errorf("failed to update [%x] partition's fee credit bill state log: %w", pdr.PartitionID, err)
 		}
@@ -155,7 +155,7 @@ func (f *feeCreditTxRecorder) consolidateFees() error {
 			return fmt.Errorf("failed to update money fee credit bill with spent fees: %w", err)
 		}
 
-		err = f.state.AddUnitLog(moneyFCUnitID, make([]byte, f.state.HashAlgorithm().Size()))
+		err = f.state.AddUnitLog(moneyFCUnitID, nil)
 		if err != nil {
 			return fmt.Errorf("failed to update money fee credit bill state log: %w", err)
 		}

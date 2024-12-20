@@ -80,14 +80,12 @@ func (m *CounterTxSystem) StateSummary() (txsystem.StateSummary, error) {
 	if m.uncommitted {
 		return nil, txsystem.ErrStateContainsUncommittedChanges
 	}
-	bytes := make([]byte, 32)
 	var c = m.InitCount + m.ExecuteCount
 	if m.EndBlockChangesState {
 		c += m.EndBlockCount
 	}
-	binary.LittleEndian.PutUint64(bytes, c)
 	return &Summary{
-		root: bytes, summary: util.Uint64ToBytes(m.SummaryValue),
+		root: m.stateCountToHash(c), summary: util.Uint64ToBytes(m.SummaryValue),
 	}, nil
 }
 
@@ -117,15 +115,13 @@ func (m *CounterTxSystem) EndBlock() (txsystem.StateSummary, error) {
 	defer m.mu.Unlock()
 
 	m.EndBlockCountDelta++
-	bytes := make([]byte, 32)
 	var state = m.InitCount + m.ExecuteCount + m.ExecuteCountDelta
 	if m.EndBlockChangesState {
 		m.uncommitted = true
 		state += m.EndBlockCount + m.EndBlockCountDelta
 	}
-	binary.LittleEndian.PutUint64(bytes, state)
 	return &Summary{
-		root: bytes, summary: util.Uint64ToBytes(m.SummaryValue),
+		root: m.stateCountToHash(state), summary: util.Uint64ToBytes(m.SummaryValue),
 	}, nil
 }
 
@@ -185,6 +181,15 @@ func (m *CounterTxSystem) IsFeelessMode() bool {
 
 func (m *CounterTxSystem) TypeID() types.PartitionTypeID {
 	return 999
+}
+
+func (m *CounterTxSystem) stateCountToHash(stateCount uint64) []byte {
+	if stateCount == 0 {
+		return nil
+	}
+	root := make([]byte, 32)
+	binary.LittleEndian.PutUint64(root, stateCount)
+	return root
 }
 
 func (m *ErrorState) Serialize(writer io.Writer, committed bool) error {

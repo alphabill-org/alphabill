@@ -55,7 +55,7 @@ func newGenVarFileCmd(baseConfig *baseConfiguration) *cobra.Command {
 	}
 	cmd.Flags().StringVarP(&config.OutputDir, "output-dir", "o", "",
 		"path to output directory where to store the generated var file (default: $AB_HOME), "+
-			"creates the directory and parent directories if the path does not exist and"+
+			"creates the directory and parent directories if the path does not exist and "+
 			"overwrites the output var file if it already exists.")
 	return cmd
 }

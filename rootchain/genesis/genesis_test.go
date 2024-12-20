@@ -82,13 +82,13 @@ func createPartitionNode(t *testing.T, partitionID types.PartitionID, nodeID str
 func createInputRequest(t *testing.T, partitionID types.PartitionID, nodeID string, partitionSigner abcrypto.Signer) *certification.BlockCertificationRequest {
 	t.Helper()
 	req := &certification.BlockCertificationRequest{
-		PartitionID:   partitionID,
+		PartitionID: partitionID,
 		NodeID:      nodeID,
 		InputRecord: &types.InputRecord{
 			Version:      1,
-			PreviousHash: make([]byte, 32),
-			Hash:         make([]byte, 32),
-			BlockHash:    make([]byte, 32),
+			PreviousHash: nil,
+			Hash:         nil,
+			BlockHash:    nil,
 			SummaryValue: []byte{1, 0, 0},
 			RoundNumber:  pg.PartitionRoundNumber,
 			Timestamp:    types.NewTimestamp(),
@@ -158,12 +158,12 @@ func Test_rootGenesisConf_isValid(t *testing.T) {
 		{
 			name: "no signer",
 			fields: fields{
-				peerID:                "1",
-				authPubKeyBytes: pubKey,
-				totalValidators:       1,
-				blockRateMs:           genesis.MinBlockRateMs,
-				consensusTimeoutMs:    genesis.MinConsensusTimeout,
-				hashAlgorithm:         gocrypto.SHA256,
+				peerID:             "1",
+				authPubKeyBytes:    pubKey,
+				totalValidators:    1,
+				blockRateMs:        genesis.MinBlockRateMs,
+				consensusTimeoutMs: genesis.MinConsensusTimeout,
+				hashAlgorithm:      gocrypto.SHA256,
 			},
 			wantErr: ErrSignerIsNil.Error(),
 		},

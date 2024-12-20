@@ -95,18 +95,14 @@ func NewNodeGenesis(state *state.State, pdr types.PartitionDescriptionRecord, op
 		return nil, err
 	}
 
-	zeroHash := make([]byte, c.hashAlgorithm.Size())
 	summaryValue, hash, err := state.CalculateRoot()
 	if err != nil {
 		return nil, err
 	}
-	if hash == nil {
-		hash = zeroHash
-	}
 	// calculate block hash
 	gIR := &types.InputRecord{
 		Version:      1,
-		PreviousHash: zeroHash, // extend zero hash
+		PreviousHash: nil,
 		Hash:         hash,
 		RoundNumber:  pg.PartitionRoundNumber,
 		SummaryValue: util.Uint64ToBytes(summaryValue),
@@ -125,7 +121,7 @@ func NewNodeGenesis(state *state.State, pdr types.PartitionDescriptionRecord, op
 			Version:           1,
 			PartitionID:       pdr.PartitionID,
 			ProposerID:        "genesis",
-			PreviousBlockHash: zeroHash,
+			PreviousBlockHash: hash,
 		},
 		Transactions:       make([]*types.TransactionRecord, 0),
 		UnicityCertificate: ucBytes,

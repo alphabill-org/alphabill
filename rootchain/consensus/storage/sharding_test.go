@@ -131,7 +131,7 @@ func Test_ShardInfo_ValidRequest(t *testing.T) {
 		Epoch:        3,
 		Hash:         si.RootHash,
 		PreviousHash: si.RootHash,
-		BlockHash:    make([]byte, 32),
+		BlockHash:    nil,
 		SummaryValue: []byte{5, 5, 5},
 		Timestamp:    20241113,
 	}
@@ -300,7 +300,7 @@ func Test_ShardInfo_nextRound(t *testing.T) {
 			RoundNumber: 101,
 			Nodes: []partitions.NodeInfo{
 				{
-					NodeID: "2222",
+					NodeID:  "2222",
 					SignKey: pubKey,
 				},
 			},
@@ -357,7 +357,7 @@ func Test_ShardInfo_NextEpoch(t *testing.T) {
 		RoundNumber: 101,
 		Nodes: []partitions.NodeInfo{
 			{
-				NodeID: "2222",
+				NodeID:  "2222",
 				SignKey: validKey,
 			},
 		},

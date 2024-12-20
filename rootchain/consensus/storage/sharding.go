@@ -286,7 +286,7 @@ func (si *ShardInfo) update(req *certification.BlockCertificationRequest, leader
 
 func (si *ShardInfo) ValidRequest(req *certification.BlockCertificationRequest) error {
 	// req.IsValid checks that req is not nil and comes from valid validator.
-	// It also calls IR.IsValid which implements (CR.IR.h = CR.IR.h′) = (CR.IR.hB = 0H)
+	// It also calls IR.IsValid which implements (CR.IR.h = CR.IR.h′) = (CR.IR.hB = ⊥)
 	// check so we do not repeat it here.
 	if err := si.Verify(req.NodeID, req.IsValid); err != nil {
 		return fmt.Errorf("invalid certification request: %w", err)

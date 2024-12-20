@@ -17,20 +17,21 @@ import (
 	"github.com/alphabill-org/alphabill/state"
 )
 
-var zeroHash hex.Bytes = make([]byte, 32)
-var nodeID peer.ID = "test"
+var (
+	nodeID peer.ID = "test"
+)
 
 func TestNewGenesisPartitionNode_NotOk(t *testing.T) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	pubKeyBytes, err := verifier.MarshalPublicKey()
 	require.NoError(t, err)
 	validPDR := types.PartitionDescriptionRecord{
-		Version:             1,
+		Version:     1,
 		NetworkID:   5,
 		PartitionID: 1,
-		TypeIDLen:           8,
-		UnitIDLen:           128,
-		T2Timeout:           5 * time.Second,
+		TypeIDLen:   8,
+		UnitIDLen:   128,
+		T2Timeout:   5 * time.Second,
 	}
 
 	type args struct {
@@ -121,10 +122,9 @@ func TestNewGenesisPartitionNode_Ok(t *testing.T) {
 	require.NoError(t, blockCertificationRequestRequest.IsValid(verifier))
 
 	ir := blockCertificationRequestRequest.InputRecord
-	expectedHash := hex.Bytes(make([]byte, 32))
-	require.Equal(t, expectedHash, ir.Hash)
-	require.Equal(t, zeroHash, ir.BlockHash)
-	require.Equal(t, zeroHash, ir.PreviousHash)
+	require.Nil(t, ir.Hash)
+	require.Nil(t, ir.BlockHash)
+	require.Nil(t, ir.PreviousHash)
 }
 
 func createPartitionNode(t *testing.T, nodeSigningKey crypto.Signer, authKey []byte, pdr types.PartitionDescriptionRecord, nodeID peer.ID) *genesis.PartitionNode {

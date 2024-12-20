@@ -19,7 +19,7 @@ func Test_BlockCertificationRequest_IsValid(t *testing.T) {
 				Version:      1,
 				PreviousHash: []byte{},
 				Hash:         []byte{},
-				BlockHash:    []byte{},
+				BlockHash:    nil,
 				SummaryValue: []byte{},
 				RoundNumber:  1,
 				Timestamp:    types.NewTimestamp(),

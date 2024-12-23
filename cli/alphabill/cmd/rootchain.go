@@ -149,12 +149,17 @@ func runRootNode(ctx context.Context, config *rootNodeConfig) error {
 	if err != nil {
 		return fmt.Errorf("loading keys from %s: %w", config.KeyFile, err)
 	}
-	host, err := createHost(ctx, keys, config)
+	nodeID, err := peer.IDFromPublicKey(keys.AuthPrivKey.GetPublic())
+	if err != nil {
+		return fmt.Errorf("failed to calculate nodeID: %w", err)
+	}
+	log := config.Base.observe.Logger().With(logger.NodeID(nodeID))
+	obs := observability.WithLogger(config.Base.observe, log)
+
+	host, err := createHost(ctx, keys, config, obs)
 	if err != nil {
 		return fmt.Errorf("creating partition host: %w", err)
 	}
-	log := config.Base.observe.Logger().With(logger.NodeID(host.ID()))
-	obs := observability.WithLogger(config.Base.observe, log)
 	partitionNet, err := network.NewLibP2PRootChainNetwork(host, config.MaxRequests, defaultNetworkTimeout, obs)
 	if err != nil {
 		return fmt.Errorf("partition network initialization failed: %w", err)
@@ -245,7 +250,7 @@ func runRootNode(ctx context.Context, config *rootNodeConfig) error {
 	return g.Wait()
 }
 
-func createHost(ctx context.Context, keys *Keys, cfg *rootNodeConfig) (*network.Peer, error) {
+func createHost(ctx context.Context, keys *Keys, cfg *rootNodeConfig, obs Observability) (*network.Peer, error) {
 	bootNodes, err := getBootStrapNodes(cfg.BootStrapAddresses)
 	if err != nil {
 		return nil, fmt.Errorf("boot nodes parameter error: %w", err)
@@ -258,7 +263,7 @@ func createHost(ctx context.Context, keys *Keys, cfg *rootNodeConfig) (*network.
 	if err != nil {
 		return nil, err
 	}
-	return network.NewPeer(ctx, peerConf, cfg.Base.observe.Logger(), cfg.Base.observe.PrometheusRegisterer())
+	return network.NewPeer(ctx, peerConf, obs.Logger(), obs.PrometheusRegisterer())
 }
 
 func verifyKeyPresentInGenesis(nodeID peer.ID, rg *genesis.GenesisRootRecord, ver abcrypto.Verifier) error {

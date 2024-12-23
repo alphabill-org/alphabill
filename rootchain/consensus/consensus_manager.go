@@ -232,7 +232,7 @@ func (x *ConsensusManager) initMetrics(observe Observability) (err error) {
 	x.execMsgDur, err = m.Float64Histogram("exec.msg.time",
 		metric.WithDescription("How long it took to process message"),
 		metric.WithUnit("s"),
-		metric.WithExplicitBucketBoundaries(100e-6, 200e-6, 400e-6, 800e-6, 0.0016, 0.01, 0.05))
+		metric.WithExplicitBucketBoundaries(100e-6, 200e-6, 400e-6, 800e-6, 0.0016, 0.01, 0.05, 0.1))
 	if err != nil {
 		return fmt.Errorf("creating histogram for processed messages: %w", err)
 	}

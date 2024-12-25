@@ -113,7 +113,7 @@ func createUnicityCertificates(certs map[types.PartitionID]*types.UnicityCertifi
 	return rootHash, nil
 }
 
-func NewPartitionRecordFromNodes(nodes []*genesis.PartitionNode) ([]*genesis.PartitionRecord, error) {
+func partitionsFromNodes(nodes []*genesis.PartitionNode) ([]*genesis.GenesisPartitionRecord, error) {
 	var partitionNodesMap = make(map[types.PartitionID][]*genesis.PartitionNode)
 	for _, n := range nodes {
 		if err := n.IsValid(); err != nil {
@@ -123,27 +123,33 @@ func NewPartitionRecordFromNodes(nodes []*genesis.PartitionNode) ([]*genesis.Par
 		partitionNodesMap[si] = append(partitionNodesMap[si], n)
 	}
 
-	var partitionRecords []*genesis.PartitionRecord
+	var partitions []*genesis.GenesisPartitionRecord
 	for _, partitionNodes := range partitionNodesMap {
 		pr, err := newPartitionRecord(partitionNodes)
 		if err != nil {
 			return nil, fmt.Errorf("partition record generation error: %w", err)
 		}
-		partitionRecords = append(partitionRecords, pr)
+		partitions = append(partitions, pr)
 	}
-	return partitionRecords, nil
+
+	// sort partitions by partition id
+	sort.Slice(partitions, func(i, j int) bool {
+		return partitions[i].PartitionDescription.PartitionID < partitions[j].PartitionDescription.PartitionID
+	})
+
+	return partitions, nil
 }
 
 func NewRootGenesis(
 	nodeID string,
-	s abcrypto.Signer,
+	signer abcrypto.Signer,
 	authKey []byte,
-	partitions []*genesis.PartitionRecord,
+	nodes []*genesis.PartitionNode,
 	opts ...Option,
 ) (*genesis.RootGenesis, []*genesis.PartitionGenesis, error) {
 	c := &rootGenesisConf{
 		peerID:             nodeID,
-		signer:             s,
+		signer:             signer,
 		authKey:            authKey,
 		totalValidators:    1,
 		blockRateMs:        genesis.DefaultBlockRateMs,
@@ -156,31 +162,35 @@ func NewRootGenesis(
 	if err := c.isValid(); err != nil {
 		return nil, nil, fmt.Errorf("consensus parameters validation failed: %w", err)
 	}
-	verifier, err := s.Verifier()
+	verifier, err := signer.Verifier()
 	if err != nil {
 		return nil, nil, fmt.Errorf("verifier error, %w", err)
 	}
+
+	partitions, err := partitionsFromNodes(nodes)
+	if err != nil {
+		return nil, nil, fmt.Errorf("genesis partition record generation failed: %w", err)
+	}
+
 	// make sure that there are no duplicate partition id's in provided partition records
 	if err = genesis.CheckPartitionPartitionIDsUnique(partitions); err != nil {
 		return nil, nil, fmt.Errorf("partition genesis records not unique: %w", err)
 	}
+
 	// iterate over all partitions and make sure that all requests are matching and every node is represented
 	ucData := make([]*types.UnicityTreeData, len(partitions))
 	// remember partition description records hashes and partition id for verification
-	sdrhs := make(map[types.PartitionID][]byte, len(partitions))
+	pdrHashes := make(map[types.PartitionID][]byte, len(partitions))
 	certs := make(map[types.PartitionID]*types.UnicityCertificate)
 	for i, partition := range partitions {
 		partitionID := partition.PartitionDescription.PartitionID
-		// Check that partition is valid: required fields sent and no duplicate node, all requests with same partition id
-		if err = partition.IsValid(); err != nil {
-			return nil, nil, fmt.Errorf("invalid partition record: %w", err)
-		}
-		sdrh, err := partition.PartitionDescription.Hash(c.hashAlgorithm)
+
+		pdrHash, err := partition.PartitionDescription.Hash(c.hashAlgorithm)
 		if err != nil {
 			return nil, nil, fmt.Errorf("calculating partition %s description hash: %w", partitionID, err)
 		}
 		// if partition is valid then conversion cannot fail
-		sdrhs[partition.PartitionDescription.PartitionID] = sdrh
+		pdrHashes[partition.PartitionDescription.PartitionID] = pdrHash
 
 		ir := partition.Validators[0].BlockCertificationRequest.InputRecord
 		nodeIDs := util.TransformSlice(partition.Validators, func(pn *genesis.PartitionNode) string { return pn.NodeID })
@@ -213,7 +223,7 @@ func NewRootGenesis(
 		ucData[i] = &types.UnicityTreeData{
 			Partition:     partitionID,
 			ShardTreeRoot: sTree.RootHash(),
-			PDRHash:       sdrh,
+			PDRHash:       pdrHash,
 		}
 	}
 	// if all requests match then consensus is present
@@ -251,16 +261,15 @@ func NewRootGenesis(
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create trust base: %w", err)
 	}
-	for sysId, uc := range certs {
+	for partitionID, uc := range certs {
 		// ignore "not found" cases, we just put it there and if not, then verify will fail anyway
-		srdh := sdrhs[sysId]
-		if err = uc.Verify(tb, c.hashAlgorithm, sysId, srdh); err != nil {
-			return nil, nil, fmt.Errorf("generated unicity certificate validation failed: %w", err)
+		pdrHash := pdrHashes[partitionID]
+		if err = uc.Verify(tb, c.hashAlgorithm, partitionID, pdrHash); err != nil {
+			return nil, nil, fmt.Errorf("generated unicity certificate verification failed: %w", err)
 		}
 	}
 
-	genesisPartitions := make([]*genesis.GenesisPartitionRecord, len(partitions))
-	rootPublicKey, err := verifier.MarshalPublicKey()
+	rootSignKey, err := verifier.MarshalPublicKey()
 	if err != nil {
 		return nil, nil, fmt.Errorf("root public key marshal error: %w", err)
 	}
@@ -269,26 +278,17 @@ func NewRootGenesis(
 	var rootValidatorInfo = make([]*genesis.PublicKeyInfo, 1)
 	rootValidatorInfo[0] = &genesis.PublicKeyInfo{
 		NodeID:  c.peerID,
-		SignKey: rootPublicKey,
+		SignKey: rootSignKey,
 		AuthKey: c.authKey,
 	}
-	// generate genesis structs
-	for i, partition := range partitions {
-		certificate, f := certs[partition.PartitionDescription.PartitionID]
+	for _, p := range partitions {
+		cert, f := certs[p.PartitionDescription.PartitionID]
 		if !f {
-			return nil, nil, fmt.Errorf("missing UnicityCertificate for partition %s", partition.PartitionDescription.PartitionID)
+			return nil, nil, fmt.Errorf("missing UnicityCertificate for partition %s", p.PartitionDescription.PartitionID)
 		}
-		genesisPartitions[i] = &genesis.GenesisPartitionRecord{
-			Version:              1,
-			Nodes:                partition.Validators,
-			Certificate:          certificate,
-			PartitionDescription: partition.PartitionDescription,
-		}
+		p.Certificate = cert
 	}
-	// sort genesis partition by partition id
-	sort.Slice(genesisPartitions, func(i, j int) bool {
-		return genesisPartitions[i].PartitionDescription.PartitionID < genesisPartitions[j].PartitionDescription.PartitionID
-	})
+
 	// Sign the consensus and append signature
 	consensusParams := &genesis.ConsensusParams{
 		Version:             1,
@@ -309,7 +309,7 @@ func NewRootGenesis(
 	rootGenesis := &genesis.RootGenesis{
 		Version:    1,
 		Root:       genesisRoot,
-		Partitions: genesisPartitions,
+		Partitions: partitions,
 	}
 	if err = rootGenesis.IsValid(); err != nil {
 		return nil, nil, fmt.Errorf("root genesis validation failed: %w", err)
@@ -348,9 +348,9 @@ func TechnicalRecord(ir *types.InputRecord, nodes []string) (tr certification.Te
 func partitionGenesisFromRoot(rg *genesis.RootGenesis) []*genesis.PartitionGenesis {
 	partitionGenesis := make([]*genesis.PartitionGenesis, len(rg.Partitions))
 	for i, partition := range rg.Partitions {
-		var keys = make([]*genesis.PublicKeyInfo, len(partition.Nodes))
-		for j, v := range partition.Nodes {
-			keys[j] = &genesis.PublicKeyInfo{
+		var partitionValidators = make([]*genesis.PublicKeyInfo, len(partition.Validators))
+		for j, v := range partition.Validators {
+			partitionValidators[j] = &genesis.PublicKeyInfo{
 				NodeID:  v.NodeID,
 				SignKey: v.SignKey,
 				AuthKey: v.AuthKey,
@@ -360,14 +360,14 @@ func partitionGenesisFromRoot(rg *genesis.RootGenesis) []*genesis.PartitionGenes
 			PartitionDescription: partition.PartitionDescription,
 			Certificate:          partition.Certificate,
 			RootValidators:       rg.Root.RootValidators,
-			Keys:                 keys,
-			Params:               partition.Nodes[0].Params,
+			PartitionValidators:  partitionValidators,
+			Params:               partition.Validators[0].Params,
 		}
 	}
 	return partitionGenesis
 }
 
-func newPartitionRecord(nodes []*genesis.PartitionNode) (*genesis.PartitionRecord, error) {
+func newPartitionRecord(nodes []*genesis.PartitionNode) (*genesis.GenesisPartitionRecord, error) {
 	// validate nodes
 	for _, n := range nodes {
 		if err := n.IsValid(); err != nil {
@@ -375,13 +375,14 @@ func newPartitionRecord(nodes []*genesis.PartitionNode) (*genesis.PartitionRecor
 		}
 	}
 	// all nodes expected to have the same PDR so we just take the first
-	pr := &genesis.PartitionRecord{
+	pr := &genesis.GenesisPartitionRecord{
+		Version:              1,
 		PartitionDescription: &nodes[0].PartitionDescriptionRecord,
 		Validators:           nodes,
 	}
 
-	// validate partition record
-	if err := pr.IsValid(); err != nil {
+	// validate partition record without trustbase, certificate not signed yet
+	if err := pr.IsValid(nil, 0); err != nil {
 		return nil, fmt.Errorf("genesis partition record validation failed: %w", err)
 	}
 	return pr, nil

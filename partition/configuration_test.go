@@ -154,9 +154,7 @@ func createPartitionGenesis(t *testing.T, nodeSigningKey crypto.Signer, authKey 
 	_, encPubKey := testsig.CreateSignerAndVerifier(t)
 	rootPubKeyBytes, err := encPubKey.MarshalPublicKey()
 	require.NoError(t, err)
-	pr, err := rootgenesis.NewPartitionRecordFromNodes([]*genesis.PartitionNode{pn})
-	require.NoError(t, err)
-	_, pg, err := rootgenesis.NewRootGenesis("test", rootSigner, rootPubKeyBytes, pr)
+	_, pg, err := rootgenesis.NewRootGenesis("test", rootSigner, rootPubKeyBytes, []*genesis.PartitionNode{pn})
 	require.NoError(t, err)
 	return pg[0]
 }

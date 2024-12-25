@@ -65,30 +65,30 @@ func readResult(ch <-chan *certification.CertificationResponse, timeout time.Dur
 }
 
 func initConsensusManager(t *testing.T, net RootNet) (*ConsensusManager, *testutils.TestNode, []*testutils.TestNode, *genesis.RootGenesis) {
-	partitionNodes, partitionRecord := testutils.CreatePartitionNodesAndPartitionRecord(t, partitionInputRecord, partitionID, 3)
+	peers, nodes := testutils.CreatePartitionNodes(t, partitionInputRecord, partitionID, 3)
 	rootNode := testutils.NewTestNode(t)
 	verifier := rootNode.Verifier
 	rootPubKeyBytes, err := verifier.MarshalPublicKey()
 	require.NoError(t, err)
 	id := rootNode.PeerConf.ID
-	rootGenesis, _, err := rootgenesis.NewRootGenesis(id.String(), rootNode.Signer, rootPubKeyBytes, []*genesis.PartitionRecord{partitionRecord})
+	rootGenesis, _, err := rootgenesis.NewRootGenesis(id.String(), rootNode.Signer, rootPubKeyBytes, nodes)
 	require.NoError(t, err)
 	trustBase, err := rootGenesis.GenerateTrustBase()
 	require.NoError(t, err)
 	observe := testobservability.Default(t)
 	cm, err := NewConsensusManager(id, rootGenesis, trustBase, testpartition.NewOrchestration(t, rootGenesis), net, rootNode.Signer, observability.WithLogger(observe, observe.Logger().With(logger.NodeID(id))))
 	require.NoError(t, err)
-	return cm, rootNode, partitionNodes, rootGenesis
+	return cm, rootNode, peers, rootGenesis
 }
 
 func buildBlockCertificationRequest(t *testing.T, rg *genesis.RootGenesis, partitionNodes []*testutils.TestNode) []*certification.BlockCertificationRequest {
 	t.Helper()
 	newIR := &types.InputRecord{
 		Version:      1,
-		PreviousHash: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.Hash,
+		PreviousHash: rg.Partitions[0].Validators[0].BlockCertificationRequest.InputRecord.Hash,
 		Hash:         test.RandomBytes(32),
 		BlockHash:    test.RandomBytes(32),
-		SummaryValue: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.SummaryValue,
+		SummaryValue: rg.Partitions[0].Validators[0].BlockCertificationRequest.InputRecord.SummaryValue,
 		RoundNumber:  2,
 		Timestamp:    rg.Partitions[0].Certificate.UnicitySeal.Timestamp,
 	}
@@ -491,7 +491,7 @@ func Test_ConsensusManager_onVoteMsg(t *testing.T) {
 	t.Parallel()
 
 	// partition data used/shared by tests
-	_, partitionRecord := testutils.CreatePartitionNodesAndPartitionRecord(t, partitionInputRecord, partitionID, 2)
+	_, nodes := testutils.CreatePartitionNodes(t, partitionInputRecord, partitionID, 2)
 
 	makeVoteMsg := func(t *testing.T, cms []*ConsensusManager, round uint64) *abdrc.VoteMsg {
 		t.Helper()
@@ -526,7 +526,7 @@ func Test_ConsensusManager_onVoteMsg(t *testing.T) {
 	}
 
 	t.Run("stale vote", func(t *testing.T) {
-		cms, _, _ := createConsensusManagers(t, 1, []*genesis.PartitionRecord{partitionRecord})
+		cms, _, _ := createConsensusManagers(t, 1, nodes)
 		cms[0].pacemaker.Reset(context.Background(), 8, nil, nil)
 		defer cms[0].pacemaker.Stop()
 
@@ -540,7 +540,7 @@ func Test_ConsensusManager_onVoteMsg(t *testing.T) {
 		// here we just test that only verified votes are processed, all the possible
 		// vote verification failures should be tested by vote.Verify unit tests...
 		const votedRound = 10
-		cms, _, _ := createConsensusManagers(t, 1, []*genesis.PartitionRecord{partitionRecord})
+		cms, _, _ := createConsensusManagers(t, 1, nodes)
 		cms[0].pacemaker.Reset(context.Background(), votedRound-1, nil, nil)
 		defer cms[0].pacemaker.Stop()
 
@@ -555,7 +555,7 @@ func Test_ConsensusManager_onVoteMsg(t *testing.T) {
 		const votedRound = 10
 		// need at least two CMs so that we do not trigger recovery because of having
 		// received enough votes for the quorum
-		cms, _, _ := createConsensusManagers(t, 2, []*genesis.PartitionRecord{partitionRecord})
+		cms, _, _ := createConsensusManagers(t, 2, nodes)
 		cms[0].pacemaker.Reset(context.Background(), votedRound-1, nil, nil)
 		defer cms[0].pacemaker.Stop()
 
@@ -569,7 +569,7 @@ func Test_ConsensusManager_onVoteMsg(t *testing.T) {
 		const votedRound = 10
 		// need at least two CMs so that we do not trigger recovery because of having
 		// received enough votes for the quorum
-		cms, _, _ := createConsensusManagers(t, 2, []*genesis.PartitionRecord{partitionRecord})
+		cms, _, _ := createConsensusManagers(t, 2, nodes)
 		cms[0].pacemaker.Reset(context.Background(), votedRound-1, nil, nil)
 		defer cms[0].pacemaker.Stop()
 
@@ -585,7 +585,7 @@ func Test_ConsensusManager_onVoteMsg(t *testing.T) {
 
 	t.Run("quorum of votes for next round should trigger recovery", func(t *testing.T) {
 		const votedRound = 10
-		cms, _, _ := createConsensusManagers(t, 1, []*genesis.PartitionRecord{partitionRecord})
+		cms, _, _ := createConsensusManagers(t, 1, nodes)
 		cms[0].pacemaker.Reset(context.Background(), votedRound-1, nil, nil)
 		defer cms[0].pacemaker.Stop()
 
@@ -652,10 +652,10 @@ func Test_ConsensusManager_messages(t *testing.T) {
 	}
 
 	// partition data used/shared by tests
-	partitionNodes, partitionRecord := testutils.CreatePartitionNodesAndPartitionRecord(t, partitionInputRecord, partitionID, 2)
+	peers, nodes := testutils.CreatePartitionNodes(t, partitionInputRecord, partitionID, 2)
 
 	t.Run("IR change request from partition included in proposal", func(t *testing.T) {
-		cms, rootNet, rootG := createConsensusManagers(t, 1, []*genesis.PartitionRecord{partitionRecord})
+		cms, rootNet, rootG := createConsensusManagers(t, 1, nodes)
 
 		// proposal will be broadcast so eavesdrop the network and make copy of it
 		propCh := make(chan *abdrc.ProposalMsg, 1)
@@ -674,7 +674,7 @@ func Test_ConsensusManager_messages(t *testing.T) {
 		irCReq := IRChangeRequest{
 			Partition: partitionID,
 			Reason:    Quorum,
-			Requests:  buildBlockCertificationRequest(t, rootG, partitionNodes),
+			Requests:  buildBlockCertificationRequest(t, rootG, peers),
 		}
 
 		rcCtx, rcCancel := context.WithTimeout(ctx, cms[0].pacemaker.minRoundLen)
@@ -699,7 +699,7 @@ func Test_ConsensusManager_messages(t *testing.T) {
 	t.Run("IR change request from partition forwarded to leader", func(t *testing.T) {
 		// we create two CMs but only non-leader node has to be running as we test
 		// that it will forward message to leader by monitoring network
-		cms, rootNet, rootG := createConsensusManagers(t, 2, []*genesis.PartitionRecord{partitionRecord})
+		cms, rootNet, rootG := createConsensusManagers(t, 2, nodes)
 		cmLeader := cms[0]
 		nonLeaderNode := cms[1]
 		nonLeaderNode.leaderSelector = constLeader{leader: cmLeader.id, nodes: cmLeader.leaderSelector.GetNodes()} // use "const leader" to take leader selection out of test
@@ -721,7 +721,7 @@ func Test_ConsensusManager_messages(t *testing.T) {
 		irCReq := IRChangeRequest{
 			Partition: partitionID,
 			Reason:    Quorum,
-			Requests:  buildBlockCertificationRequest(t, rootG, partitionNodes),
+			Requests:  buildBlockCertificationRequest(t, rootG, peers),
 		}
 		rcCtx, rcCancel := context.WithTimeout(ctx, nonLeaderNode.pacemaker.minRoundLen)
 		require.NoError(t, nonLeaderNode.RequestCertification(rcCtx, irCReq), "CM doesn't consume IR change request")
@@ -741,7 +741,7 @@ func Test_ConsensusManager_messages(t *testing.T) {
 	t.Run("IR change request forwarded by peer included in proposal", func(t *testing.T) {
 		// we create two CMs but only leader is running, the other is just needed for
 		// valid peer ID in the genesis so IRCR can be signed and validated
-		cms, rootNet, rootG := createConsensusManagers(t, 2, []*genesis.PartitionRecord{partitionRecord})
+		cms, rootNet, rootG := createConsensusManagers(t, 2, nodes)
 		cmOther := cms[1]
 		cmLeader := cms[0]
 		cmLeader.leaderSelector = constLeader{leader: cmLeader.id, nodes: cmLeader.leaderSelector.GetNodes()} // use "const leader" to take leader selection out of test
@@ -760,7 +760,7 @@ func Test_ConsensusManager_messages(t *testing.T) {
 			IrChangeReq: &drctypes.IRChangeReq{
 				Partition:  partitionID,
 				CertReason: drctypes.Quorum,
-				Requests:   buildBlockCertificationRequest(t, rootG, partitionNodes[0:2]),
+				Requests:   buildBlockCertificationRequest(t, rootG, peers[0:2]),
 			},
 		}
 		require.NoError(t, cmOther.safety.Sign(irChReqMsg))
@@ -790,7 +790,7 @@ func Test_ConsensusManager_messages(t *testing.T) {
 		// mimic situation where nonLeaderNode was the leader and IRCR was sent to it. However, by
 		// the time msg arrives leader has changed to cmLeader, so we expect nonLeaderNode to
 		// forward the message.
-		cms, rootNet, rootG := createConsensusManagers(t, 2, []*genesis.PartitionRecord{partitionRecord})
+		cms, rootNet, rootG := createConsensusManagers(t, 2, nodes)
 		cmLeader := cms[0]
 		nonLeaderNode := cms[1]
 		nonLeaderNode.leaderSelector = constLeader{leader: cmLeader.id, nodes: cmLeader.leaderSelector.GetNodes()}
@@ -814,7 +814,7 @@ func Test_ConsensusManager_messages(t *testing.T) {
 			IrChangeReq: &drctypes.IRChangeReq{
 				Partition:  partitionID,
 				CertReason: drctypes.Quorum,
-				Requests:   buildBlockCertificationRequest(t, rootG, partitionNodes[0:2]),
+				Requests:   buildBlockCertificationRequest(t, rootG, peers[0:2]),
 			},
 		}
 		require.NoError(t, cmLeader.safety.Sign(irChReqMsg))
@@ -833,7 +833,7 @@ func Test_ConsensusManager_messages(t *testing.T) {
 	})
 
 	t.Run("state request triggers response", func(t *testing.T) {
-		cms, _, _ := createConsensusManagers(t, 2, []*genesis.PartitionRecord{partitionRecord})
+		cms, _, _ := createConsensusManagers(t, 2, nodes)
 		cmA, cmB := cms[0], cms[1]
 
 		// only launch cmA, we manage cmB "manually"
@@ -863,7 +863,7 @@ func Test_ConsensusManager_messages(t *testing.T) {
 func Test_ConsensusManager_sendCertificates(t *testing.T) {
 	t.Parallel()
 
-	_, partitionRecord := testutils.CreatePartitionNodesAndPartitionRecord(t, partitionInputRecord, partitionID, 2)
+	_, nodes := testutils.CreatePartitionNodes(t, partitionInputRecord, partitionID, 2)
 
 	// generate UCs for given systems (with random data in QC)
 	makeUCs := func(partitionIds ...types.PartitionID) map[partitionShard]*certification.CertificationResponse {
@@ -911,7 +911,7 @@ func Test_ConsensusManager_sendCertificates(t *testing.T) {
 	}
 
 	t.Run("consume before next input is sent", func(t *testing.T) {
-		cms, _, _ := createConsensusManagers(t, 1, []*genesis.PartitionRecord{partitionRecord})
+		cms, _, _ := createConsensusManagers(t, 1, nodes)
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		go func() { require.ErrorIs(t, cms[0].sendCertificates(ctx), context.Canceled) }()
@@ -942,7 +942,7 @@ func Test_ConsensusManager_sendCertificates(t *testing.T) {
 	})
 
 	t.Run("overwriting unconsumed QC", func(t *testing.T) {
-		cms, _, _ := createConsensusManagers(t, 1, []*genesis.PartitionRecord{partitionRecord})
+		cms, _, _ := createConsensusManagers(t, 1, nodes)
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		go func() { require.ErrorIs(t, cms[0].sendCertificates(ctx), context.Canceled) }()
@@ -981,7 +981,7 @@ func Test_ConsensusManager_sendCertificates(t *testing.T) {
 	})
 
 	t.Run("adding without overwriting", func(t *testing.T) {
-		cms, _, _ := createConsensusManagers(t, 1, []*genesis.PartitionRecord{partitionRecord})
+		cms, _, _ := createConsensusManagers(t, 1, nodes)
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		go func() { require.ErrorIs(t, cms[0].sendCertificates(ctx), context.Canceled) }()
@@ -1020,7 +1020,7 @@ func Test_ConsensusManager_sendCertificates(t *testing.T) {
 
 	t.Run("concurrency", func(t *testing.T) {
 		// concurrent read and writes to trip race detector
-		cms, _, _ := createConsensusManagers(t, 1, []*genesis.PartitionRecord{partitionRecord})
+		cms, _, _ := createConsensusManagers(t, 1, nodes)
 		done := make(chan struct{})
 		ctx, cancel := context.WithCancel(context.Background())
 		go func() {
@@ -1133,11 +1133,8 @@ func Test_rootNetworkRunning(t *testing.T) {
 		}
 	}
 
-	partitionRecs := []*genesis.PartitionRecord{
-		createPartitionRecord(t, partitionID, partitionInputRecord, 1),
-	}
-
-	cms, rootNet, _ := createConsensusManagers(t, rootNodeCnt, partitionRecs)
+	nodes := createPartitionNodes(t, partitionID, partitionInputRecord, 1)
+	cms, rootNet, _ := createConsensusManagers(t, rootNodeCnt, nodes)
 
 	var totalMsgCnt atomic.Uint32
 	rootNet.SetFirewall(func(from, to peer.ID, msg any) bool {
@@ -1196,7 +1193,7 @@ func Test_rootNetworkRunning(t *testing.T) {
 
 func TestConsensusManger_RestoreVote(t *testing.T) {
 	net := testnetwork.NewRootMockNetwork()
-	_, partitionRecord := testutils.CreatePartitionNodesAndPartitionRecord(t, partitionInputRecord, partitionID, 3)
+	_, nodes := testutils.CreatePartitionNodes(t, partitionInputRecord, partitionID, 3)
 	rootNode := testutils.NewTestNode(t)
 	verifier := rootNode.Verifier
 	rootPubKeyBytes, err := verifier.MarshalPublicKey()
@@ -1205,7 +1202,7 @@ func TestConsensusManger_RestoreVote(t *testing.T) {
 	rootGenesis, _, err := rootgenesis.NewRootGenesis(id.String(),
 		rootNode.Signer,
 		rootPubKeyBytes,
-		[]*genesis.PartitionRecord{partitionRecord},
+		nodes,
 		rootgenesis.WithBlockRate(200),
 		rootgenesis.WithConsensusTimeout(2200),
 	)

@@ -79,35 +79,6 @@ func (x *PartitionNode) IsValid() error {
 	return nil
 }
 
-func nodesUnique(x []*PartitionNode) error {
-	var ids = make(map[string]string)
-	var signKeys = make(map[string]hex.Bytes)
-	var authKeys = make(map[string]hex.Bytes)
-	for _, node := range x {
-		if err := node.IsValid(); err != nil {
-			return err
-		}
-		id := node.NodeID
-		if _, f := ids[id]; f {
-			return fmt.Errorf("duplicated node id: %v", id)
-		}
-		ids[id] = id
-
-		sigKey := string(node.SignKey)
-		if _, f := signKeys[sigKey]; f {
-			return fmt.Errorf("duplicated node signing key: %X", node.SignKey)
-		}
-		signKeys[sigKey] = node.SignKey
-
-		authKey := string(node.AuthKey)
-		if _, f := authKeys[authKey]; f {
-			return fmt.Errorf("duplicated node authentication key: %X", node.AuthKey)
-		}
-		authKeys[authKey] = node.AuthKey
-	}
-	return nil
-}
-
 func (x *PartitionNode) GetVersion() types.ABVersion {
 	return x.Version
 }

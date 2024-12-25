@@ -23,7 +23,7 @@
   "partitions": [
     {
       "version": 1,
-      "nodes": [
+      "validators": [
         {
           "version": 1,
           "nodeId": "16Uiu2HAmBD14HUw3MNfneWNWWdsFfdFiqjW87ySSyiniN5yPzZbu",

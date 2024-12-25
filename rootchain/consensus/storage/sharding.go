@@ -114,7 +114,7 @@ func NewShardInfoFromGenesis(pg *genesis.GenesisPartitionRecord) (*ShardInfo, er
 		return nil, fmt.Errorf("init previous epoch stat: %w", err)
 	}
 
-	nodeIDs := util.TransformSlice(pg.Nodes, func(pn *genesis.PartitionNode) string { return pn.NodeID })
+	nodeIDs := util.TransformSlice(pg.Validators, func(pn *genesis.PartitionNode) string { return pn.NodeID })
 	tr, err := rcgenesis.TechnicalRecord(pg.Certificate.InputRecord, nodeIDs)
 	if err != nil {
 		return nil, fmt.Errorf("creating TechnicalRecord: %w", err)

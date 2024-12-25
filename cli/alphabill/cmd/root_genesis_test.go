@@ -55,7 +55,7 @@ func Test_RootGenesis_New(t *testing.T) {
 		require.EqualValues(t, 10000, rootGenesis.Root.Consensus.ConsensusTimeoutMs)
 		require.Len(t, rootGenesis.Partitions, 1)
 		// verify, content
-		require.Len(t, rootGenesis.Partitions[0].Nodes, 1)
+		require.Len(t, rootGenesis.Partitions[0].Validators, 1)
 		require.EqualValues(t, rootGenesis.Partitions[0].PartitionDescription.PartitionID, money.DefaultPartitionID)
 	})
 

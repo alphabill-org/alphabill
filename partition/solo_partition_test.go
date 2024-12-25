@@ -98,9 +98,7 @@ func newSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, v
 	_, encPubKey := testsig.CreateSignerAndVerifier(t)
 	rootPubKeyBytes, err := encPubKey.MarshalPublicKey()
 	require.NoError(t, err)
-	pr, err := rootgenesis.NewPartitionRecordFromNodes([]*genesis.PartitionNode{nodeGenesis})
-	require.NoError(t, err)
-	rootGenesis, partitionGenesis, err := rootgenesis.NewRootGenesis("test", rootSigner, rootPubKeyBytes, pr)
+	rootGenesis, partitionGenesis, err := rootgenesis.NewRootGenesis("test", rootSigner, rootPubKeyBytes, []*genesis.PartitionNode{nodeGenesis})
 	require.NoError(t, err)
 	trustBase, err := rootGenesis.GenerateTrustBase()
 	require.NoError(t, err)
@@ -123,7 +121,7 @@ func newSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, v
 
 	fakeValidatorPubKeyRaw, err := fakeValidatorPubKey.Raw()
 	require.NoError(t, err)
-	partitionGenesis[0].Keys = []*genesis.PublicKeyInfo{
+	partitionGenesis[0].PartitionValidators = []*genesis.PublicKeyInfo{
 		&genesis.PublicKeyInfo{
 			NodeID:  fakeValidatorID.String(),
 			SignKey: fakeValidatorPubKeyRaw,
@@ -131,7 +129,7 @@ func newSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, v
 		},
 	}
 	if validator {
-		partitionGenesis[0].Keys = append(partitionGenesis[0].Keys,
+		partitionGenesis[0].PartitionValidators = append(partitionGenesis[0].PartitionValidators,
 			&genesis.PublicKeyInfo{
 				NodeID:  peerConf.ID.String(),
 				SignKey: peerConf.KeyPair.PublicKey,

@@ -97,13 +97,13 @@ func TestRootGenesis_IsValid(t *testing.T) {
 				Partitions: []*GenesisPartitionRecord{
 					{
 						Version:              1,
-						Nodes:                []*PartitionNode{{Version: 1, NodeID: "1", SignKey: nil, AuthKey: nil, BlockCertificationRequest: nil}},
+						Validators:           []*PartitionNode{{Version: 1, NodeID: "1", SignKey: nil, AuthKey: nil, BlockCertificationRequest: nil}},
 						Certificate:          nil,
 						PartitionDescription: &types.PartitionDescriptionRecord{Version: 1, NetworkID: 5, PartitionID: 1, T2Timeout: time.Second},
 					},
 					{
 						Version:              1,
-						Nodes:                []*PartitionNode{{Version: 1, NodeID: "1", SignKey: nil, AuthKey: nil, BlockCertificationRequest: nil}},
+						Validators:           []*PartitionNode{{Version: 1, NodeID: "1", SignKey: nil, AuthKey: nil, BlockCertificationRequest: nil}},
 						Certificate:          nil,
 						PartitionDescription: &types.PartitionDescriptionRecord{Version: 1, NetworkID: 5, PartitionID: 1, T2Timeout: time.Second},
 					},
@@ -171,26 +171,18 @@ func TestRootGenesis(t *testing.T) {
 		Partitions: []*GenesisPartitionRecord{
 			{
 				Version: 1,
-				Nodes:   []*PartitionNode{node},
+				Validators: []*PartitionNode{node},
 				Certificate: &types.UnicityCertificate{
 					Version:     1,
 					InputRecord: &types.InputRecord{Version: 1},
 					UnicitySeal: unicitySeal,
 				},
-				PartitionDescription: systemDescription,
+				PartitionDescription: validPDR,
 			},
 		},
 	}
 	require.Equal(t, hash, rg.GetRoundHash())
 	require.Equal(t, uint64(2), rg.GetRoundNumber())
-	require.Equal(t, 1, len(rg.GetPartitionRecords()))
-	require.Equal(t,
-		&PartitionRecord{
-			PartitionDescription: systemDescription,
-			Validators:           []*PartitionNode{node},
-		},
-		rg.GetPartitionRecords()[0],
-	)
 	require.ErrorIs(t, rg.Verify(), ErrRootGenesisRecordIsNil)
 	// add root record
 	rg.Root = &GenesisRootRecord{
@@ -219,23 +211,23 @@ func TestRootGenesis(t *testing.T) {
 		Partitions: []*GenesisPartitionRecord{
 			{
 				Version: 1,
-				Nodes:   []*PartitionNode{node},
+				Validators: []*PartitionNode{node},
 				Certificate: &types.UnicityCertificate{
 					Version:     1,
 					InputRecord: &types.InputRecord{Version: 1},
 					UnicitySeal: unicitySeal,
 				},
-				PartitionDescription: systemDescription,
+				PartitionDescription: validPDR,
 			},
 			{
 				Version: 1,
-				Nodes:   []*PartitionNode{node},
+				Validators: []*PartitionNode{node},
 				Certificate: &types.UnicityCertificate{
 					Version:     1,
 					InputRecord: &types.InputRecord{Version: 1},
 					UnicitySeal: unicitySeal,
 				},
-				PartitionDescription: systemDescription,
+				PartitionDescription: validPDR,
 			},
 		},
 	}

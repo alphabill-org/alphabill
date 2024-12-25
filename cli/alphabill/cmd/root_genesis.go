@@ -104,13 +104,9 @@ func rootGenesisRunFunc(config *rootGenesisConfig) error {
 	if err != nil {
 		return fmt.Errorf("failed to read root chain keys from file '%s': %w", config.Keys.GetKeyFileLocation(), err)
 	}
-	pn, err := loadPartitionNodeGenesisFiles(config.PartitionNodeGenesisFiles)
+	nodes, err := loadPartitionNodeGenesisFiles(config.PartitionNodeGenesisFiles)
 	if err != nil {
 		return fmt.Errorf("failed to read partition genesis files: %w", err)
-	}
-	pr, err := rootgenesis.NewPartitionRecordFromNodes(pn)
-	if err != nil {
-		return fmt.Errorf("genesis partition record generation failed: %w", err)
 	}
 	peerID, err := peer.IDFromPublicKey(keys.AuthPrivKey.GetPublic())
 	if err != nil {
@@ -125,7 +121,7 @@ func rootGenesisRunFunc(config *rootGenesisConfig) error {
 		peerID.String(),
 		keys.SignPrivKey,
 		authPubKey,
-		pr,
+		nodes,
 		rootgenesis.WithTotalNodes(config.TotalNodes),
 		rootgenesis.WithBlockRate(config.BlockRateMs),
 		rootgenesis.WithConsensusTimeout(config.ConsensusTimeoutMs),

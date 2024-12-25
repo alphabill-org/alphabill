@@ -31,46 +31,44 @@ func NewTestNode(t *testing.T) *TestNode {
 	return node
 }
 
-func CreatePartitionNodesAndPartitionRecord(t *testing.T, ir *types.InputRecord, partitionID types.PartitionID, nrOfValidators int) (partitionNodes []*TestNode, record *genesis.PartitionRecord) {
+// TODO: weird return
+func CreatePartitionNodes(t *testing.T, ir *types.InputRecord, partitionID types.PartitionID, nrOfValidators int) (peers []*TestNode, nodes []*genesis.PartitionNode) {
 	t.Helper()
-	record = &genesis.PartitionRecord{
-		PartitionDescription: &types.PartitionDescriptionRecord{
-			Version:             1,
-			NetworkID:   5,
-			PartitionID: partitionID,
-			TypeIDLen:           8,
-			UnitIDLen:           256,
-			T2Timeout:           2500 * time.Millisecond,
-		},
-		Validators: []*genesis.PartitionNode{},
+	pdr := types.PartitionDescriptionRecord{
+		Version:     1,
+		NetworkID:   5,
+		PartitionID: partitionID,
+		TypeIDLen:   8,
+		UnitIDLen:   256,
+		T2Timeout:   2500 * time.Millisecond,
 	}
 	for i := 0; i < nrOfValidators; i++ {
-		partitionNode := NewTestNode(t)
+		testNode := NewTestNode(t)
 
-		authKey := partitionNode.PeerConf.KeyPair.PublicKey
-		signKey, err := partitionNode.Verifier.MarshalPublicKey()
+		authKey := testNode.PeerConf.KeyPair.PublicKey
+		signKey, err := testNode.Verifier.MarshalPublicKey()
 		require.NoError(t, err)
 
 		req := &certification.BlockCertificationRequest{
 			PartitionID: partitionID,
-			NodeID:      partitionNode.PeerConf.ID.String(),
+			NodeID:      testNode.PeerConf.ID.String(),
 			InputRecord: ir,
 		}
-		err = req.Sign(partitionNode.Signer)
+		err = req.Sign(testNode.Signer)
 		require.NoError(t, err)
 
-		record.Validators = append(record.Validators, &genesis.PartitionNode{
+		nodes = append(nodes, &genesis.PartitionNode{
 			Version:                    1,
-			NodeID:                     partitionNode.PeerConf.ID.String(),
+			NodeID:                     testNode.PeerConf.ID.String(),
 			AuthKey:                    authKey,
 			SignKey:                    signKey,
 			BlockCertificationRequest:  req,
-			PartitionDescriptionRecord: types.PartitionDescriptionRecord{Version: 1},
+			PartitionDescriptionRecord: pdr,
 		})
 
-		partitionNodes = append(partitionNodes, partitionNode)
+		peers = append(peers, testNode)
 	}
-	return partitionNodes, record
+	return peers, nodes
 }
 
 func CreateBlockCertificationRequest(t *testing.T, ir *types.InputRecord, partitionID types.PartitionID, node *TestNode) *certification.BlockCertificationRequest {

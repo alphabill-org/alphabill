@@ -73,13 +73,11 @@ func TestRunOrchestrationNode_Ok(t *testing.T) {
 		rootSigner, verifier := testsig.CreateSignerAndVerifier(t)
 		rootPubKeyBytes, err := verifier.MarshalPublicKey()
 		require.NoError(t, err)
-		pr, err := rootgenesis.NewPartitionRecordFromNodes([]*genesis.PartitionNode{pn})
-		require.NoError(t, err)
 		rootAuthKey, err := crypto.UnmarshalSecp256k1PublicKey(rootPubKeyBytes)
 		require.NoError(t, err)
 		rootID, err := peer.IDFromPublicKey(rootAuthKey)
 		require.NoError(t, err)
-		rootGenesis, partitionGenesisFiles, err := rootgenesis.NewRootGenesis(rootID.String(), rootSigner, rootPubKeyBytes, pr)
+		rootGenesis, partitionGenesisFiles, err := rootgenesis.NewRootGenesis(rootID.String(), rootSigner, rootPubKeyBytes, []*genesis.PartitionNode{pn})
 		require.NoError(t, err)
 
 		// write partition-genesis.json

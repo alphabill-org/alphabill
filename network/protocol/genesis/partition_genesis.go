@@ -12,8 +12,8 @@ import (
 
 var (
 	ErrPartitionGenesisIsNil            = errors.New("partition genesis is nil")
-	ErrKeysAreMissing                   = errors.New("partition keys are missing")
-	ErrMissingRootValidators            = errors.New("missing root nodes")
+	ErrPartitionValidatorsMissing       = errors.New("partition validators are missing")
+	ErrRootValidatorsMissing            = errors.New("root validators are missing")
 	ErrPartitionUnicityCertificateIsNil = errors.New("partition unicity certificate is nil")
 )
 
@@ -22,7 +22,7 @@ type PartitionGenesis struct {
 	PartitionDescription *types.PartitionDescriptionRecord `json:"partitionDescriptionRecord"`
 	Certificate          *types.UnicityCertificate         `json:"certificate"`
 	RootValidators       []*PublicKeyInfo                  `json:"rootValidators"`
-	Keys                 []*PublicKeyInfo                  `json:"keys"`
+	PartitionValidators  []*PublicKeyInfo                  `json:"partitionValidators"`
 	Params               hex.Bytes                         `json:"params,omitempty"`
 }
 
@@ -43,11 +43,11 @@ func (x *PartitionGenesis) IsValid(trustBase types.RootTrustBase, hashAlgorithm 
 	if trustBase == nil {
 		return ErrTrustBaseIsNil
 	}
-	if len(x.Keys) < 1 {
-		return ErrKeysAreMissing
+	if len(x.PartitionValidators) < 1 {
+		return ErrPartitionValidatorsMissing
 	}
 	if len(x.RootValidators) < 1 {
-		return ErrMissingRootValidators
+		return ErrRootValidatorsMissing
 	}
 	// check that root validators are valid and
 	// make sure it is a list of unique node ids and keys
@@ -56,7 +56,7 @@ func (x *PartitionGenesis) IsValid(trustBase types.RootTrustBase, hashAlgorithm 
 	}
 	// check partition validator public info is valid, and
 	// it is a list of unique node ids and keys
-	if err := ValidatorInfoUnique(x.Keys); err != nil {
+	if err := ValidatorInfoUnique(x.PartitionValidators); err != nil {
 		return fmt.Errorf("partition keys validation failed, %w", err)
 	}
 

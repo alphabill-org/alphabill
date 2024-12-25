@@ -83,7 +83,7 @@ var pg = func() []*genesis.GenesisPartitionRecord {
 				},
 			},
 			PartitionDescription: pdr1,
-			Nodes: []*genesis.PartitionNode{
+			Validators: []*genesis.PartitionNode{
 				{
 					Version:                    1,
 					NodeID:                     "1111",
@@ -113,7 +113,7 @@ var pg = func() []*genesis.GenesisPartitionRecord {
 				},
 			},
 			PartitionDescription: pdr2,
-			Nodes: []*genesis.PartitionNode{
+			Validators: []*genesis.PartitionNode{
 				{
 					Version:                    1,
 					NodeID:                     "2222",

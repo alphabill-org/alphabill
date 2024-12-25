@@ -38,10 +38,10 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 	}
 
 	type fields struct {
-		PDR            *types.PartitionDescriptionRecord
-		Certificate    *types.UnicityCertificate
-		RootValidators []*PublicKeyInfo
-		Keys           []*PublicKeyInfo
+		PDR                 *types.PartitionDescriptionRecord
+		Certificate         *types.UnicityCertificate
+		RootValidators      []*PublicKeyInfo
+		PartitionValidators []*PublicKeyInfo
 	}
 	type args struct {
 		verifier      types.RootTrustBase
@@ -57,7 +57,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 			name: "verifier is nil",
 			args: args{verifier: nil},
 			fields: fields{
-				Keys: []*PublicKeyInfo{keyInfo},
+				PartitionValidators: []*PublicKeyInfo{keyInfo},
 			},
 			wantErrStr: ErrTrustBaseIsNil.Error(),
 		},
@@ -66,7 +66,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 			args: args{verifier: trustBase},
 			fields: fields{
 				RootValidators: []*PublicKeyInfo{rootKeyInfo},
-				Keys:           []*PublicKeyInfo{keyInfo},
+				PartitionValidators:           []*PublicKeyInfo{keyInfo},
 			},
 			wantErrStr: types.ErrSystemDescriptionIsNil.Error(),
 		},
@@ -76,9 +76,9 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 			fields: fields{
 				PDR:            validPDR,
 				RootValidators: []*PublicKeyInfo{rootKeyInfo},
-				Keys:           nil,
+				PartitionValidators:           nil,
 			},
-			wantErrStr: ErrKeysAreMissing.Error(),
+			wantErrStr: ErrPartitionValidatorsMissing.Error(),
 		},
 		{
 			name: "node signing key info is nil",
@@ -86,7 +86,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 			fields: fields{
 				PDR:            validPDR,
 				RootValidators: []*PublicKeyInfo{rootKeyInfo},
-				Keys:           []*PublicKeyInfo{nil},
+				PartitionValidators:           []*PublicKeyInfo{nil},
 			},
 			wantErrStr: "partition keys validation failed, public key info is empty",
 		},
@@ -97,7 +97,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 			fields: fields{
 				PDR:            validPDR,
 				RootValidators: []*PublicKeyInfo{rootKeyInfo},
-				Keys: []*PublicKeyInfo{
+				PartitionValidators: []*PublicKeyInfo{
 					{NodeID: "", SignKey: pubKey, AuthKey: test.RandomBytes(33)},
 				},
 			},
@@ -109,7 +109,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 			fields: fields{
 				PDR:            validPDR,
 				RootValidators: []*PublicKeyInfo{rootKeyInfo},
-				Keys:           []*PublicKeyInfo{{NodeID: "111", SignKey: []byte{0, 0}}},
+				PartitionValidators:           []*PublicKeyInfo{{NodeID: "111", SignKey: []byte{0, 0}}},
 			},
 			wantErrStr: "partition keys validation failed, invalid signing key: pubkey must be 33 bytes long, but is 2",
 		},
@@ -119,7 +119,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 			fields: fields{
 				PDR:            validPDR,
 				RootValidators: []*PublicKeyInfo{rootKeyInfo},
-				Keys:           []*PublicKeyInfo{{NodeID: "111", SignKey: pubKey, AuthKey: []byte{0, 0}}},
+				PartitionValidators:           []*PublicKeyInfo{{NodeID: "111", SignKey: pubKey, AuthKey: []byte{0, 0}}},
 			},
 			wantErrStr: "partition keys validation failed, invalid authentication key: pubkey must be 33 bytes long, but is 2",
 		},
@@ -129,7 +129,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 			fields: fields{
 				PDR:            validPDR,
 				RootValidators: []*PublicKeyInfo{{NodeID: "1", SignKey: []byte{0}, AuthKey: pubKey}},
-				Keys:           []*PublicKeyInfo{keyInfo},
+				PartitionValidators:           []*PublicKeyInfo{keyInfo},
 			},
 			wantErrStr: "root node list validation failed, invalid signing key: pubkey must be 33 bytes long, but is 1",
 		},
@@ -140,7 +140,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 				PDR:            validPDR,
 				Certificate:    nil,
 				RootValidators: []*PublicKeyInfo{rootKeyInfo},
-				Keys:           []*PublicKeyInfo{keyInfo},
+				PartitionValidators:           []*PublicKeyInfo{keyInfo},
 			},
 			wantErrStr: ErrPartitionUnicityCertificateIsNil.Error(),
 		},
@@ -150,7 +150,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 			fields: fields{
 				PDR:            validPDR,
 				RootValidators: []*PublicKeyInfo{{NodeID: "1", SignKey: pubKey, AuthKey: nil}},
-				Keys:           []*PublicKeyInfo{keyInfo},
+				PartitionValidators:           []*PublicKeyInfo{keyInfo},
 			},
 			wantErrStr: "root node list validation failed, public key info authentication key is invalid",
 		},
@@ -160,7 +160,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 			fields: fields{
 				PDR:            validPDR,
 				RootValidators: []*PublicKeyInfo{{NodeID: "1", SignKey: pubKey, AuthKey: []byte{0, 0, 0, 0}}},
-				Keys:           []*PublicKeyInfo{keyInfo},
+				PartitionValidators:           []*PublicKeyInfo{keyInfo},
 			},
 			wantErrStr: "root node list validation failed, invalid authentication key: pubkey must be 33 bytes long, but is 4",
 		},
@@ -171,7 +171,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 				PartitionDescription: tt.fields.PDR,
 				Certificate:          tt.fields.Certificate,
 				RootValidators:       tt.fields.RootValidators,
-				Keys:                 tt.fields.Keys,
+				PartitionValidators:  tt.fields.PartitionValidators,
 			}
 			err = x.IsValid(tt.args.verifier, tt.args.hashAlgorithm)
 			if tt.wantErrStr != "" {

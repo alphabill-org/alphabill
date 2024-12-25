@@ -41,7 +41,7 @@ func NewVARFromGenesis(gpr *genesis.GenesisPartitionRecord) *ValidatorAssignment
 		ShardID:     uc.ShardTreeCertificate.Shard,
 		EpochNumber: uc.InputRecord.Epoch,
 		RoundNumber: uc.InputRecord.RoundNumber,
-		Nodes:       NewVarNodesFromGenesisNodes(gpr.Nodes),
+		Nodes:       NewVarNodesFromGenesisNodes(gpr.Validators),
 	}
 }
 

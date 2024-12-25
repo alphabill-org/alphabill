@@ -130,17 +130,6 @@ func (x *RootGenesis) GetRoundHash() []byte {
 	return x.Partitions[0].Certificate.UnicitySeal.Hash
 }
 
-func (x *RootGenesis) GetPartitionRecords() []*PartitionRecord {
-	records := make([]*PartitionRecord, len(x.Partitions))
-	for i, partition := range x.Partitions {
-		records[i] = &PartitionRecord{
-			PartitionDescription: partition.PartitionDescription,
-			Validators:           partition.Nodes,
-		}
-	}
-	return records
-}
-
 /*
 NodeIDs returns IDs of all root validator nodes.
 */

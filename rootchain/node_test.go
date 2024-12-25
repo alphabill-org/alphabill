@@ -111,13 +111,13 @@ func (m *MockConsensusManager) ShardInfo(partition types.PartitionID, shard type
 
 func initRootValidator(t *testing.T, net PartitionNet) (*Node, *testutils.TestNode, []*testutils.TestNode, *genesis.RootGenesis) {
 	t.Helper()
-	partitionNodes, partitionRecord := testutils.CreatePartitionNodesAndPartitionRecord(t, partitionInputRecord, partitionID, 3)
+	peers, nodes := testutils.CreatePartitionNodes(t, partitionInputRecord, partitionID, 3)
 	node := testutils.NewTestNode(t)
 	verifier := node.Verifier
 	rootPubKeyBytes, err := verifier.MarshalPublicKey()
 	require.NoError(t, err)
 	id := node.PeerConf.ID
-	rootGenesis, _, err := rootgenesis.NewRootGenesis(id.String(), node.Signer, rootPubKeyBytes, []*genesis.PartitionRecord{partitionRecord})
+	rootGenesis, _, err := rootgenesis.NewRootGenesis(id.String(), node.Signer, rootPubKeyBytes, nodes)
 	require.NoError(t, err)
 	cm, err := NewMockConsensus(rootGenesis)
 	require.NoError(t, err)
@@ -127,17 +127,17 @@ func initRootValidator(t *testing.T, net PartitionNet) (*Node, *testutils.TestNo
 	validator, err := New(p, net, cm, observability.WithLogger(observe, observe.Logger().With(logger.NodeID(id))))
 	require.NoError(t, err)
 	require.NotNil(t, validator)
-	return validator, node, partitionNodes, rootGenesis
+	return validator, node, peers, rootGenesis
 }
 
 func TestRootValidatorTest_ConstructWithDistributedManager(t *testing.T) {
-	_, partitionRecord := testutils.CreatePartitionNodesAndPartitionRecord(t, partitionInputRecord, partitionID, 3)
+	_, nodes := testutils.CreatePartitionNodes(t, partitionInputRecord, partitionID, 3)
 	node := testutils.NewTestNode(t)
 	verifier := node.Verifier
 	rootPubKeyBytes, err := verifier.MarshalPublicKey()
 	require.NoError(t, err)
 	id := node.PeerConf.ID
-	rootGenesis, _, err := rootgenesis.NewRootGenesis(id.String(), node.Signer, rootPubKeyBytes, []*genesis.PartitionRecord{partitionRecord})
+	rootGenesis, _, err := rootgenesis.NewRootGenesis(id.String(), node.Signer, rootPubKeyBytes, nodes)
 	require.NoError(t, err)
 	partitionNetMock := testnetwork.NewMockNetwork(t)
 	rootHost := testutils.NewTestNode(t)
@@ -190,10 +190,10 @@ func TestRootValidatorTest_CertificationReqRejected(t *testing.T) {
 	rootValidator, _, partitionNodes, rg := initRootValidator(t, mockNet)
 	newIR := &types.InputRecord{
 		Version:      1,
-		PreviousHash: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.Hash,
+		PreviousHash: rg.Partitions[0].Validators[0].BlockCertificationRequest.InputRecord.Hash,
 		Hash:         test.RandomBytes(32),
 		BlockHash:    test.RandomBytes(32),
-		SummaryValue: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.SummaryValue,
+		SummaryValue: rg.Partitions[0].Validators[0].BlockCertificationRequest.InputRecord.SummaryValue,
 		RoundNumber:  2,
 		Timestamp:    types.NewTimestamp(),
 	}
@@ -222,10 +222,10 @@ func TestRootValidatorTest_CertificationReqEquivocatingReq(t *testing.T) {
 	rootValidator, _, partitionNodes, rg := initRootValidator(t, mockNet)
 	newIR := &types.InputRecord{
 		Version:      1,
-		PreviousHash: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.Hash,
+		PreviousHash: rg.Partitions[0].Validators[0].BlockCertificationRequest.InputRecord.Hash,
 		Hash:         test.RandomBytes(32),
 		BlockHash:    test.RandomBytes(32),
-		SummaryValue: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.SummaryValue,
+		SummaryValue: rg.Partitions[0].Validators[0].BlockCertificationRequest.InputRecord.SummaryValue,
 		RoundNumber:  2,
 		Timestamp:    rg.Partitions[0].Certificate.UnicitySeal.Timestamp,
 	}
@@ -236,10 +236,10 @@ func TestRootValidatorTest_CertificationReqEquivocatingReq(t *testing.T) {
 	require.Contains(t, rootValidator.incomingRequests.store, key)
 	equivocatingIR := &types.InputRecord{
 		Version:      1,
-		PreviousHash: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.Hash,
+		PreviousHash: rg.Partitions[0].Validators[0].BlockCertificationRequest.InputRecord.Hash,
 		Hash:         test.RandomBytes(32),
 		BlockHash:    test.RandomBytes(32),
-		SummaryValue: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.SummaryValue,
+		SummaryValue: rg.Partitions[0].Validators[0].BlockCertificationRequest.InputRecord.SummaryValue,
 		RoundNumber:  2,
 		Timestamp:    rg.Partitions[0].Certificate.UnicitySeal.Timestamp,
 	}
@@ -267,10 +267,10 @@ func TestRootValidatorTest_SimulateNetCommunication(t *testing.T) {
 	// create certification request
 	newIR := &types.InputRecord{
 		Version:      1,
-		PreviousHash: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.Hash,
+		PreviousHash: rg.Partitions[0].Validators[0].BlockCertificationRequest.InputRecord.Hash,
 		Hash:         test.RandomBytes(32),
 		BlockHash:    test.RandomBytes(32),
-		SummaryValue: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.SummaryValue,
+		SummaryValue: rg.Partitions[0].Validators[0].BlockCertificationRequest.InputRecord.SummaryValue,
 		RoundNumber:  2,
 		Timestamp:    rg.Partitions[0].Certificate.UnicitySeal.Timestamp,
 	}
@@ -297,10 +297,10 @@ func TestRootValidatorTest_SimulateNetCommunicationNoQuorum(t *testing.T) {
 	// create certification request
 	newIR1 := &types.InputRecord{
 		Version:      1,
-		PreviousHash: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.Hash,
+		PreviousHash: rg.Partitions[0].Validators[0].BlockCertificationRequest.InputRecord.Hash,
 		Hash:         test.RandomBytes(32),
 		BlockHash:    test.RandomBytes(32),
-		SummaryValue: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.SummaryValue,
+		SummaryValue: rg.Partitions[0].Validators[0].BlockCertificationRequest.InputRecord.SummaryValue,
 		RoundNumber:  2,
 		Timestamp:    rg.Partitions[0].Certificate.UnicitySeal.Timestamp,
 	}
@@ -308,10 +308,10 @@ func TestRootValidatorTest_SimulateNetCommunicationNoQuorum(t *testing.T) {
 	testutils.MockValidatorNetReceives(t, mockNet, partitionNodes[0].PeerConf.ID, network.ProtocolBlockCertification, req1)
 	newIR2 := &types.InputRecord{
 		Version:      1,
-		PreviousHash: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.Hash,
+		PreviousHash: rg.Partitions[0].Validators[0].BlockCertificationRequest.InputRecord.Hash,
 		Hash:         test.RandomBytes(32),
 		BlockHash:    test.RandomBytes(32),
-		SummaryValue: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.SummaryValue,
+		SummaryValue: rg.Partitions[0].Validators[0].BlockCertificationRequest.InputRecord.SummaryValue,
 		RoundNumber:  2,
 		Timestamp:    rg.Partitions[0].Certificate.UnicitySeal.Timestamp,
 	}
@@ -319,10 +319,10 @@ func TestRootValidatorTest_SimulateNetCommunicationNoQuorum(t *testing.T) {
 	testutils.MockValidatorNetReceives(t, mockNet, partitionNodes[1].PeerConf.ID, network.ProtocolBlockCertification, req2)
 	newIR3 := &types.InputRecord{
 		Version:      1,
-		PreviousHash: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.Hash,
+		PreviousHash: rg.Partitions[0].Validators[0].BlockCertificationRequest.InputRecord.Hash,
 		Hash:         test.RandomBytes(32),
 		BlockHash:    test.RandomBytes(32),
-		SummaryValue: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.SummaryValue,
+		SummaryValue: rg.Partitions[0].Validators[0].BlockCertificationRequest.InputRecord.SummaryValue,
 		RoundNumber:  2,
 		Timestamp:    rg.Partitions[0].Certificate.UnicitySeal.Timestamp,
 	}
@@ -358,10 +358,10 @@ func TestRootValidatorTest_SimulateNetCommunicationHandshake(t *testing.T) {
 	// Issue a block certification request -> subscribes
 	newIR := &types.InputRecord{
 		Version:      1,
-		PreviousHash: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.Hash,
+		PreviousHash: rg.Partitions[0].Validators[0].BlockCertificationRequest.InputRecord.Hash,
 		Hash:         test.RandomBytes(32),
 		BlockHash:    test.RandomBytes(32),
-		SummaryValue: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.SummaryValue,
+		SummaryValue: rg.Partitions[0].Validators[0].BlockCertificationRequest.InputRecord.SummaryValue,
 		RoundNumber:  2,
 	}
 	req := testutils.CreateBlockCertificationRequest(t, newIR, partitionID, partitionNodes[0])
@@ -407,10 +407,10 @@ func TestRootValidatorTest_SimulateNetCommunicationInvalidReqRoundNumber(t *test
 	blockHash := test.RandomBytes(32)
 	newIR := &types.InputRecord{
 		Version:      1,
-		PreviousHash: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.Hash,
+		PreviousHash: rg.Partitions[0].Validators[0].BlockCertificationRequest.InputRecord.Hash,
 		Hash:         newHash,
 		BlockHash:    blockHash,
-		SummaryValue: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.SummaryValue,
+		SummaryValue: rg.Partitions[0].Validators[0].BlockCertificationRequest.InputRecord.SummaryValue,
 		RoundNumber:  1,
 	}
 	req := testutils.CreateBlockCertificationRequest(t, newIR, partitionID, partitionNodes[0])
@@ -439,7 +439,7 @@ func TestRootValidatorTest_SimulateNetCommunicationInvalidHash(t *testing.T) {
 		PreviousHash: test.RandomBytes(32),
 		Hash:         newHash,
 		BlockHash:    blockHash,
-		SummaryValue: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.SummaryValue,
+		SummaryValue: rg.Partitions[0].Validators[0].BlockCertificationRequest.InputRecord.SummaryValue,
 		RoundNumber:  2,
 	}
 	req := testutils.CreateBlockCertificationRequest(t, newIR, partitionID, partitionNodes[0])
@@ -462,10 +462,10 @@ func TestRootValidatorTest_SimulateResponse(t *testing.T) {
 	// create certification request
 	newIR := &types.InputRecord{
 		Version:      1,
-		PreviousHash: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.Hash,
+		PreviousHash: rg.Partitions[0].Validators[0].BlockCertificationRequest.InputRecord.Hash,
 		Hash:         test.RandomBytes(32),
 		BlockHash:    test.RandomBytes(32),
-		SummaryValue: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.SummaryValue,
+		SummaryValue: rg.Partitions[0].Validators[0].BlockCertificationRequest.InputRecord.SummaryValue,
 		RoundNumber:  2,
 	}
 	cr := certification.CertificationResponse{
@@ -484,14 +484,14 @@ func TestRootValidatorTest_SimulateResponse(t *testing.T) {
 		cr.SetTechnicalRecord(certification.TechnicalRecord{
 			Round:    3,
 			Epoch:    1,
-			Leader:   rg.Partitions[0].Nodes[0].NodeID,
+			Leader:   rg.Partitions[0].Validators[0].NodeID,
 			StatHash: []byte{1},
 			FeeHash:  []byte{2},
 		}))
 	// simulate 2x subscriptions
 	id32 := rg.Partitions[0].PartitionDescription.PartitionID
-	rootValidator.subscription.Subscribe(id32, rg.Partitions[0].Nodes[0].NodeID)
-	rootValidator.subscription.Subscribe(id32, rg.Partitions[0].Nodes[1].NodeID)
+	rootValidator.subscription.Subscribe(id32, rg.Partitions[0].Validators[0].NodeID)
+	rootValidator.subscription.Subscribe(id32, rg.Partitions[0].Validators[1].NodeID)
 	// simulate response from consensus manager
 	rootValidator.onCertificationResult(ctx, &cr)
 	// UC's are sent to all partition nodes
@@ -512,10 +512,10 @@ func TestRootValidator_ResultUnknown(t *testing.T) {
 
 	newIR := &types.InputRecord{
 		Version:      1,
-		PreviousHash: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.Hash,
+		PreviousHash: rg.Partitions[0].Validators[0].BlockCertificationRequest.InputRecord.Hash,
 		Hash:         test.RandomBytes(32),
 		BlockHash:    test.RandomBytes(32),
-		SummaryValue: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.SummaryValue,
+		SummaryValue: rg.Partitions[0].Validators[0].BlockCertificationRequest.InputRecord.SummaryValue,
 		RoundNumber:  2,
 	}
 	cr := certification.CertificationResponse{
@@ -553,10 +553,10 @@ func TestRootValidator_ExitWhenPendingCertRequestAndCMClosed(t *testing.T) {
 	// create certification request
 	newIR := &types.InputRecord{
 		Version:      1,
-		PreviousHash: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.Hash,
+		PreviousHash: rg.Partitions[0].Validators[0].BlockCertificationRequest.InputRecord.Hash,
 		Hash:         test.RandomBytes(32),
 		BlockHash:    test.RandomBytes(32),
-		SummaryValue: rg.Partitions[0].Nodes[0].BlockCertificationRequest.InputRecord.SummaryValue,
+		SummaryValue: rg.Partitions[0].Validators[0].BlockCertificationRequest.InputRecord.SummaryValue,
 		RoundNumber:  2,
 	}
 	req := testutils.CreateBlockCertificationRequest(t, newIR, partitionID, partitionNodes[0])

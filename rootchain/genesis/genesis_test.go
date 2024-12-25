@@ -30,30 +30,28 @@ func getPublicKeyAndVerifier(signer abcrypto.Signer) ([]byte, abcrypto.Verifier,
 	return pubKey, verifier, nil
 }
 
-func createPartition(t *testing.T, partitionID types.PartitionID, nodeID string, partitionSigner abcrypto.Signer) *genesis.PartitionRecord {
+func createNodes(t *testing.T, partitionID types.PartitionID, nodeID string, partitionSigner abcrypto.Signer) []*genesis.PartitionNode {
 	t.Helper()
 	req := createInputRequest(t, partitionID, nodeID, partitionSigner)
 	signKey, _, err := getPublicKeyAndVerifier(partitionSigner)
 	require.NoError(t, err)
 
-	return &genesis.PartitionRecord{
-		PartitionDescription: &types.PartitionDescriptionRecord{
-			Version:     1,
-			NetworkID:   5,
-			PartitionID: partitionID,
-			TypeIDLen:   8,
-			UnitIDLen:   256,
-			T2Timeout:   2500 * time.Millisecond,
-		},
-		Validators: []*genesis.PartitionNode{{
-			Version:                    1,
-			NodeID:                     nodeID,
-			AuthKey:                    signKey,
-			SignKey:                    signKey,
-			BlockCertificationRequest:  req,
-			PartitionDescriptionRecord: types.PartitionDescriptionRecord{Version: 1},
-		}},
+	pdr := types.PartitionDescriptionRecord{
+		Version:     1,
+		NetworkID:   5,
+		PartitionID: partitionID,
+		TypeIDLen:   8,
+		UnitIDLen:   256,
+		T2Timeout:   2500 * time.Millisecond,
 	}
+	return []*genesis.PartitionNode{{
+		Version:                    1,
+		NodeID:                     nodeID,
+		AuthKey:                    signKey,
+		SignKey:                    signKey,
+		BlockCertificationRequest:  req,
+		PartitionDescriptionRecord: pdr,
+	}}
 }
 
 func createPartitionNode(t *testing.T, partitionID types.PartitionID, nodeID string, partitionSigner abcrypto.Signer) *genesis.PartitionNode {
@@ -233,7 +231,7 @@ func TestNewGenesis_Ok(t *testing.T) {
 	partitionSigner, err := abcrypto.NewInMemorySecp256K1Signer()
 	require.NoError(t, err)
 
-	partition := createPartition(t, id, "1", partitionSigner)
+	nodes := createNodes(t, id, "1", partitionSigner)
 	require.NoError(t, err)
 	rootChainSigner, err := abcrypto.NewInMemorySecp256K1Signer()
 	require.NoError(t, err)
@@ -241,7 +239,7 @@ func TestNewGenesis_Ok(t *testing.T) {
 	_, verifier := testsig.CreateSignerAndVerifier(t)
 	rootPubKeyBytes, err := verifier.MarshalPublicKey()
 	require.NoError(t, err)
-	rg, ps, err := NewRootGenesis("test", rootChainSigner, rootPubKeyBytes, []*genesis.PartitionRecord{partition})
+	rg, ps, err := NewRootGenesis("test", rootChainSigner, rootPubKeyBytes, nodes)
 	require.NoError(t, err)
 	require.NotNil(t, rg)
 	require.NotNil(t, ps)
@@ -256,7 +254,7 @@ func TestNewGenesis_ConsensusNotPossible(t *testing.T) {
 	partitionSigner2, err := abcrypto.NewInMemorySecp256K1Signer()
 	require.NoError(t, err)
 
-	partition := createPartition(t, id, "1", partitionSigner)
+	nodes := createNodes(t, id, "1", partitionSigner)
 
 	req := createInputRequest(t, id, "2", partitionSigner2)
 	req.InputRecord.Hash = []byte{1, 1, 1, 1}
@@ -264,22 +262,22 @@ func TestNewGenesis_ConsensusNotPossible(t *testing.T) {
 	require.NoError(t, req.Sign(partitionSigner2))
 	signKey, _, err := getPublicKeyAndVerifier(partitionSigner2)
 	require.NoError(t, err)
-	pr := &genesis.PartitionNode{
+	node := &genesis.PartitionNode{
 		Version:                   1,
 		NodeID:                    "2",
 		AuthKey:                   signKey,
 		SignKey:                   signKey,
 		BlockCertificationRequest: req,
 	}
-	partition.Validators = append(partition.Validators, pr)
+	nodes = append(nodes, node)
 
 	rootChainSigner, err := abcrypto.NewInMemorySecp256K1Signer()
 	require.NoError(t, err)
 	_, authVerifier := testsig.CreateSignerAndVerifier(t)
 	rootPubKeyBytes, err := authVerifier.MarshalPublicKey()
 	require.NoError(t, err)
-	_, _, err = NewRootGenesis("test", rootChainSigner, rootPubKeyBytes, []*genesis.PartitionRecord{partition})
-	require.ErrorContains(t, err, "invalid partition record: partition id 00000001 node 2 input record is different")
+	_, _, err = NewRootGenesis("test", rootChainSigner, rootPubKeyBytes, nodes)
+	require.ErrorContains(t, err, "invalid partition nodes: partition id 00000001 node 2 input record is different")
 }
 
 func TestNewGenesisFromPartitionNodes_Ok(t *testing.T) {
@@ -297,12 +295,10 @@ func TestNewGenesisFromPartitionNodes_Ok(t *testing.T) {
 	require.NoError(t, err)
 	rootPubKeyBytes, err := rootChainVerifier.MarshalPublicKey()
 	require.NoError(t, err)
-	pr, err := NewPartitionRecordFromNodes([]*genesis.PartitionNode{pn1, pn2})
-	require.NoError(t, err)
-	rg, pgs, err := NewRootGenesis("test", rootChainSigner, rootPubKeyBytes, pr)
+	rg, pgs, err := NewRootGenesis("test", rootChainSigner, rootPubKeyBytes, []*genesis.PartitionNode{pn1, pn2})
 	require.NoError(t, err)
 	require.NotNil(t, rg)
-	require.Equal(t, 2, len(rg.Partitions[0].Nodes))
+	require.Equal(t, 2, len(rg.Partitions[0].Validators))
 	require.Equal(t, 1, len(pgs))
 }
 
@@ -324,12 +320,10 @@ func TestNewGenesisForMultiplePartitions_Ok(t *testing.T) {
 	require.NoError(t, err)
 	rootPubKeyBytes, err := rootChainVerifier.MarshalPublicKey()
 	require.NoError(t, err)
-	pr, err := NewPartitionRecordFromNodes([]*genesis.PartitionNode{pn1, pn2, pn3})
-	require.NoError(t, err)
-	rg, pgs, err := NewRootGenesis("test", rootChainSigner, rootPubKeyBytes, pr)
+	rg, pgs, err := NewRootGenesis("test", rootChainSigner, rootPubKeyBytes, []*genesis.PartitionNode{pn1, pn2, pn3})
 	require.NoError(t, err)
 	require.NotNil(t, rg)
-	require.Equal(t, 1, len(rg.Partitions[0].Nodes))
+	require.Equal(t, 1, len(rg.Partitions[0].Validators))
 	require.Equal(t, 3, len(pgs))
 	tb, err := rg.GenerateTrustBase()
 	require.NoError(t, err)
@@ -343,7 +337,7 @@ func TestNewGenesis_AddSignature(t *testing.T) {
 	partitionSigner, err := abcrypto.NewInMemorySecp256K1Signer()
 	require.NoError(t, err)
 
-	partition := createPartition(t, id, "1", partitionSigner)
+	nodes := createNodes(t, id, "1", partitionSigner)
 	require.NoError(t, err)
 	rootChainSigner, err := abcrypto.NewInMemorySecp256K1Signer()
 	require.NoError(t, err)
@@ -356,7 +350,7 @@ func TestNewGenesis_AddSignature(t *testing.T) {
 		"test1",
 		rootChainSigner,
 		rootPubKeyBytes,
-		[]*genesis.PartitionRecord{partition},
+		nodes,
 		WithTotalNodes(2),
 	)
 	require.NoError(t, err)
@@ -403,7 +397,7 @@ func TestNewGenesis_MergeGenesisFiles(t *testing.T) {
 	const id types.PartitionID = 1
 	partitionSigner, err := abcrypto.NewInMemorySecp256K1Signer()
 	require.NoError(t, err)
-	partition := createPartition(t, id, "1", partitionSigner)
+	nodes := createNodes(t, id, "1", partitionSigner)
 	require.NoError(t, err)
 	const totalRootNodes = 2
 	s1, err := abcrypto.NewInMemorySecp256K1Signer()
@@ -415,7 +409,7 @@ func TestNewGenesis_MergeGenesisFiles(t *testing.T) {
 	rg1, _, err := NewRootGenesis("test1",
 		s1,
 		rootPubKeyBytes,
-		[]*genesis.PartitionRecord{partition},
+		nodes,
 		WithTotalNodes(totalRootNodes),
 		WithBlockRate(genesis.MinBlockRateMs),
 		WithConsensusTimeout(genesis.MinBlockRateMs+genesis.MinConsensusTimeout))
@@ -430,7 +424,7 @@ func TestNewGenesis_MergeGenesisFiles(t *testing.T) {
 	rg2, _, err := NewRootGenesis("test2",
 		s2,
 		rootPubKeyBytes2,
-		[]*genesis.PartitionRecord{partition},
+		nodes,
 		WithTotalNodes(totalRootNodes),
 		WithBlockRate(genesis.MinBlockRateMs),
 		WithConsensusTimeout(genesis.MinBlockRateMs+genesis.MinConsensusTimeout))
@@ -469,8 +463,6 @@ func TestGenerateTrustBase_CustomQuorumThreshold(t *testing.T) {
 func createRootGenesis(t *testing.T) *genesis.RootGenesis {
 	partitionSigner, _ := testsig.CreateSignerAndVerifier(t)
 	partitionNode := createPartitionNode(t, 1, "1", partitionSigner)
-	pr, err := NewPartitionRecordFromNodes([]*genesis.PartitionNode{partitionNode})
-	require.NoError(t, err)
 
 	var rgs []*genesis.RootGenesis
 	for i := 1; i <= 3; i++ {
@@ -478,7 +470,7 @@ func createRootGenesis(t *testing.T) *genesis.RootGenesis {
 		rootPubKey, err := rootVerifier.MarshalPublicKey()
 		require.NoError(t, err)
 
-		rg, pgs, err := NewRootGenesis(fmt.Sprintf("test-%d", i), rootSigner, rootPubKey, pr)
+		rg, pgs, err := NewRootGenesis(fmt.Sprintf("test-%d", i), rootSigner, rootPubKey, []*genesis.PartitionNode{partitionNode})
 		require.NoError(t, err)
 		require.NotNil(t, rg)
 		require.Len(t, pgs, 1)

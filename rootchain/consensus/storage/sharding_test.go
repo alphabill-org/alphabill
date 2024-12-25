@@ -489,7 +489,7 @@ func Test_NewShardInfoFromGenesis(t *testing.T) {
 	nodeID, authKey := testutils.RandomNodeID(t)
 	pgEpoch1 := &genesis.GenesisPartitionRecord{
 		Version: 1,
-		Nodes: []*genesis.PartitionNode{
+		Validators: []*genesis.PartitionNode{
 			{NodeID: nodeID, AuthKey: authKey, SignKey: validKey},
 		},
 		Certificate:          testcertificates.CreateUnicityCertificate(t, signer, ir, pdr, 1, zH, zH),
@@ -511,7 +511,7 @@ func Test_NewShardInfoFromGenesis(t *testing.T) {
 
 	t.Run("no nodes", func(t *testing.T) {
 		pg := *pgEpoch1
-		pg.Nodes = nil
+		pg.Validators = nil
 		si, err := NewShardInfoFromGenesis(&pg)
 		require.EqualError(t, err, `creating TechnicalRecord: node list is empty`)
 		require.Empty(t, si)
@@ -519,7 +519,7 @@ func Test_NewShardInfoFromGenesis(t *testing.T) {
 
 	t.Run("invalid key", func(t *testing.T) {
 		pg := *pgEpoch1
-		pg.Nodes = []*genesis.PartitionNode{
+		pg.Validators = []*genesis.PartitionNode{
 			{NodeID: "1111", SignKey: []byte{1, 2, 3}},
 		}
 		si, err := NewShardInfoFromGenesis(&pg)

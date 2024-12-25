@@ -135,16 +135,12 @@ func newRootPartition(t *testing.T, nofRootNodes uint8, nodePartitions []*NodePa
 		return nil, fmt.Errorf("failed to generate peer configuration, %w", err)
 	}
 	for i, peerCfg := range rootPeerCfg {
-		nodeGenesisFiles := getGenesisFiles(nodePartitions)
-		pr, err := rootgenesis.NewPartitionRecordFromNodes(nodeGenesisFiles)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create genesis partition record")
-		}
+		nodes := getGenesisFiles(nodePartitions)
 		rg, _, err := rootgenesis.NewRootGenesis(
 			peerCfg.ID.String(),
 			rootSigners[i],
 			peerCfg.KeyPair.PublicKey,
-			pr,
+			nodes,
 			rootgenesis.WithTotalNodes(uint32(nofRootNodes)),
 			rootgenesis.WithBlockRate(max(genesis.MinBlockRateMs, 300)), // set block rate at 300 ms to give a bit more time for nodes to bootstrap
 			rootgenesis.WithConsensusTimeout(genesis.DefaultConsensusTimeout))

@@ -275,9 +275,7 @@ func Test_recoverState(t *testing.T) {
 		}
 	}
 
-	partitionRecs := []*genesis.PartitionRecord{
-		createPartitionRecord(t, partitionID, partitionInputRecord, 2),
-	}
+	nodes := createPartitionNodes(t, partitionID, partitionInputRecord, 2)
 
 	t.Run("late joiner catches up", func(t *testing.T) {
 		t.Parallel()
@@ -285,7 +283,7 @@ func Test_recoverState(t *testing.T) {
 		// for quorum we need ⅔+1 validators to be healthy thus with 4 nodes one can be unhealthy
 		var cmCount atomic.Int32
 		cmCount.Store(4)
-		cms, rootNet, _ := createConsensusManagers(t, int(cmCount.Load()), partitionRecs)
+		cms, rootNet, _ := createConsensusManagers(t, int(cmCount.Load()), nodes)
 
 		// tweak configurations - use "constant leader" to take leader selection out of test
 		cmLeader := cms[0]
@@ -346,7 +344,7 @@ func Test_recoverState(t *testing.T) {
 		// for quorum we need ⅔+1 validators to be healthy thus with 4 nodes one can be unhealthy
 		var cmCount atomic.Int32
 		cmCount.Store(4)
-		cms, rootNet, _ := createConsensusManagers(t, int(cmCount.Load()), partitionRecs)
+		cms, rootNet, _ := createConsensusManagers(t, int(cmCount.Load()), nodes)
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer func() {
@@ -387,7 +385,7 @@ func Test_recoverState(t *testing.T) {
 		// for quorum we need ⅔+1 validators to be healthy thus with 4 nodes one can be unhealthy
 		var cmCount atomic.Int32
 		cmCount.Store(4)
-		cms, rootNet, _ := createConsensusManagers(t, int(cmCount.Load()), partitionRecs)
+		cms, rootNet, _ := createConsensusManagers(t, int(cmCount.Load()), nodes)
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer func() {
@@ -444,7 +442,7 @@ func Test_recoverState(t *testing.T) {
 		// for quorum we need ⅔+1 validators to be healthy thus with 4 nodes one can be unhealthy
 		var cmCount atomic.Int32
 		cmCount.Store(4)
-		cms, rootNet, _ := createConsensusManagers(t, int(cmCount.Load()), partitionRecs)
+		cms, rootNet, _ := createConsensusManagers(t, int(cmCount.Load()), nodes)
 		deadID := cms[1].id
 		rootNet.SetFirewall(func(from, to peer.ID, msg any) bool {
 			return from == deadID || to == deadID
@@ -487,7 +485,7 @@ func Test_recoverState(t *testing.T) {
 		// for quorum we need ⅔+1 validators to be healthy thus with 4 nodes one can be unhealthy
 		var cmCount atomic.Int32
 		cmCount.Store(4)
-		cms, rootNet, _ := createConsensusManagers(t, int(cmCount.Load()), partitionRecs)
+		cms, rootNet, _ := createConsensusManagers(t, int(cmCount.Load()), nodes)
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer func() {
@@ -549,7 +547,7 @@ func Test_recoverState(t *testing.T) {
 		// for quorum we need ⅔+1 validators to be healthy thus with 4 nodes one can be unhealthy
 		var cmCount atomic.Int32
 		cmCount.Store(4)
-		cms, rootNet, _ := createConsensusManagers(t, int(cmCount.Load()), partitionRecs)
+		cms, rootNet, _ := createConsensusManagers(t, int(cmCount.Load()), nodes)
 		// round-robin leader in the order nodes are in the cms slice. system is starting
 		// with round 2 and leader will be: 2, 3, 0, 1, 2, 3, 0, 1,...
 		rootNodes := make([]peer.ID, 0, len(cms))
@@ -619,7 +617,7 @@ func Test_recoverState(t *testing.T) {
 		// for quorum we need ⅔+1 validators to be healthy thus with 4 nodes one can be unhealthy
 		var cmCount atomic.Int32
 		cmCount.Store(4)
-		cms, rootNet, _ := createConsensusManagers(t, int(cmCount.Load()), partitionRecs)
+		cms, rootNet, _ := createConsensusManagers(t, int(cmCount.Load()), nodes)
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer func() {
@@ -655,7 +653,7 @@ func Test_recoverState(t *testing.T) {
 		// for quorum we need ⅔+1 validators to be healthy thus with 4 nodes one can be unhealthy
 		var cmCount atomic.Int32
 		cmCount.Store(4)
-		cms, rootNet, _ := createConsensusManagers(t, int(cmCount.Load()), partitionRecs)
+		cms, rootNet, _ := createConsensusManagers(t, int(cmCount.Load()), nodes)
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer func() {
@@ -702,7 +700,7 @@ func Test_recoverState(t *testing.T) {
 		// timeout rounds (ie node doesn't get quorum for latest round so stays in previous TO round)
 		var cmCount atomic.Int32
 		cmCount.Store(3)
-		cms, rootNet, _ := createConsensusManagers(t, int(cmCount.Load()), partitionRecs)
+		cms, rootNet, _ := createConsensusManagers(t, int(cmCount.Load()), nodes)
 
 		// set filter so that one node (slowID) does not see any messages and only sends TO votes
 		slowID := cms[0].id
@@ -747,7 +745,7 @@ func Test_recoverState(t *testing.T) {
 	})
 }
 
-func createConsensusManagers(t *testing.T, count int, partitionRecs []*genesis.PartitionRecord) ([]*ConsensusManager, *mockNetwork, *genesis.RootGenesis) {
+func createConsensusManagers(t *testing.T, count int, nodes []*genesis.PartitionNode) ([]*ConsensusManager, *mockNetwork, *genesis.RootGenesis) {
 	t.Helper()
 
 	observe := testobservability.Default(t)
@@ -755,7 +753,7 @@ func createConsensusManagers(t *testing.T, count int, partitionRecs []*genesis.P
 	var rgr []*genesis.RootGenesis
 	for i := 0; i < count; i++ {
 		nodeID, signer, _, pubkey := generatePeerData(t)
-		rootG, _, err := rootgenesis.NewRootGenesis(nodeID.String(), signer, pubkey, partitionRecs, rootgenesis.WithTotalNodes(uint32(count)), rootgenesis.WithBlockRate(500), rootgenesis.WithConsensusTimeout(2500))
+		rootG, _, err := rootgenesis.NewRootGenesis(nodeID.String(), signer, pubkey, nodes, rootgenesis.WithTotalNodes(uint32(count)), rootgenesis.WithBlockRate(500), rootgenesis.WithConsensusTimeout(2500))
 		require.NoError(t, err, "failed to create root genesis")
 		require.NotNil(t, rootG)
 		rgr = append(rgr, rootG)
@@ -784,19 +782,18 @@ func createConsensusManagers(t *testing.T, count int, partitionRecs []*genesis.P
 	return cms, nw, rootG
 }
 
-func createPartitionRecord(t *testing.T, partitionID abtypes.PartitionID, ir *abtypes.InputRecord, nrOfValidators int) *genesis.PartitionRecord {
+func createPartitionNodes(t *testing.T, partitionID abtypes.PartitionID, ir *abtypes.InputRecord, nrOfValidators int) []*genesis.PartitionNode {
 	t.Helper()
-	record := &genesis.PartitionRecord{
-		PartitionDescription: &abtypes.PartitionDescriptionRecord{
-			Version:     1,
-			NetworkID:   5,
-			PartitionID: partitionID,
-			TypeIDLen:   8,
-			UnitIDLen:   256,
-			T2Timeout:   2500 * time.Millisecond,
-		},
+	pdr := abtypes.PartitionDescriptionRecord{
+		Version:     1,
+		NetworkID:   5,
+		PartitionID: partitionID,
+		TypeIDLen:   8,
+		UnitIDLen:   256,
+		T2Timeout:   2500 * time.Millisecond,
 	}
 
+	nodes := make([]*genesis.PartitionNode, nrOfValidators)
 	for i := 0; i < nrOfValidators; i++ {
 		nodeID, authSigner, _, authKey := generatePeerData(t)
 
@@ -807,17 +804,17 @@ func createPartitionRecord(t *testing.T, partitionID abtypes.PartitionID, ir *ab
 		}
 		require.NoError(t, req.Sign(authSigner))
 
-		record.Validators = append(record.Validators, &genesis.PartitionNode{
+		nodes[i] = &genesis.PartitionNode{
 			Version:                    1,
 			NodeID:                     nodeID.String(),
 			AuthKey:                    authKey,
 			SignKey:                    authKey,
 			BlockCertificationRequest:  req,
-			PartitionDescriptionRecord: *record.PartitionDescription,
-		})
+			PartitionDescriptionRecord: pdr,
+		}
 	}
 
-	return record
+	return nodes
 }
 
 func generatePeerData(t *testing.T) (peer.ID, abcrypto.Signer, abcrypto.Verifier, []byte) {

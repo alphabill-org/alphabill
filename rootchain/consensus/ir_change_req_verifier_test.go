@@ -73,7 +73,7 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 	genesisPartitions := []*genesis.GenesisPartitionRecord{
 		{
 			PartitionDescription: pdr,
-			Nodes: []*genesis.PartitionNode{
+			Validators: []*genesis.PartitionNode{
 				{NodeID: "node1", SignKey: signKey, PartitionDescriptionRecord: *pdr},
 			},
 			Certificate: testcertificates.CreateUnicityCertificate(t, signer, irSysID1, pdr, 1, make([]byte, 32), make([]byte, 32)),
@@ -282,7 +282,7 @@ func TestNewIRChangeReqVerifier(t *testing.T) {
 				PartitionID: 1,
 				T2Timeout:           2600 * time.Millisecond,
 			},
-			Nodes: []*genesis.PartitionNode{
+			Validators: []*genesis.PartitionNode{
 				{NodeID: "node1", SignKey: signKey, PartitionDescriptionRecord: types.PartitionDescriptionRecord{Version: 1}},
 				{NodeID: "node2", SignKey: signKey, PartitionDescriptionRecord: types.PartitionDescriptionRecord{Version: 1}},
 				{NodeID: "node3", SignKey: signKey, PartitionDescriptionRecord: types.PartitionDescriptionRecord{Version: 1}},
@@ -331,7 +331,7 @@ func TestNewLucBasedT2TimeoutGenerator(t *testing.T) {
 				PartitionID: 1,
 				T2Timeout:           2600 * time.Millisecond,
 			},
-			Nodes: []*genesis.PartitionNode{
+			Validators: []*genesis.PartitionNode{
 				{NodeID: "node1", SignKey: signKey, PartitionDescriptionRecord: types.PartitionDescriptionRecord{Version: 1}},
 			},
 			Certificate: &types.UnicityCertificate{InputRecord: &types.InputRecord{}},
@@ -384,7 +384,7 @@ func TestPartitionTimeoutGenerator_GetT2Timeouts(t *testing.T) {
 				PartitionID: partitionID1,
 				T2Timeout:   2500 * time.Millisecond,
 			},
-			Nodes: []*genesis.PartitionNode{
+			Validators: []*genesis.PartitionNode{
 				{NodeID: "node1", SignKey: signKey, PartitionDescriptionRecord: types.PartitionDescriptionRecord{Version: 1}},
 			},
 		},

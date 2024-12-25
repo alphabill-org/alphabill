@@ -13,6 +13,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var validPDR = &types.PartitionDescriptionRecord{
+	Version:     1,
+	NetworkID:   5,
+	PartitionID: 1,
+	TypeIDLen:   8,
+	UnitIDLen:   256,
+	T2Timeout:   1 * time.Second,
+}
+
 func TestGenesisPartitionRecord_IsValid(t *testing.T) {
 	_, verifier := testsig.CreateSignerAndVerifier(t)
 
@@ -22,14 +31,6 @@ func TestGenesisPartitionRecord_IsValid(t *testing.T) {
 	require.NoError(t, err)
 	_, authVerifier1 := testsig.CreateSignerAndVerifier(t)
 	_, authVerifier2 := testsig.CreateSignerAndVerifier(t)
-	validPDR := &types.PartitionDescriptionRecord{
-		Version:             1,
-		NetworkID:   5,
-		PartitionID: 1,
-		TypeIDLen:           8,
-		UnitIDLen:           256,
-		T2Timeout:           1 * time.Second,
-	}
 
 	type fields struct {
 		Nodes                []*PartitionNode
@@ -47,19 +48,13 @@ func TestGenesisPartitionRecord_IsValid(t *testing.T) {
 		wantErrStr string
 	}{
 		{
-			name:       "verifier is nil",
-			args:       args{verifier: nil},
-			fields:     fields{},
-			wantErrStr: ErrTrustBaseIsNil.Error(),
-		},
-		{
 			name:       "nodes missing",
 			args:       args{verifier: testtb.NewTrustBase(t, verifier), hashAlgorithm: crypto.SHA256},
 			fields:     fields{},
 			wantErrStr: ErrNodesAreMissing.Error(),
 		},
 		{
-			name: "system description record is nil",
+			name: "partition description record is nil",
 			args: args{verifier: testtb.NewTrustBase(t, verifier), hashAlgorithm: crypto.SHA256},
 			fields: fields{
 				Nodes:                []*PartitionNode{nil},
@@ -104,6 +99,24 @@ func TestGenesisPartitionRecord_IsValid(t *testing.T) {
 			wantErrStr: "invalid partition nodes: duplicated node authentication key",
 		},
 		{
+			name: "contains nodes with wrong partition identifier",
+			args: args{verifier: nil, hashAlgorithm: crypto.SHA256},
+			fields: fields{
+				Nodes: []*PartitionNode{
+					createPartitionNode(t, "1", signingKey1, authVerifier1),
+				},
+				PartitionDescription: &types.PartitionDescriptionRecord{
+					Version:     1,
+					NetworkID:   5,
+					PartitionID: 2,
+					TypeIDLen:   8,
+					UnitIDLen:   256,
+					T2Timeout:   time.Second,
+				},
+			},
+			wantErrStr: "partition id 00000002 node 1 invalid blockCertificationRequest partition id 00000001",
+		},
+		{
 			name: "certificate is nil",
 			args: args{verifier: testtb.NewTrustBase(t, verifier), hashAlgorithm: crypto.SHA256},
 			fields: fields{
@@ -119,7 +132,7 @@ func TestGenesisPartitionRecord_IsValid(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			x := &GenesisPartitionRecord{
 				Version:              1,
-				Nodes:                tt.fields.Nodes,
+				Validators:           tt.fields.Nodes,
 				Certificate:          tt.fields.Certificate,
 				PartitionDescription: tt.fields.PartitionDescription,
 			}

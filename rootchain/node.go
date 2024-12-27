@@ -75,9 +75,13 @@ func New(
 	}
 
 	meter := observe.Meter("rootchain.node", metric.WithInstrumentationAttributes(observability.PeerID("node.id", p.ID())))
+	reqBuf, err := NewCertificationRequestBuffer(meter)
+	if err != nil {
+		return nil, fmt.Errorf("creating request buffer: %w", err)
+	}
 	node := &Node{
 		peer:             p,
-		incomingRequests: NewCertificationRequestBuffer(),
+		incomingRequests: reqBuf,
 		subscription:     NewSubscriptions(meter),
 		net:              pNet,
 		consensusManager: cm,
@@ -211,7 +215,7 @@ func (v *Node) onBlockCertificationRequest(ctx context.Context, req *certificati
 		return
 	}
 	// store the new request and see if quorum is now achieved
-	res, requests, err := v.incomingRequests.Add(req, si)
+	res, requests, err := v.incomingRequests.Add(ctx, req, si)
 	if err != nil {
 		return fmt.Errorf("storing request: %w", err)
 	}
@@ -235,6 +239,7 @@ func (v *Node) onBlockCertificationRequest(ctx context.Context, req *certificati
 			Reason:    reason,
 			Requests:  requests,
 		}); err != nil {
+		v.incomingRequests.Clear(ctx, req.PartitionID, req.ShardID)
 		return fmt.Errorf("requesting certification: %w", err)
 	}
 	return nil
@@ -256,12 +261,8 @@ func (v *Node) handleConsensus(ctx context.Context) error {
 }
 
 func (v *Node) onCertificationResult(ctx context.Context, cr *certification.CertificationResponse) {
-	// remember to clear the incoming buffer to accept new nodeRequest
-	// NB! this will try and reset the store also in the case when partition id is unknown, but this is fine
-	defer func() {
-		v.incomingRequests.Clear(cr.Partition, cr.Shard)
-		v.log.LogAttrs(ctx, logger.LevelTrace, "Resetting request store for shard", logger.Shard(cr.Partition, cr.Shard))
-	}()
+	// clear the incoming buffer to accept new BlockCertificationRequest from the shard
+	defer v.incomingRequests.Clear(ctx, cr.Partition, cr.Shard)
 
 	subscribed := v.subscription.Get(cr.Partition)
 	v.log.DebugContext(ctx, fmt.Sprintf("sending CertificationResponse, %d receivers, R_next: %d, IR Hash: %X, Block Hash: %X",

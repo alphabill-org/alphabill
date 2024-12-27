@@ -2,13 +2,16 @@ package rootchain
 
 import (
 	"bytes"
+	"context"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/alphabill-org/alphabill/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/rootchain/partitions"
-	"github.com/stretchr/testify/require"
 )
 
 var ir1 = &types.InputRecord{Version: 1, Hash: []byte{1}}
@@ -171,28 +174,31 @@ func TestRequestStore_isConsensusNotPossible_FiveNodes(t *testing.T) {
 }
 
 func TestCertRequestStore_isConsensusReceived_TwoNodes(t *testing.T) {
-	cs := NewCertificationRequestBuffer()
+	obs := observability.Default(t)
+	cs, err := NewCertificationRequestBuffer(obs.Meter("test"))
+	require.NoError(t, err)
 	trustBase := partitions.NewPartitionTrustBase(map[string]crypto.Verifier{"1": nil, "2": nil})
 	// 1.
-	res, proof, err := cs.Add(&certification.BlockCertificationRequest{PartitionID: sysID1, NodeID: "1", InputRecord: ir1}, trustBase)
+	res, proof, err := cs.Add(context.Background(), &certification.BlockCertificationRequest{PartitionID: sysID1, NodeID: "1", InputRecord: ir1}, trustBase)
 	require.NoError(t, err)
 	require.Equal(t, QuorumInProgress, res)
 	require.Nil(t, proof)
-	// 2.
-	res, proof, err = cs.Add(&certification.BlockCertificationRequest{PartitionID: sysID1, NodeID: "2", InputRecord: ir2}, trustBase)
+	// 2. different IR than node 1, must result in QuorumNotPossible
+	res, proof, err = cs.Add(context.Background(), &certification.BlockCertificationRequest{PartitionID: sysID1, NodeID: "2", InputRecord: ir2}, trustBase)
 	require.NoError(t, err)
 	require.Equal(t, QuorumNotPossible, res)
 	require.NotNil(t, proof)
 	require.Len(t, proof, 2)
 	shard := types.ShardID{}
 	require.Equal(t, QuorumNotPossible, cs.IsConsensusReceived(sysID1, shard, trustBase))
-	cs.Clear(sysID1, shard)
-	// test all nodeRequest cleared
-	res, proof, err = cs.Add(&certification.BlockCertificationRequest{PartitionID: sysID1, NodeID: "1", InputRecord: ir1}, trustBase)
+
+	// clear the shard's buffer, should accept requests again - going for quorum this time
+	cs.Clear(context.Background(), sysID1, shard)
+	res, proof, err = cs.Add(context.Background(), &certification.BlockCertificationRequest{PartitionID: sysID1, NodeID: "1", InputRecord: ir1}, trustBase)
 	require.NoError(t, err)
 	require.Equal(t, QuorumInProgress, res)
 	require.Nil(t, proof)
-	res, proof, err = cs.Add(&certification.BlockCertificationRequest{PartitionID: sysID1, NodeID: "2", InputRecord: ir1}, trustBase)
+	res, proof, err = cs.Add(context.Background(), &certification.BlockCertificationRequest{PartitionID: sysID1, NodeID: "2", InputRecord: ir1}, trustBase)
 	require.NoError(t, err)
 	require.Equal(t, QuorumAchieved, res)
 	require.NotNil(t, proof)
@@ -202,28 +208,30 @@ func TestCertRequestStore_isConsensusReceived_TwoNodes(t *testing.T) {
 }
 
 func TestCertRequestStore_isConsensusReceived_MultiplePartitionIds(t *testing.T) {
-	cs := NewCertificationRequestBuffer()
+	obs := observability.Default(t)
+	cs, err := NewCertificationRequestBuffer(obs.Meter("test"))
+	require.NoError(t, err)
 	trustBase := partitions.NewPartitionTrustBase(map[string]crypto.Verifier{"1": nil, "2": nil})
 	shard := types.ShardID{}
-	res, proof, err := cs.Add(&certification.BlockCertificationRequest{PartitionID: sysID1, NodeID: "1", InputRecord: ir1}, trustBase)
+	res, proof, err := cs.Add(context.Background(), &certification.BlockCertificationRequest{PartitionID: sysID1, NodeID: "1", InputRecord: ir1}, trustBase)
 	require.NoError(t, err)
 	require.Equal(t, QuorumInProgress, res)
 	require.Nil(t, proof)
-	res, proof, err = cs.Add(&certification.BlockCertificationRequest{PartitionID: sysID2, NodeID: "1", InputRecord: ir2}, trustBase)
+	res, proof, err = cs.Add(context.Background(), &certification.BlockCertificationRequest{PartitionID: sysID2, NodeID: "1", InputRecord: ir2}, trustBase)
 	require.NoError(t, err)
 	require.Equal(t, QuorumInProgress, res)
 	require.Nil(t, proof)
 	require.Equal(t, QuorumInProgress, cs.IsConsensusReceived(sysID1, shard, trustBase))
 	require.Equal(t, QuorumInProgress, cs.IsConsensusReceived(sysID2, shard, trustBase))
 	// add more requests
-	res, proof, err = cs.Add(&certification.BlockCertificationRequest{PartitionID: sysID1, NodeID: "2", InputRecord: ir1}, trustBase)
+	res, proof, err = cs.Add(context.Background(), &certification.BlockCertificationRequest{PartitionID: sysID1, NodeID: "2", InputRecord: ir1}, trustBase)
 	require.NoError(t, err)
 	require.Equal(t, QuorumAchieved, res)
 	require.NotNil(t, proof)
 	require.Len(t, proof, 2)
 	require.Equal(t, ir1, proof[0].InputRecord)
 	require.Equal(t, ir1, proof[1].InputRecord)
-	res, proof, err = cs.Add(&certification.BlockCertificationRequest{PartitionID: sysID2, NodeID: "2", InputRecord: ir2}, trustBase)
+	res, proof, err = cs.Add(context.Background(), &certification.BlockCertificationRequest{PartitionID: sysID2, NodeID: "2", InputRecord: ir2}, trustBase)
 	require.NoError(t, err)
 	require.Equal(t, QuorumAchieved, res)
 	require.NotNil(t, proof)
@@ -232,39 +240,39 @@ func TestCertRequestStore_isConsensusReceived_MultiplePartitionIds(t *testing.T)
 	require.Len(t, proof, 2)
 	require.Equal(t, ir2, proof[0].InputRecord)
 	require.Equal(t, ir2, proof[1].InputRecord)
-	// Reset resets both stores
-	cs.Reset()
-	// test all nodeRequest cleared
-	require.Empty(t, cs.get(sysID1, shard).requests)
-	require.Empty(t, cs.get(sysID1, shard).nodeRequest)
+	// Reset partition 1
+	cs.Clear(context.Background(), sysID1, shard)
 	require.Empty(t, cs.get(sysID1, shard).requests)
 	require.Empty(t, cs.get(sysID1, shard).nodeRequest)
 	require.Equal(t, QuorumInProgress, cs.IsConsensusReceived(sysID1, shard, trustBase))
-	require.Equal(t, QuorumInProgress, cs.IsConsensusReceived(sysID1, shard, trustBase))
+	// partition 2 state mustn't have been reset
+	require.Equal(t, QuorumAchieved, cs.IsConsensusReceived(sysID2, shard, trustBase))
 }
 
 func TestCertRequestStore_clearOne(t *testing.T) {
-	cs := NewCertificationRequestBuffer()
+	obs := observability.Default(t)
+	cs, err := NewCertificationRequestBuffer(obs.Meter("test"))
+	require.NoError(t, err)
 	trustBase := partitions.NewPartitionTrustBase(map[string]crypto.Verifier{"1": nil, "2": nil})
 	shard := types.ShardID{}
-	res, proof, err := cs.Add(&certification.BlockCertificationRequest{PartitionID: sysID1, NodeID: "1", InputRecord: ir1}, trustBase)
+	res, proof, err := cs.Add(context.Background(), &certification.BlockCertificationRequest{PartitionID: sysID1, NodeID: "1", InputRecord: ir1}, trustBase)
 	require.NoError(t, err)
 	require.Equal(t, QuorumInProgress, res)
 	require.Nil(t, proof)
-	res, proof, err = cs.Add(&certification.BlockCertificationRequest{PartitionID: sysID2, NodeID: "1", InputRecord: ir2}, trustBase)
+	res, proof, err = cs.Add(context.Background(), &certification.BlockCertificationRequest{PartitionID: sysID2, NodeID: "1", InputRecord: ir2}, trustBase)
 	require.NoError(t, err)
 	require.Equal(t, QuorumInProgress, res)
 	require.Nil(t, proof)
-	res, proof, err = cs.Add(&certification.BlockCertificationRequest{PartitionID: sysID1, NodeID: "2", InputRecord: ir1}, trustBase)
+	res, proof, err = cs.Add(context.Background(), &certification.BlockCertificationRequest{PartitionID: sysID1, NodeID: "2", InputRecord: ir1}, trustBase)
 	require.NoError(t, err)
 	require.Equal(t, QuorumAchieved, res)
 	require.NotNil(t, proof)
-	res, proof, err = cs.Add(&certification.BlockCertificationRequest{PartitionID: sysID2, NodeID: "2", InputRecord: ir2}, trustBase)
+	res, proof, err = cs.Add(context.Background(), &certification.BlockCertificationRequest{PartitionID: sysID2, NodeID: "2", InputRecord: ir2}, trustBase)
 	require.NoError(t, err)
 	require.Equal(t, QuorumAchieved, res)
 	require.NotNil(t, proof)
 	// clear sys id 1
-	cs.Clear(sysID1, shard)
+	cs.Clear(context.Background(), sysID1, shard)
 	require.Empty(t, cs.get(sysID1, shard).requests)
 	require.Empty(t, cs.get(sysID1, shard).nodeRequest)
 	require.Equal(t, QuorumAchieved, cs.IsConsensusReceived(sysID2, shard, trustBase))
@@ -272,17 +280,17 @@ func TestCertRequestStore_clearOne(t *testing.T) {
 }
 
 func TestCertRequestStore_EmptyStore(t *testing.T) {
-	cs := NewCertificationRequestBuffer()
+	obs := observability.Default(t)
+	cs, err := NewCertificationRequestBuffer(obs.Meter("test"))
+	require.NoError(t, err)
 	shard := types.ShardID{}
 	trustBase := partitions.NewPartitionTrustBase(map[string]crypto.Verifier{"1": nil, "2": nil})
 	require.Empty(t, cs.get(sysID1, shard).requests)
 	require.Empty(t, cs.get(sysID1, shard).nodeRequest)
-	require.Empty(t, cs.get(sysID1, shard).requests)
-	require.Empty(t, cs.get(sysID1, shard).nodeRequest)
 	// Reset resets both stores
-	require.NotPanics(t, func() { cs.Reset() })
-	require.NotPanics(t, func() { cs.Clear(sysID1, shard) })
-	require.NotPanics(t, func() { cs.Clear(types.PartitionID(0x1010101), shard) })
+	part2 := types.PartitionID(0x1010101)
+	require.NotPanics(t, func() { cs.Clear(context.Background(), sysID1, shard) })
+	require.NotPanics(t, func() { cs.Clear(context.Background(), part2, shard) })
 	require.Equal(t, QuorumInProgress, cs.IsConsensusReceived(sysID1, shard, trustBase))
-	require.Equal(t, QuorumInProgress, cs.IsConsensusReceived(sysID1, shard, trustBase))
+	require.Equal(t, QuorumInProgress, cs.IsConsensusReceived(part2, shard, trustBase))
 }

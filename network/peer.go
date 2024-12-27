@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"sync"
 
-	"github.com/alphabill-org/alphabill/logger"
 	"github.com/libp2p/go-libp2p"
 	dht "github.com/libp2p/go-libp2p-kad-dht"
 	"github.com/libp2p/go-libp2p/config"
@@ -116,7 +115,7 @@ func NewPeer(ctx context.Context, conf *PeerConfiguration, log *slog.Logger, pro
 	if err = kademliaDHT.Bootstrap(ctx); err != nil {
 		return nil, fmt.Errorf("bootstrapping DHT: %w", err)
 	}
-	log.DebugContext(ctx, fmt.Sprintf("addresses=%v; bootstrap peers=%v", h.Addrs(), conf.BootstrapPeers), logger.NodeID(h.ID()))
+	log.DebugContext(ctx, fmt.Sprintf("addresses=%v; bootstrap peers=%v", h.Addrs(), conf.BootstrapPeers))
 
 	return &Peer{
 		host: h,
@@ -297,7 +296,7 @@ func newDHT(ctx context.Context, h host.Host, bootstrapPeers []peer.AddrInfo, op
 	}
 	routingTable.PeerAdded = func(pid peer.ID) {
 		peerAddedCb(pid)
-		log.DebugContext(ctx, fmt.Sprintf("peer %s added to routing table", pid.String()), logger.NodeID(h.ID()))
+		log.DebugContext(ctx, fmt.Sprintf("peer %s added to routing table", pid.String()))
 		// meter routing table size? -> increase?
 	}
 	return kdht, nil

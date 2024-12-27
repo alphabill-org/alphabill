@@ -184,14 +184,32 @@ func verifyVAR(tx *bolt.Tx, rec *ValidatorAssignmentRecord) error {
 	if rec.EpochNumber == 0 {
 		return errors.New("invalid epoch number, must not be zero")
 	}
-	previousVAR, err := getVAR(tx, rec.PartitionID, rec.ShardID, rec.EpochNumber-1)
+	lastVAR, err := getLastVAR(tx, rec.PartitionID, rec.ShardID)
 	if err != nil {
-		return fmt.Errorf("previous var not found: %w", err)
+		return fmt.Errorf("last var not found: %w", err)
 	}
-	if err = rec.Verify(previousVAR); err != nil {
+	if err = rec.Verify(lastVAR); err != nil {
 		return fmt.Errorf("var does not extend previous var: %w", err)
 	}
 	return err
+}
+
+// getLastVAR returns the last VAR stored in the db for the given partition shard
+func getLastVAR(tx *bolt.Tx, partition types.PartitionID, shard types.ShardID) (*ValidatorAssignmentRecord, error) {
+	_, epochToVarBucket, err := shardBuckets(tx, partition, shard)
+	if err != nil {
+		return nil, err
+	}
+	c := epochToVarBucket.Cursor()
+	_, lastVar := c.Last()
+	if lastVar == nil {
+		return nil, errors.New("latest VAR not found (db is empty?)")
+	}
+	var rec *ValidatorAssignmentRecord
+	if err := json.Unmarshal(lastVar, &rec); err != nil {
+		return nil, fmt.Errorf("failed to parse VAR json: %w", err)
+	}
+	return rec, nil
 }
 
 func shardBuckets(tx *bolt.Tx, partition types.PartitionID, shard types.ShardID) (*bolt.Bucket, *bolt.Bucket, error) {

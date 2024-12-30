@@ -15,18 +15,11 @@ var ErrDuplicateChangeReq = errors.New("duplicate ir change request")
 type (
 	State interface {
 		ShardInfo(partition types.PartitionID, shard types.ShardID) (*storage.ShardInfo, error)
-		GetCertificates() []*types.UnicityCertificate
 		IsChangeInProgress(id types.PartitionID, shard types.ShardID) *types.InputRecord
 	}
 
 	IRChangeReqVerifier struct {
 		params        *Parameters
-		state         State
-		orchestration Orchestration
-	}
-
-	PartitionTimeoutGenerator struct {
-		blockRate     time.Duration
 		state         State
 		orchestration Orchestration
 	}
@@ -98,49 +91,6 @@ func (x *IRChangeReqVerifier) VerifyIRChangeReq(round uint64, irChReq *drctypes.
 		IR:        inputRecord,
 		PDRHash:   pdrHash,
 	}, nil
-}
-
-func NewLucBasedT2TimeoutGenerator(c *Parameters, orchestration Orchestration, sMonitor State) (*PartitionTimeoutGenerator, error) {
-	if sMonitor == nil {
-		return nil, errors.New("state monitor is nil")
-	}
-	if orchestration == nil {
-		return nil, errors.New("orchestration is nil")
-	}
-	if c == nil {
-		return nil, errors.New("consensus params is nil")
-	}
-	return &PartitionTimeoutGenerator{
-		blockRate:     c.BlockRate,
-		orchestration: orchestration,
-		state:         sMonitor,
-	}, nil
-}
-
-func (x *PartitionTimeoutGenerator) GetT2Timeouts(currentRound uint64) (_ []types.PartitionID, retErr error) {
-	pdrs, err := x.orchestration.RoundPartitions(currentRound)
-	if err != nil {
-		return nil, fmt.Errorf("loading PDRs of the round %d: %w", currentRound, err)
-	}
-	timeoutIds := make([]types.PartitionID, 0, len(pdrs))
-	for _, partition := range pdrs {
-		partitionID := partition.PartitionID
-		// do not create T2 timeout requests if partition has a change already in pipeline
-		if ir := x.state.IsChangeInProgress(partitionID, types.ShardID{}); ir != nil {
-			continue
-		}
-		si, err := x.state.ShardInfo(partitionID, types.ShardID{})
-		if err != nil {
-			retErr = errors.Join(retErr, fmt.Errorf("read shard %s info: %w", partitionID, err))
-			// still try to check the rest of the partitions
-			continue
-		}
-		lastRootRound := si.LastCR.UC.UnicitySeal.RootChainRoundNumber
-		if currentRound-lastRootRound >= t2TimeoutToRootRounds(partition.T2Timeout, x.blockRate/2) {
-			timeoutIds = append(timeoutIds, partitionID)
-		}
-	}
-	return timeoutIds, retErr
 }
 
 func t2TimeoutToRootRounds(t2Timeout time.Duration, blockRate time.Duration) uint64 {

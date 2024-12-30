@@ -128,7 +128,7 @@ func Test_ConsensusManager_onPartitionIRChangeReq(t *testing.T) {
 
 	require.NoError(t, cm.onPartitionIRChangeReq(context.Background(), req))
 	// since there is only one root node, it is the next leader, the request will be buffered
-	require.True(t, cm.irReqBuffer.IsChangeInBuffer(partitionID))
+	require.True(t, cm.irReqBuffer.isChangeInBuffer(req.Partition, req.Shard))
 }
 
 func Test_ConsensusManager_onIRChangeMsg_ErrInvalidSignature(t *testing.T) {

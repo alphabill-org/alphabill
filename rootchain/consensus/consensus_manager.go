@@ -85,7 +85,6 @@ type (
 		blockStore     *storage.BlockStore
 		orchestration  Orchestration
 		irReqVerifier  *IRChangeReqVerifier
-		t2Timeouts     *PartitionTimeoutGenerator
 		// votes need to be buffered when CM will be the next leader (so other nodes
 		// will send votes to it) but it hasn't got the proposal yet, so it can't process
 		// the votes. voteBuffer maps author id to vote, so we do not buffer same vote
@@ -147,10 +146,6 @@ func NewConsensusManager(
 	if err != nil {
 		return nil, fmt.Errorf("block verifier construct error: %w", err)
 	}
-	t2TimeoutGen, err := NewLucBasedT2TimeoutGenerator(cParams, orchestration, bStore)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create T2 timeout generator: %w", err)
-	}
 	safetyModule, err := NewSafetyModule(nodeID.String(), signer, optional.Storage)
 	if err != nil {
 		return nil, err
@@ -174,12 +169,11 @@ func NewConsensusManager(
 		pacemaker:      pm,
 		leaderSelector: ls,
 		trustBase:      trustBase,
-		irReqBuffer:    NewIrReqBuffer(log),
+		irReqBuffer:    NewIrReqBuffer(bStore, orchestration.RoundPartitions, cParams.BlockRate, log),
 		safety:         safetyModule,
 		blockStore:     bStore,
 		orchestration:  orchestration,
 		irReqVerifier:  reqVerifier,
-		t2Timeouts:     t2TimeoutGen,
 		voteBuffer:     make(map[string]*abdrc.VoteMsg),
 		recovery:       &recoveryState{},
 		log:            log,
@@ -871,12 +865,11 @@ func (x *ConsensusManager) processNewRoundEvent(ctx context.Context) {
 
 	x.leaderCnt.Add(ctx, 1)
 	x.log.InfoContext(ctx, "new round start, node is leader")
-	// find partitions with T2 timeouts
-	timeoutIds, err := x.t2Timeouts.GetT2Timeouts(round)
+
+	payload, err := x.irReqBuffer.GeneratePayload(ctx, round)
 	if err != nil {
-		// error here is not fatal, still make a proposal, hopefully the next node will generate timeout
-		// requests for partitions this node failed to query
-		x.log.WarnContext(ctx, "failed to check timeouts for some partitions", logger.Error(err))
+		x.log.WarnContext(ctx, "failed to generate proposal payload", logger.Error(err))
+		return
 	}
 	proposalMsg := &abdrc.ProposalMsg{
 		Block: &drctypes.BlockData{
@@ -885,7 +878,7 @@ func (x *ConsensusManager) processNewRoundEvent(ctx context.Context) {
 			Round:     round,
 			Epoch:     0,
 			Timestamp: types.NewTimestamp(),
-			Payload:   x.irReqBuffer.GeneratePayload(round, timeoutIds, x.blockStore.IsChangeInProgress),
+			Payload:   payload,
 			Qc:        x.blockStore.GetHighQc(),
 		},
 		LastRoundTc: x.pacemaker.LastRoundTC(),
@@ -969,14 +962,9 @@ func (x *ConsensusManager) onStateResponse(ctx context.Context, rsp *abdrc.State
 			return fmt.Errorf("failed to add recovery block %d: %w", i, err)
 		}
 	}
-	t2TimeoutGen, err := NewLucBasedT2TimeoutGenerator(x.params, x.orchestration, blockStore)
-	if err != nil {
-		return fmt.Errorf("recovery T2 timeout generator init failed: %w", err)
-	}
 	// all ok
 	x.blockStore = blockStore
 	x.irReqVerifier = reqVerifier
-	x.t2Timeouts = t2TimeoutGen
 	// exit recovery status and replay buffered messages
 	x.log.DebugContext(ctx, "completed recovery")
 	triggerMsg := x.recovery.Clear()

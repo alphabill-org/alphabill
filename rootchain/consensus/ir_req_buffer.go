@@ -1,8 +1,10 @@
 package consensus
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/logger"
@@ -14,25 +16,30 @@ type (
 	IRChangeVerifier interface {
 		VerifyIRChangeReq(round uint64, irChReq *drctypes.IRChangeReq) (*storage.InputData, error)
 	}
-	PartitionTimeout interface {
-		GetT2Timeouts(currenRound uint64) ([]types.PartitionID, error)
-	}
+
 	irChange struct {
 		InputRecord *types.InputRecord
 		Reason      drctypes.IRChangeReason
 		Req         *drctypes.IRChangeReq
 	}
+
 	IrReqBuffer struct {
-		irChgReqBuffer map[types.PartitionID]*irChange
+		irChgReqBuffer map[partitionShard]*irChange
+		blockRate      time.Duration
+		state          State
+		getPartitions  RoundPartitionsFn
 		log            *slog.Logger
 	}
 
-	InProgressFn func(partition types.PartitionID, shard types.ShardID) *types.InputRecord
+	RoundPartitionsFn func(rootRound uint64) ([]*types.PartitionDescriptionRecord, error)
 )
 
-func NewIrReqBuffer(log *slog.Logger) *IrReqBuffer {
+func NewIrReqBuffer(state State, getPartitions RoundPartitionsFn, blockRate time.Duration, log *slog.Logger) *IrReqBuffer {
 	return &IrReqBuffer{
-		irChgReqBuffer: make(map[types.PartitionID]*irChange),
+		irChgReqBuffer: make(map[partitionShard]*irChange),
+		state:          state,
+		getPartitions:  getPartitions,
+		blockRate:      blockRate,
 		log:            log,
 	}
 }
@@ -49,13 +56,14 @@ func (x *IrReqBuffer) Add(round uint64, irChReq *drctypes.IRChangeReq, ver IRCha
 	}
 	irData, err := ver.VerifyIRChangeReq(round, irChReq)
 	if err != nil {
-		return fmt.Errorf("ir change request verification failed, %w", err)
+		return fmt.Errorf("invalid IR Change Request: %w", err)
 	}
 	partitionID := irChReq.Partition
+	key := partitionShard{irChReq.Partition, irChReq.Shard.Key()}
 	// verify and extract proposed IR, NB! in this case we set the age to 0 as
 	// currently no request can be received to request timeout
 	newIrChReq := &irChange{InputRecord: irData.IR, Reason: irChReq.CertReason, Req: irChReq}
-	if irChangeReq, found := x.irChgReqBuffer[partitionID]; found {
+	if irChangeReq, found := x.irChgReqBuffer[key]; found {
 		if irChangeReq.Reason != newIrChReq.Reason {
 			return fmt.Errorf("equivocating request for partition %s, reason has changed", partitionID)
 		}
@@ -71,46 +79,57 @@ func (x *IrReqBuffer) Add(round uint64, irChReq *drctypes.IRChangeReq, ver IRCha
 		return fmt.Errorf("equivocating request for partition %s", partitionID)
 	}
 	// Insert first valid request received and compare the others received against it
-	x.irChgReqBuffer[partitionID] = newIrChReq
+	x.irChgReqBuffer[key] = newIrChReq
 	return nil
 }
 
-// IsChangeInBuffer returns true if there is a request for IR change from the partition
-// in the buffer
-func (x *IrReqBuffer) IsChangeInBuffer(id types.PartitionID) bool {
-	_, found := x.irChgReqBuffer[id]
+/*
+isChangeInBuffer returns true if there is a request for IR change from the shard
+in the buffer
+*/
+func (x *IrReqBuffer) isChangeInBuffer(partition types.PartitionID, shard types.ShardID) bool {
+	_, found := x.irChgReqBuffer[partitionShard{partition, shard.Key()}]
 	return found
 }
 
-// GeneratePayload generates new proposal payload from buffered IR change requests.
-func (x *IrReqBuffer) GeneratePayload(round uint64, timeouts []types.PartitionID, inProgress InProgressFn) *drctypes.Payload {
-	payload := &drctypes.Payload{
-		Requests: make([]*drctypes.IRChangeReq, 0, len(x.irChgReqBuffer)+len(timeouts)),
+func (x *IrReqBuffer) GeneratePayload(ctx context.Context, round uint64) (*drctypes.Payload, error) {
+	partitions, err := x.getPartitions(round)
+	if err != nil {
+		return nil, fmt.Errorf("loading PDRs of the round %d: %w", round, err)
 	}
-	// first add timeout requests
-	for _, id := range timeouts {
-		// if there is a request for the same partition (same id) in buffer (prefer progress to timeout) or
-		// if there is a change already in the pipeline for this partition id
-		if x.IsChangeInBuffer(id) || inProgress(id, types.ShardID{}) != nil {
-			x.log.Debug(fmt.Sprintf("T2 timeout request ignored, partition %s has pending change in progress", id), logger.Shard(id, types.ShardID{}))
-			continue
+	payload := &drctypes.Payload{}
+	for _, pdr := range partitions {
+		timeoutRounds := t2TimeoutToRootRounds(pdr.T2Timeout, x.blockRate/2)
+		partitionID := pdr.PartitionID
+		for shardID := range pdr.Shards.All() {
+			if x.state.IsChangeInProgress(partitionID, shardID) != nil {
+				// if there is a pending block with the shard in progress then do
+				// not propose a change before pending one has been certified
+				x.log.DebugContext(ctx, fmt.Sprintf("shard %s - %s not considered for payload, pending change in pipeline", partitionID, shardID), logger.Shard(partitionID, shardID))
+				continue
+			}
+
+			if req, ok := x.irChgReqBuffer[partitionShard{partitionID, shardID.Key()}]; ok {
+				payload.Requests = append(payload.Requests, req.Req)
+				continue
+			}
+
+			// no change ready for certification, should we generate timeout for the shard?
+			si, err := x.state.ShardInfo(partitionID, shardID)
+			if err != nil {
+				return nil, fmt.Errorf("load shard %s-%s info: %w", partitionID, shardID, err)
+			}
+			if roundsPassed := round - si.LastCR.UC.GetRootRoundNumber(); roundsPassed >= timeoutRounds {
+				payload.Requests = append(payload.Requests, &drctypes.IRChangeReq{
+					Partition:  partitionID,
+					Shard:      shardID,
+					CertReason: drctypes.T2Timeout,
+				})
+				x.log.DebugContext(ctx, fmt.Sprintf("shard %s - %s timeout IRCR generated", partitionID, shardID), logger.Shard(partitionID, shardID))
+			}
 		}
-		x.log.Debug(fmt.Sprintf("partition %s request T2 timeout", id), logger.Shard(id, types.ShardID{}))
-		payload.Requests = append(payload.Requests, &drctypes.IRChangeReq{
-			Partition:  id,
-			CertReason: drctypes.T2Timeout,
-		})
-	}
-	for _, req := range x.irChgReqBuffer {
-		if inProgress(req.Req.Partition, req.Req.Shard) != nil {
-			// if there is a pending block with the partition id in progress then do not propose a change
-			// before last has been certified
-			x.log.Debug(fmt.Sprintf("partition %s request ignored, pending change in pipeline", req.Req.Partition), logger.Shard(req.Req.Partition, req.Req.Shard))
-			continue
-		}
-		payload.Requests = append(payload.Requests, req.Req)
 	}
 	// clear the buffer once payload is done
 	clear(x.irChgReqBuffer)
-	return payload
+	return payload, nil
 }

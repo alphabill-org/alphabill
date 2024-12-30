@@ -628,6 +628,43 @@ func Test_shardStates_nextBlock(t *testing.T) {
 	})
 }
 
+func Test_ShardInfo_selectLeader(t *testing.T) {
+	signer, _ := testsig.CreateSignerAndVerifier(t)
+	pdr := types.PartitionDescriptionRecord{
+		PartitionID: 8,
+	}
+	irEpoch1 := types.InputRecord{
+		RoundNumber: 100,
+		Epoch:       2,
+		Hash:        []byte{1, 2, 3, 4, 5, 6, 7, 8},
+		Timestamp:   20241114100,
+	}
+	ucE1 := testcertificates.CreateUnicityCertificate(t, signer, &irEpoch1, &pdr, 1, nil, nil)
+
+	t.Run("root hash is nil", func(t *testing.T) {
+		si := ShardInfo{
+			RootHash: nil,
+			Fees:     map[string]uint64{"B": 2, "A": 1, "C": 3},
+			Stat: certification.StatisticalRecord{
+				Blocks:       0,
+				BlockFees:    1,
+				BlockSize:    2,
+				StateSize:    3,
+				MaxFee:       4,
+				MaxBlockSize: 5,
+				MaxStateSize: 6,
+			},
+			LastCR: &certification.CertificationResponse{
+				Partition: pdr.PartitionID,
+				UC:        *ucE1,
+			},
+			nodeIDs: []string{"A", "B", "C"},
+		}
+		expectedLeaderID := si.selectLeader(irEpoch1.RoundNumber)
+		require.Equal(t, "B", expectedLeaderID)
+	})
+}
+
 type mockOrchestration struct {
 	shardEpoch  func(partition types.PartitionID, shard types.ShardID, round uint64) (uint64, error)
 	shardConfig func(partition types.PartitionID, shard types.ShardID, epoch uint64) (*partitions.ValidatorAssignmentRecord, error)

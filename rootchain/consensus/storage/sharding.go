@@ -333,7 +333,9 @@ func (si *ShardInfo) Verify(nodeID string, f func(v abcrypto.Verifier) error) er
 
 func (si *ShardInfo) selectLeader(seed uint64) string {
 	extra := si.RootHash
-	seed += (uint64(extra[0]) | uint64(extra[1])<<8 | uint64(extra[2])<<16 | uint64(extra[3])<<24)
+	if len(extra) >= 4 {
+		seed += (uint64(extra[0]) | uint64(extra[1])<<8 | uint64(extra[2])<<16 | uint64(extra[3])<<24)
+	}
 	peerCount := uint64(len(si.nodeIDs))
 
 	return si.nodeIDs[seed%peerCount]

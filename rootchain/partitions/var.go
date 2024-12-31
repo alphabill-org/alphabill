@@ -3,11 +3,8 @@ package partitions
 import (
 	"fmt"
 
-	"github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
-	"github.com/libp2p/go-libp2p/core/peer"
 )
 
 type (
@@ -18,14 +15,7 @@ type (
 		ShardID     types.ShardID     `json:"shardId"`
 		EpochNumber uint64            `json:"epochNo"`
 		RoundNumber uint64            `json:"roundNo"`
-		Nodes       []NodeInfo        `json:"nodes"`
-	}
-
-	NodeInfo struct {
-		_       struct{}  `cbor:",toarray"`
-		NodeID  string    `json:"nodeId"`  // libp2p node identifier (derived from auth key)
-		SignKey hex.Bytes `json:"signKey"` // alphabill signing key
-		AuthKey hex.Bytes `json:"authKey"` // libp2p authentication key
+		Nodes       []*types.NodeInfo `json:"nodes"`
 	}
 )
 
@@ -43,23 +33,23 @@ func NewVARFromGenesis(gpr *genesis.GenesisPartitionRecord) *ValidatorAssignment
 	}
 }
 
-func NewVARNodeFromGenesisNode(pn *genesis.PartitionNode) NodeInfo {
-	return NodeInfo{
-		NodeID:  pn.NodeID,
-		AuthKey: pn.AuthKey,
-		SignKey: pn.SignKey,
+func NewVARNodeFromGenesisNode(pn *genesis.PartitionNode) *types.NodeInfo {
+	return &types.NodeInfo{
+		NodeID: pn.NodeID,
+		SigKey: pn.SignKey,
+		Stake:  1,
 	}
 }
 
-func NewVarNodesFromGenesisNodes(genesisNodes []*genesis.PartitionNode) []NodeInfo {
-	nodes := make([]NodeInfo, 0, len(genesisNodes))
+func NewVarNodesFromGenesisNodes(genesisNodes []*genesis.PartitionNode) []*types.NodeInfo {
+	nodes := make([]*types.NodeInfo, 0, len(genesisNodes))
 	for _, pn := range genesisNodes {
 		nodes = append(nodes, NewVARNodeFromGenesisNode(pn))
 	}
 	return nodes
 }
 
-// Verify verifies the VAR nodes are correctly calculated and that the VAR extends the previous VAR if provided.
+// Verify verifies validator info and that the VAR extends the previous VAR if provided.
 func (v *ValidatorAssignmentRecord) Verify(prev *ValidatorAssignmentRecord) error {
 	if prev != nil {
 		if v.NetworkID != prev.NetworkID {
@@ -79,22 +69,10 @@ func (v *ValidatorAssignmentRecord) Verify(prev *ValidatorAssignmentRecord) erro
 		}
 	}
 
-	// verify the node ids are correctly calculated (no nodes in shard is considered valid)
 	for i, n := range v.Nodes {
-		if err := n.Verify(); err != nil {
+		if err := n.IsValid(); err != nil {
 			return fmt.Errorf("invalid node at idx %d: %w", i, err)
 		}
-	}
-	return nil
-}
-
-// Verify verifies the node id is derived from the auth key
-func (v *NodeInfo) Verify() error {
-	if _, err := peer.Decode(v.NodeID); err != nil {
-		return fmt.Errorf("invalid node id: %w", err)
-	}
-	if _, err := crypto.NewVerifierSecp256k1(v.SignKey); err != nil {
-		return fmt.Errorf("invalid sign key for node %s: %w", v.NodeID, err)
 	}
 	return nil
 }

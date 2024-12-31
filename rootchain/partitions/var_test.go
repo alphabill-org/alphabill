@@ -72,24 +72,24 @@ func TestVerify(t *testing.T) {
 			name: "invalid node sigKey",
 			prev: &ValidatorAssignmentRecord{},
 			next: &ValidatorAssignmentRecord{RoundNumber: 1, EpochNumber: 1,
-				Nodes: []NodeInfo{
+				Nodes: []*types.NodeInfo{
 					{
-						NodeID:  node1ID,
-						AuthKey: node1AuthKey,
-						SignKey: []byte{1},
+						NodeID: node1ID,
+						SigKey: []byte{1},
+						Stake:  1,
 					},
 				}},
-			errMsg: "invalid node at idx 0: invalid sign key for node",
+			errMsg: "invalid node at idx 0: signing key is invalid",
 		},
 		{
 			name: "ok with nodes",
 			prev: &ValidatorAssignmentRecord{},
 			next: &ValidatorAssignmentRecord{RoundNumber: 1, EpochNumber: 1,
-				Nodes: []NodeInfo{
+				Nodes: []*types.NodeInfo{
 					{
-						NodeID:  node1ID,
-						AuthKey: node1AuthKey,
-						SignKey: node1AuthKey,
+						NodeID: node1ID,
+						SigKey: node1AuthKey,
+						Stake:  1,
 					},
 				}},
 		},

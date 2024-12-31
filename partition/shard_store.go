@@ -68,7 +68,7 @@ func (s *shardStore) LoadEpoch(epoch uint64) error {
 			return fmt.Errorf("failed to decode nodeID %s: %w", vi.NodeID, err)
 		}
 
-		verifier, err := crypto.NewVerifierSecp256k1(vi.SignKey)
+		verifier, err := crypto.NewVerifierSecp256k1(vi.SigKey)
 		if err != nil {
 			return fmt.Errorf("failed to create signature verifier for %s: %w", vi.NodeID, err)
 		}

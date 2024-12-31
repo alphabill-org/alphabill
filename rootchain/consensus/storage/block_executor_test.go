@@ -45,12 +45,12 @@ func TestNewExecutedBlockFromGenesis(t *testing.T) {
 	rootGenesis, _, err := rootgenesis.NewRootGenesis(id.String(), rootNode.Signer, nodes)
 	require.NoError(t, err)
 	hash := crypto.Hash(rootGenesis.Root.Consensus.HashAlgorithm)
-	var varNodes []partitions.NodeInfo
+	var varNodes []*types.NodeInfo
 	for _, peer := range peers {
-		varNodes = append(varNodes, partitions.NodeInfo{
-			NodeID:  peer.PeerConf.ID.String(),
-			AuthKey: peer.PeerConf.KeyPair.PublicKey,
-			SignKey: peer.PeerConf.KeyPair.PublicKey,
+		varNodes = append(varNodes, &types.NodeInfo{
+			NodeID: peer.PeerConf.ID.String(),
+			SigKey: peer.PeerConf.KeyPair.PublicKey,
+			Stake:  1,
 		})
 	}
 	b, err := NewGenesisBlock(hash, rootGenesis.Partitions)
@@ -81,12 +81,11 @@ func TestExecutedBlock_Extend(t *testing.T) {
 	rootGenesis, _, err := rootgenesis.NewRootGenesis(id.String(), rootNode.Signer, nodes)
 	require.NoError(t, err)
 	hash := crypto.Hash(rootGenesis.Root.Consensus.HashAlgorithm)
-	var varNodes []partitions.NodeInfo
+	var varNodes []*types.NodeInfo
 	for _, peer := range peers {
-		varNodes = append(varNodes, partitions.NodeInfo{
+		varNodes = append(varNodes, &types.NodeInfo{
 			NodeID:  peer.PeerConf.ID.String(),
-			AuthKey: peer.PeerConf.KeyPair.PublicKey,
-			SignKey: peer.PeerConf.KeyPair.PublicKey,
+			SigKey: peer.PeerConf.KeyPair.PublicKey,
 		})
 	}
 	orchestration := mockOrchestration{

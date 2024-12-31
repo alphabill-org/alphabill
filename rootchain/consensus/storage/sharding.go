@@ -170,7 +170,7 @@ func (si *ShardInfo) resetTrustBase(rec *partitions.ValidatorAssignmentRecord) e
 	si.nodeIDs = make([]string, 0, len(rec.Nodes))
 	si.trustBase = make(map[string]abcrypto.Verifier)
 	for _, n := range rec.Nodes {
-		ver, err := abcrypto.NewVerifierSecp256k1(n.SignKey)
+		ver, err := abcrypto.NewVerifierSecp256k1(n.SigKey)
 		if err != nil {
 			return fmt.Errorf("creating verifier for the node %q: %w", n.NodeID, err)
 		}

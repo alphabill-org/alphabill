@@ -4,6 +4,7 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	testpeer "github.com/alphabill-org/alphabill/internal/testutils/peer"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
@@ -53,10 +54,10 @@ func createVARWithNewNode(t *testing.T, prev *partitions.ValidatorAssignmentReco
 	signKey, err := sigVerifier.MarshalPublicKey()
 	require.NoError(t, err)
 
-	nodes := append(prev.Nodes, partitions.NodeInfo{
+	nodes := append(prev.Nodes, &types.NodeInfo{
 		NodeID: peerConf.ID.String(),
-		AuthKey: peerConf.KeyPair.PublicKey,
-		SignKey: signKey,
+		SigKey: signKey,
+		Stake:  1,
 	})
 
 	return &partitions.ValidatorAssignmentRecord{
@@ -70,7 +71,7 @@ func createVARWithNewNode(t *testing.T, prev *partitions.ValidatorAssignmentReco
 }
 
 func createVARWithRemovedNode(t *testing.T, prev *partitions.ValidatorAssignmentRecord, removeNodeIdx uint) *partitions.ValidatorAssignmentRecord {
-	nodes := make([]partitions.NodeInfo, len(prev.Nodes)-1)
+	nodes := make([]*types.NodeInfo, len(prev.Nodes)-1)
 	copy(nodes[0:], prev.Nodes[:removeNodeIdx])
 	copy(nodes[removeNodeIdx:], prev.Nodes[removeNodeIdx+1:])
 

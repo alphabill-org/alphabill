@@ -298,10 +298,11 @@ func Test_ShardInfo_nextRound(t *testing.T) {
 			ShardID:     types.ShardID{},
 			EpochNumber: 3,
 			RoundNumber: 101,
-			Nodes: []partitions.NodeInfo{
+			Nodes: []*types.NodeInfo{
 				{
 					NodeID: "2222",
-					SignKey: pubKey,
+					SigKey: pubKey,
+					Stake:  1,
 				},
 			},
 		}
@@ -355,10 +356,11 @@ func Test_ShardInfo_NextEpoch(t *testing.T) {
 		ShardID:     types.ShardID{},
 		EpochNumber: 2,
 		RoundNumber: 101,
-		Nodes: []partitions.NodeInfo{
+		Nodes: []*types.NodeInfo{
 			{
 				NodeID: "2222",
-				SignKey: validKey,
+				SigKey: validKey,
+				Stake:  1,
 			},
 		},
 	}

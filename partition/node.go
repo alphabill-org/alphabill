@@ -1780,20 +1780,11 @@ func newVARFromGenesis(genesis *genesis.PartitionGenesis) *partitions.ValidatorA
 	if genesis == nil {
 		return nil
 	}
-
-	validators := make([]partitions.NodeInfo, len(genesis.PartitionValidators))
-	for i, k := range genesis.PartitionValidators {
-		validators[i] = partitions.NodeInfo{
-			NodeID:  k.NodeID,
-			SignKey: k.SigKey,
-		}
-	}
-
 	return &partitions.ValidatorAssignmentRecord{
 		NetworkID:   genesis.PartitionDescription.NetworkID,
 		PartitionID: genesis.PartitionDescription.PartitionID,
 		EpochNumber: genesis.Certificate.InputRecord.Epoch,
 		RoundNumber: genesis.Certificate.GetRoundNumber(),
-		Nodes:       validators,
+		Nodes:       genesis.PartitionValidators,
 	}
 }

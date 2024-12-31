@@ -112,15 +112,10 @@ func rootGenesisRunFunc(config *rootGenesisConfig) error {
 	if err != nil {
 		return fmt.Errorf("failed to extract root ID from public key: %w", err)
 	}
-	authPubKey, err := keys.AuthPrivKey.GetPublic().Raw()
-	if err != nil {
-		return fmt.Errorf("root public key conversion failed: %w", err)
-	}
 
 	rg, pg, err := rootgenesis.NewRootGenesis(
 		peerID.String(),
 		keys.SignPrivKey,
-		authPubKey,
 		nodes,
 		rootgenesis.WithTotalNodes(config.TotalNodes),
 		rootgenesis.WithBlockRate(config.BlockRateMs),

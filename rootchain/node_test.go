@@ -113,11 +113,8 @@ func initRootValidator(t *testing.T, net PartitionNet) (*Node, *testutils.TestNo
 	t.Helper()
 	peers, nodes := testutils.CreatePartitionNodes(t, partitionInputRecord, partitionID, 3)
 	node := testutils.NewTestNode(t)
-	verifier := node.Verifier
-	rootPubKeyBytes, err := verifier.MarshalPublicKey()
-	require.NoError(t, err)
 	id := node.PeerConf.ID
-	rootGenesis, _, err := rootgenesis.NewRootGenesis(id.String(), node.Signer, rootPubKeyBytes, nodes)
+	rootGenesis, _, err := rootgenesis.NewRootGenesis(id.String(), node.Signer, nodes)
 	require.NoError(t, err)
 	cm, err := NewMockConsensus(rootGenesis)
 	require.NoError(t, err)
@@ -133,11 +130,8 @@ func initRootValidator(t *testing.T, net PartitionNet) (*Node, *testutils.TestNo
 func TestRootValidatorTest_ConstructWithDistributedManager(t *testing.T) {
 	_, nodes := testutils.CreatePartitionNodes(t, partitionInputRecord, partitionID, 3)
 	node := testutils.NewTestNode(t)
-	verifier := node.Verifier
-	rootPubKeyBytes, err := verifier.MarshalPublicKey()
-	require.NoError(t, err)
 	id := node.PeerConf.ID
-	rootGenesis, _, err := rootgenesis.NewRootGenesis(id.String(), node.Signer, rootPubKeyBytes, nodes)
+	rootGenesis, _, err := rootgenesis.NewRootGenesis(id.String(), node.Signer, nodes)
 	require.NoError(t, err)
 	partitionNetMock := testnetwork.NewMockNetwork(t)
 	rootHost := testutils.NewTestNode(t)
@@ -164,11 +158,11 @@ func createTrustBaseFromRootGenesis(rootGenesis *genesis.RootGenesis) (types.Roo
 	var trustBaseNodes []*types.NodeInfo
 	var unicityTreeRootHash []byte
 	for _, rn := range rootGenesis.Root.RootValidators {
-		verifier, err := abcrypto.NewVerifierSecp256k1(rn.SignKey)
+		verifier, err := abcrypto.NewVerifierSecp256k1(rn.SigKey)
 		if err != nil {
 			return nil, err
 		}
-		trustBaseNodes = append(trustBaseNodes, types.NewNodeInfo(rn.NodeID, 1, verifier))
+		trustBaseNodes = append(trustBaseNodes, types.NewNodeInfoFromVerifier(rn.NodeID, 1, verifier))
 		// parse unicity tree root hash, optionally sanity check that all root hashes are equal for each partition
 		for _, p := range rootGenesis.Partitions {
 			if len(unicityTreeRootHash) == 0 {

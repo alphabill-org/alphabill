@@ -52,7 +52,7 @@ func newStructBuilder(t *testing.T, peerCnt int) *structBuilder {
 		nodeID := id.String()
 		sb.signers[nodeID] = signer
 		sb.verifiers[nodeID] = verifier
-		nodes = append(nodes, types.NewNodeInfo(nodeID, 1, sb.verifiers[nodeID]))
+		nodes = append(nodes, types.NewNodeInfo(nodeID, 1, pubKey))
 	}
 
 	tb, err := types.NewTrustBaseGenesis(nodes, []byte{1})

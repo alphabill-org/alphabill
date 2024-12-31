@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
-	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtb "github.com/alphabill-org/alphabill/internal/testutils/trustbase"
 	"github.com/stretchr/testify/require"
@@ -14,20 +13,11 @@ import (
 
 func TestPartitionGenesis_IsValid(t *testing.T) {
 	_, verifier := testsig.CreateSignerAndVerifier(t)
-	pubKey, err := verifier.MarshalPublicKey()
+	sigKey, err := verifier.MarshalPublicKey()
 	require.NoError(t, err)
 	trustBase := testtb.NewTrustBase(t, verifier)
-	keyInfo := &PublicKeyInfo{
-		NodeID:  "1",
-		SignKey: pubKey,
-		AuthKey: pubKey,
-	}
-
-	rootKeyInfo := &PublicKeyInfo{
-		NodeID:  "1",
-		SignKey: pubKey,
-		AuthKey: pubKey,
-	}
+	keyInfo := types.NewNodeInfoFromVerifier("1", 1, verifier)
+	rootKeyInfo := types.NewNodeInfoFromVerifier("1", 1, verifier)
 	validPDR := &types.PartitionDescriptionRecord{
 		Version:     1,
 		NetworkID:   5,
@@ -40,8 +30,8 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 	type fields struct {
 		PDR                 *types.PartitionDescriptionRecord
 		Certificate         *types.UnicityCertificate
-		RootValidators      []*PublicKeyInfo
-		PartitionValidators []*PublicKeyInfo
+		RootValidators      []*types.NodeInfo
+		PartitionValidators []*types.NodeInfo
 	}
 	type args struct {
 		verifier      types.RootTrustBase
@@ -57,7 +47,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 			name: "verifier is nil",
 			args: args{verifier: nil},
 			fields: fields{
-				PartitionValidators: []*PublicKeyInfo{keyInfo},
+				PartitionValidators: []*types.NodeInfo{keyInfo},
 			},
 			wantErrStr: ErrTrustBaseIsNil.Error(),
 		},
@@ -65,8 +55,8 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 			name: "system description record is nil",
 			args: args{verifier: trustBase},
 			fields: fields{
-				RootValidators: []*PublicKeyInfo{rootKeyInfo},
-				PartitionValidators:           []*PublicKeyInfo{keyInfo},
+				RootValidators:      []*types.NodeInfo{rootKeyInfo},
+				PartitionValidators: []*types.NodeInfo{keyInfo},
 			},
 			wantErrStr: types.ErrSystemDescriptionIsNil.Error(),
 		},
@@ -74,95 +64,63 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 			name: "keys are missing",
 			args: args{verifier: trustBase, hashAlgorithm: gocrypto.SHA256},
 			fields: fields{
-				PDR:            validPDR,
-				RootValidators: []*PublicKeyInfo{rootKeyInfo},
-				PartitionValidators:           nil,
+				PDR:                 validPDR,
+				RootValidators:      []*types.NodeInfo{rootKeyInfo},
+				PartitionValidators: nil,
 			},
 			wantErrStr: ErrPartitionValidatorsMissing.Error(),
 		},
 		{
-			name: "node signing key info is nil",
+			name: "node info is nil",
 			args: args{verifier: trustBase, hashAlgorithm: gocrypto.SHA256},
 			fields: fields{
-				PDR:            validPDR,
-				RootValidators: []*PublicKeyInfo{rootKeyInfo},
-				PartitionValidators:           []*PublicKeyInfo{nil},
+				PDR:                 validPDR,
+				RootValidators:      []*types.NodeInfo{rootKeyInfo},
+				PartitionValidators: []*types.NodeInfo{nil},
 			},
-			wantErrStr: "partition keys validation failed, public key info is empty",
+			wantErrStr: "invalid partition validators, node info is empty",
 		},
 
 		{
-			name: "key info identifier is empty",
+			name: "node identifier is empty",
+			args: args{verifier: trustBase, hashAlgorithm: gocrypto.SHA256},
+			fields: fields{
+				PDR:                 validPDR,
+				RootValidators:      []*types.NodeInfo{rootKeyInfo},
+				PartitionValidators: []*types.NodeInfo{{NodeID: "", SigKey: sigKey}},
+			},
+			wantErrStr: "invalid partition validators, node identifier is empty",
+		},
+		{
+			name: "signing key is invalid",
 			args: args{verifier: trustBase, hashAlgorithm: gocrypto.SHA256},
 			fields: fields{
 				PDR:            validPDR,
-				RootValidators: []*PublicKeyInfo{rootKeyInfo},
-				PartitionValidators: []*PublicKeyInfo{
-					{NodeID: "", SignKey: pubKey, AuthKey: test.RandomBytes(33)},
-				},
+				RootValidators: []*types.NodeInfo{rootKeyInfo},
+				PartitionValidators: []*types.NodeInfo{&types.NodeInfo{NodeID: "111", SigKey: []byte{1, 2}}},
 			},
-			wantErrStr: "partition keys validation failed, public key info node identifier is empty",
+			wantErrStr: "invalid partition validators, signing key is invalid: pubkey must be 33 bytes long, but is 2",
 		},
 		{
-			name: "signing pub key is invalid",
-			args: args{verifier: trustBase, hashAlgorithm: gocrypto.SHA256},
-			fields: fields{
-				PDR:            validPDR,
-				RootValidators: []*PublicKeyInfo{rootKeyInfo},
-				PartitionValidators:           []*PublicKeyInfo{{NodeID: "111", SignKey: []byte{0, 0}}},
-			},
-			wantErrStr: "partition keys validation failed, invalid signing key: pubkey must be 33 bytes long, but is 2",
-		},
-		{
-			name: "authentication key is invalid",
-			args: args{verifier: trustBase, hashAlgorithm: gocrypto.SHA256},
-			fields: fields{
-				PDR:            validPDR,
-				RootValidators: []*PublicKeyInfo{rootKeyInfo},
-				PartitionValidators:           []*PublicKeyInfo{{NodeID: "111", SignKey: pubKey, AuthKey: []byte{0, 0}}},
-			},
-			wantErrStr: "partition keys validation failed, invalid authentication key: pubkey must be 33 bytes long, but is 2",
-		},
-		{
-			name: "invalid root signing public key",
+			name: "invalid root signing key",
 			args: args{verifier: trustBase},
 			fields: fields{
-				PDR:            validPDR,
-				RootValidators: []*PublicKeyInfo{{NodeID: "1", SignKey: []byte{0}, AuthKey: pubKey}},
-				PartitionValidators:           []*PublicKeyInfo{keyInfo},
+				PDR:                 validPDR,
+				RootValidators:      []*types.NodeInfo{{NodeID: "1", SigKey: []byte{0}}},
+				PartitionValidators: []*types.NodeInfo{keyInfo},
 			},
-			wantErrStr: "root node list validation failed, invalid signing key: pubkey must be 33 bytes long, but is 1",
+			wantErrStr: "invalid root validators, signing key is invalid: pubkey must be 33 bytes long, but is 1",
 		},
 		{
 			name: "certificate is nil",
 			args: args{verifier: trustBase, hashAlgorithm: gocrypto.SHA256},
 			fields: fields{
-				PDR:            validPDR,
-				Certificate:    nil,
-				RootValidators: []*PublicKeyInfo{rootKeyInfo},
-				PartitionValidators:           []*PublicKeyInfo{keyInfo},
+				PDR:                 validPDR,
+				Certificate:         nil,
+				RootValidators:      []*types.NodeInfo{rootKeyInfo},
+				PartitionValidators: []*types.NodeInfo{keyInfo},
 			},
 			wantErrStr: ErrPartitionUnicityCertificateIsNil.Error(),
-		},
-		{
-			name: "authentication key is nil",
-			args: args{verifier: trustBase, hashAlgorithm: gocrypto.SHA256},
-			fields: fields{
-				PDR:            validPDR,
-				RootValidators: []*PublicKeyInfo{{NodeID: "1", SignKey: pubKey, AuthKey: nil}},
-				PartitionValidators:           []*PublicKeyInfo{keyInfo},
-			},
-			wantErrStr: "root node list validation failed, public key info authentication key is invalid",
-		},
-		{
-			name: "authentication key is invalid",
-			args: args{verifier: trustBase, hashAlgorithm: gocrypto.SHA256},
-			fields: fields{
-				PDR:            validPDR,
-				RootValidators: []*PublicKeyInfo{{NodeID: "1", SignKey: pubKey, AuthKey: []byte{0, 0, 0, 0}}},
-				PartitionValidators:           []*PublicKeyInfo{keyInfo},
-			},
-			wantErrStr: "root node list validation failed, invalid authentication key: pubkey must be 33 bytes long, but is 4",
 		},
 	}
 	for _, tt := range tests {

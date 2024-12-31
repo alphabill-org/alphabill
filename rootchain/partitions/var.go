@@ -1,14 +1,12 @@
 package partitions
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
-	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 )
 
@@ -92,16 +90,8 @@ func (v *ValidatorAssignmentRecord) Verify(prev *ValidatorAssignmentRecord) erro
 
 // Verify verifies the node id is derived from the auth key
 func (v *NodeInfo) Verify() error {
-	authKey, err := libp2pcrypto.UnmarshalSecp256k1PublicKey(v.AuthKey)
-	if err != nil {
-		return fmt.Errorf("unmarshal auth key: %w", err)
-	}
-	nodeID, err := peer.IDFromPublicKey(authKey)
-	if err != nil {
-		return err
-	}
-	if nodeID.String() != v.NodeID {
-		return errors.New("node id is not hash of auth key")
+	if _, err := peer.Decode(v.NodeID); err != nil {
+		return fmt.Errorf("invalid node id: %w", err)
 	}
 	if _, err := crypto.NewVerifierSecp256k1(v.SignKey); err != nil {
 		return fmt.Errorf("invalid sign key for node %s: %w", v.NodeID, err)

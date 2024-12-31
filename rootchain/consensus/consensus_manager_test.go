@@ -67,11 +67,8 @@ func readResult(ch <-chan *certification.CertificationResponse, timeout time.Dur
 func initConsensusManager(t *testing.T, net RootNet) (*ConsensusManager, *testutils.TestNode, []*testutils.TestNode, *genesis.RootGenesis) {
 	peers, nodes := testutils.CreatePartitionNodes(t, partitionInputRecord, partitionID, 3)
 	rootNode := testutils.NewTestNode(t)
-	verifier := rootNode.Verifier
-	rootPubKeyBytes, err := verifier.MarshalPublicKey()
-	require.NoError(t, err)
 	id := rootNode.PeerConf.ID
-	rootGenesis, _, err := rootgenesis.NewRootGenesis(id.String(), rootNode.Signer, rootPubKeyBytes, nodes)
+	rootGenesis, _, err := rootgenesis.NewRootGenesis(id.String(), rootNode.Signer, nodes)
 	require.NoError(t, err)
 	trustBase, err := rootGenesis.GenerateTrustBase()
 	require.NoError(t, err)
@@ -1195,13 +1192,9 @@ func TestConsensusManger_RestoreVote(t *testing.T) {
 	net := testnetwork.NewRootMockNetwork()
 	_, nodes := testutils.CreatePartitionNodes(t, partitionInputRecord, partitionID, 3)
 	rootNode := testutils.NewTestNode(t)
-	verifier := rootNode.Verifier
-	rootPubKeyBytes, err := verifier.MarshalPublicKey()
-	require.NoError(t, err)
 	id := rootNode.PeerConf.ID
 	rootGenesis, _, err := rootgenesis.NewRootGenesis(id.String(),
 		rootNode.Signer,
-		rootPubKeyBytes,
 		nodes,
 		rootgenesis.WithBlockRate(200),
 		rootgenesis.WithConsensusTimeout(2200),

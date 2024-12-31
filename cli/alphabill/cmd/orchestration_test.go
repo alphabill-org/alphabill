@@ -77,7 +77,7 @@ func TestRunOrchestrationNode_Ok(t *testing.T) {
 		require.NoError(t, err)
 		rootID, err := peer.IDFromPublicKey(rootAuthKey)
 		require.NoError(t, err)
-		rootGenesis, partitionGenesisFiles, err := rootgenesis.NewRootGenesis(rootID.String(), rootSigner, rootPubKeyBytes, []*genesis.PartitionNode{pn})
+		rootGenesis, partitionGenesisFiles, err := rootgenesis.NewRootGenesis(rootID.String(), rootSigner, []*genesis.PartitionNode{pn})
 		require.NoError(t, err)
 
 		// write partition-genesis.json

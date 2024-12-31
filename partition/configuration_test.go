@@ -143,18 +143,20 @@ func createPartitionGenesis(t *testing.T, nodeSigningKey crypto.Signer, authKey 
 		rootSigner, _ = testsig.CreateSignerAndVerifier(t)
 	}
 	pdr := types.PartitionDescriptionRecord{
-		Version:             1,
+		Version:     1,
 		NetworkID:   5,
 		PartitionID: 0x01000001,
-		TypeIDLen:           8,
-		UnitIDLen:           256,
-		T2Timeout:           2500 * time.Millisecond,
+		TypeIDLen:   8,
+		UnitIDLen:   256,
+		T2Timeout:   2500 * time.Millisecond,
 	}
 	pn := createPartitionNode(t, nodeSigningKey, authKey, pdr, peerConf.ID)
 	_, encPubKey := testsig.CreateSignerAndVerifier(t)
 	rootPubKeyBytes, err := encPubKey.MarshalPublicKey()
 	require.NoError(t, err)
-	_, pg, err := rootgenesis.NewRootGenesis("test", rootSigner, rootPubKeyBytes, []*genesis.PartitionNode{pn})
+	nodeID, err := network.NodeIDFromPublicKeyBytes(rootPubKeyBytes)
+	require.NoError(t, err)
+	_, pg, err := rootgenesis.NewRootGenesis(nodeID.String(), rootSigner, []*genesis.PartitionNode{pn})
 	require.NoError(t, err)
 	return pg[0]
 }

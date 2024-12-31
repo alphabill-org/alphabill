@@ -326,7 +326,7 @@ func TestRunMoneyNode_Ok(t *testing.T) {
 		require.NoError(t, err)
 		rootID, err := peer.IDFromPublicKey(rootAuthKey)
 		require.NoError(t, err)
-		rootGenesis, partitionGenesisFiles, err := rootgenesis.NewRootGenesis(rootID.String(), rootSigner, rootPubKeyBytes, []*genesis.PartitionNode{pn})
+		rootGenesis, partitionGenesisFiles, err := rootgenesis.NewRootGenesis(rootID.String(), rootSigner, []*genesis.PartitionNode{pn})
 		require.NoError(t, err)
 		err = util.WriteJsonFile(partitionGenesisFileLocation, partitionGenesisFiles[0])
 		require.NoError(t, err)

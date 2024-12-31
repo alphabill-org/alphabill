@@ -26,7 +26,6 @@ import (
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/network/protocol/handshake"
 	"github.com/alphabill-org/alphabill/rootchain/partitions"
-	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/multiformats/go-multiaddr"
@@ -161,8 +160,9 @@ func Test_StartSingleNode(t *testing.T) {
 		partitionGenesis := filepath.Join(homeDir, defaultRootChainDir, "partition-genesis-1.json")
 		pg, err := loadPartitionGenesis(partitionGenesis)
 		require.NoError(t, err)
-		rootValidatorAuthKey := pg.RootValidators[0].AuthKey
-		rootID, rootAddress, err := getRootValidatorIDAndMultiAddress(rootValidatorAuthKey, address)
+		rootID, err := peer.Decode(pg.RootValidators[0].NodeID)
+		require.NoError(t, err)
+		rootAddress, err := getRootValidatorMultiAddress(address)
 		require.NoError(t, err)
 		cfg := &startNodeConfiguration{
 			Address:       "/ip4/127.0.0.1/tcp/26652",
@@ -299,8 +299,8 @@ func Test_Start_2_DRCNodes(t *testing.T) {
 		partitionGenesis := filepath.Join(homeDir, defaultRootChainDir+"1", "partition-genesis-1.json")
 		pg, err := loadPartitionGenesis(partitionGenesis)
 		require.NoError(t, err)
-		rootValidatorAuthKey := pg.RootValidators[0].AuthKey
-		rootID, rootAddress, err := getRootValidatorIDAndMultiAddress(rootValidatorAuthKey, address)
+		rootID, err := peer.Decode(pg.RootValidators[0].NodeID)
+		rootAddress, err := getRootValidatorMultiAddress(address)
 		require.NoError(t, err)
 		cfg := &startNodeConfiguration{
 			Address: "/ip4/127.0.0.1/tcp/26652",
@@ -329,20 +329,12 @@ func Test_Start_2_DRCNodes(t *testing.T) {
 	})
 }
 
-func getRootValidatorIDAndMultiAddress(rootAuthKeyBytes []byte, addressStr string) (peer.ID, multiaddr.Multiaddr, error) {
-	rootAuthKey, err := crypto.UnmarshalSecp256k1PublicKey(rootAuthKeyBytes)
-	if err != nil {
-		return "", nil, err
-	}
-	rootID, err := peer.IDFromPublicKey(rootAuthKey)
-	if err != nil {
-		return "", nil, err
-	}
+func getRootValidatorMultiAddress(addressStr string) (multiaddr.Multiaddr, error) {
 	rootAddress, err := multiaddr.NewMultiaddr(addressStr)
 	if err != nil {
-		return "", nil, err
+		return nil, err
 	}
-	return rootID, rootAddress, nil
+	return rootAddress, nil
 }
 
 type mockNode struct {

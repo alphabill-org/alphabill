@@ -28,7 +28,7 @@ func TestTrustBaseStore(t *testing.T) {
 	verifier, err := signer.Verifier()
 	require.NoError(t, err)
 	tb, err = types.NewTrustBaseGenesis(
-		[]*types.NodeInfo{types.NewNodeInfo("test", 1, verifier)},
+		[]*types.NodeInfo{types.NewNodeInfoFromVerifier("test", 1, verifier)},
 		[]byte{100},
 	)
 	require.NoError(t, err)
@@ -40,5 +40,7 @@ func TestTrustBaseStore(t *testing.T) {
 	// verify trust base can be loaded
 	tbFromDB, err := trustBaseStore.LoadTrustBase(0)
 	require.NoError(t, err)
+	_, _ = tb.VerifySignature([]byte{}, []byte{}, "test")
+	_, _ = tbFromDB.VerifySignature([]byte{}, []byte{}, "test")
 	require.Equal(t, tb, tbFromDB)
 }

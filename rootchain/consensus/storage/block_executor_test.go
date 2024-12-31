@@ -41,11 +41,8 @@ func (x *mockIRVerifier) VerifyIRChangeReq(_ uint64, irChReq *drctypes.IRChangeR
 func TestNewExecutedBlockFromGenesis(t *testing.T) {
 	peers, nodes := testutils.CreatePartitionNodes(t, genesisInputRecord, partitionID1, 3)
 	rootNode := testutils.NewTestNode(t)
-	verifier := rootNode.Verifier
-	rootPubKeyBytes, err := verifier.MarshalPublicKey()
-	require.NoError(t, err)
 	id := rootNode.PeerConf.ID
-	rootGenesis, _, err := rootgenesis.NewRootGenesis(id.String(), rootNode.Signer, rootPubKeyBytes, nodes)
+	rootGenesis, _, err := rootgenesis.NewRootGenesis(id.String(), rootNode.Signer, nodes)
 	require.NoError(t, err)
 	hash := crypto.Hash(rootGenesis.Root.Consensus.HashAlgorithm)
 	var varNodes []partitions.NodeInfo
@@ -80,11 +77,8 @@ func TestNewExecutedBlockFromGenesis(t *testing.T) {
 func TestExecutedBlock_Extend(t *testing.T) {
 	peers, nodes := testutils.CreatePartitionNodes(t, genesisInputRecord, partitionID1, 3)
 	rootNode := testutils.NewTestNode(t)
-	verifier := rootNode.Verifier
-	rootPubKeyBytes, err := verifier.MarshalPublicKey()
-	require.NoError(t, err)
 	id := rootNode.PeerConf.ID
-	rootGenesis, _, err := rootgenesis.NewRootGenesis(id.String(), rootNode.Signer, rootPubKeyBytes, nodes)
+	rootGenesis, _, err := rootgenesis.NewRootGenesis(id.String(), rootNode.Signer, nodes)
 	require.NoError(t, err)
 	hash := crypto.Hash(rootGenesis.Root.Consensus.HashAlgorithm)
 	var varNodes []partitions.NodeInfo

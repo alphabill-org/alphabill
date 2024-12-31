@@ -752,8 +752,8 @@ func createConsensusManagers(t *testing.T, count int, nodes []*genesis.Partition
 	signers := map[string]abcrypto.Signer{}
 	var rgr []*genesis.RootGenesis
 	for i := 0; i < count; i++ {
-		nodeID, signer, _, pubkey := generatePeerData(t)
-		rootG, _, err := rootgenesis.NewRootGenesis(nodeID.String(), signer, pubkey, nodes, rootgenesis.WithTotalNodes(uint32(count)), rootgenesis.WithBlockRate(500), rootgenesis.WithConsensusTimeout(2500))
+		nodeID, signer, _, _ := generatePeerData(t)
+		rootG, _, err := rootgenesis.NewRootGenesis(nodeID.String(), signer, nodes, rootgenesis.WithTotalNodes(uint32(count)), rootgenesis.WithBlockRate(500), rootgenesis.WithConsensusTimeout(2500))
 		require.NoError(t, err, "failed to create root genesis")
 		require.NotNil(t, rootG)
 		rgr = append(rgr, rootG)

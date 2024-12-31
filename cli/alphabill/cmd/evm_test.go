@@ -65,7 +65,7 @@ func TestRunEvmNode_StartStop(t *testing.T) {
 	rootID, err := peer.IDFromPublicKey(rootAuthKey)
 	require.NoError(t, err)
 	bootNodeStr := fmt.Sprintf("/ip4/127.0.0.1/tcp/26662/p2p/%s", rootID.String())
-	rootGenesis, partitionGenesisFiles, err := rootgenesis.NewRootGenesis(rootID.String(), rootSigner, rootPubKeyBytes, []*genesis.PartitionNode{pn})
+	rootGenesis, partitionGenesisFiles, err := rootgenesis.NewRootGenesis(rootID.String(), rootSigner, []*genesis.PartitionNode{pn})
 	require.NoError(t, err)
 	err = util.WriteJsonFile(partitionGenesisFileLocation, partitionGenesisFiles[0])
 	require.NoError(t, err)

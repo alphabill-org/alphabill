@@ -13,7 +13,6 @@ func TestVerify(t *testing.T) {
 	require.NoError(t, invalidShardID.UnmarshalText([]byte("0x81")))
 
 	node1ID, node1AuthKey := testutils.RandomNodeID(t)
-	node2ID, _ := testutils.RandomNodeID(t)
 
 	var testCases = []struct {
 		name   string
@@ -68,18 +67,6 @@ func TestVerify(t *testing.T) {
 			prev:   &ValidatorAssignmentRecord{RoundNumber: 1},
 			next:   &ValidatorAssignmentRecord{RoundNumber: 1, EpochNumber: 1},
 			errMsg: "invalid shard round number, provided 1 previous 1",
-		},
-		{
-			name: "invalid node id",
-			prev: &ValidatorAssignmentRecord{},
-			next: &ValidatorAssignmentRecord{RoundNumber: 1, EpochNumber: 1,
-				Nodes: []NodeInfo{
-					{
-						NodeID:  node2ID,
-						AuthKey: node1AuthKey,
-					},
-				}},
-			errMsg: "invalid node at idx 0: node id is not hash of auth key",
 		},
 		{
 			name: "invalid node sigKey",

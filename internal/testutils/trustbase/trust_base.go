@@ -11,7 +11,7 @@ import (
 func NewTrustBase(t *testing.T, verifiers ...crypto.Verifier) types.RootTrustBase {
 	var nodes []*types.NodeInfo
 	for _, v := range verifiers {
-		nodes = append(nodes, types.NewNodeInfo("test", 1, v))
+		nodes = append(nodes, types.NewNodeInfoFromVerifier("test", 1, v))
 	}
 	tb, err := types.NewTrustBaseGenesis(nodes, []byte{1})
 	require.NoError(t, err)
@@ -21,7 +21,7 @@ func NewTrustBase(t *testing.T, verifiers ...crypto.Verifier) types.RootTrustBas
 func NewTrustBaseFromVerifiers(t *testing.T, verifiers map[string]crypto.Verifier) types.RootTrustBase {
 	var nodes []*types.NodeInfo
 	for nodeID, v := range verifiers {
-		nodes = append(nodes, types.NewNodeInfo(nodeID, 1, v))
+		nodes = append(nodes, types.NewNodeInfoFromVerifier(nodeID, 1, v))
 	}
 	tb, err := types.NewTrustBaseGenesis(nodes, []byte{1})
 	require.NoError(t, err)

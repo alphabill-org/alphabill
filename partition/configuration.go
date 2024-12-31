@@ -256,9 +256,9 @@ func (c *configuration) GetT2Timeout() time.Duration {
 func (c *configuration) getRootNodes() (peer.IDSlice, error) {
 	nodes := make(peer.IDSlice, len(c.genesis.RootValidators))
 	for i, node := range c.genesis.RootValidators {
-		id, err := node.GetNodeID()
+		id, err := peer.Decode(node.NodeID)
 		if err != nil {
-			return nil, fmt.Errorf("invalid root node id error: %w", err)
+			return nil, fmt.Errorf("invalid root node id: %w", err)
 		}
 		nodes[i] = id
 	}

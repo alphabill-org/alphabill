@@ -17,13 +17,11 @@ import (
 	rctypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
 )
 
-var ErrAuthPubKeyIsNil = errors.New("authentication public key is nil")
 var ErrSignerIsNil = errors.New("signer is nil")
 
 type (
 	rootGenesisConf struct {
 		peerID             string
-		authKey            []byte
 		signer             abcrypto.Signer
 		totalValidators    uint32
 		blockRateMs        uint32
@@ -42,9 +40,6 @@ func (c *rootGenesisConf) isValid() error {
 	}
 	if c.signer == nil {
 		return ErrSignerIsNil
-	}
-	if len(c.authKey) == 0 {
-		return ErrAuthPubKeyIsNil
 	}
 	if c.totalValidators < 1 {
 		return genesis.ErrInvalidNumberOfRootValidators
@@ -143,14 +138,12 @@ func partitionsFromNodes(nodes []*genesis.PartitionNode) ([]*genesis.GenesisPart
 func NewRootGenesis(
 	nodeID string,
 	signer abcrypto.Signer,
-	authKey []byte,
 	nodes []*genesis.PartitionNode,
 	opts ...Option,
 ) (*genesis.RootGenesis, []*genesis.PartitionGenesis, error) {
 	c := &rootGenesisConf{
 		peerID:             nodeID,
 		signer:             signer,
-		authKey:            authKey,
 		totalValidators:    1,
 		blockRateMs:        genesis.DefaultBlockRateMs,
 		consensusTimeoutMs: genesis.DefaultConsensusTimeout,
@@ -253,9 +246,16 @@ func NewRootGenesis(
 	if err != nil {
 		return nil, nil, fmt.Errorf("unicity certificate generation failed: %w", err)
 	}
-	// create "temporary" trust base to verify self signature
+	// create "temporary" trust base with a single root validator to verify self signature
+	sigKey, err := verifier.MarshalPublicKey()
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to marshal signing key: %w", err)
+	}
+	rootValidators := []*types.NodeInfo{
+		types.NewNodeInfo(nodeID, 1, sigKey),
+	}
 	tb, err := types.NewTrustBaseGenesis(
-		[]*types.NodeInfo{types.NewNodeInfo(nodeID, 1, verifier)},
+		rootValidators,
 		rootHash,
 	)
 	if err != nil {
@@ -269,18 +269,6 @@ func NewRootGenesis(
 		}
 	}
 
-	rootSignKey, err := verifier.MarshalPublicKey()
-	if err != nil {
-		return nil, nil, fmt.Errorf("root public key marshal error: %w", err)
-	}
-
-	// Add local root node info to partition record
-	var rootValidatorInfo = make([]*genesis.PublicKeyInfo, 1)
-	rootValidatorInfo[0] = &genesis.PublicKeyInfo{
-		NodeID:  c.peerID,
-		SignKey: rootSignKey,
-		AuthKey: c.authKey,
-	}
 	for _, p := range partitions {
 		cert, f := certs[p.PartitionDescription.PartitionID]
 		if !f {
@@ -288,7 +276,6 @@ func NewRootGenesis(
 		}
 		p.Certificate = cert
 	}
-
 	// Sign the consensus and append signature
 	consensusParams := &genesis.ConsensusParams{
 		Version:             1,
@@ -303,7 +290,7 @@ func NewRootGenesis(
 	}
 	genesisRoot := &genesis.GenesisRootRecord{
 		Version:        1,
-		RootValidators: rootValidatorInfo,
+		RootValidators: rootValidators,
 		Consensus:      consensusParams,
 	}
 	rootGenesis := &genesis.RootGenesis{
@@ -348,13 +335,9 @@ func TechnicalRecord(ir *types.InputRecord, nodes []string) (tr certification.Te
 func partitionGenesisFromRoot(rg *genesis.RootGenesis) []*genesis.PartitionGenesis {
 	partitionGenesis := make([]*genesis.PartitionGenesis, len(rg.Partitions))
 	for i, partition := range rg.Partitions {
-		var partitionValidators = make([]*genesis.PublicKeyInfo, len(partition.Validators))
+		var partitionValidators = make([]*types.NodeInfo, len(partition.Validators))
 		for j, v := range partition.Validators {
-			partitionValidators[j] = &genesis.PublicKeyInfo{
-				NodeID:  v.NodeID,
-				SignKey: v.SignKey,
-				AuthKey: v.AuthKey,
-			}
+			partitionValidators[j] = types.NewNodeInfo(v.NodeID, 1, v.SignKey)
 		}
 		partitionGenesis[i] = &genesis.PartitionGenesis{
 			PartitionDescription: partition.PartitionDescription,
@@ -459,7 +442,7 @@ func MergeRootGenesisFiles(rootGenesis []*genesis.RootGenesis) (*genesis.RootGen
 	return rg, partitionGenesis, nil
 }
 
-func RootGenesisAddSignature(rootGenesis *genesis.RootGenesis, id string, s abcrypto.Signer, authKey []byte) (*genesis.RootGenesis, error) {
+func RootGenesisAddSignature(rootGenesis *genesis.RootGenesis, nodeID string, signer abcrypto.Signer) (*genesis.RootGenesis, error) {
 	if rootGenesis == nil {
 		return nil, fmt.Errorf("error, root genesis is nil")
 	}
@@ -470,29 +453,24 @@ func RootGenesisAddSignature(rootGenesis *genesis.RootGenesis, id string, s abcr
 		return nil, fmt.Errorf("genesis is already signed by maximum number of root nodes")
 	}
 	// check already signed by node
-	if _, found := rootGenesis.Root.Consensus.Signatures[id]; found {
-		return nil, fmt.Errorf("genesis is already signed by node id %v", id)
+	if _, found := rootGenesis.Root.Consensus.Signatures[nodeID]; found {
+		return nil, fmt.Errorf("genesis is already signed by node id %v", nodeID)
 	}
-	if err := rootGenesis.Root.Consensus.Sign(id, s); err != nil {
+	if err := rootGenesis.Root.Consensus.Sign(nodeID, signer); err != nil {
 		return nil, fmt.Errorf("add signature failed: %w", err)
 	}
-	ver, err := s.Verifier()
+	sigVerifier, err := signer.Verifier()
 	if err != nil {
 		return nil, fmt.Errorf("get verifier failed: %w", err)
 	}
-	rootPublicKey, err := ver.MarshalPublicKey()
+	sigKey, err := sigVerifier.MarshalPublicKey()
 	if err != nil {
-		return nil, fmt.Errorf("marshal public key failed: %w", err)
+		return nil, fmt.Errorf("marsha signing key failed: %w", err)
 	}
-	node := &genesis.PublicKeyInfo{
-		NodeID:  id,
-		SignKey: rootPublicKey,
-		AuthKey: authKey,
-	}
-	rootGenesis.Root.RootValidators = append(rootGenesis.Root.RootValidators, node)
+	rootGenesis.Root.RootValidators = append(rootGenesis.Root.RootValidators, types.NewNodeInfo(nodeID, 1, sigKey))
 	// Update partition records
 	for _, pr := range rootGenesis.Partitions {
-		if err = pr.Certificate.UnicitySeal.Sign(id, s); err != nil {
+		if err = pr.Certificate.UnicitySeal.Sign(nodeID, signer); err != nil {
 			return nil, fmt.Errorf("failed to sign partition %X seal: %w", pr.PartitionDescription.PartitionID, err)
 		}
 	}

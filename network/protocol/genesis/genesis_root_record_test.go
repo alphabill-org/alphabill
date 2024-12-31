@@ -12,7 +12,7 @@ import (
 
 func TestGenesisRootRecord_FindPubKeyById(t *testing.T) {
 	type fields struct {
-		RootValidators []*PublicKeyInfo
+		RootValidators []*types.NodeInfo
 	}
 	type args struct {
 		id string
@@ -21,7 +21,7 @@ func TestGenesisRootRecord_FindPubKeyById(t *testing.T) {
 		name   string
 		fields fields
 		args   args
-		want   *PublicKeyInfo
+		want   *types.NodeInfo
 	}{
 		{
 			name: "The nil test, do not crash",
@@ -34,7 +34,7 @@ func TestGenesisRootRecord_FindPubKeyById(t *testing.T) {
 		{
 			name: "The empty list, do not crash",
 			fields: fields{
-				RootValidators: []*PublicKeyInfo{},
+				RootValidators: []*types.NodeInfo{},
 			},
 			args: args{"test"},
 			want: nil,
@@ -47,7 +47,7 @@ func TestGenesisRootRecord_FindPubKeyById(t *testing.T) {
 				RootValidators: tt.fields.RootValidators,
 				Consensus:      nil,
 			}
-			if got := x.FindPubKeyById(tt.args.id); !reflect.DeepEqual(got, tt.want) {
+			if got := x.FindRootValidatorByNodeID(tt.args.id); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("FindPubKeyById() = %v, want %v", got, tt.want)
 			}
 		})
@@ -56,20 +56,18 @@ func TestGenesisRootRecord_FindPubKeyById(t *testing.T) {
 
 func TestGenesisRootRecord_FindPubKeyById_Nil(t *testing.T) {
 	var rg *GenesisRootRecord = nil
-	require.Nil(t, rg.FindPubKeyById("test"))
-	pubKeyInfo := make([]*PublicKeyInfo, totalNodes)
-	for i := range pubKeyInfo {
+	require.Nil(t, rg.FindRootValidatorByNodeID("test"))
+	nodeInfo := make([]*types.NodeInfo, totalNodes)
+	for i := range nodeInfo {
 		_, verifier := testsig.CreateSignerAndVerifier(t)
-		pubKey, err := verifier.MarshalPublicKey()
-		require.NoError(t, err)
-		pubKeyInfo[i] = &PublicKeyInfo{NodeID: fmt.Sprint(i), SignKey: pubKey, AuthKey: pubKey}
+		nodeInfo[i] = types.NewNodeInfoFromVerifier(fmt.Sprint(i), 1, verifier)
 	}
 	rg = &GenesisRootRecord{
 		Version:        1,
-		RootValidators: pubKeyInfo,
+		RootValidators: nodeInfo,
 	}
-	require.NotNil(t, rg.FindPubKeyById("1"))
-	require.Nil(t, rg.FindPubKeyById("5"))
+	require.NotNil(t, rg.FindRootValidatorByNodeID("1"))
+	require.Nil(t, rg.FindRootValidatorByNodeID("5"))
 }
 
 func TestGenesisRootRecord_IsValid_Nil(t *testing.T) {
@@ -81,8 +79,6 @@ func TestGenesisRootRecord_IsValid_Nil(t *testing.T) {
 func TestGenesisRootRecord_IsValid(t *testing.T) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	_, verifier2 := testsig.CreateSignerAndVerifier(t)
-	pubKey2, err := verifier2.MarshalPublicKey()
-	require.NoError(t, err)
 	consensus := &ConsensusParams{
 		Version:             1,
 		TotalRootValidators: totalNodes,
@@ -90,12 +86,9 @@ func TestGenesisRootRecord_IsValid(t *testing.T) {
 		ConsensusTimeoutMs:  DefaultConsensusTimeout,
 		HashAlgorithm:       hashAlgo,
 	}
-	err = consensus.Sign("test", signer)
-	require.NoError(t, err)
-	pubKey, err := verifier.MarshalPublicKey()
-	require.NoError(t, err)
+	require.NoError(t, consensus.Sign("test", signer))
 	type fields struct {
-		RootValidators []*PublicKeyInfo
+		RootValidators []*types.NodeInfo
 		Consensus      *ConsensusParams
 	}
 	tests := []struct {
@@ -114,14 +107,18 @@ func TestGenesisRootRecord_IsValid(t *testing.T) {
 		{
 			name: "Consensus nil",
 			fields: fields{
-				RootValidators: []*PublicKeyInfo{{NodeID: "test", SignKey: pubKey, AuthKey: pubKey}},
+				RootValidators: []*types.NodeInfo{
+					types.NewNodeInfoFromVerifier("test", 1, verifier),
+				},
 				Consensus:      nil},
 			wantErr: ErrConsensusIsNil.Error(),
 		},
 		{
 			name: "Consensus not valid",
 			fields: fields{
-				RootValidators: []*PublicKeyInfo{{NodeID: "test", SignKey: pubKey, AuthKey: pubKey}},
+				RootValidators: []*types.NodeInfo{
+					types.NewNodeInfoFromVerifier("test", 1, verifier),
+				},
 				Consensus: &ConsensusParams{
 					Version:             1,
 					TotalRootValidators: totalNodes,
@@ -133,7 +130,9 @@ func TestGenesisRootRecord_IsValid(t *testing.T) {
 		{
 			name: "Not signed by validator",
 			fields: fields{
-				RootValidators: []*PublicKeyInfo{{NodeID: "test", SignKey: pubKey, AuthKey: pubKey}},
+				RootValidators: []*types.NodeInfo{
+					types.NewNodeInfoFromVerifier("test", 1, verifier),
+				},
 				Consensus: &ConsensusParams{
 					Version:             1,
 					TotalRootValidators: totalNodes,
@@ -145,9 +144,9 @@ func TestGenesisRootRecord_IsValid(t *testing.T) {
 		{
 			name: "Not signed by all validators",
 			fields: fields{
-				RootValidators: []*PublicKeyInfo{
-					{NodeID: "test", SignKey: pubKey, AuthKey: pubKey},
-					{NodeID: "xxx", SignKey: pubKey2, AuthKey: pubKey2},
+				RootValidators: []*types.NodeInfo{
+					types.NewNodeInfoFromVerifier("test", 1, verifier),
+					types.NewNodeInfoFromVerifier("xxx", 1, verifier2),
 				},
 				Consensus: consensus},
 			wantErr: "consensus parameters is not signed by all validators",
@@ -155,11 +154,10 @@ func TestGenesisRootRecord_IsValid(t *testing.T) {
 		{
 			name: "Duplicate validators",
 			fields: fields{
-				RootValidators: []*PublicKeyInfo{
-					{NodeID: "test", SignKey: pubKey, AuthKey: pubKey},
-					{NodeID: "test", SignKey: pubKey, AuthKey: pubKey},
-					{NodeID: "test", SignKey: pubKey, AuthKey: pubKey},
-					{NodeID: "test", SignKey: pubKey, AuthKey: pubKey},
+				RootValidators: []*types.NodeInfo{
+					types.NewNodeInfoFromVerifier("test", 1, verifier),
+					types.NewNodeInfoFromVerifier("test", 1, verifier),
+					types.NewNodeInfoFromVerifier("test", 1, verifier),
 				},
 				Consensus: consensus},
 			wantErr: "duplicate node id: test",
@@ -167,8 +165,10 @@ func TestGenesisRootRecord_IsValid(t *testing.T) {
 		{
 			name: "Unknown validator",
 			fields: fields{
-				RootValidators: []*PublicKeyInfo{{NodeID: "t", SignKey: pubKey, AuthKey: pubKey}},
-				Consensus:      consensus},
+				RootValidators: []*types.NodeInfo{
+					types.NewNodeInfoFromVerifier("t", 1, verifier2),
+				},
+				Consensus: consensus},
 			wantErr: "consensus parameters signed by unknown validator:",
 		},
 	}
@@ -198,11 +198,9 @@ func TestGenesisRootRecord_IsValidMissingPublicKeyInfo(t *testing.T) {
 	require.NoError(t, err)
 	err = consensus.Sign("test2", signer2)
 	require.NoError(t, err)
-	pubKey, err := verifier.MarshalPublicKey()
-	require.NoError(t, err)
 	x := &GenesisRootRecord{
 		Version:        1,
-		RootValidators: []*PublicKeyInfo{{NodeID: "test", SignKey: pubKey, AuthKey: pubKey}},
+		RootValidators: []*types.NodeInfo{types.NewNodeInfoFromVerifier("test", 1, verifier)},
 		Consensus:      consensus,
 	}
 	require.ErrorContains(t, x.IsValid(), "consensus parameters signed by unknown validator")
@@ -223,20 +221,18 @@ func TestGenesisRootRecord_VerifyOk(t *testing.T) {
 		ConsensusTimeoutMs:  DefaultConsensusTimeout,
 		HashAlgorithm:       hashAlgo,
 	}
-	pubKeyInfo := make([]*PublicKeyInfo, totalNodes)
-	for i := range pubKeyInfo {
+	rootValidators := make([]*types.NodeInfo, totalNodes)
+	for i := range rootValidators {
 		signer, verifier := testsig.CreateSignerAndVerifier(t)
 		err := consensus.Sign(fmt.Sprint(i), signer)
 		require.NoError(t, err)
-		pubKey, err := verifier.MarshalPublicKey()
-		require.NoError(t, err)
-		pubKeyInfo[i] = &PublicKeyInfo{NodeID: fmt.Sprint(i), SignKey: pubKey, AuthKey: pubKey}
+		rootValidators[i] = types.NewNodeInfoFromVerifier(fmt.Sprint(i), 1, verifier)
 	}
 	var x *GenesisRootRecord
 	t.Run("Verify", func(t *testing.T) {
 		x = &GenesisRootRecord{
 			Version:        1,
-			RootValidators: pubKeyInfo,
+			RootValidators: rootValidators,
 			Consensus:      consensus,
 		}
 		require.NoError(t, x.Verify())
@@ -260,20 +256,18 @@ func TestGenesisRootRecord_VerifyErrNoteSignedByAll(t *testing.T) {
 		ConsensusTimeoutMs:  DefaultConsensusTimeout,
 		HashAlgorithm:       hashAlgo,
 	}
-	pubKeyInfo := make([]*PublicKeyInfo, totalNodes)
-	for i := range pubKeyInfo {
+	rootValidators := make([]*types.NodeInfo, totalNodes)
+	for i := range rootValidators {
 		signer, verifier := testsig.CreateSignerAndVerifier(t)
 		err := consensus.Sign(fmt.Sprint(i), signer)
 		require.NoError(t, err)
-		pubKey, err := verifier.MarshalPublicKey()
-		require.NoError(t, err)
-		pubKeyInfo[i] = &PublicKeyInfo{NodeID: fmt.Sprint(i), SignKey: pubKey, AuthKey: pubKey}
+		rootValidators[i] = types.NewNodeInfoFromVerifier(fmt.Sprint(i), 1, verifier)
 	}
 	// remove one signature
-	delete(consensus.Signatures, pubKeyInfo[0].NodeID)
+	delete(consensus.Signatures, rootValidators[0].NodeID)
 	x := &GenesisRootRecord{
 		Version:        1,
-		RootValidators: pubKeyInfo,
+		RootValidators: rootValidators,
 		Consensus:      consensus,
 	}
 	require.ErrorContains(t, x.Verify(), "not signed by all")
@@ -287,18 +281,16 @@ func TestGenesisRootRecord_Verify(t *testing.T) {
 		ConsensusTimeoutMs:  DefaultConsensusTimeout,
 		HashAlgorithm:       hashAlgo,
 	}
-	pubKeyInfo := make([]*PublicKeyInfo, totalNodes)
-	for i := range pubKeyInfo {
+	rootValidators := make([]*types.NodeInfo, totalNodes)
+	for i := range rootValidators {
 		signer, verifier := testsig.CreateSignerAndVerifier(t)
 		err := consensus.Sign(fmt.Sprint(i), signer)
 		require.NoError(t, err)
-		pubKey, err := verifier.MarshalPublicKey()
-		require.NoError(t, err)
-		pubKeyInfo[i] = &PublicKeyInfo{NodeID: fmt.Sprint(i), SignKey: pubKey, AuthKey: pubKey}
+		rootValidators[i] = types.NewNodeInfoFromVerifier(fmt.Sprint(i), 1, verifier)
 	}
 
 	type fields struct {
-		RootValidators []*PublicKeyInfo
+		RootValidators []*types.NodeInfo
 		Consensus      *ConsensusParams
 	}
 	tests := []struct {
@@ -317,14 +309,14 @@ func TestGenesisRootRecord_Verify(t *testing.T) {
 		{
 			name: "Consensus nil",
 			fields: fields{
-				RootValidators: pubKeyInfo,
+				RootValidators: rootValidators,
 				Consensus:      nil},
 			wantErr: ErrConsensusIsNil.Error(),
 		},
 		{
 			name: "Consensus total validators does not match public keys",
 			fields: fields{
-				RootValidators: pubKeyInfo,
+				RootValidators: rootValidators,
 				Consensus:      consensus},
 			wantErr: ErrRootValidatorsSize.Error(),
 		},

@@ -262,7 +262,7 @@ func createHost(ctx context.Context, keys *Keys, cfg *rootNodeConfig) (*network.
 }
 
 func verifyKeyPresentInGenesis(nodeID peer.ID, rg *genesis.GenesisRootRecord, ver abcrypto.Verifier) error {
-	nodeInfo := rg.FindPubKeyById(nodeID.String())
+	nodeInfo := rg.FindRootValidatorByNodeID(nodeID.String())
 	if nodeInfo == nil {
 		return fmt.Errorf("node id/encode key not found in genesis")
 	}
@@ -271,7 +271,7 @@ func verifyKeyPresentInGenesis(nodeID peer.ID, rg *genesis.GenesisRootRecord, ve
 		return fmt.Errorf("invalid root node sign key: %w", err)
 	}
 	// verify that the same public key is present in the genesis file
-	if !bytes.Equal(signKey, nodeInfo.SignKey) {
+	if !bytes.Equal(signKey, nodeInfo.SigKey) {
 		return fmt.Errorf("signing key not found in genesis file")
 	}
 	return nil

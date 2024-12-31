@@ -16,10 +16,9 @@ func TestRootGenesis_IsValid(t *testing.T) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	pubKey, err := verifier.MarshalPublicKey()
 	require.NoError(t, err)
-	rootKeyInfo := &PublicKeyInfo{
-		NodeID:  "1",
-		SignKey: pubKey,
-		AuthKey: pubKey,
+	rootKeyInfo := &types.NodeInfo{
+		NodeID: "1",
+		SigKey: pubKey,
 	}
 	rootConsensus := &ConsensusParams{
 		Version:             1,
@@ -56,17 +55,17 @@ func TestRootGenesis_IsValid(t *testing.T) {
 			wantErr: ErrRootGenesisRecordIsNil.Error(),
 		},
 		{
-			name: "invalid root node info",
+			name: "invalid root validator info",
 			args: args{
 				verifier: verifier,
 			},
 			fields: fields{
 				Root: &GenesisRootRecord{
 					Version:        1,
-					RootValidators: []*PublicKeyInfo{{NodeID: "111", SignKey: nil, AuthKey: nil}},
+					RootValidators: []*types.NodeInfo{{NodeID: "111", SigKey: nil}},
 					Consensus:      rootConsensus},
 			},
-			wantErr: ErrPubKeyInfoSignKeyIsInvalid.Error(),
+			wantErr: "signing key is empty",
 		},
 		{
 			name: "partitions not found",
@@ -76,7 +75,7 @@ func TestRootGenesis_IsValid(t *testing.T) {
 			fields: fields{
 				Root: &GenesisRootRecord{
 					Version:        1,
-					RootValidators: []*PublicKeyInfo{rootKeyInfo},
+					RootValidators: []*types.NodeInfo{rootKeyInfo},
 					Consensus:      rootConsensus,
 				},
 				Partitions: nil,
@@ -91,7 +90,7 @@ func TestRootGenesis_IsValid(t *testing.T) {
 			fields: fields{
 				Root: &GenesisRootRecord{
 					Version:        1,
-					RootValidators: []*PublicKeyInfo{rootKeyInfo},
+					RootValidators: []*types.NodeInfo{rootKeyInfo},
 					Consensus:      rootConsensus,
 				},
 				Partitions: []*GenesisPartitionRecord{
@@ -109,7 +108,7 @@ func TestRootGenesis_IsValid(t *testing.T) {
 					},
 				},
 			},
-			wantErr: "duplicated partition identifier: ",
+			wantErr: "duplicate partition identifier: ",
 		},
 	}
 	for _, tt := range tests {
@@ -154,9 +153,6 @@ func TestRootGenesis(t *testing.T) {
 	rSignKey, err := rVerifier.MarshalPublicKey()
 	require.NoError(t, err)
 
-	_, rAuthVerifier := testsig.CreateSignerAndVerifier(t)
-	rAuthKey, err := rAuthVerifier.MarshalPublicKey()
-	require.NoError(t, err)
 	rootID := "root"
 	unicitySeal := &types.UnicitySeal{
 		Version:              1,
@@ -187,16 +183,16 @@ func TestRootGenesis(t *testing.T) {
 	// add root record
 	rg.Root = &GenesisRootRecord{
 		Version: 1,
-		RootValidators: []*PublicKeyInfo{
-			{NodeID: rootID, SignKey: rSignKey, AuthKey: rAuthKey},
+		RootValidators: []*types.NodeInfo{
+			{NodeID: rootID, Stake: 1, SigKey: rSignKey},
 		},
 		Consensus: consensus,
 	}
-	require.ErrorContains(t, rg.Verify(), "root genesis record error: consensus parameters is not signed by all validators")
+	require.ErrorContains(t, rg.Verify(), "invalid root record: consensus parameters is not signed by all validators")
 	// sign consensus
 	require.NoError(t, consensus.Sign(rootID, rSigner))
 	rg.Root.Consensus = consensus
-	require.ErrorContains(t, rg.Verify(), "root genesis partition record 0 error:")
+	require.ErrorContains(t, rg.Verify(), "invalid partition record at index 0:")
 	// no partitions
 	rgNoPartitions := &RootGenesis{
 		Version:    1,
@@ -231,12 +227,13 @@ func TestRootGenesis(t *testing.T) {
 			},
 		},
 	}
-	require.ErrorContains(t, rgDuplicatePartitions.Verify(), "root genesis duplicate partition error")
+	require.ErrorContains(t, rgDuplicatePartitions.Verify(), "invalid partitions: duplicate partition identifier")
 
 	// test CBOR marshalling
 	rgBytes, err := types.Cbor.Marshal(rg)
 	require.NoError(t, err)
 	rg2 := &RootGenesis{Version: 1}
 	require.NoError(t, types.Cbor.Unmarshal(rgBytes, rg2))
+	require.ErrorContains(t, rg2.Verify(), "invalid partition record at index 0:")
 	require.Equal(t, rg, rg2)
 }

@@ -139,7 +139,6 @@ func newRootPartition(t *testing.T, nofRootNodes uint8, nodePartitions []*NodePa
 		rg, _, err := rootgenesis.NewRootGenesis(
 			peerCfg.ID.String(),
 			rootSigners[i],
-			peerCfg.KeyPair.PublicKey,
 			nodes,
 			rootgenesis.WithTotalNodes(uint32(nofRootNodes)),
 			rootgenesis.WithBlockRate(max(genesis.MinBlockRateMs, 300)), // set block rate at 300 ms to give a bit more time for nodes to bootstrap
@@ -158,7 +157,7 @@ func newRootPartition(t *testing.T, nofRootNodes uint8, nodePartitions []*NodePa
 			peerConf:   peerCfg,
 			homeDir:    t.TempDir(),
 		}
-		trustBaseNodes[i] = types.NewNodeInfo(peerCfg.ID.String(), 1, verifier)
+		trustBaseNodes[i] = types.NewNodeInfoFromVerifier(peerCfg.ID.String(), 1, verifier)
 		for _, p := range rg.Partitions {
 			if len(unicityTreeRootHash) == 0 {
 				unicityTreeRootHash = p.Certificate.UnicitySeal.Hash

@@ -99,12 +99,9 @@ func createInputRequest(t *testing.T, partitionID types.PartitionID, nodeID stri
 }
 
 func Test_rootGenesisConf_isValid(t *testing.T) {
-	sig, ver := testsig.CreateSignerAndVerifier(t)
-	pubKey, err := ver.MarshalPublicKey()
-	require.NoError(t, err)
+	sig, _ := testsig.CreateSignerAndVerifier(t)
 	type fields struct {
 		peerID             string
-		authPubKeyBytes    []byte
 		signer             abcrypto.Signer
 		totalValidators    uint32
 		blockRateMs        uint32
@@ -120,7 +117,6 @@ func Test_rootGenesisConf_isValid(t *testing.T) {
 			name: "ok",
 			fields: fields{
 				peerID:             "1",
-				authPubKeyBytes:    pubKey,
 				signer:             sig,
 				totalValidators:    1,
 				blockRateMs:        genesis.MinBlockRateMs,
@@ -132,7 +128,6 @@ func Test_rootGenesisConf_isValid(t *testing.T) {
 			name: "no peer id",
 			fields: fields{
 				peerID:             "",
-				authPubKeyBytes:    pubKey,
 				signer:             sig,
 				totalValidators:    1,
 				blockRateMs:        genesis.MinBlockRateMs,
@@ -142,26 +137,13 @@ func Test_rootGenesisConf_isValid(t *testing.T) {
 			wantErr: genesis.ErrNodeIDIsEmpty.Error(),
 		},
 		{
-			name: "no pub key",
+			name: "no signer",
 			fields: fields{
 				peerID:             "1",
-				signer:             sig,
 				totalValidators:    1,
 				blockRateMs:        genesis.MinBlockRateMs,
 				consensusTimeoutMs: genesis.MinConsensusTimeout,
 				hashAlgorithm:      gocrypto.SHA256,
-			},
-			wantErr: ErrAuthPubKeyIsNil.Error(),
-		},
-		{
-			name: "no signer",
-			fields: fields{
-				peerID:                "1",
-				authPubKeyBytes: pubKey,
-				totalValidators:       1,
-				blockRateMs:           genesis.MinBlockRateMs,
-				consensusTimeoutMs:    genesis.MinConsensusTimeout,
-				hashAlgorithm:         gocrypto.SHA256,
 			},
 			wantErr: ErrSignerIsNil.Error(),
 		},
@@ -169,7 +151,6 @@ func Test_rootGenesisConf_isValid(t *testing.T) {
 			name: "invalid validators",
 			fields: fields{
 				peerID:             "1",
-				authPubKeyBytes:    pubKey,
 				signer:             sig,
 				totalValidators:    0,
 				blockRateMs:        genesis.MinBlockRateMs,
@@ -182,7 +163,6 @@ func Test_rootGenesisConf_isValid(t *testing.T) {
 			name: "invalid consensus timeout",
 			fields: fields{
 				peerID:             "1",
-				authPubKeyBytes:    pubKey,
 				signer:             sig,
 				totalValidators:    1,
 				blockRateMs:        genesis.MinBlockRateMs,
@@ -195,7 +175,6 @@ func Test_rootGenesisConf_isValid(t *testing.T) {
 			name: "invalid block rate",
 			fields: fields{
 				peerID:             "1",
-				authPubKeyBytes:    pubKey,
 				signer:             sig,
 				totalValidators:    1,
 				blockRateMs:        genesis.MinBlockRateMs - 1,
@@ -209,14 +188,13 @@ func Test_rootGenesisConf_isValid(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			c := &rootGenesisConf{
 				peerID:             tt.fields.peerID,
-				authKey:            tt.fields.authPubKeyBytes,
 				signer:             tt.fields.signer,
 				totalValidators:    tt.fields.totalValidators,
 				blockRateMs:        tt.fields.blockRateMs,
 				consensusTimeoutMs: tt.fields.consensusTimeoutMs,
 				hashAlgorithm:      tt.fields.hashAlgorithm,
 			}
-			err = c.isValid()
+			err := c.isValid()
 			if tt.wantErr != "" {
 				require.ErrorContains(t, err, tt.wantErr)
 				return
@@ -236,10 +214,7 @@ func TestNewGenesis_Ok(t *testing.T) {
 	rootChainSigner, err := abcrypto.NewInMemorySecp256K1Signer()
 	require.NoError(t, err)
 
-	_, verifier := testsig.CreateSignerAndVerifier(t)
-	rootPubKeyBytes, err := verifier.MarshalPublicKey()
-	require.NoError(t, err)
-	rg, ps, err := NewRootGenesis("test", rootChainSigner, rootPubKeyBytes, nodes)
+	rg, ps, err := NewRootGenesis("test", rootChainSigner, nodes)
 	require.NoError(t, err)
 	require.NotNil(t, rg)
 	require.NotNil(t, ps)
@@ -273,10 +248,7 @@ func TestNewGenesis_ConsensusNotPossible(t *testing.T) {
 
 	rootChainSigner, err := abcrypto.NewInMemorySecp256K1Signer()
 	require.NoError(t, err)
-	_, authVerifier := testsig.CreateSignerAndVerifier(t)
-	rootPubKeyBytes, err := authVerifier.MarshalPublicKey()
-	require.NoError(t, err)
-	_, _, err = NewRootGenesis("test", rootChainSigner, rootPubKeyBytes, nodes)
+	_, _, err = NewRootGenesis("test", rootChainSigner, nodes)
 	require.ErrorContains(t, err, "invalid partition nodes: partition id 00000001 node 2 input record is different")
 }
 
@@ -291,11 +263,7 @@ func TestNewGenesisFromPartitionNodes_Ok(t *testing.T) {
 	pn2 := createPartitionNode(t, id, "2", partitionSigner2)
 	rootChainSigner, err := abcrypto.NewInMemorySecp256K1Signer()
 	require.NoError(t, err)
-	rootChainVerifier, err := rootChainSigner.Verifier()
-	require.NoError(t, err)
-	rootPubKeyBytes, err := rootChainVerifier.MarshalPublicKey()
-	require.NoError(t, err)
-	rg, pgs, err := NewRootGenesis("test", rootChainSigner, rootPubKeyBytes, []*genesis.PartitionNode{pn1, pn2})
+	rg, pgs, err := NewRootGenesis("test", rootChainSigner, []*genesis.PartitionNode{pn1, pn2})
 	require.NoError(t, err)
 	require.NotNil(t, rg)
 	require.Equal(t, 2, len(rg.Partitions[0].Validators))
@@ -316,11 +284,7 @@ func TestNewGenesisForMultiplePartitions_Ok(t *testing.T) {
 	pn3 := createPartitionNode(t, partitionID3, "3", partitionSigner3)
 	rootChainSigner, err := abcrypto.NewInMemorySecp256K1Signer()
 	require.NoError(t, err)
-	rootChainVerifier, err := rootChainSigner.Verifier()
-	require.NoError(t, err)
-	rootPubKeyBytes, err := rootChainVerifier.MarshalPublicKey()
-	require.NoError(t, err)
-	rg, pgs, err := NewRootGenesis("test", rootChainSigner, rootPubKeyBytes, []*genesis.PartitionNode{pn1, pn2, pn3})
+	rg, pgs, err := NewRootGenesis("test", rootChainSigner, []*genesis.PartitionNode{pn1, pn2, pn3})
 	require.NoError(t, err)
 	require.NotNil(t, rg)
 	require.Equal(t, 1, len(rg.Partitions[0].Validators))
@@ -343,16 +307,7 @@ func TestNewGenesis_AddSignature(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, err)
 
-	_, verifier := testsig.CreateSignerAndVerifier(t)
-	rootPubKeyBytes, err := verifier.MarshalPublicKey()
-	require.NoError(t, err)
-	rg, ps, err := NewRootGenesis(
-		"test1",
-		rootChainSigner,
-		rootPubKeyBytes,
-		nodes,
-		WithTotalNodes(2),
-	)
+	rg, ps, err := NewRootGenesis("test1", rootChainSigner,	nodes, WithTotalNodes(2))
 	require.NoError(t, err)
 	require.Equal(t, uint32(2), rg.Root.Consensus.TotalRootValidators)
 	require.NoError(t, err)
@@ -363,16 +318,13 @@ func TestNewGenesis_AddSignature(t *testing.T) {
 	// not yet signed by all root validators
 	require.Error(t, rg.Verify())
 	// try to sign again using the same key and id
-	rg2, err := RootGenesisAddSignature(rg, "test1", rootChainSigner, rootPubKeyBytes)
+	rg2, err := RootGenesisAddSignature(rg, "test1", rootChainSigner)
 	require.ErrorContains(t, err, "genesis is already signed by node id test1")
 	require.Nil(t, rg2)
 
 	rootChainSigner2, err := abcrypto.NewInMemorySecp256K1Signer()
 	require.NoError(t, err)
-	_, verifier2 := testsig.CreateSignerAndVerifier(t)
-	rootPubKeyBytes2, err := verifier2.MarshalPublicKey()
-	require.NoError(t, err)
-	rg, err = RootGenesisAddSignature(rg, "test2", rootChainSigner2, rootPubKeyBytes2)
+	rg, err = RootGenesisAddSignature(rg, "test2", rootChainSigner2)
 	require.NoError(t, err)
 	require.NotNil(t, rg)
 	// validate
@@ -385,10 +337,7 @@ func TestNewGenesis_AddSignature(t *testing.T) {
 	// Test not possible to add another signature - total nodes is 3
 	rootChainSigner3, err := abcrypto.NewInMemorySecp256K1Signer()
 	require.NoError(t, err)
-	_, verifier3 := testsig.CreateSignerAndVerifier(t)
-	rootPubKeyBytes3, err := verifier3.MarshalPublicKey()
-	require.NoError(t, err)
-	rg, err = RootGenesisAddSignature(rg, "test3", rootChainSigner3, rootPubKeyBytes3)
+	rg, err = RootGenesisAddSignature(rg, "test3", rootChainSigner3)
 	require.ErrorContains(t, err, "genesis is already signed by maximum number of root nodes")
 	require.Nil(t, rg)
 }
@@ -402,14 +351,8 @@ func TestNewGenesis_MergeGenesisFiles(t *testing.T) {
 	const totalRootNodes = 2
 	s1, err := abcrypto.NewInMemorySecp256K1Signer()
 	require.NoError(t, err)
-	_, v1 := testsig.CreateSignerAndVerifier(t)
-	rootPubKeyBytes, err := v1.MarshalPublicKey()
-	require.NoError(t, err)
 	// generate root genesis 1
-	rg1, _, err := NewRootGenesis("test1",
-		s1,
-		rootPubKeyBytes,
-		nodes,
+	rg1, _, err := NewRootGenesis("test1", s1, nodes,
 		WithTotalNodes(totalRootNodes),
 		WithBlockRate(genesis.MinBlockRateMs),
 		WithConsensusTimeout(genesis.MinBlockRateMs+genesis.MinConsensusTimeout))
@@ -418,13 +361,7 @@ func TestNewGenesis_MergeGenesisFiles(t *testing.T) {
 	// generate genesis 2
 	s2, err := abcrypto.NewInMemorySecp256K1Signer()
 	require.NoError(t, err)
-	_, v2 := testsig.CreateSignerAndVerifier(t)
-	rootPubKeyBytes2, err := v2.MarshalPublicKey()
-	require.NoError(t, err)
-	rg2, _, err := NewRootGenesis("test2",
-		s2,
-		rootPubKeyBytes2,
-		nodes,
+	rg2, _, err := NewRootGenesis("test2", s2, nodes,
 		WithTotalNodes(totalRootNodes),
 		WithBlockRate(genesis.MinBlockRateMs),
 		WithConsensusTimeout(genesis.MinBlockRateMs+genesis.MinConsensusTimeout))
@@ -466,11 +403,8 @@ func createRootGenesis(t *testing.T) *genesis.RootGenesis {
 
 	var rgs []*genesis.RootGenesis
 	for i := 1; i <= 3; i++ {
-		rootSigner, rootVerifier := testsig.CreateSignerAndVerifier(t)
-		rootPubKey, err := rootVerifier.MarshalPublicKey()
-		require.NoError(t, err)
-
-		rg, pgs, err := NewRootGenesis(fmt.Sprintf("test-%d", i), rootSigner, rootPubKey, []*genesis.PartitionNode{partitionNode})
+		rootSigner, _ := testsig.CreateSignerAndVerifier(t)
+		rg, pgs, err := NewRootGenesis(fmt.Sprintf("test-%d", i), rootSigner, []*genesis.PartitionNode{partitionNode})
 		require.NoError(t, err)
 		require.NotNil(t, rg)
 		require.Len(t, pgs, 1)

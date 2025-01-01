@@ -9,6 +9,7 @@ import (
 
 	"github.com/alphabill-org/alphabill-go-base/types"
 	basehex "github.com/alphabill-org/alphabill-go-base/types/hex"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
@@ -16,7 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var zeroHash = make([]byte, gocrypto.SHA256.Size())
+var randomHash = test.RandomBytes(32)
 
 var inputRecord1 = &types.InputRecord{
 	Version:      1,
@@ -28,11 +29,11 @@ var inputRecord1 = &types.InputRecord{
 	Timestamp:    202411131,
 }
 var pdr1 = &types.PartitionDescriptionRecord{
-	Version:           1,
-	NetworkID: 5,
-	PartitionID:       partitionID1,
-	PartitionTypeID:   1,
-	T2Timeout:         2500 * time.Millisecond,
+	Version:         1,
+	NetworkID:       5,
+	PartitionID:     partitionID1,
+	PartitionTypeID: 1,
+	T2Timeout:       2500 * time.Millisecond,
 }
 var inputRecord2 = &types.InputRecord{
 	Version:      1,
@@ -44,11 +45,11 @@ var inputRecord2 = &types.InputRecord{
 	Timestamp:    202411132,
 }
 var pdr2 = &types.PartitionDescriptionRecord{
-	Version:           1,
-	NetworkID: 5,
-	PartitionID:       partitionID2,
-	PartitionTypeID:   2,
-	T2Timeout:         2500 * time.Millisecond,
+	Version:         1,
+	NetworkID:       5,
+	PartitionID:     partitionID2,
+	PartitionTypeID: 2,
+	T2Timeout:       2500 * time.Millisecond,
 }
 
 var roundInfo = &drctypes.RoundInfo{
@@ -134,11 +135,11 @@ func mockExecutedBlock(round, qcRound, qcParentRound uint64) *ExecutedBlock {
 					RoundNumber:       qcRound,
 					ParentRoundNumber: qcParentRound,
 					Epoch:             0,
-					CurrentRootHash:   zeroHash,
+					CurrentRootHash:   randomHash,
 				},
 				LedgerCommitInfo: &types.UnicitySeal{
 					Version: 1,
-					Hash:    zeroHash,
+					Hash:    randomHash,
 				},
 			},
 		},
@@ -336,8 +337,8 @@ func TestBlockTree_pruning(t *testing.T) {
 
 func TestBlockTree_InsertQc(t *testing.T) {
 	tree := createTestBlockTree(t)
-	require.ErrorContains(t, tree.InsertQc(&drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 2, CurrentRootHash: zeroHash}}), "find block: block for round 2 not found")
-	require.ErrorContains(t, tree.InsertQc(&drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 12, CurrentRootHash: zeroHash}}), "qc state hash is different from local computed state hash")
+	require.ErrorContains(t, tree.InsertQc(&drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 2, CurrentRootHash: nil}}), "find block: block for round 2 not found")
+	require.ErrorContains(t, tree.InsertQc(&drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 12, CurrentRootHash: randomHash}}), "qc state hash is different from local computed state hash")
 	b, err := tree.FindBlock(12)
 	require.NoError(t, err)
 	b.RootHash = []byte{1, 2, 3}
@@ -588,9 +589,9 @@ func TestAddAndCommit(t *testing.T) {
 	b.CurrentIR = append(b.CurrentIR, &InputData{
 		Partition: 1,
 		IR:        &types.InputRecord{},
-		PDRHash:   zeroHash,
+		PDRHash:   nil,
 	})
-	b.RootHash = hexToBytes("D590B8746A434BA265DCAAD50750E669F85FE81EC6A6F1F6A66F6792B41357CB")
+	b.RootHash = hexToBytes("955486064743538FB1EA182505025D1BEC57BB07D6FA06DE3F31322447055D1B")
 
 	commitQc := &drctypes.QuorumCert{
 		VoteInfo: &drctypes.RoundInfo{

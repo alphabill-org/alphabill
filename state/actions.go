@@ -33,13 +33,13 @@ func AddUnit(id types.UnitID, data types.UnitData) Action {
 
 		unitDataSummaryValue := d.SummaryValueInput()
 		hasher := abhash.New(hashAlgorithm.New())
-		// 4.10.1: h = H(ι, ⊥, V; 0H, V0; 0H, V0)
+		// h = H(ι, ⊥, V; ⊥, V0; ⊥, V0)
 		hasher.Write(id)
 		hasher.Write(nil)
 		hasher.Write(unitDataSummaryValue)
-		hasher.Write(make([]byte, hashAlgorithm.Size()))
+		hasher.Write(nil)
 		hasher.Write(uint64(0))
-		hasher.Write(make([]byte, hashAlgorithm.Size()))
+		hasher.Write(nil)
 		hasher.Write(uint64(0))
 		subTreeSummaryHash, err := hasher.Sum()
 		if err != nil {
@@ -68,13 +68,13 @@ func AddUnitWithLock(id types.UnitID, data types.UnitData, l []byte) Action {
 
 		unitDataSummaryValue := d.SummaryValueInput()
 		hasher := abhash.New(hashAlgorithm.New())
-		// 4.10.1: h = H(ι, ⊥, V; 0H, V0; 0H, V0)
+		// h = H(ι, ⊥, V; ⊥, V0; ⊥, V0)
 		hasher.Write(id)
 		hasher.Write(nil)
 		hasher.Write(unitDataSummaryValue)
-		hasher.Write(make([]byte, hashAlgorithm.Size()))
+		hasher.Write(nil)
 		hasher.Write(uint64(0))
-		hasher.Write(make([]byte, hashAlgorithm.Size()))
+		hasher.Write(nil)
 		hasher.Write(uint64(0))
 		subTreeSummaryHash, err := hasher.Sum()
 		if err != nil {

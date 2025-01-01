@@ -411,7 +411,7 @@ func (m *GenericTxSystem) TypeID() types.PartitionTypeID {
 	return m.pdr.PartitionTypeID
 }
 
-func (m *GenericTxSystem) GetUnit(id types.UnitID, committed bool) (*state.Unit, error) {
+func (m *GenericTxSystem) GetUnit(id types.UnitID, committed bool) (state.VersionedUnit, error) {
 	return m.state.GetUnit(id, committed)
 }
 

@@ -35,8 +35,16 @@ type (
 		savepoints []*tree
 	}
 
-	tree = avl.Tree[types.UnitID, *Unit]
-	node = avl.Node[types.UnitID, *Unit]
+	VersionedUnit interface {
+		//comparable
+		types.Versioned
+		avl.Value[VersionedUnit]
+
+		GetV1() *Unit
+	}
+
+	tree = avl.Tree[types.UnitID, VersionedUnit]
+	node = avl.Node[types.UnitID, VersionedUnit]
 
 	// UnitDataConstructor is a function that constructs an empty UnitData structure based on UnitID
 	UnitDataConstructor func(types.UnitID) (types.UnitData, error)
@@ -46,7 +54,7 @@ func NewEmptyState(opts ...Option) *State {
 	options := loadOptions(opts...)
 
 	hasher := newStateHasher(options.hashAlgorithm)
-	t := avl.NewWithTraverser[types.UnitID, *Unit](hasher)
+	t := avl.NewWithTraverser[types.UnitID, VersionedUnit](hasher)
 
 	return &State{
 		hashAlgorithm: options.hashAlgorithm,
@@ -87,7 +95,7 @@ func NewRecoveredState(stateData io.Reader, udc UnitDataConstructor, opts ...Opt
 	}
 
 	hasher := newStateHasher(options.hashAlgorithm)
-	t := avl.NewWithTraverserAndRoot[types.UnitID, *Unit](hasher, root)
+	t := avl.NewWithTraverserAndRoot[types.UnitID, VersionedUnit](hasher, root)
 	state := &State{
 		hashAlgorithm: options.hashAlgorithm,
 		savepoints:    []*tree{t},
@@ -157,7 +165,7 @@ func readNodeRecords(decoder *cbor.Decoder, unitDataConstructor UnitDataConstruc
 			left = nodeStack.Pop()
 		}
 
-		nodeStack.Push(avl.NewBalancedNode(nodeRecord.UnitID, unit, left, right))
+		nodeStack.Push(avl.NewBalancedNode(nodeRecord.UnitID, VersionedUnit(unit), left, right))
 	}
 
 	root := nodeStack.Pop()
@@ -180,7 +188,7 @@ func (s *State) Clone() *State {
 	}
 }
 
-func (s *State) GetUnit(id types.UnitID, committed bool) (*Unit, error) {
+func (s *State) GetUnit(id types.UnitID, committed bool) (VersionedUnit, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 	if committed {
@@ -201,7 +209,7 @@ func (s *State) AddUnitLog(id types.UnitID, transactionRecordHash []byte) error 
 	if err != nil {
 		return fmt.Errorf("unable to add unit log for unit %v: %w", id, err)
 	}
-	unit := u.Clone()
+	unit := u.Clone().GetV1()
 	logsCount := len(unit.logs)
 	l := &Log{
 		TxRecordHash:   transactionRecordHash,
@@ -253,8 +261,9 @@ func (s *State) Commit(uc *types.UnicityCertificate) error {
 	var summaryValue uint64
 	var summaryHash []byte
 	if sp.Root() != nil {
-		summaryValue = sp.Root().Value().subTreeSummaryValue
-		summaryHash = sp.Root().Value().subTreeSummaryHash
+		unit := sp.Root().Value().GetV1()
+		summaryValue = unit.subTreeSummaryValue
+		summaryHash = unit.subTreeSummaryHash
 	} else {
 		summaryHash = make([]byte, s.hashAlgorithm.Size())
 	}
@@ -326,7 +335,7 @@ func (s *State) CalculateRoot() (uint64, []byte, error) {
 	if root == nil {
 		return 0, nil, nil
 	}
-	value := root.Value()
+	value := root.Value().GetV1()
 	return value.subTreeSummaryValue, value.subTreeSummaryHash, nil
 }
 
@@ -400,11 +409,12 @@ func (s *State) Serialize(writer io.Writer, committed bool) error {
 func (s *State) CreateUnitStateProof(id types.UnitID, logIndex int) (*types.UnitStateProof, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
-	unit, err := s.committedTree.Get(id)
+	u, err := s.committedTree.Get(id)
 	if err != nil {
 		return nil, fmt.Errorf("unable to get unit %v: %w", id, err)
 	}
 
+	unit := u.GetV1()
 	if len(unit.logs) < logIndex {
 		return nil, fmt.Errorf("invalid unit %v log index: %d", id, logIndex)
 	}
@@ -449,7 +459,7 @@ func (s *State) HashAlgorithm() crypto.Hash {
 	return s.hashAlgorithm
 }
 
-func (s *State) Traverse(traverser avl.Traverser[types.UnitID, *Unit]) error {
+func (s *State) Traverse(traverser avl.Traverser[types.UnitID, VersionedUnit]) error {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 	return s.committedTree.Traverse(traverser)
@@ -525,7 +535,7 @@ func (s *State) createStateTreeCert(id types.UnitID) (*types.StateTreeCert, erro
 func (s *State) createSavepoint() int {
 	clonedSavepoint := s.latestSavepoint().Clone()
 	// mark AVL Tree nodes as clean
-	clonedSavepoint.Traverse(&avl.PostOrderCommitTraverser[types.UnitID, *Unit]{})
+	clonedSavepoint.Traverse(&avl.PostOrderCommitTraverser[types.UnitID, VersionedUnit]{})
 	s.savepoints = append(s.savepoints, clonedSavepoint)
 	return len(s.savepoints) - 1
 }
@@ -561,7 +571,7 @@ func isRootClean(s *tree) bool {
 	if root == nil {
 		return true
 	}
-	return root.Value().summaryCalculated
+	return root.Value().GetV1().summaryCalculated
 }
 
 // latestSavepoint returns the latest savepoint.
@@ -571,29 +581,29 @@ func (s *State) latestSavepoint() *tree {
 }
 
 func getSummaryValueInput(n *node) uint64 {
-	if n == nil || n.Value() == nil || n.Value().data == nil {
+	if n == nil || n.Value() == nil || n.Value().GetV1().data == nil {
 		return 0
 	}
-	return n.Value().data.SummaryValueInput()
+	return n.Value().GetV1().data.SummaryValueInput()
 }
 
 func getSubTreeSummaryValue(n *node) uint64 {
 	if n == nil || n.Value() == nil {
 		return 0
 	}
-	return n.Value().subTreeSummaryValue
+	return n.Value().GetV1().subTreeSummaryValue
 }
 
 func getSubTreeLogsHash(n *node) []byte {
 	if n == nil || n.Value() == nil {
 		return nil
 	}
-	return n.Value().logsHash
+	return n.Value().GetV1().logsHash
 }
 
 func getSubTreeSummaryHash(n *node) []byte {
 	if n == nil || n.Value() == nil {
 		return nil
 	}
-	return n.Value().subTreeSummaryHash
+	return n.Value().GetV1().subTreeSummaryHash
 }

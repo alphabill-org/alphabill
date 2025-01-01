@@ -41,7 +41,7 @@ func newStateSerializer(encoder func(any) error, hashAlgorithm crypto.Hash) *sta
 	}
 }
 
-func (s *stateSerializer) Traverse(n *avl.Node[types.UnitID, *Unit]) error {
+func (s *stateSerializer) Traverse(n *avl.Node[types.UnitID, VersionedUnit]) error {
 	if n == nil {
 		return nil
 	}
@@ -56,8 +56,8 @@ func (s *stateSerializer) Traverse(n *avl.Node[types.UnitID, *Unit]) error {
 	return s.WriteNode(n)
 }
 
-func (s *stateSerializer) WriteNode(n *avl.Node[types.UnitID, *Unit]) error {
-	unit := n.Value()
+func (s *stateSerializer) WriteNode(n *avl.Node[types.UnitID, VersionedUnit]) error {
+	unit := n.Value().GetV1()
 	logSize := len(unit.logs)
 	if logSize == 0 {
 		return fmt.Errorf("unit state log is empty")

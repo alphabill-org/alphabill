@@ -20,7 +20,7 @@ type (
 	}
 
 	StateReader interface {
-		GetUnit(id types.UnitID, committed bool) (*state.Unit, error)
+		GetUnit(id types.UnitID, committed bool) (state.VersionedUnit, error)
 	}
 )
 
@@ -49,7 +49,7 @@ func (f *FeeBalanceValidator) IsCredible(exeCtx txtypes.ExecutionContext, tx *ty
 	if fcrUnit == nil {
 		return errors.New("fee credit record unit is nil")
 	}
-	fcr, ok := fcrUnit.Data().(*fc.FeeCreditRecord)
+	fcr, ok := fcrUnit.GetV1().Data().(*fc.FeeCreditRecord)
 	if !ok {
 		return errors.New("invalid fee credit record type")
 	}

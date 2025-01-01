@@ -12,7 +12,7 @@ import (
 // stateHasher calculates the root hash of the state tree (see "Invariants of the State Tree" chapter from the
 // yellowpaper for more information).
 type stateHasher struct {
-	avl.PostOrderCommitTraverser[types.UnitID, *Unit]
+	avl.PostOrderCommitTraverser[types.UnitID, VersionedUnit]
 	hashAlgorithm crypto.Hash
 }
 
@@ -22,8 +22,8 @@ func newStateHasher(hashAlgorithm crypto.Hash) *stateHasher {
 
 // Traverse visits changed nodes in the state tree and recalculates a new root hash of the state tree.
 // Executed when the State.Commit function is called.
-func (p *stateHasher) Traverse(n *avl.Node[types.UnitID, *Unit]) error {
-	if n == nil || (n.Clean() && n.Value().summaryCalculated) {
+func (p *stateHasher) Traverse(n *avl.Node[types.UnitID, VersionedUnit]) error {
+	if n == nil || (n.Clean() && n.Value().GetV1().summaryCalculated) {
 		return nil
 	}
 	var left = n.Left()
@@ -35,7 +35,7 @@ func (p *stateHasher) Traverse(n *avl.Node[types.UnitID, *Unit]) error {
 		return err
 	}
 
-	unit := n.Value()
+	unit := n.Value().GetV1()
 
 	// h_s - calculate state log root hash
 	// Skip this step if state has been recovered from file and logsHash is already present.

@@ -9,7 +9,7 @@ type stateSize struct {
 	size uint64
 }
 
-func (ss *stateSize) Traverse(n *avl.Node[types.UnitID, *Unit]) error {
+func (ss *stateSize) Traverse(n *avl.Node[types.UnitID, VersionedUnit]) error {
 	if n == nil {
 		return nil
 	}

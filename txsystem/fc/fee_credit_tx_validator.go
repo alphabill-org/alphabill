@@ -61,7 +61,7 @@ func parseFeeCreditRecord(pdr *types.PartitionDescriptionRecord, id types.UnitID
 	if err != nil {
 		return nil, fmt.Errorf("get fcr unit error: %w", err)
 	}
-	fcr, ok := bd.Data().(*fc.FeeCreditRecord)
+	fcr, ok := bd.GetV1().Data().(*fc.FeeCreditRecord)
 	if !ok {
 		return nil, ErrUnitDataTypeIsNotFCR
 	}

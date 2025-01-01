@@ -500,7 +500,7 @@ func (s *StateDB) getStateObject(unitID types.UnitID, committed bool) *StateObje
 		}
 		s.errDB = err
 	}
-	return u.Data().(*StateObject)
+	return u.GetV1().Data().(*StateObject)
 }
 
 func (s *StateDB) DBError() error {

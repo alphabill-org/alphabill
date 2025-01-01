@@ -11,9 +11,9 @@ import (
 
 type (
 	ShardState interface {
-		Add(id types.UnitID, u *Unit) error
-		Get(id types.UnitID) (*Unit, error)
-		Update(id types.UnitID, unit *Unit) error
+		Add(id types.UnitID, u VersionedUnit) error
+		Get(id types.UnitID) (VersionedUnit, error)
+		Update(id types.UnitID, unit VersionedUnit) error
 		Delete(id types.UnitID) error
 	}
 
@@ -105,7 +105,7 @@ func UpdateUnitData(id types.UnitID, f UpdateFunction) Action {
 			return fmt.Errorf("failed to get unit: %w", err)
 		}
 
-		cloned := u.Clone()
+		cloned := u.Clone().GetV1()
 		newData, err := f(cloned.data)
 		if err != nil {
 			return fmt.Errorf("unable to update unit data: %w", err)
@@ -129,11 +129,12 @@ func SetStateLock(id types.UnitID, stateLockTx []byte) Action {
 			return fmt.Errorf("failed to find unit: %w", err)
 		}
 
-		if u.stateLockTx != nil && stateLockTx != nil {
+		unit := u.GetV1()
+		if unit.stateLockTx != nil && stateLockTx != nil {
 			return errors.New("unit already has a state lock")
 		}
-		cloned := u.Clone()
-		cloned.stateLockTx = stateLockTx
+		cloned := unit.Clone()
+		cloned.GetV1().stateLockTx = stateLockTx
 		if err = s.Update(id, cloned); err != nil {
 			return fmt.Errorf("unable to update unit: %w", err)
 		}

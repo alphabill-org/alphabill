@@ -18,7 +18,6 @@ func TestPartitionNode_IsValid_InvalidInputs(t *testing.T) {
 	type fields struct {
 		NodeID                           string
 		SignKey                          []byte
-		AuthKey                          []byte
 		BlockCertificationRequestRequest *certification.BlockCertificationRequest
 	}
 
@@ -51,29 +50,10 @@ func TestPartitionNode_IsValid_InvalidInputs(t *testing.T) {
 			wantErrStr: "invalid signing public key, pubkey must be 33 bytes long, but is 4",
 		},
 		{
-			name: "authentication public key is missing",
-			fields: fields{
-				NodeID:  nodeID,
-				SignKey: pubKey,
-				AuthKey: nil,
-			},
-			wantErrStr: ErrAuthKeyIsInvalid.Error(),
-		},
-		{
-			name: "authentication public key is invalid",
-			fields: fields{
-				NodeID:  "1",
-				SignKey: pubKey,
-				AuthKey: []byte{0, 0, 0, 0},
-			},
-			wantErrStr: "invalid authentication public key, pubkey must be 33 bytes long, but is 4",
-		},
-		{
 			name: "invalid p1 request",
 			fields: fields{
 				NodeID:                           nodeID,
 				SignKey:                          pubKey,
-				AuthKey:                          pubKey,
 				BlockCertificationRequestRequest: nil,
 			},
 			wantErrStr: "block certification request validation failed, block certification request is nil",
@@ -84,7 +64,6 @@ func TestPartitionNode_IsValid_InvalidInputs(t *testing.T) {
 			x := &PartitionNode{
 				Version:                   1,
 				NodeID:                    tt.fields.NodeID,
-				AuthKey:                   tt.fields.AuthKey,
 				SignKey:                   tt.fields.SignKey,
 				BlockCertificationRequest: tt.fields.BlockCertificationRequestRequest,
 			}
@@ -119,7 +98,6 @@ func TestPartitionNodeIsValid(t *testing.T) {
 	pn := &PartitionNode{
 		Version:                   1,
 		NodeID:                    nodeID,
-		AuthKey:                   signKey,
 		SignKey:                   signKey,
 		BlockCertificationRequest: req,
 	}

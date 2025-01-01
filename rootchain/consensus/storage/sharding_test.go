@@ -488,11 +488,11 @@ func Test_NewShardInfoFromGenesis(t *testing.T) {
 	}
 	pdr := &types.PartitionDescriptionRecord{PartitionID: 7}
 	zH := make([]byte, 32)
-	nodeID, authKey := testutils.RandomNodeID(t)
+	nodeID, _ := testutils.RandomNodeID(t)
 	pgEpoch1 := &genesis.GenesisPartitionRecord{
 		Version: 1,
 		Validators: []*genesis.PartitionNode{
-			{NodeID: nodeID, AuthKey: authKey, SignKey: validKey},
+			{NodeID: nodeID, SignKey: validKey},
 		},
 		Certificate:          testcertificates.CreateUnicityCertificate(t, signer, ir, pdr, 1, zH, zH),
 		PartitionDescription: pdr,

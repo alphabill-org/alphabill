@@ -74,15 +74,13 @@ func Test_VAR_Generate(t *testing.T) {
 
 func newNodeGenesisFile(t *testing.T, networkID types.NetworkID, partitionID types.PartitionID, outFileName string) (*genesis.PartitionNode, string) {
 	testNode := testutils.NewTestNode(t)
-	authPubKey := testNode.PeerConf.KeyPair.PublicKey
-	sigPubKey, err := testNode.Verifier.MarshalPublicKey()
+	sigKey, err := testNode.Verifier.MarshalPublicKey()
 	require.NoError(t, err)
 
 	nodeGenesis := &genesis.PartitionNode{
 		Version: 1,
 		NodeID:  testNode.PeerConf.ID.String(),
-		SignKey: sigPubKey,
-		AuthKey: authPubKey,
+		SignKey: sigKey,
 		PartitionDescriptionRecord: types.PartitionDescriptionRecord{
 			Version:     1,
 			NetworkID:   networkID,

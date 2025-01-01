@@ -47,7 +47,6 @@ func createNodes(t *testing.T, partitionID types.PartitionID, nodeID string, par
 	return []*genesis.PartitionNode{{
 		Version:                    1,
 		NodeID:                     nodeID,
-		AuthKey:                    signKey,
 		SignKey:                    signKey,
 		BlockCertificationRequest:  req,
 		PartitionDescriptionRecord: pdr,
@@ -63,7 +62,6 @@ func createPartitionNode(t *testing.T, partitionID types.PartitionID, nodeID str
 	return &genesis.PartitionNode{
 		Version:                   1,
 		NodeID:                    nodeID,
-		AuthKey:                   signKey,
 		SignKey:                   signKey,
 		BlockCertificationRequest: req,
 		PartitionDescriptionRecord: types.PartitionDescriptionRecord{
@@ -240,7 +238,6 @@ func TestNewGenesis_ConsensusNotPossible(t *testing.T) {
 	node := &genesis.PartitionNode{
 		Version:                   1,
 		NodeID:                    "2",
-		AuthKey:                   signKey,
 		SignKey:                   signKey,
 		BlockCertificationRequest: req,
 	}

@@ -807,7 +807,6 @@ func createPartitionNodes(t *testing.T, partitionID abtypes.PartitionID, ir *abt
 		nodes[i] = &genesis.PartitionNode{
 			Version:                    1,
 			NodeID:                     nodeID.String(),
-			AuthKey:                    authKey,
 			SignKey:                    authKey,
 			BlockCertificationRequest:  req,
 			PartitionDescriptionRecord: pdr,

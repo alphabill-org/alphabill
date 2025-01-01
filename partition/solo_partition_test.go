@@ -90,7 +90,6 @@ func newSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, v
 		pdr,
 		WithPeerID(peerConf.ID),
 		WithSignPrivKey(nodeSigner),
-		WithAuthPubKey(peerConf.KeyPair.PublicKey),
 	)
 	require.NoError(t, err)
 

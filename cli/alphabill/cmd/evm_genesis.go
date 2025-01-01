@@ -92,10 +92,6 @@ func evmGenesisRunFun(_ context.Context, config *evmGenesisConfig) error {
 	if err != nil {
 		return err
 	}
-	authPubKey, err := keys.AuthPrivKey.GetPublic().Raw()
-	if err != nil {
-		return err
-	}
 	params, err := config.getPartitionParams()
 	if err != nil {
 		return fmt.Errorf("failed to set evm genesis parameters: %w", err)
@@ -106,7 +102,6 @@ func evmGenesisRunFun(_ context.Context, config *evmGenesisConfig) error {
 		*pdr,
 		partition.WithPeerID(peerID),
 		partition.WithSignPrivKey(keys.SignPrivKey),
-		partition.WithAuthPubKey(authPubKey),
 		partition.WithParams(params),
 	)
 	if err != nil {

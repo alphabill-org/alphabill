@@ -29,8 +29,6 @@ func TestGenesisPartitionRecord_IsValid(t *testing.T) {
 	require.NoError(t, err)
 	signingKey2, err := abcrypto.NewInMemorySecp256K1Signer()
 	require.NoError(t, err)
-	_, authVerifier1 := testsig.CreateSignerAndVerifier(t)
-	_, authVerifier2 := testsig.CreateSignerAndVerifier(t)
 
 	type fields struct {
 		Nodes                []*PartitionNode
@@ -67,8 +65,8 @@ func TestGenesisPartitionRecord_IsValid(t *testing.T) {
 			args: args{verifier: testtb.NewTrustBase(t, verifier), hashAlgorithm: crypto.SHA256},
 			fields: fields{
 				Nodes: []*PartitionNode{
-					createPartitionNode(t, "1", signingKey1, authVerifier1),
-					createPartitionNode(t, "1", signingKey2, authVerifier2),
+					createPartitionNode(t, "1", signingKey1),
+					createPartitionNode(t, "1", signingKey2),
 				},
 				PartitionDescription: validPDR,
 			},
@@ -79,31 +77,19 @@ func TestGenesisPartitionRecord_IsValid(t *testing.T) {
 			args: args{verifier: testtb.NewTrustBase(t, verifier), hashAlgorithm: crypto.SHA256},
 			fields: fields{
 				Nodes: []*PartitionNode{
-					createPartitionNode(t, "1", signingKey1, authVerifier1),
-					createPartitionNode(t, "2", signingKey1, authVerifier2),
+					createPartitionNode(t, "1", signingKey1),
+					createPartitionNode(t, "2", signingKey1),
 				},
 				PartitionDescription: validPDR,
 			},
 			wantErrStr: "invalid partition nodes: duplicated node signing key",
 		},
 		{
-			name: "contains nodes with same authentication key",
-			args: args{verifier: testtb.NewTrustBase(t, verifier), hashAlgorithm: crypto.SHA256},
-			fields: fields{
-				Nodes: []*PartitionNode{
-					createPartitionNode(t, "1", signingKey1, authVerifier1),
-					createPartitionNode(t, "2", signingKey2, authVerifier1),
-				},
-				PartitionDescription: validPDR,
-			},
-			wantErrStr: "invalid partition nodes: duplicated node authentication key",
-		},
-		{
 			name: "contains nodes with wrong partition identifier",
 			args: args{verifier: nil, hashAlgorithm: crypto.SHA256},
 			fields: fields{
 				Nodes: []*PartitionNode{
-					createPartitionNode(t, "1", signingKey1, authVerifier1),
+					createPartitionNode(t, "1", signingKey1),
 				},
 				PartitionDescription: &types.PartitionDescriptionRecord{
 					Version:     1,
@@ -121,7 +107,7 @@ func TestGenesisPartitionRecord_IsValid(t *testing.T) {
 			args: args{verifier: testtb.NewTrustBase(t, verifier), hashAlgorithm: crypto.SHA256},
 			fields: fields{
 				Nodes: []*PartitionNode{
-					createPartitionNode(t, "1", signingKey1, authVerifier1),
+					createPartitionNode(t, "1", signingKey1),
 				},
 				PartitionDescription: validPDR,
 			},
@@ -153,14 +139,11 @@ func TestGenesisPartitionRecord_IsValid_Nil(t *testing.T) {
 	require.ErrorIs(t, pr.IsValid(testtb.NewTrustBase(t, verifier), crypto.SHA256), ErrGenesisPartitionRecordIsNil)
 }
 
-func createPartitionNode(t *testing.T, nodeID string, signer abcrypto.Signer, authVerifier abcrypto.Verifier) *PartitionNode {
+func createPartitionNode(t *testing.T, nodeID string, signer abcrypto.Signer) *PartitionNode {
 	t.Helper()
 	signVerifier, err := signer.Verifier()
 	require.NoError(t, err)
 	signKey, err := signVerifier.MarshalPublicKey()
-	require.NoError(t, err)
-
-	authKey, err := authVerifier.MarshalPublicKey()
 	require.NoError(t, err)
 
 	request := &certification.BlockCertificationRequest{
@@ -180,7 +163,6 @@ func createPartitionNode(t *testing.T, nodeID string, signer abcrypto.Signer, au
 	pr := &PartitionNode{
 		Version:                    1,
 		NodeID:                     nodeID,
-		AuthKey:                    authKey,
 		SignKey:                    signKey,
 		BlockCertificationRequest:  request,
 		PartitionDescriptionRecord: types.PartitionDescriptionRecord{Version: 1},

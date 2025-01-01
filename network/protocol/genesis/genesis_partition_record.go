@@ -82,7 +82,6 @@ func (x *GenesisPartitionRecord) UnmarshalCBOR(data []byte) error {
 func nodesUnique(x []*PartitionNode) error {
 	var ids = make(map[string]string)
 	var signKeys = make(map[string]hex.Bytes)
-	var authKeys = make(map[string]hex.Bytes)
 	for _, node := range x {
 		if err := node.IsValid(); err != nil {
 			return err
@@ -98,12 +97,6 @@ func nodesUnique(x []*PartitionNode) error {
 			return fmt.Errorf("duplicated node signing key: %X", node.SignKey)
 		}
 		signKeys[sigKey] = node.SignKey
-
-		authKey := string(node.AuthKey)
-		if _, f := authKeys[authKey]; f {
-			return fmt.Errorf("duplicated node authentication key: %X", node.AuthKey)
-		}
-		authKeys[authKey] = node.AuthKey
 	}
 	return nil
 }

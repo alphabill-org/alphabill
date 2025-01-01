@@ -96,13 +96,13 @@ func TestRootGenesis_IsValid(t *testing.T) {
 				Partitions: []*GenesisPartitionRecord{
 					{
 						Version:              1,
-						Validators:           []*PartitionNode{{Version: 1, NodeID: "1", SignKey: nil, AuthKey: nil, BlockCertificationRequest: nil}},
+						Validators:           []*PartitionNode{{Version: 1, NodeID: "1", SignKey: nil, BlockCertificationRequest: nil}},
 						Certificate:          nil,
 						PartitionDescription: &types.PartitionDescriptionRecord{Version: 1, NetworkID: 5, PartitionID: 1, T2Timeout: time.Second},
 					},
 					{
 						Version:              1,
-						Validators:           []*PartitionNode{{Version: 1, NodeID: "1", SignKey: nil, AuthKey: nil, BlockCertificationRequest: nil}},
+						Validators:           []*PartitionNode{{Version: 1, NodeID: "1", SignKey: nil, BlockCertificationRequest: nil}},
 						Certificate:          nil,
 						PartitionDescription: &types.PartitionDescriptionRecord{Version: 1, NetworkID: 5, PartitionID: 1, T2Timeout: time.Second},
 					},
@@ -138,9 +138,8 @@ func TestRootGenesis_Verify_Nil(t *testing.T) {
 
 func TestRootGenesis(t *testing.T) {
 	signingKey, _ := testsig.CreateSignerAndVerifier(t)
-	_, authVerifier := testsig.CreateSignerAndVerifier(t)
 	hash := []byte{2}
-	node := createPartitionNode(t, nodeID, signingKey, authVerifier)
+	node := createPartitionNode(t, nodeID, signingKey)
 	consensus := &ConsensusParams{
 		Version:             1,
 		TotalRootValidators: 1,

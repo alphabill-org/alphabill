@@ -20,7 +20,7 @@ func TestVerifier_Ok(t *testing.T) {
 
 	peer1Conf := testpeer.CreatePeerConfiguration(t)
 	peer1Signer, peer1Verifier := testsig.CreateSignerAndVerifier(t)
-	pg := createPartitionGenesis(t, peer1Signer, nil, peer1Conf)
+	_, pg := createPartitionGenesis(t, peer1Signer, nil, peer1Conf)
 
 	vaRec0 := newVARFromGenesis(pg)
 	require.NoError(t, ss.StoreValidatorAssignmentRecord(vaRec0))

@@ -292,12 +292,6 @@ func (n *NodePartition) start(t *testing.T, ctx context.Context, bootNodes []pee
 	n.ctx = ctx
 	// partition nodes as they are set up for test, require bootstrap info
 	require.NotEmpty(t, bootNodes)
-	// start Nodes
-	trustBase, err := n.partitionGenesis.GenerateRootTrustBase()
-	if err != nil {
-		return fmt.Errorf("failed to extract root trust base from genesis file, %w", err)
-	}
-	n.tb = trustBase
 
 	if !n.genesisState.IsCommitted() {
 		if err := n.genesisState.Commit(n.partitionGenesis.Certificate); err != nil {
@@ -305,6 +299,7 @@ func (n *NodePartition) start(t *testing.T, ctx context.Context, bootNodes []pee
 		}
 	}
 
+	// start Nodes
 	for _, nd := range n.Nodes {
 		nd.EventHandler = &testevent.TestEventHandler{}
 		blockStore, err := boltdb.New(nd.dbFile)
@@ -373,6 +368,7 @@ func NewAlphabillPartition(t *testing.T, nodePartitions []*NodePartition) (*Alph
 	}
 	nodeParts := make(map[types.PartitionID]*NodePartition)
 	for _, part := range nodePartitions {
+		part.tb = rootPartition.TrustBase
 		nodeParts[part.partitionID] = part
 	}
 	return &AlphabillNetwork{
@@ -392,6 +388,7 @@ func NewMultiRootAlphabillPartition(t *testing.T, nofRootNodes uint8, nodePartit
 	}
 	nodeParts := make(map[types.PartitionID]*NodePartition)
 	for _, part := range nodePartitions {
+		part.tb = rootPartition.TrustBase
 		nodeParts[part.partitionID] = part
 	}
 	return &AlphabillNetwork{

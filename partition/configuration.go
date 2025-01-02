@@ -4,7 +4,6 @@ import (
 	"crypto"
 	"errors"
 	"fmt"
-	"sort"
 	"time"
 
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -254,14 +253,14 @@ func (c *configuration) GetT2Timeout() time.Duration {
 }
 
 func (c *configuration) getRootNodes() (peer.IDSlice, error) {
-	nodes := make(peer.IDSlice, len(c.genesis.RootValidators))
-	for i, node := range c.genesis.RootValidators {
+	nodes := c.trustBase.GetRootNodes()
+	idSlice := make(peer.IDSlice, len(nodes))
+	for i, node := range nodes {
 		id, err := peer.Decode(node.NodeID)
 		if err != nil {
-			return nil, fmt.Errorf("invalid root node id: %w", err)
+			return nil, fmt.Errorf("invalid root node id in trust base: %w", err)
 		}
-		nodes[i] = id
+		idSlice[i] = id
 	}
-	sort.Sort(nodes)
-	return nodes, nil
+	return idSlice, nil
 }

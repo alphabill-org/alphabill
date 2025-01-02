@@ -157,10 +157,11 @@ func Test_StartSingleNode(t *testing.T) {
 		// simulate money partition node sending handshake
 		keys, err := LoadKeys(filepath.Join(nodeDir, defaultKeysFileName), false, false)
 		require.NoError(t, err)
-		partitionGenesis := filepath.Join(homeDir, defaultRootChainDir, "partition-genesis-1.json")
-		pg, err := loadPartitionGenesis(partitionGenesis)
+
+		trustBase, err := types.NewTrustBaseFromFile(filepath.Join(homeDir, "root-trust-base.json"))
 		require.NoError(t, err)
-		rootID, err := peer.Decode(pg.RootValidators[0].NodeID)
+
+		rootID, err := peer.Decode(trustBase.RootNodes[0].NodeID)
 		require.NoError(t, err)
 		rootAddress, err := getRootValidatorMultiAddress(address)
 		require.NoError(t, err)
@@ -296,10 +297,11 @@ func Test_Start_2_DRCNodes(t *testing.T) {
 		// simulate money partition node sending handshake
 		keys, err := LoadKeys(nodeKeysFileLocation, false, false)
 		require.NoError(t, err)
-		partitionGenesis := filepath.Join(homeDir, defaultRootChainDir+"1", "partition-genesis-1.json")
-		pg, err := loadPartitionGenesis(partitionGenesis)
+
+		trustBase, err := types.NewTrustBaseFromFile(filepath.Join(homeDir, "root-trust-base.json"))
 		require.NoError(t, err)
-		rootID, err := peer.Decode(pg.RootValidators[0].NodeID)
+
+		rootID, err := peer.Decode(trustBase.RootNodes[0].NodeID)
 		rootAddress, err := getRootValidatorMultiAddress(address)
 		require.NoError(t, err)
 		cfg := &startNodeConfiguration{

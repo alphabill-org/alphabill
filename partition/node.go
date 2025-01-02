@@ -115,6 +115,7 @@ type (
 		t1event                     chan struct{}
 		epochChangeEvent            chan struct{}
 		peer                        *network.Peer
+
 		rootNodes                   peer.IDSlice
 		shardStore                  *shardStore
 		network                     ValidatorNetwork
@@ -177,7 +178,7 @@ func NewNode(
 
 	rn, err := conf.getRootNodes()
 	if err != nil {
-		return nil, fmt.Errorf("invalid configuration, root nodes: %w", err)
+		return nil, fmt.Errorf("failed to get root nodes: %w", err)
 	}
 
 	// load owner indexer

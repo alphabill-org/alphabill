@@ -43,24 +43,12 @@ func TestGenerateDistributedGenesisFiles(t *testing.T) {
 	require.NoError(t, rootGenesis.Verify())
 	partitionGenesis, err := util.ReadJsonFile(filepath.Join(outputDir, "partition-genesis-1.json"), &genesis.PartitionGenesis{})
 	require.NoError(t, err)
-	require.Len(t, partitionGenesis.RootValidators, 4)
-	trustBase, err := partitionGenesis.GenerateRootTrustBase()
+
+	trustBase, err := types.NewTrustBaseGenesis(rootGenesis.Root.RootValidators, partitionGenesis.Certificate.UnicitySeal.Hash)
 	require.NoError(t, err)
 	require.NoError(t, partitionGenesis.IsValid(trustBase, crypto.SHA256))
+
 	// iterate over key files and make sure that they are present
-	// FindPubKeyById returns matching PublicKeyInfo matching node id or nil if not found
-	findPubKeyFn := func(id string, keys []*types.NodeInfo) *types.NodeInfo {
-		if keys == nil {
-			return nil
-		}
-		// linear search for id
-		for _, info := range keys {
-			if info.NodeID == id {
-				return info
-			}
-		}
-		return nil
-	}
 	for i := 0; i < int(consensus.totalNodes); i++ {
 		rootNodeDir := filepath.Join(homeDir, defaultRootChainDir+strconv.Itoa(i))
 		keys, err := LoadKeys(filepath.Join(rootNodeDir, defaultKeysFileName), false, false)
@@ -68,8 +56,6 @@ func TestGenerateDistributedGenesisFiles(t *testing.T) {
 		id, err := peer.IDFromPublicKey(keys.AuthPrivKey.GetPublic())
 		require.NoError(t, err)
 		require.NotNil(t, rootGenesis.Root.FindRootValidatorByNodeID(id.String()))
-		// make sure the root node is also present in partition genesis
-		require.NotNil(t, findPubKeyFn(id.String(), partitionGenesis.RootValidators))
 	}
 }
 

@@ -342,7 +342,6 @@ func partitionGenesisFromRoot(rg *genesis.RootGenesis) []*genesis.PartitionGenes
 		partitionGenesis[i] = &genesis.PartitionGenesis{
 			PartitionDescription: partition.PartitionDescription,
 			Certificate:          partition.Certificate,
-			RootValidators:       rg.Root.RootValidators,
 			PartitionValidators:  partitionValidators,
 			Params:               partition.Validators[0].Params,
 		}

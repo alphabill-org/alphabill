@@ -18,7 +18,6 @@ import (
 )
 
 func Test_loadAndValidateConfiguration_Nok(t *testing.T) {
-	peerConf := test.CreatePeerConfiguration(t)
 	signer, _ := testsig.CreateSignerAndVerifier(t)
 
 	type args struct {
@@ -50,7 +49,7 @@ func Test_loadAndValidateConfiguration_Nok(t *testing.T) {
 			name: "transaction system is nil",
 			args: args{
 				signer:  signer,
-				genesis: createPartitionGenesis(t, signer, nil, peerConf),
+				genesis: &genesis.PartitionGenesis{},
 				txs:     nil,
 			},
 			wantErr: ErrTxSystemIsNil,
@@ -58,7 +57,7 @@ func Test_loadAndValidateConfiguration_Nok(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			trustBase, _ := tt.args.genesis.GenerateRootTrustBase()
+			trustBase := &types.RootTrustBaseV1{}
 			c, err := loadAndValidateConfiguration(tt.args.signer, tt.args.genesis, trustBase, tt.args.txs)
 			require.ErrorIs(t, tt.wantErr, err)
 			require.Nil(t, c)
@@ -69,10 +68,11 @@ func Test_loadAndValidateConfiguration_Nok(t *testing.T) {
 func TestLoadConfigurationWithDefaultValues_Ok(t *testing.T) {
 	peerConf := test.CreatePeerConfiguration(t)
 	signer, _ := testsig.CreateSignerAndVerifier(t)
-	pg := createPartitionGenesis(t, signer, nil, peerConf)
+	rg, pg := createPartitionGenesis(t, signer, nil, peerConf)
 
-	trustBase, err := pg.GenerateRootTrustBase()
+	trustBase, err := types.NewTrustBaseGenesis(rg.Root.RootValidators, pg.Certificate.UnicitySeal.Hash)
 	require.NoError(t, err)
+
 	conf, err := loadAndValidateConfiguration(signer, pg, trustBase, &testtxsystem.CounterTxSystem{})
 
 	require.NoError(t, err)
@@ -102,9 +102,10 @@ func TestLoadConfigurationWithOptions_Ok(t *testing.T) {
 	require.NoError(t, err)
 
 	t1Timeout := 250 * time.Millisecond
-	pg := createPartitionGenesis(t, signer, nil, peerConf)
-	trustBase, err := pg.GenerateRootTrustBase()
+	rg, pg := createPartitionGenesis(t, signer, nil, peerConf)
+	trustBase, err := types.NewTrustBaseGenesis(rg.Root.RootValidators, pg.Certificate.UnicitySeal.Hash)
 	require.NoError(t, err)
+
 	conf, err := loadAndValidateConfiguration(signer, pg, trustBase, &testtxsystem.CounterTxSystem{},
 		WithTxValidator(&AlwaysValidTransactionValidator{}),
 		WithUnicityCertificateValidator(&AlwaysValidCertificateValidator{}),
@@ -131,7 +132,7 @@ func TestLoadConfigurationWithOptions_Ok(t *testing.T) {
 	require.EqualValues(t, 3500, conf.blockSubscriptionTimeout)
 }
 
-func createPartitionGenesis(t *testing.T, nodeSigningKey crypto.Signer, rootSigner crypto.Signer, peerConf *network.PeerConfiguration) *genesis.PartitionGenesis {
+func createPartitionGenesis(t *testing.T, nodeSigningKey crypto.Signer, rootSigner crypto.Signer, peerConf *network.PeerConfiguration) (*genesis.RootGenesis, *genesis.PartitionGenesis) {
 	t.Helper()
 	if rootSigner == nil {
 		rootSigner, _ = testsig.CreateSignerAndVerifier(t)
@@ -150,18 +151,19 @@ func createPartitionGenesis(t *testing.T, nodeSigningKey crypto.Signer, rootSign
 	require.NoError(t, err)
 	nodeID, err := network.NodeIDFromPublicKeyBytes(rootPubKeyBytes)
 	require.NoError(t, err)
-	_, pg, err := rootgenesis.NewRootGenesis(nodeID.String(), rootSigner, []*genesis.PartitionNode{pn})
+	rg, pg, err := rootgenesis.NewRootGenesis(nodeID.String(), rootSigner, []*genesis.PartitionNode{pn})
 	require.NoError(t, err)
-	return pg[0]
+	return rg, pg[0]
 }
 
 func TestGetRootNodes(t *testing.T) {
 	peerConf := test.CreatePeerConfiguration(t)
 	signer, _ := testsig.CreateSignerAndVerifier(t)
 
-	pg := createPartitionGenesis(t, signer, nil, peerConf)
-	trustBase, err := pg.GenerateRootTrustBase()
+	rg, pg := createPartitionGenesis(t, signer, nil, peerConf)
+	trustBase, err := types.NewTrustBaseGenesis(rg.Root.RootValidators, pg.Certificate.UnicitySeal.Hash)
 	require.NoError(t, err)
+
 	conf, err := loadAndValidateConfiguration(signer, pg, trustBase, &testtxsystem.CounterTxSystem{})
 	require.NoError(t, err)
 	nodes, err := conf.getRootNodes()

@@ -131,7 +131,7 @@ func Test_ShardInfo_ValidRequest(t *testing.T) {
 		Epoch:        3,
 		Hash:         si.RootHash,
 		PreviousHash: si.RootHash,
-		BlockHash:    make([]byte, 32),
+		BlockHash:    nil,
 		SummaryValue: []byte{5, 5, 5},
 		Timestamp:    20241113,
 	}
@@ -627,6 +627,43 @@ func Test_shardStates_nextBlock(t *testing.T) {
 		ssB, err := ssA.nextBlock(parentIR, orc)
 		require.EqualError(t, err, `creating ShardInfo 00000001 -  of the next epoch: epochs must be consecutive, expected 2 proposed next 3`)
 		require.Nil(t, ssB)
+	})
+}
+
+func Test_ShardInfo_selectLeader(t *testing.T) {
+	signer, _ := testsig.CreateSignerAndVerifier(t)
+	pdr := types.PartitionDescriptionRecord{
+		PartitionID: 8,
+	}
+	irEpoch1 := types.InputRecord{
+		RoundNumber: 100,
+		Epoch:       2,
+		Hash:        []byte{1, 2, 3, 4, 5, 6, 7, 8},
+		Timestamp:   20241114100,
+	}
+	ucE1 := testcertificates.CreateUnicityCertificate(t, signer, &irEpoch1, &pdr, 1, nil, nil)
+
+	t.Run("root hash is nil", func(t *testing.T) {
+		si := ShardInfo{
+			RootHash: nil,
+			Fees:     map[string]uint64{"B": 2, "A": 1, "C": 3},
+			Stat: certification.StatisticalRecord{
+				Blocks:       0,
+				BlockFees:    1,
+				BlockSize:    2,
+				StateSize:    3,
+				MaxFee:       4,
+				MaxBlockSize: 5,
+				MaxStateSize: 6,
+			},
+			LastCR: &certification.CertificationResponse{
+				Partition: pdr.PartitionID,
+				UC:        *ucE1,
+			},
+			nodeIDs: []string{"A", "B", "C"},
+		}
+		expectedLeaderID := si.selectLeader(irEpoch1.RoundNumber)
+		require.Equal(t, "B", expectedLeaderID)
 	})
 }
 

@@ -88,7 +88,7 @@ func TestPartitionNodeIsValid(t *testing.T) {
 			Version:      1,
 			PreviousHash: make([]byte, 32),
 			Hash:         make([]byte, 32),
-			BlockHash:    make([]byte, 32),
+			BlockHash:    nil,
 			SummaryValue: make([]byte, 32),
 			Timestamp:    types.NewTimestamp(),
 			RoundNumber:  1,

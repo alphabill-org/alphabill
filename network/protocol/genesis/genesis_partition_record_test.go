@@ -153,7 +153,7 @@ func createPartitionNode(t *testing.T, nodeID string, signer abcrypto.Signer) *P
 			Version:      1,
 			PreviousHash: make([]byte, 32),
 			Hash:         make([]byte, 32),
-			BlockHash:    make([]byte, 32),
+			BlockHash:    nil,
 			SummaryValue: make([]byte, 32),
 			RoundNumber:  1,
 			Timestamp:    types.NewTimestamp(),

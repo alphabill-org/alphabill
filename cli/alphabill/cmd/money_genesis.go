@@ -226,7 +226,7 @@ func addInitialBill(s *state.State, config *moneyGenesisConfig) error {
 	billData := moneysdk.NewBillData(config.InitialBillValue, config.InitialBillOwnerPredicate)
 	err := s.Apply(state.AddUnit(config.InitialBillID, billData))
 	if err == nil {
-		err = s.AddUnitLog(config.InitialBillID, zeroHash)
+		err = s.AddUnitLog(config.InitialBillID, nil)
 	}
 	return err
 }
@@ -235,7 +235,7 @@ func addInitialDustCollectorMoneySupply(s *state.State, config *moneyGenesisConf
 	billData := moneysdk.NewBillData(config.DCMoneySupplyValue, money.DustCollectorPredicate)
 	err := s.Apply(state.AddUnit(money.DustCollectorMoneySupplyID, billData))
 	if err == nil {
-		err = s.AddUnitLog(money.DustCollectorMoneySupplyID, zeroHash)
+		err = s.AddUnitLog(money.DustCollectorMoneySupplyID, nil)
 	}
 	return err
 }

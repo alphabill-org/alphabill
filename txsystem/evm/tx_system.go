@@ -115,9 +115,6 @@ func (m *TxSystem) getState() (txsystem.StateSummary, error) {
 	if err != nil {
 		return nil, err
 	}
-	if hash == nil {
-		return txsystem.NewStateSummary(make([]byte, m.hashAlgorithm.Size()), util.Uint64ToBytes(sv)), nil
-	}
 	return txsystem.NewStateSummary(hash, util.Uint64ToBytes(sv)), nil
 }
 

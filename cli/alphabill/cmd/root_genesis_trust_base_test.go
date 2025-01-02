@@ -57,7 +57,5 @@ func TestTrustBaseGenerateAndSign(t *testing.T) {
 	// verify trust base file contains correct signatures
 	tb, err = types.NewTrustBaseFromFile(trustBaseFile)
 	require.NoError(t, err)
-	verifiers, err := tb.GetVerifiers()
-	require.NoError(t, err)
-	require.Len(t, verifiers, int(consensus.totalNodes))
+	require.Len(t, tb.GetRootNodes(), int(consensus.totalNodes))
 }

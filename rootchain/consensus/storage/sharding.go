@@ -114,7 +114,7 @@ func NewShardInfoFromGenesis(pg *genesis.GenesisPartitionRecord) (*ShardInfo, er
 		return nil, fmt.Errorf("init previous epoch stat: %w", err)
 	}
 
-	nodeIDs := util.TransformSlice(pg.Nodes, func(pn *genesis.PartitionNode) string { return pn.NodeID })
+	nodeIDs := util.TransformSlice(pg.Validators, func(pn *genesis.PartitionNode) string { return pn.NodeID })
 	tr, err := rcgenesis.TechnicalRecord(pg.Certificate.InputRecord, nodeIDs)
 	if err != nil {
 		return nil, fmt.Errorf("creating TechnicalRecord: %w", err)
@@ -170,7 +170,7 @@ func (si *ShardInfo) resetTrustBase(rec *partitions.ValidatorAssignmentRecord) e
 	si.nodeIDs = make([]string, 0, len(rec.Nodes))
 	si.trustBase = make(map[string]abcrypto.Verifier)
 	for _, n := range rec.Nodes {
-		ver, err := abcrypto.NewVerifierSecp256k1(n.SignKey)
+		ver, err := abcrypto.NewVerifierSecp256k1(n.SigKey)
 		if err != nil {
 			return fmt.Errorf("creating verifier for the node %q: %w", n.NodeID, err)
 		}

@@ -5,15 +5,13 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/types/hex"
 )
 
 var (
 	ErrPartitionGenesisIsNil            = errors.New("partition genesis is nil")
-	ErrKeysAreMissing                   = errors.New("partition keys are missing")
-	ErrMissingRootValidators            = errors.New("missing root nodes")
+	ErrPartitionValidatorsMissing       = errors.New("partition validators are missing")
 	ErrPartitionUnicityCertificateIsNil = errors.New("partition unicity certificate is nil")
 )
 
@@ -21,19 +19,8 @@ type PartitionGenesis struct {
 	_                    struct{}                          `cbor:",toarray"`
 	PartitionDescription *types.PartitionDescriptionRecord `json:"partitionDescriptionRecord"`
 	Certificate          *types.UnicityCertificate         `json:"certificate"`
-	RootValidators       []*PublicKeyInfo                  `json:"rootValidators"`
-	Keys                 []*PublicKeyInfo                  `json:"keys"`
+	PartitionValidators  []*types.NodeInfo                 `json:"partitionValidators"`
 	Params               hex.Bytes                         `json:"params,omitempty"`
-}
-
-func (x *PartitionGenesis) FindRootPubKeyInfoById(id string) *PublicKeyInfo {
-	// linear search for id
-	for _, info := range x.RootValidators {
-		if info.NodeID == id {
-			return info
-		}
-	}
-	return nil
 }
 
 func (x *PartitionGenesis) IsValid(trustBase types.RootTrustBase, hashAlgorithm gocrypto.Hash) error {
@@ -43,23 +30,12 @@ func (x *PartitionGenesis) IsValid(trustBase types.RootTrustBase, hashAlgorithm 
 	if trustBase == nil {
 		return ErrTrustBaseIsNil
 	}
-	if len(x.Keys) < 1 {
-		return ErrKeysAreMissing
+	if len(x.PartitionValidators) < 1 {
+		return ErrPartitionValidatorsMissing
 	}
-	if len(x.RootValidators) < 1 {
-		return ErrMissingRootValidators
+	if err := validateNodes(x.PartitionValidators); err != nil {
+		return fmt.Errorf("invalid partition validators, %w", err)
 	}
-	// check that root validators are valid and
-	// make sure it is a list of unique node ids and keys
-	if err := ValidatorInfoUnique(x.RootValidators); err != nil {
-		return fmt.Errorf("root node list validation failed, %w", err)
-	}
-	// check partition validator public info is valid, and
-	// it is a list of unique node ids and keys
-	if err := ValidatorInfoUnique(x.Keys); err != nil {
-		return fmt.Errorf("partition keys validation failed, %w", err)
-	}
-
 	if x.PartitionDescription == nil {
 		return types.ErrSystemDescriptionIsNil
 	}
@@ -77,37 +53,5 @@ func (x *PartitionGenesis) IsValid(trustBase types.RootTrustBase, hashAlgorithm 
 	if err := x.Certificate.Verify(trustBase, hashAlgorithm, x.PartitionDescription.PartitionID, pdrHash); err != nil {
 		return fmt.Errorf("invalid unicity certificate, %w", err)
 	}
-	// UC Seal must be signed by all validators
-	if len(x.RootValidators) != len(x.Certificate.UnicitySeal.Signatures) {
-		return fmt.Errorf("unicity Certificate is not signed by all root nodes")
-	}
 	return nil
-}
-
-// GenerateRootTrustBase generates trust base from partition genesis.
-func (x *PartitionGenesis) GenerateRootTrustBase() (types.RootTrustBase, error) {
-	if x == nil {
-		return nil, ErrPartitionGenesisIsNil
-	}
-	nodes, err := newTrustBaseNodes(x.RootValidators)
-	if err != nil {
-		return nil, err
-	}
-	trustBase, err := types.NewTrustBaseGenesis(nodes, x.Certificate.UnicitySeal.Hash)
-	if err != nil {
-		return nil, err
-	}
-	return trustBase, nil
-}
-
-func newTrustBaseNodes(publicKeyInfo []*PublicKeyInfo) ([]*types.NodeInfo, error) {
-	var nodeInfo []*types.NodeInfo
-	for _, info := range publicKeyInfo {
-		verifier, err := crypto.NewVerifierSecp256k1(info.SignKey)
-		if err != nil {
-			return nil, err
-		}
-		nodeInfo = append(nodeInfo, types.NewNodeInfo(info.NodeID, 1, verifier))
-	}
-	return nodeInfo, nil
 }

@@ -115,6 +115,7 @@ type (
 		t1event                     chan struct{}
 		epochChangeEvent            chan struct{}
 		peer                        *network.Peer
+
 		rootNodes                   peer.IDSlice
 		shardStore                  *shardStore
 		network                     ValidatorNetwork
@@ -177,7 +178,7 @@ func NewNode(
 
 	rn, err := conf.getRootNodes()
 	if err != nil {
-		return nil, fmt.Errorf("invalid configuration, root nodes: %w", err)
+		return nil, fmt.Errorf("failed to get root nodes: %w", err)
 	}
 
 	// load owner indexer
@@ -1780,21 +1781,11 @@ func newVARFromGenesis(genesis *genesis.PartitionGenesis) *partitions.ValidatorA
 	if genesis == nil {
 		return nil
 	}
-
-	validators := make([]partitions.NodeInfo, len(genesis.Keys))
-	for i, k := range genesis.Keys {
-		validators[i] = partitions.NodeInfo{
-			NodeID:  k.NodeID,
-			AuthKey: k.AuthKey,
-			SignKey: k.SignKey,
-		}
-	}
-
 	return &partitions.ValidatorAssignmentRecord{
 		NetworkID:   genesis.PartitionDescription.NetworkID,
 		PartitionID: genesis.PartitionDescription.PartitionID,
 		EpochNumber: genesis.Certificate.InputRecord.Epoch,
 		RoundNumber: genesis.Certificate.GetRoundNumber(),
-		Nodes:       validators,
+		Nodes:       genesis.PartitionValidators,
 	}
 }

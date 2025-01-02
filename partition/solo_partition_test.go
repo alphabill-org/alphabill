@@ -44,6 +44,7 @@ type SingleNodePartition struct {
 	nodeDeps   *partitionStartupDependencies
 	rootRound  uint64
 	certs      map[types.PartitionID]*types.UnicityCertificate
+	rootNodeID string
 	rootSigner crypto.Signer
 	mockNet    *testnetwork.MockNet
 	eh         *testevent.TestEventHandler
@@ -80,7 +81,7 @@ func newSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, v
 	peerConf := createPeerConfiguration(t)
 	pdr := types.PartitionDescriptionRecord{Version: 1, NetworkID: 5, PartitionID: 0x01010101, TypeIDLen: 8, UnitIDLen: 256, T2Timeout: 2500 * time.Millisecond}
 	// node genesis
-	nodeSigner, _ := testsig.CreateSignerAndVerifier(t)
+	signer, _ := testsig.CreateSignerAndVerifier(t)
 	nodeGenesis, err := NewNodeGenesis(
 		// Should actually create the genesis state before the
 		// txSystem and start the txSystem with it. Works like
@@ -88,20 +89,21 @@ func newSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, v
 		state.NewEmptyState(),
 		pdr,
 		WithPeerID(peerConf.ID),
-		WithSignPrivKey(nodeSigner),
-		WithAuthPubKey(peerConf.KeyPair.PublicKey),
+		WithSigner(signer),
 	)
 	require.NoError(t, err)
 
 	// root genesis
 	rootSigner, _ := testsig.CreateSignerAndVerifier(t)
-	_, encPubKey := testsig.CreateSignerAndVerifier(t)
-	rootPubKeyBytes, err := encPubKey.MarshalPublicKey()
+	_, rootAuthVerifier := testsig.CreateSignerAndVerifier(t)
+	rootAuthKey, err := rootAuthVerifier.MarshalPublicKey()
 	require.NoError(t, err)
-	pr, err := rootgenesis.NewPartitionRecordFromNodes([]*genesis.PartitionNode{nodeGenesis})
+
+	rootNodeID, err := network.NodeIDFromPublicKeyBytes(rootAuthKey)
 	require.NoError(t, err)
-	rootGenesis, partitionGenesis, err := rootgenesis.NewRootGenesis("test", rootSigner, rootPubKeyBytes, pr)
+	rootGenesis, partitionGenesis, err := rootgenesis.NewRootGenesis(rootNodeID.String(), rootSigner, []*genesis.PartitionNode{nodeGenesis})
 	require.NoError(t, err)
+
 	trustBase, err := rootGenesis.GenerateTrustBase()
 	require.NoError(t, err)
 
@@ -123,19 +125,19 @@ func newSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, v
 
 	fakeValidatorPubKeyRaw, err := fakeValidatorPubKey.Raw()
 	require.NoError(t, err)
-	partitionGenesis[0].Keys = []*genesis.PublicKeyInfo{
-		&genesis.PublicKeyInfo{
-			NodeID:  fakeValidatorID.String(),
-			SignKey: fakeValidatorPubKeyRaw,
-			AuthKey: fakeValidatorPubKeyRaw,
+	partitionGenesis[0].PartitionValidators = []*types.NodeInfo{
+		&types.NodeInfo{
+			NodeID: fakeValidatorID.String(),
+			SigKey: fakeValidatorPubKeyRaw,
+			Stake:  1,
 		},
 	}
 	if validator {
-		partitionGenesis[0].Keys = append(partitionGenesis[0].Keys,
-			&genesis.PublicKeyInfo{
-				NodeID:  peerConf.ID.String(),
-				SignKey: peerConf.KeyPair.PublicKey,
-				AuthKey: peerConf.KeyPair.PublicKey,
+		partitionGenesis[0].PartitionValidators = append(partitionGenesis[0].PartitionValidators,
+			&types.NodeInfo{
+				NodeID: peerConf.ID.String(),
+				SigKey: peerConf.KeyPair.PublicKey,
+				Stake:  1,
 			})
 	}
 
@@ -143,7 +145,7 @@ func newSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, v
 	deps := &partitionStartupDependencies{
 		peerConf:    peerConf,
 		txSystem:    txSystem,
-		nodeSigner:  nodeSigner,
+		nodeSigner:  signer,
 		genesis:     partitionGenesis[0],
 		trustBase:   trustBase,
 		network:     net,
@@ -156,6 +158,7 @@ func newSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, v
 		rootRound:  rootGenesis.GetRoundNumber(),
 		certs:      certs,
 		rootSigner: rootSigner,
+		rootNodeID: rootNodeID.String(),
 		mockNet:    net,
 		eh:         &testevent.TestEventHandler{},
 		obs:        observability.WithLogger(obs, obs.Logger().With(logger.NodeID(peerConf.ID))),
@@ -426,7 +429,7 @@ func (sn *SingleNodePartition) createUnicitySeal(roundNumber uint64, rootHash []
 		Timestamp:            types.NewTimestamp(),
 		Hash:                 rootHash,
 	}
-	return u, u.Sign("test", sn.rootSigner)
+	return u, u.Sign(sn.rootNodeID, sn.rootSigner)
 }
 
 func (sn *SingleNodePartition) GetCommittedUC(t *testing.T) *types.UnicityCertificate {

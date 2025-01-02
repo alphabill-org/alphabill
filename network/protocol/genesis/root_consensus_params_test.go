@@ -200,7 +200,7 @@ func TestVerify_VerifierIsNil(t *testing.T) {
 		Signatures:          map[string]hex.Bytes{"test": {0, 0}},
 	}
 	err := x.Verify(nil)
-	require.ErrorContains(t, err, "missing root node public info")
+	require.ErrorContains(t, err, "missing root node info")
 }
 
 func TestConsensusParams_Nil(t *testing.T) {

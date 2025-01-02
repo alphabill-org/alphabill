@@ -4,6 +4,7 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	testpeer "github.com/alphabill-org/alphabill/internal/testutils/peer"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
@@ -19,7 +20,7 @@ func TestVerifier_Ok(t *testing.T) {
 
 	peer1Conf := testpeer.CreatePeerConfiguration(t)
 	peer1Signer, peer1Verifier := testsig.CreateSignerAndVerifier(t)
-	pg := createPartitionGenesis(t, peer1Signer, peer1Conf.KeyPair.PublicKey, nil, peer1Conf)
+	_, pg := createPartitionGenesis(t, peer1Signer, nil, peer1Conf)
 
 	vaRec0 := newVARFromGenesis(pg)
 	require.NoError(t, ss.StoreValidatorAssignmentRecord(vaRec0))
@@ -50,13 +51,13 @@ func TestVerifier_Ok(t *testing.T) {
 func createVARWithNewNode(t *testing.T, prev *partitions.ValidatorAssignmentRecord) *partitions.ValidatorAssignmentRecord {
 	peerConf := testpeer.CreatePeerConfiguration(t)
 	_, sigVerifier := testsig.CreateSignerAndVerifier(t)
-	signKey, err := sigVerifier.MarshalPublicKey()
+	sigKey, err := sigVerifier.MarshalPublicKey()
 	require.NoError(t, err)
 
-	nodes := append(prev.Nodes, partitions.NodeInfo{
+	nodes := append(prev.Nodes, &types.NodeInfo{
 		NodeID: peerConf.ID.String(),
-		AuthKey: peerConf.KeyPair.PublicKey,
-		SignKey: signKey,
+		SigKey: sigKey,
+		Stake:  1,
 	})
 
 	return &partitions.ValidatorAssignmentRecord{
@@ -70,7 +71,7 @@ func createVARWithNewNode(t *testing.T, prev *partitions.ValidatorAssignmentReco
 }
 
 func createVARWithRemovedNode(t *testing.T, prev *partitions.ValidatorAssignmentRecord, removeNodeIdx uint) *partitions.ValidatorAssignmentRecord {
-	nodes := make([]partitions.NodeInfo, len(prev.Nodes)-1)
+	nodes := make([]*types.NodeInfo, len(prev.Nodes)-1)
 	copy(nodes[0:], prev.Nodes[:removeNodeIdx])
 	copy(nodes[removeNodeIdx:], prev.Nodes[removeNodeIdx+1:])
 

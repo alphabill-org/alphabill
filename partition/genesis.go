@@ -17,14 +17,12 @@ import (
 
 var ErrStateIsNil = errors.New("state is nil")
 var ErrSignerIsNil = errors.New("signer is nil")
-var ErrAuthPubKeyIsNil = errors.New("authentication public key is nil")
 
 type (
 	genesisConf struct {
 		peerID        peer.ID
 		hashAlgorithm gocrypto.Hash
 		signer        crypto.Signer
-		authPubKey    []byte
 		params        []byte
 	}
 
@@ -38,10 +36,6 @@ func (c *genesisConf) isValid() error {
 	if c.signer == nil {
 		return ErrSignerIsNil
 	}
-	if len(c.authPubKey) == 0 {
-		return ErrAuthPubKeyIsNil
-	}
-
 	return nil
 }
 
@@ -57,15 +51,9 @@ func WithHashAlgorithm(hashAlgorithm gocrypto.Hash) GenesisOption {
 	}
 }
 
-func WithSignPrivKey(signer crypto.Signer) GenesisOption {
+func WithSigner(signer crypto.Signer) GenesisOption {
 	return func(c *genesisConf) {
 		c.signer = signer
-	}
-}
-
-func WithAuthPubKey(authPubKey []byte) GenesisOption {
-	return func(c *genesisConf) {
-		c.authPubKey = authPubKey
 	}
 }
 
@@ -151,7 +139,7 @@ func NewNodeGenesis(state *state.State, pdr types.PartitionDescriptionRecord, op
 		return nil, err
 	}
 
-	signKey, err := verifier.MarshalPublicKey()
+	sigKey, err := verifier.MarshalPublicKey()
 	if err != nil {
 		return nil, err
 	}
@@ -160,8 +148,7 @@ func NewNodeGenesis(state *state.State, pdr types.PartitionDescriptionRecord, op
 	node := &genesis.PartitionNode{
 		Version:                    1,
 		NodeID:                     id,
-		AuthKey:                    c.authPubKey,
-		SignKey:                    signKey,
+		SigKey:                     sigKey,
 		BlockCertificationRequest:  blockCertificationRequest,
 		PartitionDescriptionRecord: pdr,
 		Params:                     c.params,

@@ -126,10 +126,6 @@ func abMoneyGenesisRunFun(_ context.Context, config *moneyGenesisConfig) error {
 	if err != nil {
 		return err
 	}
-	authPubKey, err := keys.AuthPrivKey.GetPublic().Raw()
-	if err != nil {
-		return err
-	}
 
 	// An uncommitted state, no UC yet
 	genesisState, err := newGenesisState(config)
@@ -145,8 +141,7 @@ func abMoneyGenesisRunFun(_ context.Context, config *moneyGenesisConfig) error {
 		genesisState,
 		*pdr,
 		partition.WithPeerID(peerID),
-		partition.WithSignPrivKey(keys.SignPrivKey),
-		partition.WithAuthPubKey(authPubKey),
+		partition.WithSigner(keys.Signer),
 		partition.WithParams(params),
 	)
 	if err != nil {

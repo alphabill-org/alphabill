@@ -44,7 +44,7 @@ func CreatePartitionNodes(t *testing.T, ir *types.InputRecord, partitionID types
 	}
 	for i := 0; i < nrOfValidators; i++ {
 		testNode := NewTestNode(t)
-		signKey, err := testNode.Verifier.MarshalPublicKey()
+		sigKey, err := testNode.Verifier.MarshalPublicKey()
 		require.NoError(t, err)
 
 		req := &certification.BlockCertificationRequest{
@@ -58,7 +58,7 @@ func CreatePartitionNodes(t *testing.T, ir *types.InputRecord, partitionID types
 		nodes = append(nodes, &genesis.PartitionNode{
 			Version:                    1,
 			NodeID:                     testNode.PeerConf.ID.String(),
-			SignKey:                    signKey,
+			SigKey:                     sigKey,
 			BlockCertificationRequest:  req,
 			PartitionDescriptionRecord: pdr,
 		})

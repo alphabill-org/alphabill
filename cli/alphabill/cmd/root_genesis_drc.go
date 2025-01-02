@@ -124,7 +124,7 @@ func signRootGenesisRunFunc(config *signGenesisConfig) error {
 		return fmt.Errorf("root genesis file '%s' read error: %w", config.RootGenesisFile, err)
 	}
 	// Combine root genesis files to single distributed genesis file
-	rg, err = rootgenesis.RootGenesisAddSignature(rg, peerID.String(), keys.SignPrivKey)
+	rg, err = rootgenesis.RootGenesisAddSignature(rg, peerID.String(), keys.Signer)
 	if err != nil {
 		return fmt.Errorf("root genesis add signature failed: %w", err)
 	}

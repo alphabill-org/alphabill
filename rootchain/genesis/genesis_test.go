@@ -33,7 +33,7 @@ func getPublicKeyAndVerifier(signer abcrypto.Signer) ([]byte, abcrypto.Verifier,
 func createNodes(t *testing.T, partitionID types.PartitionID, nodeID string, partitionSigner abcrypto.Signer) []*genesis.PartitionNode {
 	t.Helper()
 	req := createInputRequest(t, partitionID, nodeID, partitionSigner)
-	signKey, _, err := getPublicKeyAndVerifier(partitionSigner)
+	sigKey, _, err := getPublicKeyAndVerifier(partitionSigner)
 	require.NoError(t, err)
 
 	pdr := types.PartitionDescriptionRecord{
@@ -47,7 +47,7 @@ func createNodes(t *testing.T, partitionID types.PartitionID, nodeID string, par
 	return []*genesis.PartitionNode{{
 		Version:                    1,
 		NodeID:                     nodeID,
-		SignKey:                    signKey,
+		SigKey:                     sigKey,
 		BlockCertificationRequest:  req,
 		PartitionDescriptionRecord: pdr,
 	}}
@@ -56,13 +56,13 @@ func createNodes(t *testing.T, partitionID types.PartitionID, nodeID string, par
 func createPartitionNode(t *testing.T, partitionID types.PartitionID, nodeID string, partitionSigner abcrypto.Signer) *genesis.PartitionNode {
 	t.Helper()
 	req := createInputRequest(t, partitionID, nodeID, partitionSigner)
-	signKey, _, err := getPublicKeyAndVerifier(partitionSigner)
+	sigKey, _, err := getPublicKeyAndVerifier(partitionSigner)
 	require.NoError(t, err)
 
 	return &genesis.PartitionNode{
 		Version:                   1,
 		NodeID:                    nodeID,
-		SignKey:                   signKey,
+		SigKey:                    sigKey,
 		BlockCertificationRequest: req,
 		PartitionDescriptionRecord: types.PartitionDescriptionRecord{
 			Version:     1,
@@ -233,12 +233,12 @@ func TestNewGenesis_ConsensusNotPossible(t *testing.T) {
 	req.InputRecord.Hash = []byte{1, 1, 1, 1}
 	req.InputRecord.BlockHash = []byte{2, 2, 2, 2}
 	require.NoError(t, req.Sign(partitionSigner2))
-	signKey, _, err := getPublicKeyAndVerifier(partitionSigner2)
+	sigKey, _, err := getPublicKeyAndVerifier(partitionSigner2)
 	require.NoError(t, err)
 	node := &genesis.PartitionNode{
 		Version:                   1,
 		NodeID:                    "2",
-		SignKey:                   signKey,
+		SigKey:                    sigKey,
 		BlockCertificationRequest: req,
 	}
 	nodes = append(nodes, node)

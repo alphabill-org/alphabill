@@ -115,7 +115,7 @@ func rootGenesisRunFunc(config *rootGenesisConfig) error {
 
 	rg, pg, err := rootgenesis.NewRootGenesis(
 		peerID.String(),
-		keys.SignPrivKey,
+		keys.Signer,
 		nodes,
 		rootgenesis.WithTotalNodes(config.TotalNodes),
 		rootgenesis.WithBlockRate(config.BlockRateMs),

@@ -5,8 +5,7 @@
     "rootValidators": [
       {
         "nodeId": "16Uiu2HAmUfBNseqgeYXip8HE1dZQ2DnTKqXAh8qZzAtp8yENRgUR",
-        "signKey": "0x02507d57ed45c6e1da11732fa7e19fc620c980b8cdb19f051bb47d4474b3c3774d",
-        "authKey": "0x02507d57ed45c6e1da11732fa7e19fc620c980b8cdb19f051bb47d4474b3c3774d"
+        "sigKey": "0x02507d57ed45c6e1da11732fa7e19fc620c980b8cdb19f051bb47d4474b3c3774d"
       }
     ],
     "consensus": {
@@ -27,8 +26,7 @@
         {
           "version": 1,
           "nodeId": "16Uiu2HAmBD14HUw3MNfneWNWWdsFfdFiqjW87ySSyiniN5yPzZbu",
-          "signKey": "0x023bdf93e7e2798f10c29937a09fcce76a36966b7c69b776d60d3fd79f0097fe6f",
-          "authKey": "0x02ea7c02e0266d52ecdc67872e94b577c8329e061e3b98b84f180b45719912fe30",
+          "sigKey": "0x023bdf93e7e2798f10c29937a09fcce76a36966b7c69b776d60d3fd79f0097fe6f",
           "blockCertificationRequest": {
             "partitionId": 1,
             "shardId": "0x80",

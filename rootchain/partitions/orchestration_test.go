@@ -52,7 +52,7 @@ func TestNewOrchestration(t *testing.T) {
 		varNodes := recA.Nodes
 		require.Len(t, varNodes, 1)
 		require.EqualValues(t, pgPartition.Validators[0].NodeID, varNodes[0].NodeID)
-		require.EqualValues(t, pgPartition.Validators[0].SignKey, varNodes[0].SigKey)
+		require.EqualValues(t, pgPartition.Validators[0].SigKey, varNodes[0].SigKey)
 
 		// if we now reopen the DB with different genesis file the original
 		// data must be preserved and new seed ignored

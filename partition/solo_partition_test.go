@@ -81,7 +81,7 @@ func newSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, v
 	peerConf := createPeerConfiguration(t)
 	pdr := types.PartitionDescriptionRecord{Version: 1, NetworkID: 5, PartitionID: 0x01010101, TypeIDLen: 8, UnitIDLen: 256, T2Timeout: 2500 * time.Millisecond}
 	// node genesis
-	nodeSigner, _ := testsig.CreateSignerAndVerifier(t)
+	signer, _ := testsig.CreateSignerAndVerifier(t)
 	nodeGenesis, err := NewNodeGenesis(
 		// Should actually create the genesis state before the
 		// txSystem and start the txSystem with it. Works like
@@ -89,7 +89,7 @@ func newSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, v
 		state.NewEmptyState(),
 		pdr,
 		WithPeerID(peerConf.ID),
-		WithSignPrivKey(nodeSigner),
+		WithSigner(signer),
 	)
 	require.NoError(t, err)
 
@@ -145,7 +145,7 @@ func newSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, v
 	deps := &partitionStartupDependencies{
 		peerConf:    peerConf,
 		txSystem:    txSystem,
-		nodeSigner:  nodeSigner,
+		nodeSigner:  signer,
 		genesis:     partitionGenesis[0],
 		trustBase:   trustBase,
 		network:     net,

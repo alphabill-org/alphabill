@@ -337,7 +337,7 @@ func partitionGenesisFromRoot(rg *genesis.RootGenesis) []*genesis.PartitionGenes
 	for i, partition := range rg.Partitions {
 		var partitionValidators = make([]*types.NodeInfo, len(partition.Validators))
 		for j, v := range partition.Validators {
-			partitionValidators[j] = types.NewNodeInfo(v.NodeID, 1, v.SignKey)
+			partitionValidators[j] = types.NewNodeInfo(v.NodeID, 1, v.SigKey)
 		}
 		partitionGenesis[i] = &genesis.PartitionGenesis{
 			PartitionDescription: partition.PartitionDescription,

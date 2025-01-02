@@ -102,7 +102,7 @@ func orchestrationGenesisRunFun(_ context.Context, config *orchestrationGenesisC
 		genesisState,
 		*pdr,
 		partition.WithPeerID(peerID),
-		partition.WithSignPrivKey(keys.SignPrivKey),
+		partition.WithSigner(keys.Signer),
 		partition.WithParams(params),
 	)
 	if err != nil {

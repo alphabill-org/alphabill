@@ -51,7 +51,7 @@ func WithHashAlgorithm(hashAlgorithm gocrypto.Hash) GenesisOption {
 	}
 }
 
-func WithSignPrivKey(signer crypto.Signer) GenesisOption {
+func WithSigner(signer crypto.Signer) GenesisOption {
 	return func(c *genesisConf) {
 		c.signer = signer
 	}
@@ -143,7 +143,7 @@ func NewNodeGenesis(state *state.State, pdr types.PartitionDescriptionRecord, op
 		return nil, err
 	}
 
-	signKey, err := verifier.MarshalPublicKey()
+	sigKey, err := verifier.MarshalPublicKey()
 	if err != nil {
 		return nil, err
 	}
@@ -152,7 +152,7 @@ func NewNodeGenesis(state *state.State, pdr types.PartitionDescriptionRecord, op
 	node := &genesis.PartitionNode{
 		Version:                    1,
 		NodeID:                     id,
-		SignKey:                    signKey,
+		SigKey:                     sigKey,
 		BlockCertificationRequest:  blockCertificationRequest,
 		PartitionDescriptionRecord: pdr,
 		Params:                     c.params,

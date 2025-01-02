@@ -143,7 +143,7 @@ func createPartitionNode(t *testing.T, nodeID string, signer abcrypto.Signer) *P
 	t.Helper()
 	signVerifier, err := signer.Verifier()
 	require.NoError(t, err)
-	signKey, err := signVerifier.MarshalPublicKey()
+	sigKey, err := signVerifier.MarshalPublicKey()
 	require.NoError(t, err)
 
 	request := &certification.BlockCertificationRequest{
@@ -163,7 +163,7 @@ func createPartitionNode(t *testing.T, nodeID string, signer abcrypto.Signer) *P
 	pr := &PartitionNode{
 		Version:                    1,
 		NodeID:                     nodeID,
-		SignKey:                    signKey,
+		SigKey:                     sigKey,
 		BlockCertificationRequest:  request,
 		PartitionDescriptionRecord: types.PartitionDescriptionRecord{Version: 1},
 	}

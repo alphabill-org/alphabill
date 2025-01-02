@@ -13,14 +13,14 @@ import (
 var (
 	ErrPartitionNodeIsNil = errors.New("partition node is nil")
 	ErrNodeIDIsEmpty      = errors.New("node identifier is empty")
-	ErrSignKeyIsInvalid   = errors.New("signing key is invalid")
+	ErrSigKeyIsInvalid    = errors.New("signing key is invalid")
 )
 
 type PartitionNode struct {
 	_                          struct{}                                 `cbor:",toarray"`
 	Version                    types.ABVersion                          `json:"version"`
 	NodeID                     string                                   `json:"nodeId"`
-	SignKey                    hex.Bytes                                `json:"signKey"`
+	SigKey                     hex.Bytes                                `json:"sigKey"`
 	BlockCertificationRequest  *certification.BlockCertificationRequest `json:"blockCertificationRequest"`
 	PartitionDescriptionRecord types.PartitionDescriptionRecord         `json:"partitionDescriptionRecord"`
 	Params                     hex.Bytes                                `json:"params,omitempty"`
@@ -58,14 +58,14 @@ func (x *PartitionNode) IsValid() error {
 	if x.NodeID == "" {
 		return ErrNodeIDIsEmpty
 	}
-	if len(x.SignKey) == 0 {
-		return ErrSignKeyIsInvalid
+	if len(x.SigKey) == 0 {
+		return ErrSigKeyIsInvalid
 	}
-	signKey, err := crypto.NewVerifierSecp256k1(x.SignKey)
+	sigKey, err := crypto.NewVerifierSecp256k1(x.SigKey)
 	if err != nil {
 		return fmt.Errorf("invalid signing public key, %w", err)
 	}
-	if err = x.BlockCertificationRequest.IsValid(signKey); err != nil {
+	if err = x.BlockCertificationRequest.IsValid(sigKey); err != nil {
 		return fmt.Errorf("block certification request validation failed, %w", err)
 	}
 	return nil

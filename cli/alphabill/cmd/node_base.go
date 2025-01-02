@@ -176,7 +176,7 @@ func createNode(ctx context.Context,
 	node, err := partition.NewNode(
 		ctx,
 		peerConf,
-		keys.SignPrivKey,
+		keys.Signer,
 		txs,
 		pg,
 		trustBase,

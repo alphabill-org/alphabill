@@ -51,12 +51,12 @@ func TestVerifier_Ok(t *testing.T) {
 func createVARWithNewNode(t *testing.T, prev *partitions.ValidatorAssignmentRecord) *partitions.ValidatorAssignmentRecord {
 	peerConf := testpeer.CreatePeerConfiguration(t)
 	_, sigVerifier := testsig.CreateSignerAndVerifier(t)
-	signKey, err := sigVerifier.MarshalPublicKey()
+	sigKey, err := sigVerifier.MarshalPublicKey()
 	require.NoError(t, err)
 
 	nodes := append(prev.Nodes, &types.NodeInfo{
 		NodeID: peerConf.ID.String(),
-		SigKey: signKey,
+		SigKey: sigKey,
 		Stake:  1,
 	})
 

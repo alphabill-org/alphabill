@@ -271,7 +271,7 @@ func NewPartition(t *testing.T, nodeCount uint8, txSystemProvider func(trustBase
 			state,
 			pdr,
 			partition.WithPeerID(peerConf.ID),
-			partition.WithSignPrivKey(signer),
+			partition.WithSigner(signer),
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create node genesis, %w", err)

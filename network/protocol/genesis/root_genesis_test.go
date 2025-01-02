@@ -96,13 +96,13 @@ func TestRootGenesis_IsValid(t *testing.T) {
 				Partitions: []*GenesisPartitionRecord{
 					{
 						Version:              1,
-						Validators:           []*PartitionNode{{Version: 1, NodeID: "1", SignKey: nil, BlockCertificationRequest: nil}},
+						Validators:           []*PartitionNode{{Version: 1, NodeID: "1", SigKey: nil, BlockCertificationRequest: nil}},
 						Certificate:          nil,
 						PartitionDescription: &types.PartitionDescriptionRecord{Version: 1, NetworkID: 5, PartitionID: 1, T2Timeout: time.Second},
 					},
 					{
 						Version:              1,
-						Validators:           []*PartitionNode{{Version: 1, NodeID: "1", SignKey: nil, BlockCertificationRequest: nil}},
+						Validators:           []*PartitionNode{{Version: 1, NodeID: "1", SigKey: nil, BlockCertificationRequest: nil}},
 						Certificate:          nil,
 						PartitionDescription: &types.PartitionDescriptionRecord{Version: 1, NetworkID: 5, PartitionID: 1, T2Timeout: time.Second},
 					},
@@ -149,7 +149,7 @@ func TestRootGenesis(t *testing.T) {
 	}
 	// create root node
 	rSigner, rVerifier := testsig.CreateSignerAndVerifier(t)
-	rSignKey, err := rVerifier.MarshalPublicKey()
+	rSigKey, err := rVerifier.MarshalPublicKey()
 	require.NoError(t, err)
 
 	rootID := "root"
@@ -183,7 +183,7 @@ func TestRootGenesis(t *testing.T) {
 	rg.Root = &GenesisRootRecord{
 		Version: 1,
 		RootValidators: []*types.NodeInfo{
-			{NodeID: rootID, Stake: 1, SigKey: rSignKey},
+			{NodeID: rootID, Stake: 1, SigKey: rSigKey},
 		},
 		Consensus: consensus,
 	}

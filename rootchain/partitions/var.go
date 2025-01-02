@@ -36,7 +36,7 @@ func NewVARFromGenesis(gpr *genesis.GenesisPartitionRecord) *ValidatorAssignment
 func NewVARNodeFromGenesisNode(pn *genesis.PartitionNode) *types.NodeInfo {
 	return &types.NodeInfo{
 		NodeID: pn.NodeID,
-		SigKey: pn.SignKey,
+		SigKey: pn.SigKey,
 		Stake:  1,
 	}
 }

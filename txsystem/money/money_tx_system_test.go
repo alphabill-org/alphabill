@@ -1133,21 +1133,21 @@ func createStateAndTxSystem(t *testing.T, pdrs []*types.PartitionDescriptionReco
 // Duplicates txsystem/money/testutils/genesis_state.go
 func genesisState(t *testing.T, initialBill *InitialBill, sdrs []*types.PartitionDescriptionRecord) *state.State {
 	s := state.NewEmptyState()
-	zeroHash := make([]byte, crypto.SHA256.Size())
+	randomHash := test.RandomBytes(32)
 
 	// initial bill
 	require.NoError(t, s.Apply(state.AddUnit(initialBill.ID, money.NewBillData(initialBill.Value, initialBill.Owner))))
-	require.NoError(t, s.AddUnitLog(initialBill.ID, zeroHash))
+	require.NoError(t, s.AddUnitLog(initialBill.ID, randomHash))
 
 	// dust collector money supply
 	require.NoError(t, s.Apply(state.AddUnit(DustCollectorMoneySupplyID, money.NewBillData(initialDustCollectorMoneyAmount, DustCollectorPredicate))))
-	require.NoError(t, s.AddUnitLog(DustCollectorMoneySupplyID, zeroHash))
+	require.NoError(t, s.AddUnitLog(DustCollectorMoneySupplyID, randomHash))
 
 	// fee credit bills
 	for _, pdr := range sdrs {
 		fcb := pdr.FeeCreditBill
 		require.NoError(t, s.Apply(state.AddUnit(fcb.UnitID, &money.BillData{})))
-		require.NoError(t, s.AddUnitLog(fcb.UnitID, zeroHash))
+		require.NoError(t, s.AddUnitLog(fcb.UnitID, randomHash))
 	}
 
 	_, _, err := s.CalculateRoot()

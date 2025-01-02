@@ -286,7 +286,7 @@ func (si *ShardInfo) update(req *certification.BlockCertificationRequest, leader
 
 func (si *ShardInfo) ValidRequest(req *certification.BlockCertificationRequest) error {
 	// req.IsValid checks that req is not nil and comes from valid validator.
-	// It also calls IR.IsValid which implements (CR.IR.h = CR.IR.h′) = (CR.IR.hB = 0H)
+	// It also calls IR.IsValid which implements (CR.IR.h = CR.IR.h′) = (CR.IR.hB = ⊥)
 	// check so we do not repeat it here.
 	if err := si.Verify(req.NodeID, req.IsValid); err != nil {
 		return fmt.Errorf("invalid certification request: %w", err)
@@ -333,7 +333,9 @@ func (si *ShardInfo) Verify(nodeID string, f func(v abcrypto.Verifier) error) er
 
 func (si *ShardInfo) selectLeader(seed uint64) string {
 	extra := si.RootHash
-	seed += (uint64(extra[0]) | uint64(extra[1])<<8 | uint64(extra[2])<<16 | uint64(extra[3])<<24)
+	if len(extra) >= 4 {
+		seed += (uint64(extra[0]) | uint64(extra[1])<<8 | uint64(extra[2])<<16 | uint64(extra[3])<<24)
+	}
 	peerCount := uint64(len(si.nodeIDs))
 
 	return si.nodeIDs[seed%peerCount]

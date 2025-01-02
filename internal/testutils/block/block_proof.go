@@ -33,9 +33,9 @@ func DefaultOptions() *Options {
 
 func DefaultPDR() *types.PartitionDescriptionRecord {
 	return &types.PartitionDescriptionRecord{
-		NetworkID: 5,
-		PartitionID:       money.DefaultPartitionID,
-		T2Timeout:         2500 * time.Millisecond,
+		NetworkID:   5,
+		PartitionID: money.DefaultPartitionID,
+		T2Timeout:   2500 * time.Millisecond,
 	}
 }
 

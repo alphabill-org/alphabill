@@ -714,9 +714,6 @@ func TestSerialize_EmptyStateUncommitted(t *testing.T) {
 func TestSerialize_EmptyStateCommitted(t *testing.T) {
 	s := NewEmptyState(WithHashAlgorithm(crypto.SHA256))
 	summaryValue, summaryHash, err := s.CalculateRoot()
-	if summaryHash == nil {
-		summaryHash = make([]byte, crypto.SHA256.Size())
-	}
 	require.NoError(t, err)
 	require.NoError(t, s.Commit(createUC(s, summaryValue, summaryHash)))
 

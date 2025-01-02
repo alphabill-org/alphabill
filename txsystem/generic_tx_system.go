@@ -122,9 +122,6 @@ func (m *GenericTxSystem) getStateSummary() (StateSummary, error) {
 	if err != nil {
 		return nil, err
 	}
-	if hash == nil {
-		return NewStateSummary(make([]byte, m.hashAlgorithm.Size()), util.Uint64ToBytes(sv)), nil
-	}
 	return NewStateSummary(hash, util.Uint64ToBytes(sv)), nil
 }
 

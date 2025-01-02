@@ -16,12 +16,12 @@ import (
 )
 
 var systemDescription = &types.PartitionDescriptionRecord{
-	Version:             1,
+	Version:     1,
 	NetworkID:   5,
-	PartitionID:         1,
-	TypeIDLen:           8,
-	UnitIDLen:           256,
-	T2Timeout:           2500 * time.Millisecond,
+	PartitionID: 1,
+	TypeIDLen:   8,
+	UnitIDLen:   256,
+	T2Timeout:   2500 * time.Millisecond,
 }
 
 func TestNewDefaultUnicityCertificateValidator_NotOk(t *testing.T) {
@@ -81,7 +81,7 @@ func TestDefaultUnicityCertificateValidator_ValidateOk(t *testing.T) {
 		Version:      1,
 		PreviousHash: make([]byte, 32),
 		Hash:         make([]byte, 32),
-		BlockHash:    make([]byte, 32),
+		BlockHash:    nil,
 		SummaryValue: make([]byte, 32),
 		RoundNumber:  1,
 		Timestamp:    types.NewTimestamp(),
@@ -156,7 +156,7 @@ func TestDefaultNewDefaultBlockProposalValidator_ValidateOk(t *testing.T) {
 		Version:      1,
 		PreviousHash: make([]byte, 32),
 		Hash:         make([]byte, 32),
-		BlockHash:    make([]byte, 32),
+		BlockHash:    nil,
 		SummaryValue: make([]byte, 32),
 		RoundNumber:  1,
 		Timestamp:    types.NewTimestamp(),
@@ -184,7 +184,7 @@ func TestDefaultNewDefaultBlockProposalValidator_ValidateOk(t *testing.T) {
 		PartitionID:        uc.UnicityTreeCertificate.Partition,
 		NodeID:             "1",
 		UnicityCertificate: uc,
-		Technical: tr,
+		Technical:          tr,
 		Transactions: []*types.TransactionRecord{
 			{
 				TransactionOrder: testtransaction.NewTransactionOrderBytes(t),
@@ -201,32 +201,32 @@ func TestDefaultNewDefaultBlockProposalValidator_ValidateOk(t *testing.T) {
 
 func TestDefaultTxValidator_ValidateNotOk(t *testing.T) {
 	tests := []struct {
-		name                        string
-		tx                          *types.TransactionOrder
-		latestBlockNumber           uint64
+		name                string
+		tx                  *types.TransactionOrder
+		latestBlockNumber   uint64
 		expectedPartitionID types.PartitionID
-		errStr                      string
+		errStr              string
 	}{
 		{
-			name:                        "tx is nil",
-			tx:                          nil,
-			latestBlockNumber:           10,
+			name:                "tx is nil",
+			tx:                  nil,
+			latestBlockNumber:   10,
 			expectedPartitionID: 0x01020304,
-			errStr:                      "transaction is nil",
+			errStr:              "transaction is nil",
 		},
 		{
-			name:                        "invalid partition identifier",
-			tx:                          testtransaction.NewTransactionOrder(t), // default partitionID is 0x00000001
-			latestBlockNumber:           10,
+			name:                "invalid partition identifier",
+			tx:                  testtransaction.NewTransactionOrder(t), // default partitionID is 0x00000001
+			latestBlockNumber:   10,
 			expectedPartitionID: 0x01020304,
-			errStr:                      "expected 01020304, got 00000001: invalid transaction partition identifier",
+			errStr:              "expected 01020304, got 00000001: invalid transaction partition identifier",
 		},
 		{
-			name:                        "expired transaction",
-			tx:                          testtransaction.NewTransactionOrder(t), // default timeout is 10
-			latestBlockNumber:           11,
+			name:                "expired transaction",
+			tx:                  testtransaction.NewTransactionOrder(t), // default timeout is 10
+			latestBlockNumber:   11,
 			expectedPartitionID: 0x00000001,
-			errStr:                      "transaction timeout round is 10, current round is 11: transaction has timed out",
+			errStr:              "transaction timeout round is 10, current round is 11: transaction has timed out",
 		},
 	}
 	for _, tt := range tests {

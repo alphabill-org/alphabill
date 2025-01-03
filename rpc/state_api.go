@@ -6,20 +6,24 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/libp2p/go-libp2p/core/peer"
-
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/types/hex"
+	"github.com/alphabill-org/alphabill-go-base/util"
 	"github.com/alphabill-org/alphabill/partition"
 	"github.com/alphabill-org/alphabill/rootchain/partitions"
+	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/tree/avl"
 	"github.com/alphabill-org/alphabill/txsystem"
+	"github.com/libp2p/go-libp2p/core/peer"
 )
 
 type (
 	StateAPI struct {
 		node       partitionNode
 		ownerIndex partition.IndexReader
+
+		pdr             *types.PartitionDescriptionRecord
+		getUnitsEnabled bool
 
 		updMetrics    func(ctx context.Context, method string, start time.Time, apiErr error)
 		updTxReceived func(ctx context.Context, txType uint16, apiErr error)
@@ -56,14 +60,20 @@ type (
 	}
 )
 
-func NewStateAPI(node partitionNode, ownerIndex partition.IndexReader, obs Observability) *StateAPI {
+func NewStateAPI(node partitionNode, obs Observability, opts ...StateAPIOption) *StateAPI {
 	m := obs.Meter(metricsScopeJRPCAPI)
 	log := obs.Logger()
+	options := defaultStateAPIOptions()
+	for _, opt := range opts {
+		opt(options)
+	}
 	return &StateAPI{
-		node:          node,
-		ownerIndex:    ownerIndex,
-		updMetrics:    metricsUpdater(m, node, log),
-		updTxReceived: metricsUpdaterTxReceived(m, node, log),
+		node:            node,
+		ownerIndex:      options.ownerIndex,
+		pdr:             options.pdr,
+		getUnitsEnabled: options.getUnitsEnabled,
+		updMetrics:      metricsUpdater(m, node, log),
+		updTxReceived:   metricsUpdaterTxReceived(m, node, log),
 	}
 }
 
@@ -120,6 +130,51 @@ func (s *StateAPI) GetUnitsByOwnerID(ownerID hex.Bytes) (_ []types.UnitID, retEr
 		return nil, fmt.Errorf("failed to load owner units: %w", err)
 	}
 	return unitIds, nil
+}
+
+// GetUnits returns list of unit identifiers, optionally filtered by the given unit type identifier.
+func (s *StateAPI) GetUnits(typeIDHex hex.Bytes) (_ []types.UnitID, retErr error) {
+	defer func(start time.Time) { s.updMetrics(context.Background(), "getUnits", start, retErr) }(time.Now())
+	if !s.getUnitsEnabled {
+		return nil, errors.New("state_getUnits is disabled")
+	}
+	if s.pdr == nil {
+		return nil, errors.New("partition description record is nil")
+	}
+	var typeID uint32
+	if len(typeIDHex) > 0 {
+		var err error
+		typeID, err = typeIDToUint32(typeIDHex, s.pdr)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse type id: %w", err)
+		}
+	}
+
+	traverser := state.NewFilter(func(unitID types.UnitID, unit *state.Unit) (bool, error) {
+		// get all units if no unit type is provided
+		if len(typeIDHex) == 0 {
+			return true, nil
+		}
+		// filter by type if unit type is provided
+		unitIDType, err := s.pdr.ExtractUnitType(unitID)
+		if err != nil {
+			return false, fmt.Errorf("extracting unit type from unit ID: %w", err)
+		}
+		return unitIDType == typeID, nil
+	})
+	if err := s.node.TransactionSystemState().Traverse(traverser); err != nil {
+		return nil, fmt.Errorf("failed to traverse state tree: %w", err)
+	}
+	return traverser.FilteredUnitIDs(), nil
+}
+
+func typeIDToUint32(typeID hex.Bytes, pdr *types.PartitionDescriptionRecord) (uint32, error) {
+	if uint32(len(typeID)) != pdr.TypeIDLen/8 {
+		return 0, fmt.Errorf("invalid type id length got %d expected %d", len(typeID), pdr.TypeIDLen/8)
+	}
+	out := make([]byte, 4)
+	copy(out[4-len(typeID):], typeID) // copy the given type id bytes to the last positions of the target slice
+	return util.BytesToUint32(out), nil
 }
 
 // SendTransaction broadcasts the given transaction to the network, returns the submitted transaction hash.

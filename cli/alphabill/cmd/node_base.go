@@ -46,6 +46,7 @@ type startNodeConfiguration struct {
 	ShardConfigurationDbFile        string
 	TxIndexerDBFile                 string
 	WithOwnerIndex                  bool
+	WithGetUnits                    bool
 	LedgerReplicationMaxBlocksFetch uint64
 	LedgerReplicationMaxBlocks      uint64
 	LedgerReplicationMaxTx          uint32
@@ -54,7 +55,7 @@ type startNodeConfiguration struct {
 	BootStrapAddresses              []string // boot strap addresses (libp2p multiaddress format)
 }
 
-func run(ctx context.Context, node *partition.Node, rpcServerConf *rpc.ServerConfiguration, ownerIndexer *partition.OwnerIndexer, obs Observability) error {
+func run(ctx context.Context, node *partition.Node, rpcServerConf *rpc.ServerConfiguration, ownerIndexer *partition.OwnerIndexer, withGetUnits bool, pdr *types.PartitionDescriptionRecord, obs Observability) error {
 	log := obs.Logger()
 	name := partitionTypeIDToName(node.PartitionTypeID())
 	log.InfoContext(ctx, fmt.Sprintf("starting %s node: BuildInfo=%s", name, debug.ReadBuildInfo()))
@@ -76,7 +77,7 @@ func run(ctx context.Context, node *partition.Node, rpcServerConf *rpc.ServerCon
 		rpcServerConf.APIs = []rpc.API{
 			{
 				Namespace: "state",
-				Service:   rpc.NewStateAPI(node, ownerIndexer, obs),
+				Service:   rpc.NewStateAPI(node, obs, rpc.WithOwnerIndex(ownerIndexer), rpc.WithGetUnits(withGetUnits), rpc.WithPDR(pdr)),
 			},
 			{
 				Namespace: "admin",
@@ -235,6 +236,7 @@ func addCommonNodeConfigurationFlags(nodeCmd *cobra.Command, config *startNodeCo
 	nodeCmd.Flags().StringVarP(&config.ShardConfigurationDbFile, "shard-db", "", "", "path to the shard configuration database file; in-memory database is used if not set")
 	nodeCmd.Flags().StringVarP(&config.TxIndexerDBFile, "tx-db", "", "", "path to the transaction indexer database file; in-memory database is used if not set")
 	nodeCmd.Flags().BoolVar(&config.WithOwnerIndex, "with-owner-index", true, "enable/disable owner indexer")
+	nodeCmd.Flags().BoolVar(&config.WithGetUnits, "with-get-units", false, "enable/disable state_getUnits RPC endpoint")
 	nodeCmd.Flags().Uint64Var(&config.LedgerReplicationMaxBlocksFetch, "ledger-replication-max-blocks-fetch", 1000, "maximum number of blocks to query in a single replication request")
 	nodeCmd.Flags().Uint64Var(&config.LedgerReplicationMaxBlocks, "ledger-replication-max-blocks", 1000, "maximum number of blocks to return in a single replication response")
 	nodeCmd.Flags().Uint32Var(&config.LedgerReplicationMaxTx, "ledger-replication-max-transactions", 10000, "maximum number of transactions to return in a single replication response")

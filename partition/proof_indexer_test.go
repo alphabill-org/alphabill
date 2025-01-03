@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/alphabill-org/alphabill-go-base/util"
+	"github.com/alphabill-org/alphabill/tree/avl"
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
@@ -315,6 +316,10 @@ func (m mockStateStoreOK) CreateIndex(state.KeyExtractor[string]) (state.Index[s
 }
 
 func (m mockStateStoreOK) Serialize(writer io.Writer, committed bool) error {
+	return nil
+}
+
+func (m mockStateStoreOK) Traverse(traverser avl.Traverser[types.UnitID, *state.Unit]) error {
 	return nil
 }
 

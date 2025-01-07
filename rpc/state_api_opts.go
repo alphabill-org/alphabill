@@ -7,17 +7,17 @@ import (
 
 type (
 	StateAPIOptions struct {
-		getUnitsEnabled bool
-		pdr             *types.PartitionDescriptionRecord
-		ownerIndex      partition.IndexReader
+		withGetUnits bool
+		pdr          *types.PartitionDescriptionRecord
+		ownerIndex   partition.IndexReader
 	}
 
 	StateAPIOption func(*StateAPIOptions)
 )
 
-func WithGetUnits(enabled bool) StateAPIOption {
+func WithGetUnits(withGetUnits bool) StateAPIOption {
 	return func(c *StateAPIOptions) {
-		c.getUnitsEnabled = enabled
+		c.withGetUnits = withGetUnits
 	}
 }
 
@@ -35,8 +35,8 @@ func WithOwnerIndex(ownerIndex partition.IndexReader) StateAPIOption {
 
 func defaultStateAPIOptions() *StateAPIOptions {
 	return &StateAPIOptions{
-		getUnitsEnabled: false,
-		pdr:             nil,
-		ownerIndex:      nil,
+		withGetUnits: false,
+		pdr:          nil,
+		ownerIndex:   nil,
 	}
 }

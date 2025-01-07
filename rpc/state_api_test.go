@@ -147,8 +147,8 @@ func TestGetUnits(t *testing.T) {
 		require.Len(t, unitIDs, 5)
 	})
 	t.Run("ok with type id 1", func(t *testing.T) {
-		typeID := []byte{1}
-		unitIDs, err := api.GetUnits(typeID)
+		typeID := uint32(1)
+		unitIDs, err := api.GetUnits(&typeID)
 		fmt.Println(unitIDs)
 		require.NoError(t, err)
 		require.Len(t, unitIDs, 3)
@@ -157,24 +157,18 @@ func TestGetUnits(t *testing.T) {
 		require.EqualValues(t, unitID3, unitIDs[2])
 	})
 	t.Run("ok with type id 2", func(t *testing.T) {
-		typeID := []byte{2}
-		unitIDs, err := api.GetUnits(typeID)
+		typeID := uint32(2)
+		unitIDs, err := api.GetUnits(&typeID)
 		require.NoError(t, err)
 		require.Len(t, unitIDs, 2)
 		require.EqualValues(t, unitID4, unitIDs[0])
 		require.EqualValues(t, unitID5, unitIDs[1])
 	})
 	t.Run("empty response with type unknown type", func(t *testing.T) {
-		typeID := []byte{3}
-		unitIDs, err := api.GetUnits(typeID)
+		typeID := uint32(3)
+		unitIDs, err := api.GetUnits(&typeID)
 		require.NoError(t, err)
 		require.Len(t, unitIDs, 0)
-	})
-	t.Run("err invalid type id", func(t *testing.T) {
-		invalidTypeID := []byte{1, 1}
-		unitIds, err := api.GetUnits(invalidTypeID)
-		require.ErrorContains(t, err, "invalid type id length got 2 expected 1")
-		require.Nil(t, unitIds)
 	})
 }
 

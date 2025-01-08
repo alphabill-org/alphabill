@@ -6,7 +6,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/alphabill-org/alphabill-go-base/crypto/canonicalizer"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
@@ -16,28 +15,6 @@ import (
 	"github.com/alphabill-org/alphabill/network/protocol/certification"
 	rctypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
 )
-
-type AlwaysValidVerifier struct{}
-
-func (a AlwaysValidVerifier) VerifyBytes(sig []byte, data []byte) error {
-	return nil
-}
-
-func (a AlwaysValidVerifier) VerifyHash(signature []byte, hash []byte) error {
-	return nil
-}
-
-func (a AlwaysValidVerifier) VerifyObject(sig []byte, obj canonicalizer.Canonicalizer, opts ...canonicalizer.Option) error {
-	return nil
-}
-
-func (a AlwaysValidVerifier) MarshalPublicKey() ([]byte, error) {
-	return []byte{}, nil
-}
-
-func (a AlwaysValidVerifier) UnmarshalPubKey() (crypto.PublicKey, error) {
-	return []byte{}, nil
-}
 
 func TestRecoveryBlock_GetRound(t *testing.T) {
 	t.Run("recovery block is nil", func(t *testing.T) {
@@ -255,7 +232,7 @@ func TestStateMsg_Verify(t *testing.T) {
 
 	t.Run("ok", func(t *testing.T) {
 		sm := validStateMsg()
-		tb := testtb.NewTrustBase(t, AlwaysValidVerifier{})
+		tb := testtb.NewAlwaysValidTrustBase(t)
 		require.NoError(t, sm.Verify(crypto.SHA256, tb))
 	})
 
@@ -282,7 +259,7 @@ func TestStateMsg_Verify(t *testing.T) {
 	t.Run("invalid block node data", func(t *testing.T) {
 		sm := validStateMsg()
 		sm.BlockData[0].Qc = nil
-		tb := testtb.NewTrustBase(t, AlwaysValidVerifier{})
+		tb := testtb.NewAlwaysValidTrustBase(t)
 		require.ErrorContains(t, sm.Verify(crypto.SHA256, tb), "invalid block node: proposed block is missing quorum certificate")
 	})
 }

@@ -7,6 +7,7 @@ import (
 
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/internal/testutils/sig"
+	"github.com/alphabill-org/alphabill/internal/testutils/trustbase"
 	"github.com/stretchr/testify/require"
 )
 
@@ -60,7 +61,7 @@ func TestGenesisRootRecord_FindPubKeyById_Nil(t *testing.T) {
 	nodeInfo := make([]*types.NodeInfo, totalNodes)
 	for i := range nodeInfo {
 		_, verifier := testsig.CreateSignerAndVerifier(t)
-		nodeInfo[i] = types.NewNodeInfoFromVerifier(fmt.Sprint(i), 1, verifier)
+		nodeInfo[i] = trustbase.NewNodeInfoFromVerifier(fmt.Sprint(i), 1, verifier)
 	}
 	rg = &GenesisRootRecord{
 		Version:        1,
@@ -108,7 +109,7 @@ func TestGenesisRootRecord_IsValid(t *testing.T) {
 			name: "Consensus nil",
 			fields: fields{
 				RootValidators: []*types.NodeInfo{
-					types.NewNodeInfoFromVerifier("test", 1, verifier),
+					trustbase.NewNodeInfoFromVerifier("test", 1, verifier),
 				},
 				Consensus:      nil},
 			wantErr: ErrConsensusIsNil.Error(),
@@ -117,7 +118,7 @@ func TestGenesisRootRecord_IsValid(t *testing.T) {
 			name: "Consensus not valid",
 			fields: fields{
 				RootValidators: []*types.NodeInfo{
-					types.NewNodeInfoFromVerifier("test", 1, verifier),
+					trustbase.NewNodeInfoFromVerifier("test", 1, verifier),
 				},
 				Consensus: &ConsensusParams{
 					Version:             1,
@@ -131,7 +132,7 @@ func TestGenesisRootRecord_IsValid(t *testing.T) {
 			name: "Not signed by validator",
 			fields: fields{
 				RootValidators: []*types.NodeInfo{
-					types.NewNodeInfoFromVerifier("test", 1, verifier),
+					trustbase.NewNodeInfoFromVerifier("test", 1, verifier),
 				},
 				Consensus: &ConsensusParams{
 					Version:             1,
@@ -145,8 +146,8 @@ func TestGenesisRootRecord_IsValid(t *testing.T) {
 			name: "Not signed by all validators",
 			fields: fields{
 				RootValidators: []*types.NodeInfo{
-					types.NewNodeInfoFromVerifier("test", 1, verifier),
-					types.NewNodeInfoFromVerifier("xxx", 1, verifier2),
+					trustbase.NewNodeInfoFromVerifier("test", 1, verifier),
+					trustbase.NewNodeInfoFromVerifier("xxx", 1, verifier2),
 				},
 				Consensus: consensus},
 			wantErr: "consensus parameters is not signed by all validators",
@@ -155,9 +156,9 @@ func TestGenesisRootRecord_IsValid(t *testing.T) {
 			name: "Duplicate validators",
 			fields: fields{
 				RootValidators: []*types.NodeInfo{
-					types.NewNodeInfoFromVerifier("test", 1, verifier),
-					types.NewNodeInfoFromVerifier("test", 1, verifier),
-					types.NewNodeInfoFromVerifier("test", 1, verifier),
+					trustbase.NewNodeInfoFromVerifier("test", 1, verifier),
+					trustbase.NewNodeInfoFromVerifier("test", 1, verifier),
+					trustbase.NewNodeInfoFromVerifier("test", 1, verifier),
 				},
 				Consensus: consensus},
 			wantErr: "duplicate node id: test",
@@ -166,7 +167,7 @@ func TestGenesisRootRecord_IsValid(t *testing.T) {
 			name: "Unknown validator",
 			fields: fields{
 				RootValidators: []*types.NodeInfo{
-					types.NewNodeInfoFromVerifier("t", 1, verifier2),
+					trustbase.NewNodeInfoFromVerifier("t", 1, verifier2),
 				},
 				Consensus: consensus},
 			wantErr: "consensus parameters signed by unknown validator:",
@@ -200,7 +201,7 @@ func TestGenesisRootRecord_IsValidMissingPublicKeyInfo(t *testing.T) {
 	require.NoError(t, err)
 	x := &GenesisRootRecord{
 		Version:        1,
-		RootValidators: []*types.NodeInfo{types.NewNodeInfoFromVerifier("test", 1, verifier)},
+		RootValidators: []*types.NodeInfo{trustbase.NewNodeInfoFromVerifier("test", 1, verifier)},
 		Consensus:      consensus,
 	}
 	require.ErrorContains(t, x.IsValid(), "consensus parameters signed by unknown validator")
@@ -226,7 +227,7 @@ func TestGenesisRootRecord_VerifyOk(t *testing.T) {
 		signer, verifier := testsig.CreateSignerAndVerifier(t)
 		err := consensus.Sign(fmt.Sprint(i), signer)
 		require.NoError(t, err)
-		rootValidators[i] = types.NewNodeInfoFromVerifier(fmt.Sprint(i), 1, verifier)
+		rootValidators[i] = trustbase.NewNodeInfoFromVerifier(fmt.Sprint(i), 1, verifier)
 	}
 	var x *GenesisRootRecord
 	t.Run("Verify", func(t *testing.T) {
@@ -261,7 +262,7 @@ func TestGenesisRootRecord_VerifyErrNoteSignedByAll(t *testing.T) {
 		signer, verifier := testsig.CreateSignerAndVerifier(t)
 		err := consensus.Sign(fmt.Sprint(i), signer)
 		require.NoError(t, err)
-		rootValidators[i] = types.NewNodeInfoFromVerifier(fmt.Sprint(i), 1, verifier)
+		rootValidators[i] = trustbase.NewNodeInfoFromVerifier(fmt.Sprint(i), 1, verifier)
 	}
 	// remove one signature
 	delete(consensus.Signatures, rootValidators[0].NodeID)
@@ -286,7 +287,7 @@ func TestGenesisRootRecord_Verify(t *testing.T) {
 		signer, verifier := testsig.CreateSignerAndVerifier(t)
 		err := consensus.Sign(fmt.Sprint(i), signer)
 		require.NoError(t, err)
-		rootValidators[i] = types.NewNodeInfoFromVerifier(fmt.Sprint(i), 1, verifier)
+		rootValidators[i] = trustbase.NewNodeInfoFromVerifier(fmt.Sprint(i), 1, verifier)
 	}
 
 	type fields struct {

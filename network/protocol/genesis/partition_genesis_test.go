@@ -7,6 +7,7 @@ import (
 
 	"github.com/alphabill-org/alphabill-go-base/types"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
+	"github.com/alphabill-org/alphabill/internal/testutils/trustbase"
 	testtb "github.com/alphabill-org/alphabill/internal/testutils/trustbase"
 	"github.com/stretchr/testify/require"
 )
@@ -16,7 +17,7 @@ func TestPartitionGenesis_IsValid(t *testing.T) {
 	sigKey, err := verifier.MarshalPublicKey()
 	require.NoError(t, err)
 	trustBase := testtb.NewTrustBase(t, verifier)
-	keyInfo := types.NewNodeInfoFromVerifier("1", 1, verifier)
+	keyInfo := trustbase.NewNodeInfoFromVerifier("1", 1, verifier)
 	validPDR := &types.PartitionDescriptionRecord{
 		Version:     1,
 		NetworkID:   5,

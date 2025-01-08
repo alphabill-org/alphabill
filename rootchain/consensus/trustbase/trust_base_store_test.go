@@ -5,6 +5,7 @@ import (
 
 	"github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill/internal/testutils/trustbase"
 	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
 	"github.com/stretchr/testify/require"
 )
@@ -28,7 +29,7 @@ func TestTrustBaseStore(t *testing.T) {
 	verifier, err := signer.Verifier()
 	require.NoError(t, err)
 	tb, err = types.NewTrustBaseGenesis(
-		[]*types.NodeInfo{types.NewNodeInfoFromVerifier("test", 1, verifier)},
+		[]*types.NodeInfo{trustbase.NewNodeInfoFromVerifier("test", 1, verifier)},
 		[]byte{100},
 	)
 	require.NoError(t, err)
@@ -40,7 +41,5 @@ func TestTrustBaseStore(t *testing.T) {
 	// verify trust base can be loaded
 	tbFromDB, err := trustBaseStore.LoadTrustBase(0)
 	require.NoError(t, err)
-	_, _ = tb.VerifySignature([]byte{}, []byte{}, "test")
-	_, _ = tbFromDB.VerifySignature([]byte{}, []byte{}, "test")
 	require.Equal(t, tb, tbFromDB)
 }

@@ -252,7 +252,7 @@ func NewRootGenesis(
 		return nil, nil, fmt.Errorf("failed to marshal signing key: %w", err)
 	}
 	rootValidators := []*types.NodeInfo{
-		types.NewNodeInfo(nodeID, 1, sigKey),
+		&types.NodeInfo{NodeID: nodeID, SigKey: sigKey, Stake: 1},
 	}
 	tb, err := types.NewTrustBaseGenesis(
 		rootValidators,
@@ -337,7 +337,11 @@ func partitionGenesisFromRoot(rg *genesis.RootGenesis) []*genesis.PartitionGenes
 	for i, partition := range rg.Partitions {
 		var partitionValidators = make([]*types.NodeInfo, len(partition.Validators))
 		for j, v := range partition.Validators {
-			partitionValidators[j] = types.NewNodeInfo(v.NodeID, 1, v.SigKey)
+			partitionValidators[j] = &types.NodeInfo{
+				NodeID: v.NodeID,
+				SigKey: v.SigKey,
+				Stake: 1,
+			}
 		}
 		partitionGenesis[i] = &genesis.PartitionGenesis{
 			PartitionDescription: partition.PartitionDescription,
@@ -466,7 +470,13 @@ func RootGenesisAddSignature(rootGenesis *genesis.RootGenesis, nodeID string, si
 	if err != nil {
 		return nil, fmt.Errorf("marsha signing key failed: %w", err)
 	}
-	rootGenesis.Root.RootValidators = append(rootGenesis.Root.RootValidators, types.NewNodeInfo(nodeID, 1, sigKey))
+	rootGenesis.Root.RootValidators = append(rootGenesis.Root.RootValidators,
+		&types.NodeInfo{
+			NodeID: nodeID,
+			SigKey: sigKey,
+			Stake:  1,
+		})
+
 	// Update partition records
 	for _, pr := range rootGenesis.Partitions {
 		if err = pr.Certificate.UnicitySeal.Sign(nodeID, signer); err != nil {

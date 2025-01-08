@@ -14,6 +14,7 @@ import (
 	testnetwork "github.com/alphabill-org/alphabill/internal/testutils/network"
 	testobservability "github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/alphabill-org/alphabill/internal/testutils/peer"
+	"github.com/alphabill-org/alphabill/internal/testutils/trustbase"
 	"github.com/alphabill-org/alphabill/logger"
 	"github.com/alphabill-org/alphabill/network"
 	"github.com/alphabill-org/alphabill/network/protocol/certification"
@@ -162,7 +163,7 @@ func createTrustBaseFromRootGenesis(rootGenesis *genesis.RootGenesis) (types.Roo
 		if err != nil {
 			return nil, err
 		}
-		trustBaseNodes = append(trustBaseNodes, types.NewNodeInfoFromVerifier(rn.NodeID, 1, verifier))
+		trustBaseNodes = append(trustBaseNodes, trustbase.NewNodeInfoFromVerifier(rn.NodeID, 1, verifier))
 		// parse unicity tree root hash, optionally sanity check that all root hashes are equal for each partition
 		for _, p := range rootGenesis.Partitions {
 			if len(unicityTreeRootHash) == 0 {

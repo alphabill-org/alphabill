@@ -20,6 +20,7 @@ import (
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testobservability "github.com/alphabill-org/alphabill/internal/testutils/observability"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
+	"github.com/alphabill-org/alphabill/internal/testutils/trustbase"
 	testtxsystem "github.com/alphabill-org/alphabill/internal/testutils/txsystem"
 	"github.com/alphabill-org/alphabill/network"
 	"github.com/alphabill-org/alphabill/rootchain/partitions"
@@ -211,7 +212,7 @@ func TestGetTrustBase(t *testing.T) {
 
 	t.Run("ok", func(t *testing.T) {
 		_, verifier := testsig.CreateSignerAndVerifier(t)
-		trustBase, err := types.NewTrustBaseGenesis([]*types.NodeInfo{types.NewNodeInfoFromVerifier("1", 1, verifier)}, []byte{1})
+		trustBase, err := types.NewTrustBaseGenesis([]*types.NodeInfo{trustbase.NewNodeInfoFromVerifier("1", 1, verifier)}, []byte{1})
 		require.NoError(t, err)
 		node.trustBase = trustBase
 

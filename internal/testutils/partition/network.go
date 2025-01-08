@@ -27,6 +27,7 @@ import (
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
 	testevent "github.com/alphabill-org/alphabill/internal/testutils/partition/event"
+	"github.com/alphabill-org/alphabill/internal/testutils/trustbase"
 	"github.com/alphabill-org/alphabill/keyvaluedb"
 	"github.com/alphabill-org/alphabill/keyvaluedb/boltdb"
 	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
@@ -157,7 +158,7 @@ func newRootPartition(t *testing.T, nofRootNodes uint8, nodePartitions []*NodePa
 			peerConf:   peerCfg,
 			homeDir:    t.TempDir(),
 		}
-		trustBaseNodes[i] = types.NewNodeInfoFromVerifier(peerCfg.ID.String(), 1, verifier)
+		trustBaseNodes[i] = trustbase.NewNodeInfoFromVerifier(peerCfg.ID.String(), 1, verifier)
 		for _, p := range rg.Partitions {
 			if len(unicityTreeRootHash) == 0 {
 				unicityTreeRootHash = p.Certificate.UnicitySeal.Hash

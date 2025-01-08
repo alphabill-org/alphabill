@@ -34,7 +34,7 @@ type (
 	}
 
 	StateProvider interface {
-		GetUnit(id types.UnitID, committed bool) (*state.Unit, error)
+		GetUnit(id types.UnitID, committed bool) (state.VersionedUnit, error)
 	}
 )
 
@@ -75,7 +75,7 @@ func (o *OwnerIndexer) IndexBlock(b *types.Block, s StateProvider) error {
 			if err != nil {
 				return fmt.Errorf("failed to load unit: %w", err)
 			}
-			unitLogs := unit.Logs()
+			unitLogs := unit.GetV1().Logs()
 			if len(unitLogs) == 0 {
 				o.log.Error(fmt.Sprintf("cannot index unit owners, unit logs is empty, unitID=%x", unitID))
 				continue
@@ -139,7 +139,7 @@ func (o *OwnerIndexer) delOwnerIndex(unitID types.UnitID, ownerPredicate []byte)
 	return nil
 }
 
-func (o *OwnerIndexer) extractOwnerID(unit *state.Unit) (string, error) {
+func (o *OwnerIndexer) extractOwnerID(unit state.VersionedUnit) (string, error) {
 	return o.extractOwnerIDFromPredicate(unit.Data().Owner()), nil
 }
 

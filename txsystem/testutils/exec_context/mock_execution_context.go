@@ -9,7 +9,7 @@ import (
 
 type MockExecContext struct {
 	Tx            *types.TransactionOrder
-	Unit          *state.Unit
+	Unit          state.VersionedUnit
 	RootTrustBase types.RootTrustBase
 	RoundNumber   uint64
 	GasRemaining  uint64
@@ -17,7 +17,7 @@ type MockExecContext struct {
 	customData    []byte
 }
 
-func (m *MockExecContext) GetUnit(id types.UnitID, committed bool) (*state.Unit, error) {
+func (m *MockExecContext) GetUnit(id types.UnitID, committed bool) (state.VersionedUnit, error) {
 	if m.mockErr != nil {
 		return nil, m.mockErr
 	}
@@ -60,7 +60,7 @@ func WithCurrentRound(round uint64) TestOption {
 	}
 }
 
-func WithUnit(unit *state.Unit) TestOption {
+func WithUnit(unit state.VersionedUnit) TestOption {
 	return func(m *MockExecContext) {
 		m.Unit = unit
 	}

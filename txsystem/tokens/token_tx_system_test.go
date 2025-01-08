@@ -648,7 +648,7 @@ func TestMintNFT_Ok(t *testing.T) {
 	require.IsType(t, &tokens.NonFungibleTokenData{}, u.Data())
 
 	// verify unit log was added
-	require.Len(t, u.Logs(), 1)
+	require.Len(t, u.GetV1().Logs(), 1)
 
 	d := u.Data().(*tokens.NonFungibleTokenData)
 	require.Equal(t, zeroSummaryValue, d.SummaryValueInput())

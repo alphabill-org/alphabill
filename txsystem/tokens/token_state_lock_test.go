@@ -49,7 +49,7 @@ func TestTransferNFT_StateLock(t *testing.T) {
 	// verify unit was locked and bearer hasn't changed
 	u, err := txs.State().GetUnit(unitID, false)
 	require.NoError(t, err)
-	require.True(t, u.IsStateLocked())
+	require.True(t, u.GetV1().IsStateLocked())
 
 	require.IsType(t, &tokens.NonFungibleTokenData{}, u.Data())
 	d := u.Data().(*tokens.NonFungibleTokenData)
@@ -102,7 +102,7 @@ func TestTransferNFT_StateLock(t *testing.T) {
 	// verify unit was unlocked and bearer has changed
 	u, err = txs.State().GetUnit(unitID, false)
 	require.NoError(t, err)
-	require.False(t, u.IsStateLocked())
+	require.False(t, u.GetV1().IsStateLocked())
 
 	require.IsType(t, &tokens.NonFungibleTokenData{}, u.Data())
 	d = u.Data().(*tokens.NonFungibleTokenData)

@@ -96,7 +96,7 @@ func (enc TXSystemEncoder) TxAttributes(txo *types.TransactionOrder, ver uint32)
 	return encoder(txo, ver)
 }
 
-func (enc TXSystemEncoder) UnitData(unit *state.Unit, ver uint32) ([]byte, error) {
+func (enc TXSystemEncoder) UnitData(unit state.VersionedUnit, ver uint32) ([]byte, error) {
 	data := unit.Data()
 	encoder, ok := enc.udEnc[reflect.TypeOf(data)]
 	if !ok {

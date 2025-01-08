@@ -439,7 +439,7 @@ func TestExecute_SwapOk(t *testing.T) {
 	dcBill, dcBillData := getBill(t, s, DustCollectorMoneySupplyID)
 	require.Equal(t, beforeCommitValue, dcBillData.Value)
 	// Make sure the DC bill logs are pruned
-	require.Equal(t, 1, len(dcBill.Logs()))
+	require.Equal(t, 1, len(dcBill.GetV1().Logs()))
 }
 
 func TestExecute_LockAndUnlockOk(t *testing.T) {
@@ -938,7 +938,7 @@ func TestExecute_AddFeeCreditWithLocking_OK(t *testing.T) {
 	require.False(t, fcr.IsLocked())
 }
 
-func getBill(t *testing.T, s *state.State, billID types.UnitID) (*state.Unit, *money.BillData) {
+func getBill(t *testing.T, s *state.State, billID types.UnitID) (state.VersionedUnit, *money.BillData) {
 	t.Helper()
 	ib, err := s.GetUnit(billID, false)
 	require.NoError(t, err)

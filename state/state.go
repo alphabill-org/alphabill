@@ -36,10 +36,10 @@ type (
 	}
 
 	VersionedUnit interface {
-		//comparable
 		types.Versioned
 		avl.Value[VersionedUnit]
 
+		Data() types.UnitData
 		GetV1() *Unit
 	}
 

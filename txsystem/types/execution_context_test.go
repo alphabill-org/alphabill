@@ -14,7 +14,7 @@ import (
 type stateInfo struct {
 }
 
-func (s *stateInfo) GetUnit(id types.UnitID, committed bool) (*state.Unit, error) {
+func (s *stateInfo) GetUnit(id types.UnitID, committed bool) (state.VersionedUnit, error) {
 	return nil, fmt.Errorf("unit does not exist")
 }
 

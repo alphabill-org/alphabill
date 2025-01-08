@@ -299,7 +299,7 @@ type mockStateStoreOK struct {
 	err error
 }
 
-func (m mockStateStoreOK) GetUnit(id types.UnitID, committed bool) (*state.Unit, error) {
+func (m mockStateStoreOK) GetUnit(id types.UnitID, committed bool) (state.VersionedUnit, error) {
 	if m.err != nil {
 		return nil, m.err
 	}

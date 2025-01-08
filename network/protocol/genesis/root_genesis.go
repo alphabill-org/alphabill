@@ -72,7 +72,7 @@ func (x *RootGenesis) IsValid() error {
 		return fmt.Errorf("creating validator trustbase: %w", err)
 	}
 	for _, p := range x.Partitions {
-		if err := p.IsValid(trustBase, alg); err != nil {
+		if err := p.Verify(trustBase, alg); err != nil {
 			return err
 		}
 	}
@@ -108,7 +108,7 @@ func (x *RootGenesis) Verify() error {
 	// Use hash algorithm from consensus structure
 	alg := gocrypto.Hash(x.Root.Consensus.HashAlgorithm)
 	for i, p := range x.Partitions {
-		if err = p.IsValid(trustBase, alg); err != nil {
+		if err = p.Verify(trustBase, alg); err != nil {
 			return fmt.Errorf("invalid partition record at index %v: %w", i, err)
 		}
 		// make sure all root validators have signed the UC Seal

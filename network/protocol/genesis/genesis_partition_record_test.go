@@ -122,7 +122,11 @@ func TestGenesisPartitionRecord_IsValid(t *testing.T) {
 				Certificate:          tt.fields.Certificate,
 				PartitionDescription: tt.fields.PartitionDescription,
 			}
-			err = x.IsValid(tt.args.verifier, tt.args.hashAlgorithm)
+			if tt.args.verifier != nil {
+				err = x.Verify(tt.args.verifier, tt.args.hashAlgorithm)
+			} else {
+				err = x.IsValid()
+			}
 			if tt.wantErrStr != "" {
 				require.ErrorContains(t, err, tt.wantErrStr)
 			} else {
@@ -136,7 +140,7 @@ func TestGenesisPartitionRecord_IsValid(t *testing.T) {
 func TestGenesisPartitionRecord_IsValid_Nil(t *testing.T) {
 	_, verifier := testsig.CreateSignerAndVerifier(t)
 	var pr *GenesisPartitionRecord
-	require.ErrorIs(t, pr.IsValid(testtb.NewTrustBase(t, verifier), crypto.SHA256), ErrGenesisPartitionRecordIsNil)
+	require.ErrorIs(t, pr.Verify(testtb.NewTrustBase(t, verifier), crypto.SHA256), ErrGenesisPartitionRecordIsNil)
 }
 
 func createPartitionNode(t *testing.T, nodeID string, signer abcrypto.Signer) *PartitionNode {

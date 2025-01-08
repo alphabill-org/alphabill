@@ -367,8 +367,8 @@ func newPartitionRecord(nodes []*genesis.PartitionNode) (*genesis.GenesisPartiti
 		Validators:           nodes,
 	}
 
-	// validate partition record without trustbase, certificate not signed yet
-	if err := pr.IsValid(nil, 0); err != nil {
+	// do basic validation of partition record, cannot verify since the certificate is not signed yet
+	if err := pr.IsValid(); err != nil {
 		return nil, fmt.Errorf("genesis partition record validation failed: %w", err)
 	}
 	return pr, nil

@@ -31,7 +31,7 @@ func (x *GenesisPartitionRecord) GetPartitionDescriptionRecord() *types.Partitio
 	return x.PartitionDescription
 }
 
-func (x *GenesisPartitionRecord) IsValid(trustBase types.RootTrustBase, hashAlgorithm crypto.Hash) error {
+func (x *GenesisPartitionRecord) IsValid() error {
 	if x == nil {
 		return ErrGenesisPartitionRecordIsNil
 	}
@@ -51,15 +51,21 @@ func (x *GenesisPartitionRecord) IsValid(trustBase types.RootTrustBase, hashAlgo
 		return fmt.Errorf("invalid partition nodes: %w", err)
 	}
 
-	if trustBase != nil {
-		partitionID := x.PartitionDescription.PartitionID
-		partitionDescriptionHash, err := x.PartitionDescription.Hash(hashAlgorithm)
-		if err != nil {
-			return fmt.Errorf("partition description hash error: %w", err)
-		}
-		if err := x.Certificate.Verify(trustBase, hashAlgorithm, partitionID, partitionDescriptionHash); err != nil {
-			return fmt.Errorf("invalid unicity certificate: %w", err)
-		}
+	return nil
+}
+
+func (x *GenesisPartitionRecord) Verify(trustBase types.RootTrustBase, hashAlgorithm crypto.Hash) error {
+	if err := x.IsValid(); err != nil {
+		return err
+	}
+
+	partitionID := x.PartitionDescription.PartitionID
+	partitionDescriptionHash, err := x.PartitionDescription.Hash(hashAlgorithm)
+	if err != nil {
+		return fmt.Errorf("partition description hash error: %w", err)
+	}
+	if err := x.Certificate.Verify(trustBase, hashAlgorithm, partitionID, partitionDescriptionHash); err != nil {
+		return fmt.Errorf("invalid unicity certificate: %w", err)
 	}
 
 	return nil

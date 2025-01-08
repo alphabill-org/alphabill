@@ -390,7 +390,7 @@ func TestGenerateTrustBase_CustomQuorumThreshold(t *testing.T) {
 	tb, err = rg.GenerateTrustBase(types.WithQuorumThreshold(3))
 	require.NoError(t, err)
 	for _, partitionGenesis := range rg.Partitions {
-		require.NoError(t, partitionGenesis.IsValid(tb, gocrypto.SHA256))
+		require.NoError(t, partitionGenesis.Verify(tb, gocrypto.SHA256))
 	}
 }
 

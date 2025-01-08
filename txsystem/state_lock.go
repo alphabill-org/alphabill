@@ -67,7 +67,7 @@ func (m *GenericTxSystem) handleUnlockUnitState(tx *types.TransactionOrder, exeC
 		}
 		return nil, fmt.Errorf("getting unit: %w", err)
 	}
-	unit := u.GetV1()
+	unit := state.UnitV1(u)
 	// if unit is not locked, then this method is done - nothing to unlock
 	if !unit.IsStateLocked() {
 		return nil, nil

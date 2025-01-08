@@ -439,7 +439,7 @@ func TestExecute_SwapOk(t *testing.T) {
 	dcBill, dcBillData := getBill(t, s, DustCollectorMoneySupplyID)
 	require.Equal(t, beforeCommitValue, dcBillData.Value)
 	// Make sure the DC bill logs are pruned
-	require.Equal(t, 1, len(dcBill.GetV1().Logs()))
+	require.Equal(t, 1, len(state.UnitV1(dcBill).Logs()))
 }
 
 func TestExecute_LockAndUnlockOk(t *testing.T) {

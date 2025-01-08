@@ -55,8 +55,14 @@ func (u *Unit) Clone() VersionedUnit {
 	}
 }
 
-func (u *Unit) GetV1() *Unit {
-	return u
+func UnitV1(u VersionedUnit) *Unit {
+	if u == nil {
+		return nil
+	}
+	if u.GetVersion() != 1 {
+		panic(fmt.Sprintf("unexpected unit version: %d", u.GetVersion()))
+	}
+	return u.(*Unit)
 }
 
 func (u *Unit) String() string {

@@ -3,6 +3,7 @@ package txsystem
 import (
 	"testing"
 
+	"github.com/alphabill-org/alphabill/state"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
 
@@ -316,7 +317,7 @@ func TestGenericTxSystem_executeLockUnitState(t *testing.T) {
 		// verify unit got locked
 		u, err := txSys.state.GetUnit(unitID, false)
 		require.NoError(t, err)
-		require.True(t, u.GetV1().IsStateLocked())
+		require.True(t, state.UnitV1(u).IsStateLocked())
 	})
 }
 

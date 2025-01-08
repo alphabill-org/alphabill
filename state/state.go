@@ -40,7 +40,6 @@ type (
 		avl.Value[VersionedUnit]
 
 		Data() types.UnitData
-		GetV1() *Unit
 	}
 
 	tree = avl.Tree[types.UnitID, VersionedUnit]
@@ -209,7 +208,7 @@ func (s *State) AddUnitLog(id types.UnitID, transactionRecordHash []byte) error 
 	if err != nil {
 		return fmt.Errorf("unable to add unit log for unit %v: %w", id, err)
 	}
-	unit := u.Clone().GetV1()
+	unit := UnitV1(u.Clone())
 	logsCount := len(unit.logs)
 	l := &Log{
 		TxRecordHash:   transactionRecordHash,
@@ -261,7 +260,7 @@ func (s *State) Commit(uc *types.UnicityCertificate) error {
 	var summaryValue uint64
 	var summaryHash []byte
 	if sp.Root() != nil {
-		unit := sp.Root().Value().GetV1()
+		unit := UnitV1(sp.Root().Value())
 		summaryValue = unit.subTreeSummaryValue
 		summaryHash = unit.subTreeSummaryHash
 	} else {
@@ -335,7 +334,7 @@ func (s *State) CalculateRoot() (uint64, []byte, error) {
 	if root == nil {
 		return 0, nil, nil
 	}
-	value := root.Value().GetV1()
+	value := UnitV1(root.Value())
 	return value.subTreeSummaryValue, value.subTreeSummaryHash, nil
 }
 
@@ -414,7 +413,7 @@ func (s *State) CreateUnitStateProof(id types.UnitID, logIndex int) (*types.Unit
 		return nil, fmt.Errorf("unable to get unit %v: %w", id, err)
 	}
 
-	unit := u.GetV1()
+	unit := UnitV1(u)
 	if len(unit.logs) < logIndex {
 		return nil, fmt.Errorf("invalid unit %v log index: %d", id, logIndex)
 	}
@@ -571,7 +570,7 @@ func isRootClean(s *tree) bool {
 	if root == nil {
 		return true
 	}
-	return root.Value().GetV1().summaryCalculated
+	return UnitV1(root.Value()).summaryCalculated
 }
 
 // latestSavepoint returns the latest savepoint.
@@ -581,29 +580,29 @@ func (s *State) latestSavepoint() *tree {
 }
 
 func getSummaryValueInput(n *node) uint64 {
-	if n == nil || n.Value() == nil || n.Value().GetV1().data == nil {
+	if n == nil || n.Value() == nil || UnitV1(n.Value()).data == nil {
 		return 0
 	}
-	return n.Value().GetV1().data.SummaryValueInput()
+	return UnitV1(n.Value()).data.SummaryValueInput()
 }
 
 func getSubTreeSummaryValue(n *node) uint64 {
 	if n == nil || n.Value() == nil {
 		return 0
 	}
-	return n.Value().GetV1().subTreeSummaryValue
+	return UnitV1(n.Value()).subTreeSummaryValue
 }
 
 func getSubTreeLogsHash(n *node) []byte {
 	if n == nil || n.Value() == nil {
 		return nil
 	}
-	return n.Value().GetV1().logsHash
+	return UnitV1(n.Value()).logsHash
 }
 
 func getSubTreeSummaryHash(n *node) []byte {
 	if n == nil || n.Value() == nil {
 		return nil
 	}
-	return n.Value().GetV1().subTreeSummaryHash
+	return UnitV1(n.Value()).subTreeSummaryHash
 }

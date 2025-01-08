@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/alphabill-org/alphabill/state"
 	"github.com/libp2p/go-libp2p/core/peer"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
@@ -81,8 +82,8 @@ func (s *StateAPI) GetRoundNumber(ctx context.Context) (_ hex.Uint64, retErr err
 func (s *StateAPI) GetUnit(unitID types.UnitID, includeStateProof bool) (_ *Unit[any], retErr error) {
 	defer func(start time.Time) { s.updMetrics(context.Background(), "getUnit", start, retErr) }(time.Now())
 
-	state := s.node.TransactionSystemState()
-	unit, err := state.GetUnit(unitID, true)
+	st := s.node.TransactionSystemState()
+	unit, err := st.GetUnit(unitID, true)
 	if err != nil {
 		if errors.Is(err, avl.ErrNotFound) {
 			return nil, nil
@@ -99,7 +100,7 @@ func (s *StateAPI) GetUnit(unitID types.UnitID, includeStateProof bool) (_ *Unit
 	}
 
 	if includeStateProof {
-		stateProof, err := state.CreateUnitStateProof(unitID, unit.GetV1().LastLogIndex())
+		stateProof, err := st.CreateUnitStateProof(unitID, state.UnitV1(unit).LastLogIndex())
 		if err != nil {
 			return nil, fmt.Errorf("failed to generate unit state proof: %w", err)
 		}

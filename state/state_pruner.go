@@ -23,14 +23,14 @@ func (s *statePruner) Traverse(n *node) error {
 		return err
 	}
 
-	unit := n.Value().GetV1()
+	unit := UnitV1(n.Value())
 	logSize := len(unit.logs)
 	if logSize <= 1 {
 		return nil
 	}
 
 	latestLog := unit.logs[logSize-1]
-	clonedUnit := unit.Clone().GetV1()
+	clonedUnit := UnitV1(unit.Clone())
 	clonedUnit.logs = []*Log{{
 		TxRecordHash:       nil,
 		UnitLedgerHeadHash: bytes.Clone(latestLog.UnitLedgerHeadHash),

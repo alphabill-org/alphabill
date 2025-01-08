@@ -23,7 +23,7 @@ func newStateHasher(hashAlgorithm crypto.Hash) *stateHasher {
 // Traverse visits changed nodes in the state tree and recalculates a new root hash of the state tree.
 // Executed when the State.Commit function is called.
 func (p *stateHasher) Traverse(n *avl.Node[types.UnitID, VersionedUnit]) error {
-	if n == nil || (n.Clean() && n.Value().GetV1().summaryCalculated) {
+	if n == nil || (n.Clean() && UnitV1(n.Value()).summaryCalculated) {
 		return nil
 	}
 	var left = n.Left()
@@ -35,7 +35,7 @@ func (p *stateHasher) Traverse(n *avl.Node[types.UnitID, VersionedUnit]) error {
 		return err
 	}
 
-	unit := n.Value().GetV1()
+	unit := UnitV1(n.Value())
 
 	// h_s - calculate state log root hash
 	// Skip this step if state has been recovered from file and logsHash is already present.

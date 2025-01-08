@@ -105,7 +105,7 @@ func UpdateUnitData(id types.UnitID, f UpdateFunction) Action {
 			return fmt.Errorf("failed to get unit: %w", err)
 		}
 
-		cloned := u.Clone().GetV1()
+		cloned := UnitV1(u.Clone())
 		newData, err := f(cloned.data)
 		if err != nil {
 			return fmt.Errorf("unable to update unit data: %w", err)
@@ -129,12 +129,12 @@ func SetStateLock(id types.UnitID, stateLockTx []byte) Action {
 			return fmt.Errorf("failed to find unit: %w", err)
 		}
 
-		unit := u.GetV1()
+		unit := UnitV1(u)
 		if unit.stateLockTx != nil && stateLockTx != nil {
 			return errors.New("unit already has a state lock")
 		}
 		cloned := unit.Clone()
-		cloned.GetV1().stateLockTx = stateLockTx
+		UnitV1(cloned).stateLockTx = stateLockTx
 		if err = s.Update(id, cloned); err != nil {
 			return fmt.Errorf("unable to update unit: %w", err)
 		}

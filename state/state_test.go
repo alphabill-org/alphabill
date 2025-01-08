@@ -402,9 +402,9 @@ func TestState_GetUnit(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, u2)
 	// logRoot, subTreeSummaryHash and summaryCalculated do not get cloned - rest must match
-	require.Equal(t, u.GetV1().logs, u2.GetV1().logs)
+	require.Equal(t, UnitV1(u).logs, UnitV1(u2).logs)
 	require.Equal(t, u.Data(), u2.Data())
-	require.Equal(t, u.GetV1().subTreeSummaryValue, u2.GetV1().subTreeSummaryValue)
+	require.Equal(t, UnitV1(u).subTreeSummaryValue, UnitV1(u2).subTreeSummaryValue)
 }
 
 func TestState_AddUnitLog_OK(t *testing.T) {
@@ -419,8 +419,8 @@ func TestState_AddUnitLog_OK(t *testing.T) {
 
 	u, err := s.GetUnit(unitID, false)
 	require.NoError(t, err)
-	require.Len(t, u.GetV1().logs, 2)
-	require.Equal(t, txrHash, u.GetV1().logs[1].TxRecordHash)
+	require.Len(t, UnitV1(u).logs, 2)
+	require.Equal(t, txrHash, UnitV1(u).logs[1].TxRecordHash)
 }
 
 func TestState_CommitTreeWithLeftAndRightChildNodes(t *testing.T) {
@@ -464,12 +464,12 @@ func TestState_PruneState(t *testing.T) {
 	require.NoError(t, s.AddUnitLog(unitID, test.RandomBytes(32)))
 	u, err := s.GetUnit(unitID, false)
 	require.NoError(t, err)
-	require.Len(t, u.GetV1().logs, 2)
+	require.Len(t, UnitV1(u).logs, 2)
 	require.NoError(t, s.Prune())
 	u, err = s.GetUnit(unitID, false)
 	require.NoError(t, err)
-	require.Len(t, u.GetV1().logs, 1)
-	require.Nil(t, u.GetV1().logs[0].TxRecordHash)
+	require.Len(t, UnitV1(u).logs, 1)
+	require.Nil(t, UnitV1(u).logs[0].TxRecordHash)
 }
 
 func TestCreateAndVerifyStateProofs_CreateUnits(t *testing.T) {
@@ -809,7 +809,7 @@ func multiply(t uint64) func(data types.UnitData) (types.UnitData, error) {
 func getUnit(t *testing.T, s *State, id []byte) *Unit {
 	unit, err := s.latestSavepoint().Get(id)
 	require.NoError(t, err)
-	return unit.GetV1()
+	return UnitV1(unit)
 }
 
 func createUC(s *State, summaryValue uint64, summaryHash []byte) *types.UnicityCertificate {

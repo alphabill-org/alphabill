@@ -162,7 +162,7 @@ func (p *ProofIndexer) create(ctx context.Context, block *types.Block, roundNumb
 			if err != nil {
 				return fmt.Errorf("unit load failed: %w", err)
 			}
-			unitLogs := unit.GetV1().Logs()
+			unitLogs := state.UnitV1(unit).Logs()
 			p.log.Log(ctx, logger.LevelTrace, fmt.Sprintf("Generating %d proof(s) for unit %X", len(unitLogs), unitID))
 			for j, unitLog := range unitLogs {
 				if !bytes.Equal(unitLog.TxRecordHash, txrHash) {

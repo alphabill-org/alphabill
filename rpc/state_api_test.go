@@ -22,30 +22,34 @@ import (
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtxsystem "github.com/alphabill-org/alphabill/internal/testutils/txsystem"
 	"github.com/alphabill-org/alphabill/network"
+	"github.com/alphabill-org/alphabill/partition"
 	"github.com/alphabill-org/alphabill/rootchain/partitions"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
 )
 
-func TestGetRoundNumber(t *testing.T) {
+func TestGetRoundInfo(t *testing.T) {
 	observe := testobservability.Default(t)
 	node := &MockNode{}
 	api := NewStateAPI(node, nil, observe)
 
 	t.Run("ok", func(t *testing.T) {
 		node.maxRoundNumber = 1337
+		node.currentEpoch = 1234
 
-		roundNumber, err := api.GetRoundNumber(context.Background())
+		roundInfo, err := api.GetRoundInfo(context.Background())
 		require.NoError(t, err)
-		require.EqualValues(t, 1337, roundNumber)
+		require.EqualValues(t, 1337, roundInfo.RoundNumber)
+		require.EqualValues(t, 1234, roundInfo.Epoch)
 	})
 	t.Run("err", func(t *testing.T) {
 		node.err = errors.New("some error")
-		node.maxRoundNumber = 0
+		node.maxRoundNumber = 1337
+		node.currentEpoch = 1234
 
-		roundNumber, err := api.GetRoundNumber(context.Background())
+		roundInfo, err := api.GetRoundInfo(context.Background())
 		require.ErrorContains(t, err, "some error")
-		require.EqualValues(t, 0, roundNumber)
+		require.Nil(t, roundInfo)
 	})
 }
 
@@ -281,6 +285,7 @@ type (
 	MockNode struct {
 		maxBlockNumber uint64
 		maxRoundNumber uint64
+		currentEpoch   uint64
 		transactions   []*types.TransactionOrder
 		err            error
 		txs            txsystem.TransactionSystem
@@ -334,11 +339,11 @@ func (mn *MockNode) LatestBlockNumber() (uint64, error) {
 	return mn.maxBlockNumber, nil
 }
 
-func (mn *MockNode) CurrentRoundNumber(_ context.Context) (uint64, error) {
+func (mn *MockNode) CurrentRoundInfo(_ context.Context) (*partition.RoundInfo, error) {
 	if mn.err != nil {
-		return 0, mn.err
+		return nil, mn.err
 	}
-	return mn.maxRoundNumber, nil
+	return &partition.RoundInfo{RoundNumber: mn.maxRoundNumber, Epoch: mn.currentEpoch}, nil
 }
 
 func (mn *MockNode) NetworkID() types.NetworkID {

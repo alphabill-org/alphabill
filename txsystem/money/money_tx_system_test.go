@@ -1212,7 +1212,7 @@ func newTestMoneyModule(t *testing.T, verifier abcrypto.Verifier, opts ...moneyM
 
 func defaultMoneyModule(t *testing.T, pdr types.PartitionDescriptionRecord, verifier abcrypto.Verifier) *Module {
 	// NB! using the same pubkey for trust base and unit bearer! TODO: use different keys...
-	options, err := defaultOptions()
+	options, err := defaultOptions(observability.Default(t))
 	require.NoError(t, err)
 	options.trustBase = testtb.NewTrustBase(t, verifier)
 	options.state = state.NewEmptyState()

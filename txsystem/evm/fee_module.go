@@ -38,7 +38,7 @@ func FixedFee(fee uint64) FeeCalculator {
 	}
 }
 
-func newFeeModule(partitionID types.PartitionID, options *Options, log *slog.Logger) (*FeeAccount, error) {
+func newFeeModule(partitionID types.PartitionID, options *Options, obs Observability) (*FeeAccount, error) {
 	m := &FeeAccount{
 		state:            options.state,
 		partitionID:      partitionID,
@@ -46,9 +46,13 @@ func newFeeModule(partitionID types.PartitionID, options *Options, log *slog.Log
 		trustBase:        options.trustBase,
 		hashAlgorithm:    options.hashAlgorithm,
 		feeCalculator:    FixedFee(1),
-		log:              log,
+		log:              obs.Logger(),
 	}
-	predEng, err := predicates.Dispatcher(templates.New())
+	templEngine, err := templates.New(obs)
+	if err != nil {
+		return nil, fmt.Errorf("creating predicate templates executor: %w", err)
+	}
+	predEng, err := predicates.Dispatcher(templEngine)
 	if err != nil {
 		return nil, fmt.Errorf("creating predicate executor: %w", err)
 	}

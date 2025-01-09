@@ -11,6 +11,7 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/txsystem/fc/permissioned"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/tokens"
 	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/state"
 	testctx "github.com/alphabill-org/alphabill/txsystem/testutils/exec_context"
@@ -32,7 +33,7 @@ func TestValidateSetFC(t *testing.T) {
 	targetPDR := tokenid.PDR()
 	partitionID := types.PartitionID(5)
 	adminOwnerPredicate := templates.NewP2pkh256BytesFromKey(adminPubKey)
-	m, err := NewFeeCreditModule(targetPDR, stateTree, tokens.FeeCreditRecordUnitType, adminOwnerPredicate)
+	m, err := NewFeeCreditModule(targetPDR, stateTree, tokens.FeeCreditRecordUnitType, adminOwnerPredicate, observability.Default(t))
 	require.NoError(t, err)
 
 	// common default values used in each test
@@ -161,7 +162,7 @@ func TestExecuteSetFC(t *testing.T) {
 	partitionID := types.PartitionID(5)
 	const fcrUnitType = 1
 	adminOwnerPredicate := templates.NewP2pkh256BytesFromKey(adminPubKey)
-	m, err := NewFeeCreditModule(targetPDR, stateTree, fcrUnitType, adminOwnerPredicate)
+	m, err := NewFeeCreditModule(targetPDR, stateTree, fcrUnitType, adminOwnerPredicate, observability.Default(t))
 	require.NoError(t, err)
 
 	// create tx

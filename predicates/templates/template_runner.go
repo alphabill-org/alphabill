@@ -5,6 +5,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
+
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
 
 	"github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/hash"
@@ -22,23 +26,41 @@ const (
 
 var cborNull = []byte{0xf6}
 
-type TemplateRunner struct{}
+type Observability interface {
+	Meter(name string, opts ...metric.MeterOption) metric.Meter
+}
 
-func New() TemplateRunner {
-	return TemplateRunner{}
+type TemplateRunner struct {
+	execDur metric.Float64Histogram
+}
+
+func New(obs Observability) (TemplateRunner, error) {
+	m := obs.Meter("predicates.template")
+	execDur, err := m.Float64Histogram("exec.time",
+		metric.WithDescription("How long it took to execute an predicate"),
+		metric.WithUnit("s"),
+		// expecting "always tre/false" to be around 4ns (4e-9) and p2pkh 46µs (46e-6)
+		metric.WithExplicitBucketBoundaries(3e-9, 4e-9, 5e-9, 45e-6, 46e-6, 47e-6, 48e-6, 49e-6))
+	if err != nil {
+		return TemplateRunner{}, fmt.Errorf("creating histogram for predicate execution time: %w", err)
+	}
+	return TemplateRunner{execDur: execDur}, nil
 }
 
 func (TemplateRunner) ID() uint64 {
 	return templates.TemplateStartByte
 }
 
-func (TemplateRunner) Execute(_ context.Context, p *sdkpredicates.Predicate, args []byte, sigBytesFn func() ([]byte, error), env predicates.TxContext) (bool, error) {
+func (tr TemplateRunner) Execute(ctx context.Context, p *sdkpredicates.Predicate, args []byte, sigBytesFn func() ([]byte, error), env predicates.TxContext) (bool, error) {
 	if p.Tag != templates.TemplateStartByte {
 		return false, fmt.Errorf("expected predicate template tag %d but got %d", templates.TemplateStartByte, p.Tag)
 	}
 	if len(p.Code) != 1 {
 		return false, fmt.Errorf("expected predicate template code length to be 1, got %d", len(p.Code))
 	}
+	defer func(start time.Time) {
+		tr.execDur.Record(ctx, time.Since(start).Seconds(), metric.WithAttributeSet(attribute.NewSet(attribute.Int("template", int(p.Code[0])))))
+	}(time.Now())
 
 	switch p.Code[0] {
 	case templates.P2pkh256ID:

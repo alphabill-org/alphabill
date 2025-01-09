@@ -10,6 +10,7 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/txsystem/tokens"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtb "github.com/alphabill-org/alphabill/internal/testutils/trustbase"
 	"github.com/alphabill-org/alphabill/state"
@@ -234,7 +235,7 @@ func TestLockNFT_NotOk(t *testing.T) {
 }
 
 func defaultLockOpts(t *testing.T) *Options {
-	o, err := defaultOptions()
+	o, err := defaultOptions(observability.Default(t))
 	require.NoError(t, err)
 	o.state = initStateForLockTxTests(t)
 	return o

@@ -9,7 +9,7 @@ import (
 )
 
 func NewTxSystem(pdr types.PartitionDescriptionRecord, shardID types.ShardID, observe txsystem.Observability, opts ...Option) (*txsystem.GenericTxSystem, error) {
-	options, err := defaultOptions()
+	options, err := defaultOptions(observe)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load default configuration: %w", err)
 	}

@@ -34,7 +34,7 @@ type (
 		GetBlock(ctx context.Context, blockNr uint64) (*types.Block, error)
 		LatestBlockNumber() (uint64, error)
 		GetTransactionRecordProof(ctx context.Context, hash []byte) (*types.TxRecordProof, error)
-		CurrentRoundNumber(ctx context.Context) (uint64, error)
+		CurrentRoundInfo(ctx context.Context) (*partition.RoundInfo, error)
 		TransactionSystemState() txsystem.StateReader
 		Validators() peer.IDSlice
 		RegisterValidatorAssignmentRecord(v *partitions.ValidatorAssignmentRecord) error
@@ -67,14 +67,10 @@ func NewStateAPI(node partitionNode, ownerIndex partition.IndexReader, obs Obser
 	}
 }
 
-// GetRoundNumber returns the current round number as seen by the node.
-func (s *StateAPI) GetRoundNumber(ctx context.Context) (_ hex.Uint64, retErr error) {
-	defer func(start time.Time) { s.updMetrics(ctx, "getRoundNumber", start, retErr) }(time.Now())
-	roundNumber, err := s.node.CurrentRoundNumber(ctx)
-	if err != nil {
-		return 0, err
-	}
-	return hex.Uint64(roundNumber), nil
+// GetRoundInfo returns the current round number and epoch as seen by the node.
+func (s *StateAPI) GetRoundInfo(ctx context.Context) (_ *partition.RoundInfo, retErr error) {
+	defer func(start time.Time) { s.updMetrics(ctx, "getRoundInfo", start, retErr) }(time.Now())
+	return s.node.CurrentRoundInfo(ctx)
 }
 
 // GetUnit returns unit data and optionally the state proof for the given unitID.

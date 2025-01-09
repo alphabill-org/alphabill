@@ -346,10 +346,16 @@ func TestRecoveryBlock_IsValid(t *testing.T) {
 		require.ErrorContains(t, r.IsValid(), "invalid ShardInfo[00000000 - ]: missing partition id")
 	})
 
-	t.Run("input record state is nil", func(t *testing.T) {
+	t.Run("input record is nil", func(t *testing.T) {
 		r := validBlock()
 		r.ShardInfo[0].IR = nil
 		require.ErrorContains(t, r.IsValid(), "invalid ShardInfo[00000001 - ]: invalid input record: input record is nil")
+	})
+
+	t.Run("shard info nil root hash is allowed", func(t *testing.T) {
+		r := validBlock()
+		r.ShardInfo[0].RootHash = nil
+		require.NoError(t, r.IsValid())
 	})
 
 	t.Run("block data is nil", func(t *testing.T) {

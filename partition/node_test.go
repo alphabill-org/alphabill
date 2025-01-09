@@ -702,12 +702,12 @@ func TestNode_ProcessInvalidTxInFeelessMode(t *testing.T) {
 	require.NoError(t, tp.SubmitTx(txo))
 	testevent.ContainsEvent(t, tp.eh, event.TransactionFailed)
 
-	currentRound, err := tp.partition.CurrentRoundNumber(context.Background())
+	currentRoundInfo, err := tp.partition.CurrentRoundInfo(context.Background())
 	require.NoError(t, err)
 	tp.CreateBlock(t)
 
 	// Failed transaction not put to block in feeless mode
-	block, err := tp.partition.GetBlock(context.Background(), currentRound)
+	block, err := tp.partition.GetBlock(context.Background(), currentRoundInfo.RoundNumber)
 	require.NoError(t, err)
 	require.Equal(t, 0, len(block.Transactions))
 }

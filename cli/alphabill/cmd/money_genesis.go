@@ -3,7 +3,6 @@ package cmd
 import (
 	"bytes"
 	"context"
-	"crypto"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -48,7 +47,6 @@ var (
 			OwnerPredicate: templates.AlwaysTrueBytes(),
 		},
 	}
-	zeroHash = make([]byte, crypto.SHA256.Size())
 )
 
 type moneyGenesisConfig struct {
@@ -266,7 +264,7 @@ func addInitialFeeCreditBills(s *state.State, config *moneyGenesisConfig) error 
 		if err := s.Apply(state.AddUnit(fcb.UnitID, billData)); err != nil {
 			return err
 		}
-		if err := s.AddUnitLog(fcb.UnitID, zeroHash); err != nil {
+		if err := s.AddUnitLog(fcb.UnitID, nil); err != nil {
 			return err
 		}
 	}

@@ -10,7 +10,6 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	"github.com/alphabill-org/alphabill/partition"
 	"github.com/alphabill-org/alphabill/rootchain/partitions"
-	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/tree/avl"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -137,26 +136,11 @@ func (s *StateAPI) GetUnits(unitTypeID *uint32) (_ []types.UnitID, retErr error)
 	if !s.withGetUnits {
 		return nil, errors.New("state_getUnits is disabled")
 	}
-	if s.pdr == nil {
-		return nil, errors.New("partition description record is nil")
+	units, err := s.node.TransactionSystemState().GetUnits(unitTypeID, s.pdr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get units: %w", err)
 	}
-
-	traverser := state.NewFilter(func(unitID types.UnitID, unit *state.Unit) (bool, error) {
-		// get all units if no unit type is provided
-		if unitTypeID == nil {
-			return true, nil
-		}
-		// filter by type if unit type is provided
-		unitIDType, err := s.pdr.ExtractUnitType(unitID)
-		if err != nil {
-			return false, fmt.Errorf("extracting unit type from unit ID: %w", err)
-		}
-		return unitIDType == *unitTypeID, nil
-	})
-	if err := s.node.TransactionSystemState().Traverse(traverser); err != nil {
-		return nil, fmt.Errorf("failed to traverse state tree: %w", err)
-	}
-	return traverser.FilteredUnitIDs(), nil
+	return units, nil
 }
 
 // SendTransaction broadcasts the given transaction to the network, returns the submitted transaction hash.

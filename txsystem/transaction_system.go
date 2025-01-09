@@ -6,7 +6,6 @@ import (
 
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/tree/avl"
 )
 
 var (
@@ -72,7 +71,7 @@ type (
 		// Serialize writes the serialized state to the given writer.
 		Serialize(writer io.Writer, committed bool) error
 
-		Traverse(traverser avl.Traverser[types.UnitID, *state.Unit]) error
+		GetUnits(unitTypeID *uint32, pdr *types.PartitionDescriptionRecord) ([]types.UnitID, error)
 	}
 
 	TransactionExecutor interface {

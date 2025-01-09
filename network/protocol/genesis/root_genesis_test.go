@@ -3,7 +3,6 @@ package genesis
 import (
 	gocrypto "crypto"
 	"testing"
-	"time"
 
 	"github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
@@ -98,13 +97,13 @@ func TestRootGenesis_IsValid(t *testing.T) {
 						Version:              1,
 						Validators:           []*PartitionNode{{Version: 1, NodeID: "1", SigKey: nil, BlockCertificationRequest: nil}},
 						Certificate:          nil,
-						PartitionDescription: &types.PartitionDescriptionRecord{Version: 1, NetworkID: 5, PartitionID: 1, T2Timeout: time.Second},
+						PartitionDescription: createPartitionDescriptionRecord(),
 					},
 					{
 						Version:              1,
 						Validators:           []*PartitionNode{{Version: 1, NodeID: "1", SigKey: nil, BlockCertificationRequest: nil}},
 						Certificate:          nil,
-						PartitionDescription: &types.PartitionDescriptionRecord{Version: 1, NetworkID: 5, PartitionID: 1, T2Timeout: time.Second},
+						PartitionDescription: createPartitionDescriptionRecord(),
 					},
 				},
 			},
@@ -172,7 +171,7 @@ func TestRootGenesis(t *testing.T) {
 					InputRecord: &types.InputRecord{Version: 1},
 					UnicitySeal: unicitySeal,
 				},
-				PartitionDescription: validPDR,
+				PartitionDescription: createPartitionDescriptionRecord(),
 			},
 		},
 	}
@@ -187,7 +186,7 @@ func TestRootGenesis(t *testing.T) {
 		},
 		Consensus: consensus,
 	}
-	require.ErrorContains(t, rg.Verify(), "invalid root record: consensus parameters is not signed by all validators")
+	require.ErrorContains(t, rg.Verify(), "invalid root partition record: consensus parameters is not signed by all validators")
 	// sign consensus
 	require.NoError(t, consensus.Sign(rootID, rSigner))
 	rg.Root.Consensus = consensus
@@ -212,7 +211,7 @@ func TestRootGenesis(t *testing.T) {
 					InputRecord: &types.InputRecord{Version: 1},
 					UnicitySeal: unicitySeal,
 				},
-				PartitionDescription: validPDR,
+				PartitionDescription: createPartitionDescriptionRecord(),
 			},
 			{
 				Version: 1,
@@ -222,7 +221,7 @@ func TestRootGenesis(t *testing.T) {
 					InputRecord: &types.InputRecord{Version: 1},
 					UnicitySeal: unicitySeal,
 				},
-				PartitionDescription: validPDR,
+				PartitionDescription: createPartitionDescriptionRecord(),
 			},
 		},
 	}

@@ -86,7 +86,7 @@ func (x *GenesisPartitionRecord) UnmarshalCBOR(data []byte) error {
 }
 
 func nodesUnique(x []*PartitionNode) error {
-	var ids = make(map[string]string)
+	var ids = make(map[string]struct{})
 	var sigKeys = make(map[string]hex.Bytes)
 	for _, node := range x {
 		if err := node.IsValid(); err != nil {
@@ -94,13 +94,13 @@ func nodesUnique(x []*PartitionNode) error {
 		}
 		id := node.NodeID
 		if _, f := ids[id]; f {
-			return fmt.Errorf("duplicated node id: %v", id)
+			return fmt.Errorf("duplicate node: %v", id)
 		}
-		ids[id] = id
+		ids[id] = struct{}{}
 
 		sigKey := string(node.SigKey)
 		if _, f := sigKeys[sigKey]; f {
-			return fmt.Errorf("duplicated node signing key: %X", node.SigKey)
+			return fmt.Errorf("duplicate node signing key: %X", node.SigKey)
 		}
 		sigKeys[sigKey] = node.SigKey
 	}
@@ -114,15 +114,15 @@ func (x *GenesisPartitionRecord) hasNodesConsensus() error {
 		nodeID := node.BlockCertificationRequest.NodeID
 		nodePartitionID := node.BlockCertificationRequest.PartitionID
 		if partitionID != nodePartitionID {
-			return fmt.Errorf("partition id %s node %v invalid blockCertificationRequest partition id %s", partitionID, nodeID, nodePartitionID)
+			return fmt.Errorf("partition %s node %v has blockCertificationRequest for wrong partition %s", partitionID, nodeID, nodePartitionID)
 		}
 
 		irBytes, err := node.BlockCertificationRequest.InputRecord.Bytes()
 		if err != nil {
-			return fmt.Errorf("partition id %s node %v input record error: %w", partitionID, nodeID, err)
+			return fmt.Errorf("partition %s node %v input record error: %w", partitionID, nodeID, err)
 		}
 		if prevIRBytes != nil && !bytes.Equal(irBytes, prevIRBytes) {
-			return fmt.Errorf("partition id %s node %v input record is different", partitionID, nodeID)
+			return fmt.Errorf("partition %s node %v input record is different", partitionID, nodeID)
 		}
 		prevIRBytes = irBytes
 	}

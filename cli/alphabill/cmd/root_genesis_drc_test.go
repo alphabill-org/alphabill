@@ -91,7 +91,7 @@ func TestDistributedGenesisFiles_DuplicateRootNode(t *testing.T) {
 	require.NoError(t, err)
 	// duplicate is ignored
 	require.Len(t, rootGenesis.Root.RootValidators, 3)
-	require.ErrorContains(t, rootGenesis.Verify(), "invalid root record: registered root nodes do not match consensus total root nodes")
+	require.ErrorContains(t, rootGenesis.Verify(), "invalid root partition record: registered root nodes do not match consensus total root nodes")
 }
 
 func Test_RootGenesis_New_Sign(t *testing.T) {

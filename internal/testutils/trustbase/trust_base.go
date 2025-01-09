@@ -14,7 +14,7 @@ type AlwaysValidTrustBase struct{}
 func NewTrustBase(t *testing.T, verifiers ...crypto.Verifier) types.RootTrustBase {
 	var nodes []*types.NodeInfo
 	for _, v := range verifiers {
-		nodes = append(nodes, NewNodeInfoFromVerifier("test", 1, v))
+		nodes = append(nodes, NewNodeInfoFromVerifier(t, "test", 1, v))
 	}
 	tb, err := types.NewTrustBaseGenesis(nodes, []byte{1})
 	require.NoError(t, err)
@@ -28,18 +28,16 @@ func NewAlwaysValidTrustBase(t *testing.T) types.RootTrustBase {
 func NewTrustBaseFromVerifiers(t *testing.T, verifiers map[string]crypto.Verifier) types.RootTrustBase {
 	var nodes []*types.NodeInfo
 	for nodeID, v := range verifiers {
-		nodes = append(nodes, NewNodeInfoFromVerifier(nodeID, 1, v))
+		nodes = append(nodes, NewNodeInfoFromVerifier(t, nodeID, 1, v))
 	}
 	tb, err := types.NewTrustBaseGenesis(nodes, []byte{1})
 	require.NoError(t, err)
 	return tb
 }
 
-func NewNodeInfoFromVerifier(nodeID string, stake uint64, sigVerifier crypto.Verifier) *types.NodeInfo {
+func NewNodeInfoFromVerifier(t *testing.T, nodeID string, stake uint64, sigVerifier crypto.Verifier) *types.NodeInfo {
 	sigKey, err := sigVerifier.MarshalPublicKey()
-	if err != nil {
-		panic("failed to marshal abcrypto.Verifier to public key bytes")
-	}
+	require.NoError(t, err)
 	return &types.NodeInfo{
 		NodeID:      nodeID,
 		SigKey:      sigKey,

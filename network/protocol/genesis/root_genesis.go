@@ -90,7 +90,7 @@ func (x *RootGenesis) Verify() error {
 	}
 	// Verify that the root genesis record is valid and signed by all validators
 	if err := x.Root.Verify(); err != nil {
-		return fmt.Errorf("invalid root record: %w", err)
+		return fmt.Errorf("invalid root partition record: %w", err)
 	}
 	// Check that the number of signatures on partition UC Seal matches the number of root validators
 	if len(x.Partitions) == 0 {

@@ -246,7 +246,7 @@ func TestNewGenesis_ConsensusNotPossible(t *testing.T) {
 	rootChainSigner, err := abcrypto.NewInMemorySecp256K1Signer()
 	require.NoError(t, err)
 	_, _, err = NewRootGenesis("test", rootChainSigner, nodes)
-	require.ErrorContains(t, err, "invalid partition nodes: partition id 00000001 node 2 input record is different")
+	require.ErrorContains(t, err, "invalid partition nodes: partition 00000001 node 2 input record is different")
 }
 
 func TestNewGenesisFromPartitionNodes_Ok(t *testing.T) {

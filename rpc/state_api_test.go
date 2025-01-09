@@ -212,7 +212,7 @@ func TestGetTrustBase(t *testing.T) {
 
 	t.Run("ok", func(t *testing.T) {
 		_, verifier := testsig.CreateSignerAndVerifier(t)
-		trustBase, err := types.NewTrustBaseGenesis([]*types.NodeInfo{trustbase.NewNodeInfoFromVerifier("1", 1, verifier)}, []byte{1})
+		trustBase, err := types.NewTrustBaseGenesis([]*types.NodeInfo{trustbase.NewNodeInfoFromVerifier(t, "1", 1, verifier)}, []byte{1})
 		require.NoError(t, err)
 		node.trustBase = trustBase
 

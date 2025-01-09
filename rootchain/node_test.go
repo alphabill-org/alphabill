@@ -137,7 +137,7 @@ func TestRootValidatorTest_ConstructWithDistributedManager(t *testing.T) {
 	partitionNetMock := testnetwork.NewMockNetwork(t)
 	rootHost := testutils.NewTestNode(t)
 	rootNetMock := testnetwork.NewMockNetwork(t)
-	trustBase, err := createTrustBaseFromRootGenesis(rootGenesis)
+	trustBase, err := createTrustBaseFromRootGenesis(t, rootGenesis)
 	require.NoError(t, err)
 	obs := testobservability.Default(t)
 	observe := observability.WithLogger(obs, obs.Logger().With(logger.NodeID(id)))
@@ -155,7 +155,7 @@ func TestRootValidatorTest_ConstructWithDistributedManager(t *testing.T) {
 	require.NotNil(t, validator)
 }
 
-func createTrustBaseFromRootGenesis(rootGenesis *genesis.RootGenesis) (types.RootTrustBase, error) {
+func createTrustBaseFromRootGenesis(t *testing.T, rootGenesis *genesis.RootGenesis) (types.RootTrustBase, error) {
 	var trustBaseNodes []*types.NodeInfo
 	var unicityTreeRootHash []byte
 	for _, rn := range rootGenesis.Root.RootValidators {
@@ -163,7 +163,7 @@ func createTrustBaseFromRootGenesis(rootGenesis *genesis.RootGenesis) (types.Roo
 		if err != nil {
 			return nil, err
 		}
-		trustBaseNodes = append(trustBaseNodes, trustbase.NewNodeInfoFromVerifier(rn.NodeID, 1, verifier))
+		trustBaseNodes = append(trustBaseNodes, trustbase.NewNodeInfoFromVerifier(t, rn.NodeID, 1, verifier))
 		// parse unicity tree root hash, optionally sanity check that all root hashes are equal for each partition
 		for _, p := range rootGenesis.Partitions {
 			if len(unicityTreeRootHash) == 0 {

@@ -158,7 +158,7 @@ func newRootPartition(t *testing.T, nofRootNodes uint8, nodePartitions []*NodePa
 			peerConf:   peerCfg,
 			homeDir:    t.TempDir(),
 		}
-		trustBaseNodes[i] = trustbase.NewNodeInfoFromVerifier(peerCfg.ID.String(), 1, verifier)
+		trustBaseNodes[i] = trustbase.NewNodeInfoFromVerifier(t, peerCfg.ID.String(), 1, verifier)
 		for _, p := range rg.Partitions {
 			if len(unicityTreeRootHash) == 0 {
 				unicityTreeRootHash = p.Certificate.UnicitySeal.Hash

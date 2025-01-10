@@ -33,7 +33,7 @@ const (
 )
 
 func NewTxSystem(pdr basetypes.PartitionDescriptionRecord, shardID basetypes.ShardID, observe txsystem.Observability, opts ...Option) (*txsystem.GenericTxSystem, error) {
-	options, err := defaultOptions()
+	options, err := defaultOptions(observe)
 	if err != nil {
 		return nil, fmt.Errorf("tokens transaction system default config: %w", err)
 	}
@@ -61,7 +61,7 @@ func NewTxSystem(pdr basetypes.PartitionDescriptionRecord, shardID basetypes.Sha
 	var feeCreditModule txtypes.FeeCreditModule
 	if len(options.adminOwnerPredicate) > 0 {
 		feeCreditModule, err = permissioned.NewFeeCreditModule(
-			pdr, options.state, tokens.FeeCreditRecordUnitType, options.adminOwnerPredicate,
+			pdr, options.state, tokens.FeeCreditRecordUnitType, options.adminOwnerPredicate, observe,
 			permissioned.WithHashAlgorithm(options.hashAlgorithm),
 			permissioned.WithFeelessMode(options.feelessMode),
 		)
@@ -69,7 +69,7 @@ func NewTxSystem(pdr basetypes.PartitionDescriptionRecord, shardID basetypes.Sha
 			return nil, fmt.Errorf("failed to load permissioned fee credit module: %w", err)
 		}
 	} else {
-		feeCreditModule, err = fc.NewFeeCreditModule(pdr, options.moneyPartitionID, options.state, options.trustBase,
+		feeCreditModule, err = fc.NewFeeCreditModule(pdr, options.moneyPartitionID, options.state, options.trustBase, observe,
 			fc.WithHashAlgorithm(options.hashAlgorithm),
 			fc.WithFeeCreditRecordUnitType(tokens.FeeCreditRecordUnitType),
 		)

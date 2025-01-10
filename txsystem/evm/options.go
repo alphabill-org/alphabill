@@ -1,7 +1,7 @@
 package evm
 
 import (
-	gocrypto "crypto"
+	"crypto"
 	"fmt"
 	"math/big"
 
@@ -19,7 +19,7 @@ type (
 	Options struct {
 		moneyPartitionID types.PartitionID
 		state            *state.State
-		hashAlgorithm    gocrypto.Hash
+		hashAlgorithm    crypto.Hash
 		trustBase        types.RootTrustBase
 		blockGasLimit    uint64
 		gasUnitPrice     *big.Int
@@ -30,15 +30,19 @@ type (
 	Option func(*Options)
 )
 
-func defaultOptions() (*Options, error) {
-	predEng, err := predicates.Dispatcher(templates.New())
+func defaultOptions(obs Observability) (*Options, error) {
+	templEngine, err := templates.New(obs)
+	if err != nil {
+		return nil, fmt.Errorf("creating predicate templates executor: %w", err)
+	}
+	predEng, err := predicates.Dispatcher(templEngine)
 	if err != nil {
 		return nil, fmt.Errorf("creating predicate executor: %w", err)
 	}
 
 	return &Options{
 		moneyPartitionID: 1,
-		hashAlgorithm:    gocrypto.SHA256,
+		hashAlgorithm:    crypto.SHA256,
 		trustBase:        nil,
 		blockGasLimit:    DefaultBlockGasLimit,
 		gasUnitPrice:     big.NewInt(DefaultGasPrice),
@@ -58,7 +62,7 @@ func WithState(s *state.State) Option {
 	}
 }
 
-func WithHashAlgorithm(algorithm gocrypto.Hash) Option {
+func WithHashAlgorithm(algorithm crypto.Hash) Option {
 	return func(c *Options) {
 		c.hashAlgorithm = algorithm
 	}

@@ -5,10 +5,10 @@ import (
 	"fmt"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
-
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/state"
+	"github.com/alphabill-org/alphabill/txsystem"
 )
 
 type (
@@ -23,8 +23,12 @@ type (
 	Option func(*Options)
 )
 
-func defaultOptions() (*Options, error) {
-	predEng, err := predicates.Dispatcher(templates.New())
+func defaultOptions(observe txsystem.Observability) (*Options, error) {
+	templEng, err := templates.New(observe)
+	if err != nil {
+		return nil, fmt.Errorf("creating predicate template executor: %w", err)
+	}
+	predEng, err := predicates.Dispatcher(templEng)
 	if err != nil {
 		return nil, fmt.Errorf("creating predicate executor: %w", err)
 	}

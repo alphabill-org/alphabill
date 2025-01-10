@@ -4,6 +4,9 @@ import (
 	"crypto"
 	"errors"
 	"fmt"
+	"log/slog"
+
+	"go.opentelemetry.io/otel/metric"
 
 	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/types"
@@ -40,9 +43,14 @@ type (
 		feeCreditRecordUnitType uint32
 		pdr                     types.PartitionDescriptionRecord
 	}
+
+	Observability interface {
+		Meter(name string, opts ...metric.MeterOption) metric.Meter
+		Logger() *slog.Logger
+	}
 )
 
-func NewFeeCreditModule(pdr types.PartitionDescriptionRecord, moneyPartitionID types.PartitionID, state *state.State, trustBase types.RootTrustBase, opts ...Option) (*FeeCreditModule, error) {
+func NewFeeCreditModule(pdr types.PartitionDescriptionRecord, moneyPartitionID types.PartitionID, state *state.State, trustBase types.RootTrustBase, obs Observability, opts ...Option) (*FeeCreditModule, error) {
 	m := &FeeCreditModule{
 		pdr:              pdr,
 		moneyPartitionID: moneyPartitionID,
@@ -54,7 +62,11 @@ func NewFeeCreditModule(pdr types.PartitionDescriptionRecord, moneyPartitionID t
 		o(m)
 	}
 	if m.execPredicate == nil {
-		predEng, err := predicates.Dispatcher(templates.New())
+		templEngine, err := templates.New(obs)
+		if err != nil {
+			return nil, fmt.Errorf("creating predicate templates executor: %w", err)
+		}
+		predEng, err := predicates.Dispatcher(templEngine)
 		if err != nil {
 			return nil, fmt.Errorf("creating predicate executor: %w", err)
 		}

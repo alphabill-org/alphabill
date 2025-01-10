@@ -10,6 +10,7 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/txsystem/orchestration"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/state"
 	testctx "github.com/alphabill-org/alphabill/txsystem/testutils/exec_context"
@@ -36,7 +37,7 @@ func TestAddVar_AddNewUnit_OK(t *testing.T) {
 	pubKey, err := verifier.MarshalPublicKey()
 	require.NoError(t, err)
 
-	opts, err := defaultOptions()
+	opts, err := defaultOptions(observability.Default(t))
 	require.NoError(t, err)
 	opts.state = state.NewEmptyState()
 	opts.ownerPredicate = templates.NewP2pkh256BytesFromKey(pubKey)
@@ -81,7 +82,7 @@ func TestAddVar_UpdateExistingUnit_OK(t *testing.T) {
 	pubKey, err := verifier.MarshalPublicKey()
 	require.NoError(t, err)
 
-	opts, err := defaultOptions()
+	opts, err := defaultOptions(observability.Default(t))
 	require.NoError(t, err)
 	opts.state = state.NewEmptyState()
 	opts.ownerPredicate = templates.NewP2pkh256BytesFromKey(pubKey)
@@ -121,7 +122,7 @@ func TestAddVar_UpdateExistingUnit_OK(t *testing.T) {
 
 func TestAddVar_NOK(t *testing.T) {
 	// create module
-	opts, err := defaultOptions()
+	opts, err := defaultOptions(observability.Default(t))
 	require.NoError(t, err)
 	opts.state = state.NewEmptyState()
 	opts.ownerPredicate = templates.NewP2pkh256BytesFromKey(test.RandomBytes(32))
@@ -241,7 +242,7 @@ func withStateUnit(unitID []byte, data types.UnitData) varModuleOption {
 }
 
 func newTestVarModule(t *testing.T, pdr types.PartitionDescriptionRecord, ownerPredicate []byte, opts ...varModuleOption) *Module {
-	options, err := defaultOptions()
+	options, err := defaultOptions(observability.Default(t))
 	require.NoError(t, err)
 	options.ownerPredicate = ownerPredicate
 	options.state = state.NewEmptyState()

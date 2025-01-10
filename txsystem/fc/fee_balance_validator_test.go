@@ -3,15 +3,17 @@ package fc
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	moneyid "github.com/alphabill-org/alphabill-go-base/testutils/money"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtb "github.com/alphabill-org/alphabill/internal/testutils/trustbase"
 	"github.com/alphabill-org/alphabill/state"
 	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestCheckFeeCreditBalance(t *testing.T) {
@@ -30,7 +32,7 @@ func TestCheckFeeCreditBalance(t *testing.T) {
 	require.NoError(t, sharedState.Apply(state.AddUnit(recordID, existingFCR)))
 	require.NoError(t, sharedState.AddUnitLog(recordID, []byte{9}))
 
-	fcModule, err := NewFeeCreditModule(pdr, moneyPartitionID, sharedState, trustBase, WithFeeCreditRecordUnitType(0xFC))
+	fcModule, err := NewFeeCreditModule(pdr, moneyPartitionID, sharedState, trustBase, observability.Default(t), WithFeeCreditRecordUnitType(0xFC))
 	require.NoError(t, err)
 
 	tests := []struct {

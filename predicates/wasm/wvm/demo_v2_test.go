@@ -9,8 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alphabill-org/alphabill-go-base/types/hex"
-	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -23,8 +21,10 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/tokens"
 	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	testblock "github.com/alphabill-org/alphabill/internal/testutils/block"
 	"github.com/alphabill-org/alphabill/internal/testutils/observability"
+	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/predicates/wasm/wvm/encoder"
@@ -70,7 +70,9 @@ func Test_conference_tickets_v2(t *testing.T) {
 	require.NoError(t, tokenenc.RegisterTxAttributeEncoders(txsEnc.RegisterAttrEncoder))
 	require.NoError(t, tokenenc.RegisterUnitDataEncoders(txsEnc.RegisterUnitDataEncoder))
 
-	templateEng, err := predicates.Dispatcher(templates.New())
+	tmpPred, err := templates.New(observability.Default(t))
+	require.NoError(t, err)
+	templateEng, err := predicates.Dispatcher(tmpPred)
 	require.NoError(t, err)
 
 	nftTypeID := tokenid.NewNonFungibleTokenTypeID(t)

@@ -154,9 +154,6 @@ func (si *ShardInfo) IsValid() error {
 	if si.Partition == 0 {
 		return errors.New("missing partition id")
 	}
-	if len(si.RootHash) == 0 {
-		return errors.New("missing RootHash")
-	}
 	if len(si.PrevEpochStat) == 0 {
 		return errors.New("missing PrevEpochStat")
 	}

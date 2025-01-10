@@ -57,10 +57,17 @@ func NewGenericTxSystem(pdr types.PartitionDescriptionRecord, shardID types.Shar
 	if observe == nil {
 		return nil, errors.New("observability must not be nil")
 	}
-	options := DefaultOptions()
-	for _, option := range opts {
-		option(options)
+
+	options, err := DefaultOptions(observe)
+	if err != nil {
+		return nil, fmt.Errorf("invalid default options: %w", err)
 	}
+	for _, option := range opts {
+		if err := option(options); err != nil {
+			return nil, fmt.Errorf("invalid option: %w", err)
+		}
+	}
+
 	txs := &GenericTxSystem{
 		pdr:                 pdr,
 		hashAlgorithm:       options.hashAlgorithm,

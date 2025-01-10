@@ -9,6 +9,7 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/fc/permissioned"
 	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/tree/avl"
@@ -32,7 +33,7 @@ func TestValidateDeleteFCR(t *testing.T) {
 	partitionID := types.PartitionID(5)
 	const fcrUnitType = 1
 	adminOwnerPredicate := templates.NewP2pkh256BytesFromKey(adminPubKey)
-	m, err := NewFeeCreditModule(targetPDR, stateTree, fcrUnitType, adminOwnerPredicate)
+	m, err := NewFeeCreditModule(targetPDR, stateTree, fcrUnitType, adminOwnerPredicate, observability.Default(t))
 	require.NoError(t, err)
 
 	// common default values used in each test
@@ -119,7 +120,7 @@ func TestExecuteDeleteFCR(t *testing.T) {
 	partitionID := types.PartitionID(5)
 	const fcrUnitType = 1
 	adminOwnerPredicate := templates.NewP2pkh256BytesFromKey(adminPubKey)
-	m, err := NewFeeCreditModule(targetPDR, stateTree, fcrUnitType, adminOwnerPredicate)
+	m, err := NewFeeCreditModule(targetPDR, stateTree, fcrUnitType, adminOwnerPredicate, observability.Default(t))
 	require.NoError(t, err)
 
 	// add unit to state tree

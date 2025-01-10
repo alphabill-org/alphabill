@@ -18,55 +18,66 @@ type Options struct {
 	endBlockFunctions   []func(blockNumber uint64) error
 	predicateRunner     predicates.PredicateRunner
 	feeCredit           txtypes.FeeCreditModule
+	observe             Observability
 }
 
-type Option func(*Options)
+type Option func(*Options) error
 
-func DefaultOptions() *Options {
+func DefaultOptions(observe Observability) (*Options, error) {
 	return (&Options{
 		hashAlgorithm: crypto.SHA256,
 		state:         state.NewEmptyState(),
 		feeCredit:     abfc.NewNoFeeCreditModule(),
-	}).initPredicateRunner()
+		observe:       observe,
+	}).initPredicateRunner(observe)
 }
 
 func WithBeginBlockFunctions(funcs ...func(blockNumber uint64) error) Option {
-	return func(g *Options) {
+	return func(g *Options) error {
 		g.beginBlockFunctions = append(g.beginBlockFunctions, funcs...)
+		return nil
 	}
 }
 
 func WithEndBlockFunctions(funcs ...func(blockNumber uint64) error) Option {
-	return func(g *Options) {
+	return func(g *Options) error {
 		g.endBlockFunctions = append(g.endBlockFunctions, funcs...)
+		return nil
 	}
 }
 
 func WithHashAlgorithm(hashAlgorithm crypto.Hash) Option {
-	return func(g *Options) {
+	return func(g *Options) error {
 		g.hashAlgorithm = hashAlgorithm
+		return nil
 	}
 }
 
 func WithState(s *state.State) Option {
-	return func(g *Options) {
+	return func(g *Options) error {
 		g.state = s
 		// re-init predicate runner
-		g.initPredicateRunner()
+		_, err := g.initPredicateRunner(g.observe)
+		return err
 	}
 }
 
 func WithFeeCredits(f txtypes.FeeCreditModule) Option {
-	return func(g *Options) {
+	return func(g *Options) error {
 		g.feeCredit = f
+		return nil
 	}
 }
 
-func (o *Options) initPredicateRunner() *Options {
-	engines, err := predicates.Dispatcher(templates.New())
+func (o *Options) initPredicateRunner(observe Observability) (*Options, error) {
+	templEng, err := templates.New(observe)
 	if err != nil {
-		panic(fmt.Errorf("creating predicate executor: %w", err))
+		return nil, fmt.Errorf("creating predicate template executor: %w", err)
+	}
+	engines, err := predicates.Dispatcher(templEng)
+	if err != nil {
+		return nil, fmt.Errorf("creating predicate executor: %w", err)
 	}
 	o.predicateRunner = predicates.NewPredicateRunner(engines.Execute)
-	return o
+	return o, nil
 }

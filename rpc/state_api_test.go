@@ -35,17 +35,17 @@ func TestGetRoundInfo(t *testing.T) {
 
 	t.Run("ok", func(t *testing.T) {
 		node.maxRoundNumber = 1337
-		node.currentEpoch = 1234
+		node.currentEpochNumber = 1234
 
 		roundInfo, err := api.GetRoundInfo(context.Background())
 		require.NoError(t, err)
 		require.EqualValues(t, 1337, roundInfo.RoundNumber)
-		require.EqualValues(t, 1234, roundInfo.Epoch)
+		require.EqualValues(t, 1234, roundInfo.EpochNumber)
 	})
 	t.Run("err", func(t *testing.T) {
 		node.err = errors.New("some error")
 		node.maxRoundNumber = 1337
-		node.currentEpoch = 1234
+		node.currentEpochNumber = 1234
 
 		roundInfo, err := api.GetRoundInfo(context.Background())
 		require.ErrorContains(t, err, "some error")
@@ -283,13 +283,13 @@ func (ud *unitData) Owner() []byte {
 
 type (
 	MockNode struct {
-		maxBlockNumber uint64
-		maxRoundNumber uint64
-		currentEpoch   uint64
-		transactions   []*types.TransactionOrder
-		err            error
-		txs            txsystem.TransactionSystem
-		trustBase      types.RootTrustBase
+		maxBlockNumber     uint64
+		maxRoundNumber     uint64
+		currentEpochNumber uint64
+		transactions       []*types.TransactionOrder
+		err                error
+		txs                txsystem.TransactionSystem
+		trustBase          types.RootTrustBase
 
 		onSubmitTx func(context.Context, *types.TransactionOrder) ([]byte, error)
 	}
@@ -343,7 +343,7 @@ func (mn *MockNode) CurrentRoundInfo(_ context.Context) (*partition.RoundInfo, e
 	if mn.err != nil {
 		return nil, mn.err
 	}
-	return &partition.RoundInfo{RoundNumber: mn.maxRoundNumber, Epoch: mn.currentEpoch}, nil
+	return &partition.RoundInfo{RoundNumber: mn.maxRoundNumber, EpochNumber: mn.currentEpochNumber}, nil
 }
 
 func (mn *MockNode) NetworkID() types.NetworkID {

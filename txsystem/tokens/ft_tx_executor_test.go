@@ -15,6 +15,7 @@ import (
 
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testblock "github.com/alphabill-org/alphabill/internal/testutils/block"
+	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtb "github.com/alphabill-org/alphabill/internal/testutils/trustbase"
 	"github.com/alphabill-org/alphabill/state"
@@ -1147,7 +1148,7 @@ func TestJoinFungibleToken_NotOk(t *testing.T) {
 }
 
 func defaultOpts(t *testing.T) *Options {
-	o, err := defaultOptions()
+	o, err := defaultOptions(observability.Default(t))
 	require.NoError(t, err)
 	o.state = initState(t)
 	return o

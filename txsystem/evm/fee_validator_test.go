@@ -6,7 +6,8 @@ import (
 	basetemplates "github.com/alphabill-org/alphabill-go-base/predicates/templates"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill/internal/testutils/sig"
+	"github.com/alphabill-org/alphabill/internal/testutils/observability"
+	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/state"
@@ -35,7 +36,9 @@ func Test_checkFeeAccountBalance(t *testing.T) {
 	require.NoError(t, err)
 
 	// create checkFeeAccountBalance function
-	predEng, err := predicates.Dispatcher(templates.New())
+	templEngine, err := templates.New(observability.Default(t))
+	require.NoError(t, err)
+	predEng, err := predicates.Dispatcher(templEngine)
 	require.NoError(t, err)
 	predicateRunner := predicates.NewPredicateRunner(predEng.Execute)
 	validateFeeBalanceFn := checkFeeAccountBalanceFn(s, predicateRunner)

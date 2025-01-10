@@ -10,6 +10,7 @@ import (
 
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/api"
+	"go.opentelemetry.io/otel/metric"
 
 	"github.com/alphabill-org/alphabill-go-base/predicates/wasm"
 	"github.com/alphabill-org/alphabill-go-base/types"
@@ -86,8 +87,7 @@ type (
 	}
 
 	Observability interface {
-		//Tracer(name string, options ...trace.TracerOption) trace.Tracer
-		//Meter(name string, opts ...metric.MeterOption) metric.Meter
+		Meter(name string, opts ...metric.MeterOption) metric.Meter
 		Logger() *slog.Logger
 	}
 )

@@ -10,6 +10,7 @@ import (
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/state"
+	"github.com/alphabill-org/alphabill/txsystem"
 	feeModule "github.com/alphabill-org/alphabill/txsystem/fc"
 	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 )
@@ -49,7 +50,7 @@ type FeeCreditModule struct {
 	pdr                     types.PartitionDescriptionRecord
 }
 
-func NewFeeCreditModule(pdr types.PartitionDescriptionRecord, state *state.State, feeCreditRecordUnitType uint32, adminOwnerPredicate []byte, opts ...Option) (*FeeCreditModule, error) {
+func NewFeeCreditModule(pdr types.PartitionDescriptionRecord, state *state.State, feeCreditRecordUnitType uint32, adminOwnerPredicate []byte, obs txsystem.Observability, opts ...Option) (*FeeCreditModule, error) {
 	if err := pdr.IsValid(); err != nil {
 		return nil, fmt.Errorf("invalid target PDR: %w", err)
 	}
@@ -73,7 +74,11 @@ func NewFeeCreditModule(pdr types.PartitionDescriptionRecord, state *state.State
 		o(m)
 	}
 	if m.execPredicate == nil {
-		predEng, err := predicates.Dispatcher(templates.New())
+		templEngine, err := templates.New(obs)
+		if err != nil {
+			return nil, fmt.Errorf("creating predicate templates executor: %w", err)
+		}
+		predEng, err := predicates.Dispatcher(templEngine)
 		if err != nil {
 			return nil, fmt.Errorf("creating predicate executor: %w", err)
 		}

@@ -5,7 +5,6 @@ import (
 	"context"
 	"crypto"
 	"errors"
-	"fmt"
 	"io"
 	"testing"
 	"time"
@@ -141,34 +140,17 @@ func TestGetUnits(t *testing.T) {
 	}
 	api := NewStateAPI(node, observe, WithGetUnits(true), WithPDR(pdr))
 
-	t.Run("ok with no type id", func(t *testing.T) {
+	t.Run("ok", func(t *testing.T) {
 		unitIDs, err := api.GetUnits(nil)
 		require.NoError(t, err)
 		require.Len(t, unitIDs, 5)
 	})
-	t.Run("ok with type id 1", func(t *testing.T) {
-		typeID := uint32(1)
-		unitIDs, err := api.GetUnits(&typeID)
-		fmt.Println(unitIDs)
-		require.NoError(t, err)
-		require.Len(t, unitIDs, 3)
-		require.EqualValues(t, unitID1, unitIDs[0])
-		require.EqualValues(t, unitID2, unitIDs[1])
-		require.EqualValues(t, unitID3, unitIDs[2])
-	})
-	t.Run("ok with type id 2", func(t *testing.T) {
-		typeID := uint32(2)
-		unitIDs, err := api.GetUnits(&typeID)
-		require.NoError(t, err)
-		require.Len(t, unitIDs, 2)
-		require.EqualValues(t, unitID4, unitIDs[0])
-		require.EqualValues(t, unitID5, unitIDs[1])
-	})
-	t.Run("empty response with type unknown type", func(t *testing.T) {
+	t.Run("api disabled", func(t *testing.T) {
+		api := NewStateAPI(node, observe, WithGetUnits(false), WithPDR(pdr))
 		typeID := uint32(3)
 		unitIDs, err := api.GetUnits(&typeID)
-		require.NoError(t, err)
-		require.Len(t, unitIDs, 0)
+		require.ErrorContains(t, err, "state_getUnits is disabled")
+		require.Nil(t, unitIDs)
 	})
 }
 
@@ -442,11 +424,11 @@ func (mn *MockNode) GetTrustBase(epochNumber uint64) (types.RootTrustBase, error
 	return mn.trustBase, nil
 }
 
-func (m *MockNode) IsPermissionedMode() bool {
+func (mn *MockNode) IsPermissionedMode() bool {
 	return false
 }
 
-func (m *MockNode) IsFeelessMode() bool {
+func (mn *MockNode) IsFeelessMode() bool {
 	return false
 }
 

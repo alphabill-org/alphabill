@@ -125,12 +125,19 @@ func runTokensNode(ctx context.Context, cfg *tokensConfiguration) error {
 	// tx system engine.
 	// it's safe to share template engine as it doesn't have internal state and
 	// predicate executions happen in serialized manner anyway
-	templateEng := templates.New()
+	templateEng, err := templates.New(obs)
+	if err != nil {
+		return fmt.Errorf("creating predicate templates executor: %w", err)
+	}
 	tpe, err := predicates.Dispatcher(templateEng)
 	if err != nil {
 		return fmt.Errorf("creating predicate executor for WASM engine: %w", err)
 	}
-	predEng, err := predicates.Dispatcher(templateEng, wasm.New(enc, tpe.Execute, obs))
+	wasmEng, err := wasm.New(enc, tpe.Execute, obs)
+	if err != nil {
+		return fmt.Errorf("creating predicate WASM executor: %w", err)
+	}
+	predEng, err := predicates.Dispatcher(templateEng, wasmEng)
 	if err != nil {
 		return fmt.Errorf("creating predicate executor: %w", err)
 	}

@@ -5,21 +5,24 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/hash"
 	sdkpredicates "github.com/alphabill-org/alphabill-go-base/predicates"
 	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
 	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/state"
-	"github.com/stretchr/testify/require"
 )
 
 func TestTemplateRunner(t *testing.T) {
 	t.Parallel()
 
-	runner := New()
+	runner, err := New(observability.Default(t))
+	require.NoError(t, err)
 	require.EqualValues(t, templates.TemplateStartByte, runner.ID())
 
 	/* invalid inputs */

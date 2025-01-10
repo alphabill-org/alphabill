@@ -7,17 +7,31 @@ import (
 	"log/slog"
 	"math"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/alphabill-org/alphabill-go-base/txsystem/evm"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/util"
 	"github.com/alphabill-org/alphabill/logger"
+	"github.com/alphabill-org/alphabill/observability"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
 	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 )
 
 type Observability interface {
+	Tracer(name string, options ...trace.TracerOption) trace.Tracer
+	TracerProvider() trace.TracerProvider
+
+	Meter(name string, opts ...metric.MeterOption) metric.Meter
+	PrometheusRegisterer() prometheus.Registerer
+
+	Logger() *slog.Logger
 	RoundLogger(curRound func() uint64) *slog.Logger
+
+	Shutdown() error
 }
 
 type genericTransactionValidator func(ctx *TxValidationContext) error
@@ -46,7 +60,7 @@ type TxSystem struct {
 }
 
 func NewEVMTxSystem(networkID types.NetworkID, partitionID types.PartitionID, observe Observability, opts ...Option) (*TxSystem, error) {
-	options, err := defaultOptions()
+	options, err := defaultOptions(observe)
 	if err != nil {
 		return nil, fmt.Errorf("default configuration: %w", err)
 	}
@@ -68,11 +82,12 @@ func NewEVMTxSystem(networkID types.NetworkID, partitionID types.PartitionID, ob
 		executors:         make(txtypes.TxExecutors),
 	}
 	txs.log = observe.RoundLogger(txs.CurrentBlockNumber)
+	observe = observability.WithLogger(observe, txs.log)
 	evm, err := NewEVMModule(partitionID, options, txs.log)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load EVM module: %w", err)
 	}
-	fees, err := newFeeModule(partitionID, options, txs.log)
+	fees, err := newFeeModule(partitionID, options, observe)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load EVM fee module: %w", err)
 	}

@@ -57,8 +57,8 @@ func WithState(s *state.State) Option {
 	return func(g *Options) error {
 		g.state = s
 		// re-init predicate runner
-		g.initPredicateRunner(g.observe)
-		return nil
+		_, err := g.initPredicateRunner(g.observe)
+		return err
 	}
 }
 

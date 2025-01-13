@@ -90,7 +90,7 @@ func (m *LockTokensModule) validateUnlockNonFungibleToken(tx *types.TransactionO
 	if err := validateUnlockToken(attr, d); err != nil {
 		return err
 	}
-	if err := m.execPredicate(d.Owner(), authProof.OwnerProof, tx.AuthProofSigBytes, exeCtx); err != nil {
+	if err := m.execPredicate(d.Owner(), authProof.OwnerProof, tx, exeCtx.WithExArg(tx.AuthProofSigBytes)); err != nil {
 		return fmt.Errorf("evaluating owner predicate: %w", err)
 	}
 	return nil
@@ -104,7 +104,7 @@ func (m *LockTokensModule) validateUnlockFungibleToken(tx *types.TransactionOrde
 	if err := validateUnlockToken(attr, d); err != nil {
 		return err
 	}
-	if err := m.execPredicate(d.Owner(), authProof.OwnerProof, tx.AuthProofSigBytes, exeCtx); err != nil {
+	if err := m.execPredicate(d.Owner(), authProof.OwnerProof, tx, exeCtx.WithExArg(tx.AuthProofSigBytes)); err != nil {
 		return fmt.Errorf("evaluating owner predicate: %w", err)
 	}
 	return nil

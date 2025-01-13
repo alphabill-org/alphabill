@@ -54,8 +54,8 @@ func (n *NonFungibleTokensModule) validateDefineNFT(tx *types.TransactionOrder, 
 		return err
 	}
 	err = runChainedPredicates[*tokens.NonFungibleTokenTypeData](
-		exeCtx,
-		tx.AuthProofSigBytes,
+		exeCtx.WithExArg(tx.AuthProofSigBytes),
+		tx,
 		attr.ParentTypeID,
 		authProof.SubTypeCreationProofs,
 		n.execPredicate,

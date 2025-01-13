@@ -43,7 +43,7 @@ func (WasmRunner) ID() uint64 {
 	return wasm.PredicateEngineID
 }
 
-func (wr WasmRunner) Execute(ctx context.Context, p *predicates.Predicate, args []byte, sigBytesFn func() ([]byte, error), env exec.TxContext) (bool, error) {
+func (wr WasmRunner) Execute(ctx context.Context, p *predicates.Predicate, args []byte, txo *types.TransactionOrder, env exec.TxContext) (bool, error) {
 	if p.Tag != wasm.PredicateEngineID {
 		return false, fmt.Errorf("expected predicate engine tag %d but got %d", wasm.PredicateEngineID, p.Tag)
 	}
@@ -54,7 +54,7 @@ func (wr WasmRunner) Execute(ctx context.Context, p *predicates.Predicate, args 
 		return false, fmt.Errorf("decoding predicate parameters: %w", err)
 	}
 
-	code, err := wr.vm.Exec(ctx, p.Code, args, par, sigBytesFn, env)
+	code, err := wr.vm.Exec(ctx, p.Code, args, par, txo, env)
 	if err != nil {
 		return false, fmt.Errorf("executing predicate: %w", err)
 	}

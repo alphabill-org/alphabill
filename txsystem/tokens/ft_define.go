@@ -72,8 +72,8 @@ func (m *FungibleTokensModule) validateDefineFT(tx *types.TransactionOrder, attr
 	}
 
 	err = runChainedPredicates[*tokens.FungibleTokenTypeData](
-		exeCtx,
-		tx.AuthProofSigBytes,
+		exeCtx.WithExArg(tx.AuthProofSigBytes),
+		tx,
 		attr.ParentTypeID,
 		authProof.SubTypeCreationProofs,
 		m.execPredicate,

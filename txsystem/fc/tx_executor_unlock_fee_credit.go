@@ -6,9 +6,8 @@ import (
 
 	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/types"
-	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
-
 	"github.com/alphabill-org/alphabill/state"
+	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 )
 
 func (f *FeeCreditModule) executeUnlockFC(tx *types.TransactionOrder, _ *fc.UnlockFeeCreditAttributes, authProof *fc.UnlockFeeCreditAuthProof, execCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
@@ -55,7 +54,7 @@ func (f *FeeCreditModule) validateUnlockFC(tx *types.TransactionOrder, attr *fc.
 		return errors.New("fee credit record is already unlocked")
 	}
 	// validate owner
-	if err = f.execPredicate(fcr.OwnerPredicate, authProof.OwnerProof, tx.AuthProofSigBytes, exeCtx); err != nil {
+	if err = f.execPredicate(fcr.OwnerPredicate, authProof.OwnerProof, tx, exeCtx.WithExArg(tx.AuthProofSigBytes)); err != nil {
 		return fmt.Errorf("executing fee credit predicate: %w", err)
 	}
 	return nil

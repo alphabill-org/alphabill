@@ -65,7 +65,7 @@ func (m *Module) validateAddVarTx(tx *types.TransactionOrder, attr *orchestratio
 		}
 	}
 	// Always check owner predicate, do it as a last step because it is the most expensive check
-	if err = m.execPredicate(m.ownerPredicate, authProof.OwnerProof, tx.AuthProofSigBytes, exeCtx); err != nil {
+	if err = m.execPredicate(m.ownerPredicate, authProof.OwnerProof, tx, exeCtx.WithExArg(tx.AuthProofSigBytes)); err != nil {
 		return fmt.Errorf("invalid owner proof: %w", err)
 	}
 	return nil

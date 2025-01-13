@@ -43,6 +43,7 @@ type TxValidationContext struct {
 	PartitionID types.PartitionID
 	BlockNumber uint64
 	CustomData  []byte
+	exArgument  func() ([]byte, error)
 }
 
 type TxSystem struct {
@@ -270,4 +271,16 @@ func (vc *TxValidationContext) GetData() []byte {
 
 func (vc *TxValidationContext) SetData(data []byte) {
 	vc.CustomData = data
+}
+
+func (vc *TxValidationContext) ExtraArgument() ([]byte, error) {
+	if vc.exArgument == nil {
+		return nil, errors.New("extra argument callback not assigned")
+	}
+	return vc.exArgument()
+}
+
+func (vc *TxValidationContext) WithExArg(f func() ([]byte, error)) txtypes.ExecutionContext {
+	vc.exArgument = f
+	return vc
 }

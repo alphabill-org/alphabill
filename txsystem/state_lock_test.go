@@ -11,6 +11,7 @@ import (
 	fcsdk "github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
 	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/predicates/templates"
@@ -77,7 +78,9 @@ func Test_proof_check_with_nil(t *testing.T) {
 	tx := &types.TransactionOrder{Version: 1, StateUnlock: append([]byte{byte(kind)}, proof...)}
 	result, err := stateUnlockProofFromTx(tx)
 	require.NoError(t, err)
-	predEng, err := predicates.Dispatcher(templates.New())
+	templEng, err := templates.New(observability.Default(t))
+	require.NoError(t, err)
+	predEng, err := predicates.Dispatcher(templEng)
 	require.NoError(t, err)
 	predicateRunner := predicates.NewPredicateRunner(predEng.Execute)
 	require.EqualError(t, result.check(predicateRunner, nil, nil, nil), "StateLock is nil")

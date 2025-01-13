@@ -318,6 +318,10 @@ func (m mockStateStoreOK) Serialize(writer io.Writer, committed bool) error {
 	return nil
 }
 
+func (m mockStateStoreOK) GetUnits(unitTypeID *uint32, pdr *types.PartitionDescriptionRecord) ([]types.UnitID, error) {
+	return nil, nil
+}
+
 func simulateInput(round uint64, unitID []byte) *BlockAndState {
 	uc, _ := (&types.UnicityCertificate{
 		Version:     1,

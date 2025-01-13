@@ -138,7 +138,7 @@ type (
 
 	RoundInfo struct {
 		RoundNumber uint64 `json:"roundNumber"`
-		Epoch       uint64 `json:"epoch"`
+		EpochNumber uint64 `json:"epochNumber"`
 	}
 
 	status int
@@ -1659,7 +1659,7 @@ func (n *Node) CurrentRoundInfo(ctx context.Context) (*RoundInfo, error) {
 	}
 	return &RoundInfo{
 		RoundNumber: n.currentRoundNumber(),
-		Epoch:       n.currentEpoch(),
+		EpochNumber: n.currentEpoch(),
 	}, nil
 }
 

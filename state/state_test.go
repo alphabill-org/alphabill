@@ -729,6 +729,77 @@ func TestSerialize_EmptyStateCommitted(t *testing.T) {
 	require.True(t, state.IsCommitted())
 }
 
+func TestState_GetUnits(t *testing.T) {
+	pdr := &types.PartitionDescriptionRecord{
+		TypeIDLen: 8,
+		UnitIDLen: 256,
+	}
+	unitID1 := append(make(types.UnitID, 31), 1, 1) // id=1 type=1
+	unitID2 := append(make(types.UnitID, 31), 2, 1) // id=2 type=1
+	unitID3 := append(make(types.UnitID, 31), 3, 1) // id=3 type=1
+	unitID4 := append(make(types.UnitID, 31), 4, 2) // id=4 type=2
+	unitID5 := append(make(types.UnitID, 31), 5, 2) // id=5 type=2
+	s := NewEmptyState()
+	require.NoError(t, s.Apply(
+		AddUnit(unitID1, &TestData{Value: 1}),
+		AddUnit(unitID2, &TestData{Value: 2}),
+		AddUnit(unitID3, &TestData{Value: 3}),
+		AddUnit(unitID4, &TestData{Value: 4}),
+		AddUnit(unitID5, &TestData{Value: 5}),
+	))
+	// apply changes (get units works on the committed state)
+	sum, rootHash, err := s.CalculateRoot()
+	require.NoError(t, err)
+	require.Equal(t, uint64(15), sum)
+	require.NotNil(t, rootHash)
+	require.NoError(t, s.Commit(createUC(s, sum, rootHash)))
+
+	t.Run("ok with no type id and no pdr", func(t *testing.T) {
+		unitIDs, err := s.GetUnits(nil, nil)
+		require.NoError(t, err)
+		require.Len(t, unitIDs, 5)
+	})
+	t.Run("nok without pdr", func(t *testing.T) {
+		typeID := uint32(1)
+		unitIDs, err := s.GetUnits(&typeID, nil)
+		require.ErrorContains(t, err, "partition description record is nil")
+		require.Nil(t, unitIDs)
+	})
+	t.Run("nok with invalid pdr", func(t *testing.T) {
+		typeID := uint32(3)
+		unitIDs, err := s.GetUnits(&typeID, &types.PartitionDescriptionRecord{
+			TypeIDLen: 16,
+			UnitIDLen: 256,
+		})
+		require.ErrorContains(t, err, "failed to traverse state: extracting unit type from unit ID: expected unit ID length 34 bytes, got 33 bytes")
+		require.Nil(t, unitIDs)
+	})
+	t.Run("ok with type id 1", func(t *testing.T) {
+		typeID := uint32(1)
+		unitIDs, err := s.GetUnits(&typeID, pdr)
+		fmt.Println(unitIDs)
+		require.NoError(t, err)
+		require.Len(t, unitIDs, 3)
+		require.EqualValues(t, unitID1, unitIDs[0])
+		require.EqualValues(t, unitID2, unitIDs[1])
+		require.EqualValues(t, unitID3, unitIDs[2])
+	})
+	t.Run("ok with type id 2", func(t *testing.T) {
+		typeID := uint32(2)
+		unitIDs, err := s.GetUnits(&typeID, pdr)
+		require.NoError(t, err)
+		require.Len(t, unitIDs, 2)
+		require.EqualValues(t, unitID4, unitIDs[0])
+		require.EqualValues(t, unitID5, unitIDs[1])
+	})
+	t.Run("ok with type id 3", func(t *testing.T) {
+		typeID := uint32(3)
+		unitIDs, err := s.GetUnits(&typeID, pdr)
+		require.NoError(t, err)
+		require.Len(t, unitIDs, 0)
+	})
+}
+
 func prepareState(t *testing.T) (*State, []byte, uint64) {
 	s := NewEmptyState()
 	//			┌───┤ key=00000100

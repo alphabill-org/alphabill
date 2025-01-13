@@ -155,7 +155,7 @@ func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (*types.Transactio
 	// First, check transaction credible and that there are enough fee credits on the FCR?
 	// buy gas according to the maximum tx fee allowed by client -
 	// if fee proof check fails, function will exit tx and tx will not be added to block
-	exeCtx := txtypes.NewExecutionContext(tx, m, m.fees, m.trustBase, tx.MaxFee())
+	exeCtx := txtypes.NewExecutionContext(m, m.fees, m.trustBase, tx.MaxFee())
 	// 2. If P.α != S.α ∨ fSH(P.ι) != S.σ ∨ S .n ≥ P.T 0 then return ⊥
 	// 3. If not P.MC .ι f = ⊥ = P.s f then return ⊥
 	if err := m.validateGenericTransaction(tx); err != nil {

@@ -101,7 +101,7 @@ func (m *Module) validateReclaimFCTx(tx *types.TransactionOrder, attr *fc.Reclai
 		return ErrReclaimFCInvalidTxFee
 	}
 	// verify predicate
-	if err = m.execPredicate(bd.Owner(), authProof.OwnerProof, tx.AuthProofSigBytes, exeCtx); err != nil {
+	if err = m.execPredicate(bd.Owner(), authProof.OwnerProof, tx, exeCtx.WithExArg(tx.AuthProofSigBytes)); err != nil {
 		return err
 	}
 	// verify proof

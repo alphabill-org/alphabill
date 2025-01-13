@@ -27,7 +27,7 @@ func Test_newExecutionContext(t *testing.T) {
 		_, verifier := testsig.CreateSignerAndVerifier(t)
 		tb := testtb.NewTrustBase(t, verifier)
 		info := &stateInfo{}
-		execCtx := NewExecutionContext(nil, info, NewMockFeeModule(), tb, 10)
+		execCtx := NewExecutionContext(info, NewMockFeeModule(), tb, 10)
 		require.NotNil(t, execCtx)
 		require.EqualValues(t, 1, execCtx.CurrentRound())
 		tb, err := execCtx.TrustBase(0)

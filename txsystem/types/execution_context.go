@@ -1,6 +1,8 @@
 package types
 
 import (
+	"errors"
+
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/state"
 )
@@ -18,13 +20,13 @@ type (
 
 	// TxExecutionContext - implementation of ExecutionContext interface for generic tx handler
 	TxExecutionContext struct {
-		txo          *types.TransactionOrder
 		txs          StateInfo
 		fee          FeeCalculation
 		trustStore   types.RootTrustBase
 		initialGas   uint64
 		remainingGas uint64
 		customData   []byte
+		exArgument   func() ([]byte, error)
 	}
 )
 
@@ -57,11 +59,17 @@ func (ec *TxExecutionContext) CalculateCost() uint64 {
 	return cost
 }
 
-func (ec *TxExecutionContext) TransactionOrder() (*types.TransactionOrder, error) {
-	if ec.txo == nil {
-		return nil, types.ErrTransactionOrderIsNil
+/*
+ExtraArgument calls the function set using WithExArg method.
+
+This can be used to provide "extra argument" for the predicate, currently used
+ie by the P2PKH predicate to receive the signature bytes it should verify.
+*/
+func (ec *TxExecutionContext) ExtraArgument() ([]byte, error) {
+	if ec.exArgument == nil {
+		return nil, errors.New("extra argument callback not assigned")
 	}
-	return ec.txo, nil
+	return ec.exArgument()
 }
 
 func (ec *TxExecutionContext) GetData() []byte {
@@ -72,10 +80,17 @@ func (ec *TxExecutionContext) SetData(data []byte) {
 	ec.customData = data
 }
 
-func NewExecutionContext(txo *types.TransactionOrder, txSys StateInfo, f FeeCalculation, tb types.RootTrustBase, maxCost uint64) *TxExecutionContext {
+/*
+WithExArg sets the "extra argument" callback which is used by the ExtraArgument method.
+*/
+func (ec *TxExecutionContext) WithExArg(f func() ([]byte, error)) ExecutionContext {
+	ec.exArgument = f
+	return ec
+}
+
+func NewExecutionContext(txSys StateInfo, f FeeCalculation, tb types.RootTrustBase, maxCost uint64) *TxExecutionContext {
 	gasUnits := f.BuyGas(maxCost)
 	return &TxExecutionContext{
-		txo:          txo,
 		txs:          txSys,
 		fee:          f,
 		trustStore:   tb,

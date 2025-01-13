@@ -206,7 +206,7 @@ func newTestFeeModule(t *testing.T, pdr *types.PartitionDescriptionRecord, tb ty
 		pdr:              *pdr,
 		moneyPartitionID: moneyPartitionID,
 		trustBase:        tb,
-		execPredicate: func(predicate types.PredicateBytes, args []byte, sigBytesFn func() ([]byte, error), env predicates.TxContext) error {
+		execPredicate: func(predicate types.PredicateBytes, args []byte, txo *types.TransactionOrder, env predicates.TxContext) error {
 			return nil
 		},
 		feeCreditRecordUnitType: money.FeeCreditRecordUnitType,

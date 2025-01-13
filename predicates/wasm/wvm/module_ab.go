@@ -76,8 +76,8 @@ func txSignedByPKH(ctx context.Context, mod api.Module, stack []uint64) {
 	}
 
 	predicate := templates.NewP2pkh256BytesFromKeyHash(pkh)
-	ok, err := vec.engines(ctx, predicate, proof, txo.AuthProofSigBytes, vec.curPrg.env)
-	//ok, err := vec.engines(ctx, predicate, proof, txo, vec.curPrg.env)
+	env := txoEvalCtx{EvalEnvironment: vec.curPrg.env, exArgument: txo.AuthProofSigBytes}
+	ok, err := vec.engines(ctx, predicate, proof, txo, env)
 	switch {
 	case err != nil:
 		vec.log.DebugContext(ctx, "failed to verify OwnerProof against p2pkh", logger.Error(err))
@@ -255,4 +255,16 @@ func transferredSum(trustBase types.RootTrustBase, txRecordProof *types.TxRecord
 	}
 
 	return sum, nil
+}
+
+type txoEvalCtx struct {
+	EvalEnvironment
+	exArgument func() ([]byte, error)
+}
+
+func (ec txoEvalCtx) ExtraArgument() ([]byte, error) {
+	if ec.exArgument == nil {
+		return nil, errors.New("extra arguments callback not assigned")
+	}
+	return ec.exArgument()
 }

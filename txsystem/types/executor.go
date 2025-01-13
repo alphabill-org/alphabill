@@ -38,6 +38,7 @@ type (
 		predicates.TxContext
 		GetData() []byte     // read data added by the GetData function
 		SetData(data []byte) // add arbitrary data to the execution context
+		WithExArg(func() ([]byte, error)) ExecutionContext
 	}
 )
 

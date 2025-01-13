@@ -84,7 +84,7 @@ func (m *Module) validateTransferFCTx(tx *types.TransactionOrder, attr *fc.Trans
 	if tx.FeeProof != nil {
 		return ErrFeeProofExists
 	}
-	if err = m.execPredicate(billData.Owner(), authProof.OwnerProof, tx.AuthProofSigBytes, exeCtx); err != nil {
+	if err = m.execPredicate(billData.Owner(), authProof.OwnerProof, tx, exeCtx.WithExArg(tx.AuthProofSigBytes)); err != nil {
 		return fmt.Errorf("verify owner proof: %w", err)
 	}
 	return nil

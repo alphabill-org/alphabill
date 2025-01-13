@@ -50,7 +50,7 @@ func (m *Module) validateLockTx(tx *types.TransactionOrder, attr *money.LockAttr
 	if billData.Counter != attr.Counter {
 		return ErrInvalidCounter
 	}
-	if err = m.execPredicate(billData.Owner(), authProof.OwnerProof, tx.AuthProofSigBytes, exeCtx); err != nil {
+	if err = m.execPredicate(billData.Owner(), authProof.OwnerProof, tx, exeCtx.WithExArg(tx.AuthProofSigBytes)); err != nil {
 		return fmt.Errorf("evaluating owner predicate: %w", err)
 	}
 	return nil

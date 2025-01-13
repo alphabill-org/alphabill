@@ -84,22 +84,6 @@ func Test_conference_tickets_v2(t *testing.T) {
 		predWASM, err := ticketsWasmV2.ReadFile("testdata/conference_tickets/v2/type-bearer.wasm")
 		require.NoError(t, err)
 
-		env := &mockTxContext{
-			getUnit: func(id types.UnitID, committed bool) (*state.Unit, error) {
-				if !bytes.Equal(id, tokenID) {
-					return nil, fmt.Errorf("unknown unit %x", id)
-				}
-				return state.NewUnit(&tokens.NonFungibleTokenData{Data: []byte("early-bird"), OwnerPredicate: []byte{1}}), nil
-			},
-			curRound:     func() uint64 { return earlyBirdDate },
-			GasRemaining: 30000,
-		}
-
-		obs := observability.Default(t)
-		wvm, err := New(context.Background(), txsEnc, templateEng.Execute, obs)
-		require.NoError(t, err)
-		conf := wasm.PredicateParams{Entrypoint: "type_bearer", Args: predCfg}
-
 		// "current transaction" for the predicate is "transfer NFT"
 		txNFTTransfer := &types.TransactionOrder{
 			Version: 1,
@@ -110,9 +94,26 @@ func Test_conference_tickets_v2(t *testing.T) {
 			},
 		}
 
+		env := &mockTxContext{
+			getUnit: func(id types.UnitID, committed bool) (*state.Unit, error) {
+				if !bytes.Equal(id, tokenID) {
+					return nil, fmt.Errorf("unknown unit %x", id)
+				}
+				return state.NewUnit(&tokens.NonFungibleTokenData{Data: []byte("early-bird"), OwnerPredicate: []byte{1}}), nil
+			},
+			curRound:     func() uint64 { return earlyBirdDate },
+			GasRemaining: 30000,
+			exArgument:   txNFTTransfer.AuthProofSigBytes,
+		}
+
+		obs := observability.Default(t)
+		wvm, err := New(context.Background(), txsEnc, templateEng.Execute, obs)
+		require.NoError(t, err)
+		conf := wasm.PredicateParams{Entrypoint: "type_bearer", Args: predCfg}
+
 		// token is "early-bird" and date <= D1 - should eval to "true"
 		start, curGas := time.Now(), env.GasRemaining
-		res, err := wvm.Exec(context.Background(), predWASM, nil, conf, txNFTTransfer.AuthProofSigBytes, env)
+		res, err := wvm.Exec(context.Background(), predWASM, nil, conf, txNFTTransfer, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.NoError(t, err)
 		checkSpentGas(t, 10950, curGas-env.GasRemaining)
@@ -121,7 +122,7 @@ func Test_conference_tickets_v2(t *testing.T) {
 		// set date past D1, should eval to false
 		env.curRound = func() uint64 { return earlyBirdDate + 1 }
 		start, curGas = time.Now(), env.GasRemaining
-		res, err = wvm.Exec(context.Background(), predWASM, nil, conf, txNFTTransfer.AuthProofSigBytes, env)
+		res, err = wvm.Exec(context.Background(), predWASM, nil, conf, txNFTTransfer, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.NoError(t, err)
 		checkSpentGas(t, 10925, curGas-env.GasRemaining)
@@ -135,21 +136,6 @@ func Test_conference_tickets_v2(t *testing.T) {
 		// expects no arguments from user, doesn't require access to the "conference configuration"
 		predWASM, err := ticketsWasmV2.ReadFile("testdata/conference_tickets/v2/type-update.wasm")
 		require.NoError(t, err)
-
-		env := &mockTxContext{
-			getUnit: func(id types.UnitID, committed bool) (*state.Unit, error) {
-				if !bytes.Equal(id, tokenID) {
-					return nil, fmt.Errorf("unknown unit %x", id)
-				}
-				return state.NewUnit(&tokens.NonFungibleTokenData{Data: []byte("early-bird"), OwnerPredicate: []byte{1}}), nil
-			},
-			GasRemaining: 30000,
-		}
-
-		obs := observability.Default(t)
-		wvm, err := New(context.Background(), txsEnc, templateEng.Execute, obs)
-		require.NoError(t, err)
-		conf := wasm.PredicateParams{Entrypoint: "type_update_data", Args: nil}
 
 		txNFTUpdate := &types.TransactionOrder{
 			Version: 1,
@@ -165,9 +151,25 @@ func Test_conference_tickets_v2(t *testing.T) {
 				Counter: 2,
 			}))
 
+		env := &mockTxContext{
+			getUnit: func(id types.UnitID, committed bool) (*state.Unit, error) {
+				if !bytes.Equal(id, tokenID) {
+					return nil, fmt.Errorf("unknown unit %x", id)
+				}
+				return state.NewUnit(&tokens.NonFungibleTokenData{Data: []byte("early-bird"), OwnerPredicate: []byte{1}}), nil
+			},
+			GasRemaining: 30000,
+			exArgument:   txNFTUpdate.AuthProofSigBytes,
+		}
+
+		obs := observability.Default(t)
+		wvm, err := New(context.Background(), txsEnc, templateEng.Execute, obs)
+		require.NoError(t, err)
+		conf := wasm.PredicateParams{Entrypoint: "type_update_data", Args: nil}
+
 		// update from "early-bird" to "regular", should succeed
 		start, curGas := time.Now(), env.GasRemaining
-		res, err := wvm.Exec(context.Background(), predWASM, nil, conf, txNFTUpdate.AuthProofSigBytes, env)
+		res, err := wvm.Exec(context.Background(), predWASM, nil, conf, txNFTUpdate, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.NoError(t, err)
 		checkSpentGas(t, 10372, curGas-env.GasRemaining)
@@ -180,7 +182,7 @@ func Test_conference_tickets_v2(t *testing.T) {
 				Counter: 66,
 			}))
 		start, curGas = time.Now(), env.GasRemaining
-		res, err = wvm.Exec(context.Background(), predWASM, nil, conf, txNFTUpdate.AuthProofSigBytes, env)
+		res, err = wvm.Exec(context.Background(), predWASM, nil, conf, txNFTUpdate, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.NoError(t, err)
 		checkSpentGas(t, 5318, curGas-env.GasRemaining)
@@ -199,22 +201,6 @@ func Test_conference_tickets_v2(t *testing.T) {
 		predWASM, err := ticketsWasmV2.ReadFile("testdata/conference_tickets/v2/token-bearer.wasm")
 		require.NoError(t, err)
 
-		env := &mockTxContext{
-			getUnit: func(id types.UnitID, committed bool) (*state.Unit, error) {
-				if !bytes.Equal(id, tokenID) {
-					return nil, fmt.Errorf("unknown unit %x", id)
-				}
-				return state.NewUnit(&tokens.NonFungibleTokenData{Data: []byte("early-bird"), OwnerPredicate: []byte{1}}), nil
-			},
-			trustBase:    func() (types.RootTrustBase, error) { return trustbase, nil },
-			GasRemaining: 50000,
-		}
-
-		obs := observability.Default(t)
-		wvm, err := New(context.Background(), txsEnc, templateEng.Execute, obs)
-		require.NoError(t, err)
-		conf := wasm.PredicateParams{Entrypoint: "token_bearer", Args: predCfg}
-
 		// "current transaction" for the predicate is "transfer NFT"
 		txNFTTransfer := &types.TransactionOrder{
 			Version: 1,
@@ -230,6 +216,23 @@ func Test_conference_tickets_v2(t *testing.T) {
 				TypeID:            nftTypeID,
 			}))
 
+		env := &mockTxContext{
+			getUnit: func(id types.UnitID, committed bool) (*state.Unit, error) {
+				if !bytes.Equal(id, tokenID) {
+					return nil, fmt.Errorf("unknown unit %x", id)
+				}
+				return state.NewUnit(&tokens.NonFungibleTokenData{Data: []byte("early-bird"), OwnerPredicate: []byte{1}}), nil
+			},
+			trustBase:    func() (types.RootTrustBase, error) { return trustbase, nil },
+			GasRemaining: 50000,
+			exArgument:   txNFTTransfer.AuthProofSigBytes,
+		}
+
+		obs := observability.Default(t)
+		wvm, err := New(context.Background(), txsEnc, templateEng.Execute, obs)
+		require.NoError(t, err)
+		conf := wasm.PredicateParams{Entrypoint: "token_bearer", Args: predCfg}
+
 		// conference organizer transfers ticket (NFT token) to new owner.
 		// as the transaction is signed by the conference organizer the predicate
 		// should evaluate to true without requiring any proofs for money transfer etc
@@ -239,7 +242,7 @@ func Test_conference_tickets_v2(t *testing.T) {
 		}))
 
 		start, curGas := time.Now(), env.GasRemaining
-		res, err := wvm.Exec(context.Background(), predWASM, ownerProofOrg, conf, txNFTTransfer.AuthProofSigBytes, env)
+		res, err := wvm.Exec(context.Background(), predWASM, ownerProofOrg, conf, txNFTTransfer, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.NoError(t, err)
 		checkSpentGas(t, 7403, curGas-env.GasRemaining)
@@ -253,7 +256,7 @@ func Test_conference_tickets_v2(t *testing.T) {
 		}))
 
 		start, curGas = time.Now(), env.GasRemaining
-		res, err = wvm.Exec(context.Background(), predWASM, ownerProofAttendee, conf, txNFTTransfer.AuthProofSigBytes, env)
+		res, err = wvm.Exec(context.Background(), predWASM, ownerProofAttendee, conf, txNFTTransfer, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.NoError(t, err)
 		checkSpentGas(t, 7417, curGas-env.GasRemaining)
@@ -269,7 +272,7 @@ func Test_conference_tickets_v2(t *testing.T) {
 		}))
 
 		start, curGas = time.Now(), env.GasRemaining
-		res, err = wvm.Exec(context.Background(), predWASM, ownerProofAttendee, conf, txNFTTransfer.AuthProofSigBytes, env)
+		res, err = wvm.Exec(context.Background(), predWASM, ownerProofAttendee, conf, txNFTTransfer, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.NoError(t, err)
 		checkSpentGas(t, 13495, curGas-env.GasRemaining)
@@ -283,24 +286,6 @@ func Test_conference_tickets_v2(t *testing.T) {
 		// organizer the price difference `P2-P1`.
 		predWASM, err := ticketsWasmV2.ReadFile("testdata/conference_tickets/v2/token-update.wasm")
 		require.NoError(t, err)
-
-		env := &mockTxContext{
-			getUnit: func(id types.UnitID, committed bool) (*state.Unit, error) {
-				if !bytes.Equal(id, tokenID) {
-					return nil, fmt.Errorf("unknown unit %x", id)
-				}
-				return state.NewUnit(&tokens.NonFungibleTokenData{Data: []byte("early-bird"), OwnerPredicate: []byte{1}}), nil
-			},
-			trustBase: func() (types.RootTrustBase, error) { return trustbase, nil },
-			curRound:  func() uint64 { return regularDate },
-			//payloadBytes: payloadBytes,
-			GasRemaining: 30000,
-		}
-
-		obs := observability.Default(t)
-		wvm, err := New(context.Background(), txsEnc, templateEng.Execute, obs)
-		require.NoError(t, err)
-		conf := wasm.PredicateParams{Entrypoint: "token_update_data", Args: predCfg}
 
 		txNFTUpdate := &types.TransactionOrder{
 			Version: 1,
@@ -316,6 +301,24 @@ func Test_conference_tickets_v2(t *testing.T) {
 				Counter: 2,
 			}))
 
+		env := &mockTxContext{
+			getUnit: func(id types.UnitID, committed bool) (*state.Unit, error) {
+				if !bytes.Equal(id, tokenID) {
+					return nil, fmt.Errorf("unknown unit %x", id)
+				}
+				return state.NewUnit(&tokens.NonFungibleTokenData{Data: []byte("early-bird"), OwnerPredicate: []byte{1}}), nil
+			},
+			trustBase:    func() (types.RootTrustBase, error) { return trustbase, nil },
+			curRound:     func() uint64 { return regularDate },
+			GasRemaining: 30000,
+			exArgument:   txNFTUpdate.AuthProofSigBytes,
+		}
+
+		obs := observability.Default(t)
+		wvm, err := New(context.Background(), txsEnc, templateEng.Execute, obs)
+		require.NoError(t, err)
+		conf := wasm.PredicateParams{Entrypoint: "token_update_data", Args: predCfg}
+
 		// conference organizer updates the ticket (NFT token).
 		// as the transaction is signed by the conference organizer the predicate
 		// should evaluate to true without requiring any proofs for money transfer etc
@@ -325,7 +328,7 @@ func Test_conference_tickets_v2(t *testing.T) {
 		}))
 
 		start, curGas := time.Now(), env.GasRemaining
-		res, err := wvm.Exec(context.Background(), predWASM, ownerProofOrg, conf, txNFTUpdate.AuthProofSigBytes, env)
+		res, err := wvm.Exec(context.Background(), predWASM, ownerProofOrg, conf, txNFTUpdate, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.NoError(t, err)
 		checkSpentGas(t, 6969, curGas-env.GasRemaining)
@@ -338,7 +341,7 @@ func Test_conference_tickets_v2(t *testing.T) {
 		}))
 
 		start, curGas = time.Now(), env.GasRemaining
-		res, err = wvm.Exec(context.Background(), predWASM, ownerProof, conf, txNFTUpdate.AuthProofSigBytes, env)
+		res, err = wvm.Exec(context.Background(), predWASM, ownerProof, conf, txNFTUpdate, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.NoError(t, err)
 		checkSpentGas(t, 8450, curGas-env.GasRemaining)
@@ -351,7 +354,7 @@ func Test_conference_tickets_v2(t *testing.T) {
 		}))
 
 		start, curGas = time.Now(), env.GasRemaining
-		res, err = wvm.Exec(context.Background(), predWASM, ownerProof, conf, txNFTUpdate.AuthProofSigBytes, env)
+		res, err = wvm.Exec(context.Background(), predWASM, ownerProof, conf, txNFTUpdate, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.NoError(t, err)
 		checkSpentGas(t, 8450, curGas-env.GasRemaining)

@@ -262,7 +262,7 @@ type txoEvalCtx struct {
 	exArgument func() ([]byte, error)
 }
 
-func (ec txoEvalCtx) ExArgument() ([]byte, error) {
+func (ec txoEvalCtx) ExtraArgument() ([]byte, error) {
 	if ec.exArgument == nil {
 		return nil, errors.New("extra arguments callback not assigned")
 	}

@@ -42,7 +42,7 @@ type (
 		GetUnit(id types.UnitID, committed bool) (*state.Unit, error)
 		CurrentRound() uint64
 		TrustBase(epoch uint64) (types.RootTrustBase, error)
-		ExArgument() ([]byte, error)
+		ExtraArgument() ([]byte, error)
 	}
 )
 

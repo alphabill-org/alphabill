@@ -425,4 +425,4 @@ func (env *mockTxContext) TrustBase(epoch uint64) (types.RootTrustBase, error) {
 
 func (env *mockTxContext) CalculateCost() uint64 { return 0 }
 
-func (env *mockTxContext) ExArgument() ([]byte, error) { return env.exArgument() }
+func (env *mockTxContext) ExtraArgument() ([]byte, error) { return env.exArgument() }

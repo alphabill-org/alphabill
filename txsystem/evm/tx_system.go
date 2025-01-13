@@ -273,7 +273,7 @@ func (vc *TxValidationContext) SetData(data []byte) {
 	vc.CustomData = data
 }
 
-func (vc *TxValidationContext) ExArgument() ([]byte, error) {
+func (vc *TxValidationContext) ExtraArgument() ([]byte, error) {
 	if vc.exArgument == nil {
 		return nil, errors.New("extra argument callback not assigned")
 	}

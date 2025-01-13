@@ -60,12 +60,12 @@ func (ec *TxExecutionContext) CalculateCost() uint64 {
 }
 
 /*
-ExArgument calls the function set using WithExArg method.
+ExtraArgument calls the function set using WithExArg method.
 
 This can be used to provide "extra argument" for the predicate, currently used
 ie by the P2PKH predicate to receive the signature bytes it should verify.
 */
-func (ec *TxExecutionContext) ExArgument() ([]byte, error) {
+func (ec *TxExecutionContext) ExtraArgument() ([]byte, error) {
 	if ec.exArgument == nil {
 		return nil, errors.New("extra argument callback not assigned")
 	}
@@ -81,7 +81,7 @@ func (ec *TxExecutionContext) SetData(data []byte) {
 }
 
 /*
-WithExArg sets the "extra argument" callback which is used by the ExArgument method.
+WithExArg sets the "extra argument" callback which is used by the ExtraArgument method.
 */
 func (ec *TxExecutionContext) WithExArg(f func() ([]byte, error)) ExecutionContext {
 	ec.exArgument = f

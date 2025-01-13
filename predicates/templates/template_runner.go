@@ -102,7 +102,7 @@ func executeP2PKH256(pubKeyHash, args []byte, env predicates.TxContext) (bool, e
 	if err := env.SpendGas(P2PKHGasCost); err != nil {
 		return false, err
 	}
-	sigBytes, err := env.ExArgument()
+	sigBytes, err := env.ExtraArgument()
 	if err != nil {
 		return false, fmt.Errorf("reading tx signature bytes: %w", err)
 	}

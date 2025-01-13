@@ -129,7 +129,7 @@ func Test_txSignedByPKH(t *testing.T) {
 
 			require.Equal(t, txOrder, txo)
 
-			sigBytes, err := env.ExArgument()
+			sigBytes, err := env.ExtraArgument()
 			require.NoError(t, err)
 			require.Equal(t, authProofSigBytes, sigBytes)
 

@@ -209,7 +209,7 @@ func (env *mockTxContext) SpendGas(gas uint64) error {
 
 func (env *mockTxContext) CalculateCost() uint64 { return env.calcCost() }
 
-func (env *mockTxContext) ExArgument() ([]byte, error) { return env.exArgument() }
+func (env *mockTxContext) ExtraArgument() ([]byte, error) { return env.exArgument() }
 
 type mockRootTrustBase struct {
 	verifyQuorumSignatures func(data []byte, signatures map[string]hex.Bytes) (error, []error)

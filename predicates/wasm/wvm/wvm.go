@@ -76,7 +76,7 @@ type (
 		GasAvailable() uint64
 		SpendGas(gas uint64) error
 		CalculateCost() uint64
-		ExArgument() ([]byte, error)
+		ExtraArgument() ([]byte, error)
 	}
 
 	// translates AB types to WASM consumable representation

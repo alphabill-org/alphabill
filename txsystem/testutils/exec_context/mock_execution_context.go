@@ -39,7 +39,7 @@ func (m *MockExecContext) TrustBase(epoch uint64) (types.RootTrustBase, error) {
 	return m.RootTrustBase, nil
 }
 
-func (m *MockExecContext) ExArgument() ([]byte, error) {
+func (m *MockExecContext) ExtraArgument() ([]byte, error) {
 	if m.exArgument == nil {
 		return nil, errors.New("extra argument callback not assigned")
 	}

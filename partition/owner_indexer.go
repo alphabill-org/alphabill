@@ -75,7 +75,11 @@ func (o *OwnerIndexer) IndexBlock(b *types.Block, s StateProvider) error {
 			if err != nil {
 				return fmt.Errorf("failed to load unit: %w", err)
 			}
-			unitLogs := state.UnitV1(unit).Logs()
+			u, err := state.UnitV1(unit)
+			if err != nil {
+				return fmt.Errorf("failed to parse unit: %w", err)
+			}
+			unitLogs := u.Logs()
 			if len(unitLogs) == 0 {
 				o.log.Error(fmt.Sprintf("cannot index unit owners, unit logs is empty, unitID=%x", unitID))
 				continue

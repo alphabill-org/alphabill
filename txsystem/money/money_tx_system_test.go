@@ -439,7 +439,9 @@ func TestExecute_SwapOk(t *testing.T) {
 	dcBill, dcBillData := getBill(t, s, DustCollectorMoneySupplyID)
 	require.Equal(t, beforeCommitValue, dcBillData.Value)
 	// Make sure the DC bill logs are pruned
-	require.Equal(t, 1, len(state.UnitV1(dcBill).Logs()))
+	u, err := state.UnitV1(dcBill)
+	require.NoError(t, err)
+	require.Equal(t, 1, len(u.Logs()))
 }
 
 func TestExecute_LockAndUnlockOk(t *testing.T) {
@@ -1113,7 +1115,9 @@ func createStateAndTxSystem(t *testing.T, pdrs []*types.PartitionDescriptionReco
 	require.NotNil(t, summary.Summary())
 	require.NotNil(t, summary.Root())
 	require.Len(t, summary.Root(), crypto.SHA256.Size())
-	require.True(t, s.IsCommitted())
+	c, err := s.IsCommitted()
+	require.NoError(t, err)
+	require.True(t, c)
 	// add fee credit record with empty predicate
 	fcrData := &fcsdk.FeeCreditRecord{
 		Balance:        100,

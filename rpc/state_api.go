@@ -100,7 +100,11 @@ func (s *StateAPI) GetUnit(unitID types.UnitID, includeStateProof bool) (_ *Unit
 	}
 
 	if includeStateProof {
-		stateProof, err := st.CreateUnitStateProof(unitID, state.UnitV1(unit).LastLogIndex())
+		u, err := state.UnitV1(unit)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert unit to version 1: %w", err)
+		}
+		stateProof, err := st.CreateUnitStateProof(unitID, u.LastLogIndex())
 		if err != nil {
 			return nil, fmt.Errorf("failed to generate unit state proof: %w", err)
 		}

@@ -305,7 +305,11 @@ func (n *NodePartition) start(t *testing.T, ctx context.Context, bootNodes []pee
 	}
 	n.tb = trustBase
 
-	if !n.genesisState.IsCommitted() {
+	committed, err := n.genesisState.IsCommitted()
+	if err != nil {
+		return fmt.Errorf("failed to check if state is committed: %w", err)
+	}
+	if !committed {
 		if err := n.genesisState.Commit(n.partitionGenesis.Certificate); err != nil {
 			return fmt.Errorf("invalid genesis state: %w", err)
 		}

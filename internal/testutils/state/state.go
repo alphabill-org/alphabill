@@ -9,9 +9,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func CreateUC(s *state.State, summaryValue uint64, summaryHash []byte) *types.UnicityCertificate {
+func CreateUC(t *testing.T, s *state.State, summaryValue uint64, summaryHash []byte) *types.UnicityCertificate {
 	roundNumber := uint64(0)
-	if s.IsCommitted() {
+	committed, err := s.IsCommitted()
+	require.NoError(t, err)
+	if committed {
 		roundNumber = s.CommittedUC().GetRoundNumber() + 1
 	}
 
@@ -33,5 +35,5 @@ func CommitWithUC(t *testing.T, s *state.State) {
 		summaryHash = make([]byte, s.HashAlgorithm().Size())
 	}
 	require.NoError(t, err)
-	require.NoError(t, s.Commit(CreateUC(s, summaryValue, summaryHash)))
+	require.NoError(t, s.Commit(CreateUC(t, s, summaryValue, summaryHash)))
 }

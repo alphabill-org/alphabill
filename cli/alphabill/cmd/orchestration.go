@@ -74,7 +74,11 @@ func runOrchestrationNode(ctx context.Context, cfg *orchestrationConfiguration) 
 	}
 
 	// Only genesis state can be uncommitted, try to commit
-	if !state.IsCommitted() {
+	committed, err := state.IsCommitted()
+	if err != nil {
+		return fmt.Errorf("failed to check if state is committed: %w", err)
+	}
+	if !committed {
 		if err := state.Commit(pg.Certificate); err != nil {
 			return fmt.Errorf("invalid genesis state: %w", err)
 		}

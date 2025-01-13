@@ -218,12 +218,14 @@ func (m mockUnitData) Owner() []byte {
 func commitState(t *testing.T, s *state.State) {
 	rootVal, rootHash, err := s.CalculateRoot()
 	require.NoError(t, err)
-	require.NoError(t, s.Commit(createUC(s, rootVal, rootHash)))
+	require.NoError(t, s.Commit(createUC(t, s, rootVal, rootHash)))
 }
 
-func createUC(s *state.State, summaryValue uint64, summaryHash []byte) *types.UnicityCertificate {
+func createUC(t *testing.T, s *state.State, summaryValue uint64, summaryHash []byte) *types.UnicityCertificate {
 	roundNumber := uint64(1)
-	if s.IsCommitted() {
+	committed, err := s.IsCommitted()
+	require.NoError(t, err)
+	if committed {
 		roundNumber = s.CommittedUC().GetRoundNumber() + 1
 	}
 	return &types.UnicityCertificate{

@@ -208,7 +208,10 @@ func (s *State) AddUnitLog(id types.UnitID, transactionRecordHash []byte) error 
 	if err != nil {
 		return fmt.Errorf("unable to add unit log for unit %v: %w", id, err)
 	}
-	unit := UnitV1(u.Clone())
+	unit, err := UnitV1(u.Clone())
+	if err != nil {
+		return fmt.Errorf("add log failed for unit %v: %w", id, err)
+	}
 	logsCount := len(unit.logs)
 	l := &Log{
 		TxRecordHash:   transactionRecordHash,
@@ -235,7 +238,10 @@ func (s *State) AddUnitLog(id types.UnitID, transactionRecordHash []byte) error 
 func (s *State) Apply(actions ...Action) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
-	id := s.createSavepoint()
+	id, err := s.createSavepoint()
+	if err != nil {
+		return fmt.Errorf("unable to create savepoint: %w", err)
+	}
 	for _, action := range actions {
 		if err := action(s.latestSavepoint(), s.hashAlgorithm); err != nil {
 			s.rollbackToSavepoint(id)
@@ -260,7 +266,10 @@ func (s *State) Commit(uc *types.UnicityCertificate) error {
 	var summaryValue uint64
 	var summaryHash []byte
 	if sp.Root() != nil {
-		unit := UnitV1(sp.Root().Value())
+		unit, err := UnitV1(sp.Root().Value())
+		if err != nil {
+			return fmt.Errorf("unable to get root unit: %w", err)
+		}
 		summaryValue = unit.subTreeSummaryValue
 		summaryHash = unit.subTreeSummaryHash
 	} else {
@@ -297,7 +306,7 @@ func (s *State) Revert() {
 
 // Savepoint creates a new savepoint and returns an id of the savepoint. Use RollbackToSavepoint to roll back all
 // changes made after calling Savepoint method. Use ReleaseToSavepoint to save all changes made to the state.
-func (s *State) Savepoint() int {
+func (s *State) Savepoint() (int, error) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 	return s.createSavepoint()
@@ -334,11 +343,14 @@ func (s *State) CalculateRoot() (uint64, []byte, error) {
 	if root == nil {
 		return 0, nil, nil
 	}
-	value := UnitV1(root.Value())
+	value, err := UnitV1(root.Value())
+	if err != nil {
+		return 0, nil, fmt.Errorf("unable to get root unit: %w", err)
+	}
 	return value.subTreeSummaryValue, value.subTreeSummaryHash, nil
 }
 
-func (s *State) IsCommitted() bool {
+func (s *State) IsCommitted() (bool, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 	return s.isCommitted()
@@ -413,7 +425,10 @@ func (s *State) CreateUnitStateProof(id types.UnitID, logIndex int) (*types.Unit
 		return nil, fmt.Errorf("unable to get unit %v: %w", id, err)
 	}
 
-	unit := UnitV1(u)
+	unit, err := UnitV1(u)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse the unit: %w", err)
+	}
 	if len(unit.logs) < logIndex {
 		return nil, fmt.Errorf("invalid unit %v log index: %d", id, logIndex)
 	}
@@ -489,54 +504,78 @@ func (s *State) createUnitTreeCert(unit *Unit, logIndex int) (*types.UnitTreeCer
 
 func (s *State) createStateTreeCert(id types.UnitID) (*types.StateTreeCert, error) {
 	var path []*types.StateTreePathItem
-	node := s.committedTree.Root()
-	for node != nil && !id.Eq(node.Key()) {
-		nodeKey := node.Key()
-		v := getSummaryValueInput(node)
+	n := s.committedTree.Root()
+	for n != nil && !id.Eq(n.Key()) {
+		nodeKey := n.Key()
+		v, err := getSummaryValueInput(n)
+		if err != nil {
+			return nil, fmt.Errorf("unable to extract summary value input for unit %s: %w", id, err)
+		}
 		var item *types.StateTreePathItem
+		getStateTreePathItem := func(n *node, child *node) (*types.StateTreePathItem, error) {
+			logsHash, err := getSubTreeLogsHash(n)
+			if err != nil {
+				return nil, fmt.Errorf("unable to extract logs hash for unit %s: %w", id, err)
+			}
+			siblingSummaryHash, err := getSubTreeSummaryHash(child)
+			if err != nil {
+				return nil, fmt.Errorf("unable to extract sibling summary hash for unit %s: %w", id, err)
+			}
+			siblingSummaryValue, err := getSubTreeSummaryValue(child)
+			if err != nil {
+				return nil, fmt.Errorf("unable to extract sibling summary value for unit %s: %w", id, err)
+			}
+			return &types.StateTreePathItem{
+				UnitID:              nodeKey,
+				LogsHash:            logsHash,
+				Value:               v,
+				SiblingSummaryHash:  siblingSummaryHash,
+				SiblingSummaryValue: siblingSummaryValue,
+			}, nil
+		}
 		if id.Compare(nodeKey) == -1 {
-			nodeRight := node.Right()
-			item = &types.StateTreePathItem{
-				UnitID:              nodeKey,
-				LogsHash:            getSubTreeLogsHash(node),
-				Value:               v,
-				SiblingSummaryHash:  getSubTreeSummaryHash(nodeRight),
-				SiblingSummaryValue: getSubTreeSummaryValue(nodeRight),
-			}
-			node = node.Left()
+			item, err = getStateTreePathItem(n, n.Right())
+			n = n.Left()
 		} else {
-			nodeLeft := node.Left()
-			item = &types.StateTreePathItem{
-				UnitID:              nodeKey,
-				LogsHash:            getSubTreeLogsHash(node),
-				Value:               v,
-				SiblingSummaryHash:  getSubTreeSummaryHash(nodeLeft),
-				SiblingSummaryValue: getSubTreeSummaryValue(nodeLeft),
-			}
-			node = node.Right()
+			item, err = getStateTreePathItem(n, n.Left())
+			n = n.Right()
+		}
+		if err != nil {
+			return nil, err
 		}
 		path = append([]*types.StateTreePathItem{item}, path...)
 	}
-	if id.Eq(node.Key()) {
-		nodeLeft := node.Left()
-		nodeRight := node.Right()
+	if id.Eq(n.Key()) {
+		nodeLeft := n.Left()
+		nodeRight := n.Right()
+		lv, lh, err := getSubTreeSummary(nodeLeft)
+		if err != nil {
+			return nil, fmt.Errorf("unable to extract left subtree summary for unit %s: %w", id, err)
+		}
+		rv, rh, err := getSubTreeSummary(nodeRight)
+		if err != nil {
+			return nil, fmt.Errorf("unable to extract right subtree summary for unit %s: %w", id, err)
+		}
 		return &types.StateTreeCert{
-			LeftSummaryHash:   getSubTreeSummaryHash(nodeLeft),
-			LeftSummaryValue:  getSubTreeSummaryValue(nodeLeft),
-			RightSummaryHash:  getSubTreeSummaryHash(nodeRight),
-			RightSummaryValue: getSubTreeSummaryValue(nodeRight),
+			LeftSummaryHash:   lh,
+			LeftSummaryValue:  lv,
+			RightSummaryHash:  rh,
+			RightSummaryValue: rv,
 			Path:              path,
 		}, nil
 	}
 	return nil, fmt.Errorf("unable to extract unit state tree cert for unit %v", id)
 }
 
-func (s *State) createSavepoint() int {
+func (s *State) createSavepoint() (int, error) {
 	clonedSavepoint := s.latestSavepoint().Clone()
 	// mark AVL Tree nodes as clean
-	clonedSavepoint.Traverse(&avl.PostOrderCommitTraverser[types.UnitID, VersionedUnit]{})
+	err := clonedSavepoint.Traverse(&avl.PostOrderCommitTraverser[types.UnitID, VersionedUnit]{})
+	if err != nil {
+		return 0, fmt.Errorf("unable to mark the tree clean: %w", err)
+	}
 	s.savepoints = append(s.savepoints, clonedSavepoint)
-	return len(s.savepoints) - 1
+	return len(s.savepoints) - 1, nil
 }
 
 func (s *State) rollbackToSavepoint(id int) {
@@ -558,19 +597,27 @@ func (s *State) releaseToSavepoint(id int) {
 	s.savepoints = s.savepoints[0:id]
 }
 
-func (s *State) isCommitted() bool {
-	return len(s.savepoints) == 1 &&
-		s.savepoints[0].IsClean() &&
-		isRootClean(s.savepoints[0]) &&
-		s.committedTreeUC != nil
+func (s *State) isCommitted() (bool, error) {
+	if len(s.savepoints) == 1 && s.savepoints[0].IsClean() {
+		cl, err := isRootClean(s.savepoints[0])
+		if err != nil {
+			return false, err
+		}
+		return cl && s.committedTreeUC != nil, nil
+	}
+	return false, nil
 }
 
-func isRootClean(s *tree) bool {
+func isRootClean(s *tree) (bool, error) {
 	root := s.Root()
 	if root == nil {
-		return true
+		return true, nil
 	}
-	return UnitV1(root.Value()).summaryCalculated
+	unit, err := UnitV1(root.Value())
+	if err != nil {
+		return false, err
+	}
+	return unit.summaryCalculated, nil
 }
 
 // latestSavepoint returns the latest savepoint.
@@ -579,30 +626,60 @@ func (s *State) latestSavepoint() *tree {
 	return s.savepoints[l-1]
 }
 
-func getSummaryValueInput(n *node) uint64 {
-	if n == nil || n.Value() == nil || UnitV1(n.Value()).data == nil {
-		return 0
+func getSummaryValueInput(n *node) (uint64, error) {
+	if n == nil || n.Value() == nil {
+		return 0, nil
 	}
-	return UnitV1(n.Value()).data.SummaryValueInput()
+	u, err := UnitV1(n.Value())
+	if err != nil {
+		return 0, err
+	}
+	if u.data == nil {
+		return 0, nil
+	}
+	return u.data.SummaryValueInput(), nil
 }
 
-func getSubTreeSummaryValue(n *node) uint64 {
+func getSubTreeSummaryValue(n *node) (uint64, error) {
 	if n == nil || n.Value() == nil {
-		return 0
+		return 0, nil
 	}
-	return UnitV1(n.Value()).subTreeSummaryValue
+	u, err := UnitV1(n.Value())
+	if err != nil {
+		return 0, err
+	}
+	return u.subTreeSummaryValue, nil
 }
 
-func getSubTreeLogsHash(n *node) []byte {
+func getSubTreeLogsHash(n *node) ([]byte, error) {
 	if n == nil || n.Value() == nil {
-		return nil
+		return nil, nil
 	}
-	return UnitV1(n.Value()).logsHash
+	u, err := UnitV1(n.Value())
+	if err != nil {
+		return nil, err
+	}
+	return u.logsHash, nil
 }
 
-func getSubTreeSummaryHash(n *node) []byte {
+func getSubTreeSummaryHash(n *node) ([]byte, error) {
 	if n == nil || n.Value() == nil {
-		return nil
+		return nil, nil
 	}
-	return UnitV1(n.Value()).subTreeSummaryHash
+	u, err := UnitV1(n.Value())
+	if err != nil {
+		return nil, err
+	}
+	return u.subTreeSummaryHash, nil
+}
+
+func getSubTreeSummary(n *node) (uint64, []byte, error) {
+	if n == nil || n.Value() == nil {
+		return 0, nil, nil
+	}
+	u, err := UnitV1(n.Value())
+	if err != nil {
+		return 0, nil, err
+	}
+	return u.subTreeSummaryValue, u.subTreeSummaryHash, nil
 }

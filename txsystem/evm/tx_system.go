@@ -97,14 +97,22 @@ func (m *TxSystem) State() txsystem.StateReader {
 }
 
 func (m *TxSystem) StateSize() (uint64, error) {
-	if !m.state.IsCommitted() {
+	committed, err := m.state.IsCommitted()
+	if err != nil {
+		return 0, fmt.Errorf("unable to check if state is committed: %w", err)
+	}
+	if !committed {
 		return 0, txsystem.ErrStateContainsUncommittedChanges
 	}
 	return m.state.Size()
 }
 
 func (m *TxSystem) StateSummary() (txsystem.StateSummary, error) {
-	if !m.state.IsCommitted() {
+	committed, err := m.state.IsCommitted()
+	if err != nil {
+		return nil, fmt.Errorf("unable to check if state is committed: %w", err)
+	}
+	if !committed {
 		return nil, txsystem.ErrStateContainsUncommittedChanges
 	}
 	return m.getState()
@@ -157,7 +165,10 @@ func (m *TxSystem) Execute(tx *types.TransactionOrder) (txr *types.TransactionRe
 		Version:          1,
 		TransactionOrder: txBytes,
 	}
-	savepointID := m.state.Savepoint()
+	savepointID, err := m.state.Savepoint()
+	if err != nil {
+		return nil, fmt.Errorf("savepoint creation failed: %w", err)
+	}
 	defer func() {
 		if err != nil {
 			// transaction execution failed. revert every change made by the transaction order

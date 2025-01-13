@@ -317,7 +317,9 @@ func TestGenericTxSystem_executeLockUnitState(t *testing.T) {
 		// verify unit got locked
 		u, err := txSys.state.GetUnit(unitID, false)
 		require.NoError(t, err)
-		require.True(t, state.UnitV1(u).IsStateLocked())
+		unit, err := state.UnitV1(u)
+		require.NoError(t, err)
+		require.True(t, unit.IsStateLocked())
 	})
 }
 

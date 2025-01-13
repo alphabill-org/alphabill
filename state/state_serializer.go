@@ -57,7 +57,10 @@ func (s *stateSerializer) Traverse(n *avl.Node[types.UnitID, VersionedUnit]) err
 }
 
 func (s *stateSerializer) WriteNode(n *avl.Node[types.UnitID, VersionedUnit]) error {
-	unit := UnitV1(n.Value())
+	unit, err := UnitV1(n.Value())
+	if err != nil {
+		return fmt.Errorf("failed to get unit: %w", err)
+	}
 	logSize := len(unit.logs)
 	if logSize == 0 {
 		return fmt.Errorf("unit state log is empty")

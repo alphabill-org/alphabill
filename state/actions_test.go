@@ -219,7 +219,9 @@ func Test_SetStateLock(t *testing.T) {
 		err := SetStateLock([]byte{1, 1, 1, 1}, []byte{1})(s, crypto.SHA256)
 		require.NoError(t, err)
 		u, _ := s.Get([]byte{1, 1, 1, 1})
-		require.Equal(t, []byte{1}, UnitV1(u).stateLockTx)
+		unit, err := UnitV1(u)
+		require.NoError(t, err)
+		require.Equal(t, []byte{1}, unit.stateLockTx)
 	})
 }
 
@@ -238,7 +240,9 @@ func assertUnit(t *testing.T, state *State, unitID types.UnitID, expectedUnit *U
 	unit, err := state.latestSavepoint().Get(unitID)
 	require.NoError(t, err)
 	require.NotNil(t, unit)
-	assertUnitEqual(t, expectedUnit, UnitV1(unit))
+	u, err := UnitV1(unit)
+	require.NoError(t, err)
+	assertUnitEqual(t, expectedUnit, u)
 
 	committedUnit, err := state.committedTree.Get(unitID)
 	if !committed {
@@ -246,7 +250,9 @@ func assertUnit(t *testing.T, state *State, unitID types.UnitID, expectedUnit *U
 	} else {
 		require.NoError(t, err)
 		require.NotNil(t, committedUnit)
-		assertUnitEqual(t, expectedUnit, UnitV1(unit))
+		u, err = UnitV1(unit)
+		require.NoError(t, err)
+		assertUnitEqual(t, expectedUnit, u)
 	}
 }
 

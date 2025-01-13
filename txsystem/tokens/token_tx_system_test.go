@@ -46,21 +46,7 @@ var (
 	updatedData              = []byte{0, 12}
 )
 
-func TestNewTokenTxSystem_NilPartitionID(t *testing.T) {
-	pdr := types.PartitionDescriptionRecord{
-		Version:     1,
-		NetworkID:   5,
-		PartitionID: 0,
-		TypeIDLen:   8,
-		UnitIDLen:   256,
-		T2Timeout:   2000 * time.Millisecond,
-	}
-	txs, err := NewTxSystem(pdr, types.ShardID{}, nil, WithState(state.NewEmptyState()))
-	require.ErrorContains(t, err, `failed to load permissionless fee credit module: invalid fee credit module configuration: invalid PDR: invalid partition identifier: 00000000`)
-	require.Nil(t, txs)
-}
-
-func TestNewTokenTxSystem_StateIsNil(t *testing.T) {
+func TestNewTokenTxSystem(t *testing.T) {
 	pdr := types.PartitionDescriptionRecord{
 		Version:     1,
 		NetworkID:   5,
@@ -69,9 +55,21 @@ func TestNewTokenTxSystem_StateIsNil(t *testing.T) {
 		UnitIDLen:   256,
 		T2Timeout:   2000 * time.Millisecond,
 	}
-	txs, err := NewTxSystem(pdr, types.ShardID{}, nil, WithState(nil))
-	require.ErrorContains(t, err, ErrStrStateIsNil)
-	require.Nil(t, txs)
+	observe := observability.Default(t)
+
+	t.Run("invalid PartitionID", func(t *testing.T) {
+		invalidPDR := pdr
+		invalidPDR.PartitionID = 0
+		txs, err := NewTxSystem(invalidPDR, types.ShardID{}, observe, WithState(state.NewEmptyState()))
+		require.ErrorContains(t, err, `failed to load permissionless fee credit module: invalid fee credit module configuration: invalid PDR: invalid partition identifier: 00000000`)
+		require.Nil(t, txs)
+	})
+
+	t.Run("state is nil", func(t *testing.T) {
+		txs, err := NewTxSystem(pdr, types.ShardID{}, observe, WithState(nil))
+		require.ErrorContains(t, err, ErrStrStateIsNil)
+		require.Nil(t, txs)
+	})
 }
 
 func TestExecuteDefineNFT_WithoutParentID(t *testing.T) {

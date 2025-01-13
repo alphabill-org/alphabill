@@ -26,10 +26,10 @@ func Test_runChainedPredicates(t *testing.T) {
 		// sent in - IOW valid case of nothing to do
 		err := runChainedPredicates[*tokens.NonFungibleTokenTypeData](
 			nil,
-			txo.AuthProofSigBytes,
+			txo,
 			nil, // type ID nil signals no root item to start the chain
 			nil, // no arguments for chained predicates
-			func(pred types.PredicateBytes, arg []byte, sigBytesFn func() ([]byte, error), tec predicates.TxContext) error {
+			func(pred types.PredicateBytes, arg []byte, txo *types.TransactionOrder, tec predicates.TxContext) error {
 				t.Error("unexpected call")
 				return ucErr
 			},
@@ -49,10 +49,10 @@ func Test_runChainedPredicates(t *testing.T) {
 		// sending in more arguments than there is chained predicates
 		err := runChainedPredicates[*tokens.NonFungibleTokenTypeData](
 			nil,
-			txo.AuthProofSigBytes,
+			txo,
 			nil,           // type ID nil signals no root item to start the chain
 			[][]byte{{0}}, // sending argument should cause error as there is no predicates
-			func(pred types.PredicateBytes, arg []byte, sigBytesFn func() ([]byte, error), tec predicates.TxContext) error {
+			func(pred types.PredicateBytes, arg []byte, txo *types.TransactionOrder, tec predicates.TxContext) error {
 				t.Error("unexpected call")
 				return ucErr
 			},
@@ -72,10 +72,10 @@ func Test_runChainedPredicates(t *testing.T) {
 		// sending in less arguments than there is chained predicates
 		err := runChainedPredicates[*tokens.NonFungibleTokenTypeData](
 			nil,
-			txo.AuthProofSigBytes,
+			txo,
 			[]byte{0, 0, 1}, // non-nil type ID signals ther is predicates to eval...
 			nil,             // ...but we pass in no arguments for chained predicates
-			func(pred types.PredicateBytes, arg []byte, sigBytesFn func() ([]byte, error), tec predicates.TxContext) error {
+			func(pred types.PredicateBytes, arg []byte, txo *types.TransactionOrder, tec predicates.TxContext) error {
 				t.Error("unexpected call")
 				return ucErr
 			},
@@ -96,10 +96,10 @@ func Test_runChainedPredicates(t *testing.T) {
 		noData := errors.New("no such unit")
 		err := runChainedPredicates[*tokens.NonFungibleTokenTypeData](
 			nil,
-			txo.AuthProofSigBytes,
+			txo,
 			[]byte{0, 0, 1},
 			[][]byte{{5}},
-			func(pred types.PredicateBytes, arg []byte, sigBytesFn func() ([]byte, error), tec predicates.TxContext) error {
+			func(pred types.PredicateBytes, arg []byte, txo *types.TransactionOrder, tec predicates.TxContext) error {
 				t.Error("unexpected call")
 				return ucErr
 			},
@@ -124,10 +124,10 @@ func Test_runChainedPredicates(t *testing.T) {
 		unit := state.NewUnit(d)
 		err := runChainedPredicates[*tokens.NonFungibleTokenTypeData](
 			nil,
-			txo.AuthProofSigBytes,
+			txo,
 			[]byte{0, 0, 1},
 			[][]byte{{5}},
-			func(pred types.PredicateBytes, arg []byte, sigBytesFn func() ([]byte, error), tec predicates.TxContext) error {
+			func(pred types.PredicateBytes, arg []byte, txo *types.TransactionOrder, tec predicates.TxContext) error {
 				t.Error("unexpected call")
 				return ucErr
 			},
@@ -149,10 +149,10 @@ func Test_runChainedPredicates(t *testing.T) {
 		unit := state.NewUnit(d)
 		err := runChainedPredicates[*tokens.NonFungibleTokenTypeData](
 			nil,
-			txo.AuthProofSigBytes,
+			txo,
 			[]byte{0, 0, 1},
 			[][]byte{{5}},
-			func(pred types.PredicateBytes, arg []byte, sigBytesFn func() ([]byte, error), tec predicates.TxContext) error {
+			func(pred types.PredicateBytes, arg []byte, txo *types.TransactionOrder, tec predicates.TxContext) error {
 				if !bytes.Equal(pred, []byte("predicate")) {
 					t.Errorf("unexpected predicate: %v", pred)
 				}
@@ -178,10 +178,10 @@ func Test_runChainedPredicates(t *testing.T) {
 		unit := state.NewUnit(d)
 		err := runChainedPredicates[*tokens.NonFungibleTokenTypeData](
 			testctx.NewMockExecutionContext(),
-			txo.AuthProofSigBytes,
+			txo,
 			[]byte{0, 0, 1},
 			[][]byte{{5}},
-			func(pred types.PredicateBytes, arg []byte, sigBytesFn func() ([]byte, error), env predicates.TxContext) error {
+			func(pred types.PredicateBytes, arg []byte, txo *types.TransactionOrder, env predicates.TxContext) error {
 				if !bytes.Equal(pred, []byte("predicate")) {
 					t.Errorf("unexpected predicate: %v", pred)
 				}

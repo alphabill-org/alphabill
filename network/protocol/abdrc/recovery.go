@@ -154,9 +154,6 @@ func (si *ShardInfo) IsValid() error {
 	if si.Partition == 0 {
 		return errors.New("missing partition id")
 	}
-	if len(si.RootHash) == 0 {
-		return errors.New("missing RootHash")
-	}
 	if len(si.PrevEpochStat) == 0 {
 		return errors.New("missing PrevEpochStat")
 	}
@@ -174,7 +171,7 @@ func (si *ShardInfo) IsValid() error {
 		return errors.New("system description hash not set")
 	}
 
-	if err := si.UC.IsValid(crypto.SHA256, si.Partition, si.PDRHash); err != nil {
+	if err := si.UC.IsValid(si.Partition, si.PDRHash); err != nil {
 		return fmt.Errorf("invalid UC: %w", err)
 	}
 	if err := si.TR.IsValid(); err != nil {

@@ -59,7 +59,7 @@ func (m *Module) validateEVMTx(tx *types.TransactionOrder, attr *evmsdk.TxAttrib
 		if !ok {
 			return errors.New("invalid evm transaction, invalid unit data type")
 		}
-		if err := m.execPredicate(unitData.AlphaBill.OwnerPredicate, authProof.OwnerProof, tx.AuthProofSigBytes, exeCtx); err != nil {
+		if err := m.execPredicate(unitData.AlphaBill.OwnerPredicate, authProof.OwnerProof, tx, exeCtx.WithExArg(tx.AuthProofSigBytes)); err != nil {
 			return fmt.Errorf("evaluating owner predicate: %w", err)
 		}
 	}

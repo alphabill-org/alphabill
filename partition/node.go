@@ -135,6 +135,11 @@ type (
 		fixedAttr   metric.MeasurementOption
 	}
 
+	RoundInfo struct {
+		RoundNumber uint64 `json:"roundNumber"`
+		EpochNumber uint64 `json:"epochNumber"`
+	}
+
 	status int
 )
 
@@ -1645,13 +1650,16 @@ func (n *Node) IsFeelessMode() bool {
 	return n.transactionSystem.IsFeelessMode()
 }
 
-func (n *Node) CurrentRoundNumber(ctx context.Context) (uint64, error) {
-	_, span := n.tracer.Start(ctx, "node.CurrentRoundNumber")
+func (n *Node) CurrentRoundInfo(ctx context.Context) (*RoundInfo, error) {
+	_, span := n.tracer.Start(ctx, "node.CurrentRoundInfo")
 	defer span.End()
 	if status := n.status.Load(); status != normal {
-		return 0, fmt.Errorf("node not ready: %s", status)
+		return nil, fmt.Errorf("node not ready: %s", status)
 	}
-	return n.currentRoundNumber(), nil
+	return &RoundInfo{
+		RoundNumber: n.currentRoundNumber(),
+		EpochNumber: n.currentEpoch(),
+	}, nil
 }
 
 func (n *Node) GetTrustBase(epochNumber uint64) (types.RootTrustBase, error) {

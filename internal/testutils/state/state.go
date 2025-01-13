@@ -31,9 +31,6 @@ func CreateUC(t *testing.T, s *state.State, summaryValue uint64, summaryHash []b
 
 func CommitWithUC(t *testing.T, s *state.State) {
 	summaryValue, summaryHash, err := s.CalculateRoot()
-	if summaryHash == nil {
-		summaryHash = make([]byte, s.HashAlgorithm().Size())
-	}
 	require.NoError(t, err)
 	require.NoError(t, s.Commit(CreateUC(t, s, summaryValue, summaryHash)))
 }

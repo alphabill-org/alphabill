@@ -192,7 +192,7 @@ func TestNode_SubsequentEmptyBlocksNotPersisted(t *testing.T) {
 	require.NoError(t, err)
 	require.Less(t, block2uc.InputRecord.RoundNumber, uc2.InputRecord.RoundNumber)
 	// hash of the latest certified empty block is zero-hash
-	require.Equal(t, uc2.InputRecord.BlockHash, zeroHash)
+	require.Nil(t, uc2.InputRecord.BlockHash)
 	// state hash must stay the same as in last non-empty block
 	require.Equal(t, block2uc.InputRecord.Hash, uc2.InputRecord.Hash)
 
@@ -201,7 +201,7 @@ func TestNode_SubsequentEmptyBlocksNotPersisted(t *testing.T) {
 	require.Equal(t, block1, tp.GetLatestBlock(t))
 	uc3 := tp.partition.luc.Load()
 	require.Less(t, uc2.InputRecord.RoundNumber, uc3.InputRecord.RoundNumber)
-	require.Equal(t, uc3.InputRecord.BlockHash, zeroHash)
+	require.Nil(t, uc3.InputRecord.BlockHash)
 	block1uc, err := getUCv1(block1)
 	require.NoError(t, err)
 	require.Equal(t, block1uc.InputRecord.Hash, uc3.InputRecord.Hash)
@@ -215,7 +215,7 @@ func TestNode_SubsequentEmptyBlocksNotPersisted(t *testing.T) {
 	require.NotEqual(t, block1, block4)
 	block4uc, err := getUCv1(block4)
 	require.NoError(t, err)
-	require.NotEqual(t, block4uc.InputRecord.BlockHash, zeroHash)
+	require.Nil(t, block4uc.InputRecord.BlockHash)
 	require.Equal(t, block1uc.InputRecord.BlockHash, block4.Header.PreviousBlockHash)
 	uc4 := tp.partition.luc.Load()
 	require.Equal(t, block4uc, uc4)
@@ -513,7 +513,7 @@ func TestBlockProposal_InvalidBlockProposal(t *testing.T) {
 	tp.partition.blockProposalValidator = val
 
 	tp.SubmitBlockProposal(&blockproposal.BlockProposal{
-		NodeID:     tp.nodeDeps.peerConf.ID,
+		NodeID:             tp.nodeDeps.peerConf.ID,
 		UnicityCertificate: uc,
 	})
 
@@ -702,12 +702,12 @@ func TestNode_ProcessInvalidTxInFeelessMode(t *testing.T) {
 	require.NoError(t, tp.SubmitTx(txo))
 	testevent.ContainsEvent(t, tp.eh, event.TransactionFailed)
 
-	currentRound, err := tp.partition.CurrentRoundNumber(context.Background())
+	currentRoundInfo, err := tp.partition.CurrentRoundInfo(context.Background())
 	require.NoError(t, err)
 	tp.CreateBlock(t)
 
 	// Failed transaction not put to block in feeless mode
-	block, err := tp.partition.GetBlock(context.Background(), currentRound)
+	block, err := tp.partition.GetBlock(context.Background(), currentRoundInfo.RoundNumber)
 	require.NoError(t, err)
 	require.Equal(t, 0, len(block.Transactions))
 }

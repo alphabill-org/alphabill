@@ -7,13 +7,12 @@ import (
 	"errors"
 	"io"
 	"testing"
-
-	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/stretchr/testify/require"
+	"time"
 
 	abhash "github.com/alphabill-org/alphabill-go-base/hash"
 	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
+	"github.com/alphabill-org/alphabill-go-base/txsystem/tokens"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	"github.com/alphabill-org/alphabill-go-base/util"
@@ -22,30 +21,36 @@ import (
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtxsystem "github.com/alphabill-org/alphabill/internal/testutils/txsystem"
 	"github.com/alphabill-org/alphabill/network"
+	"github.com/alphabill-org/alphabill/partition"
 	"github.com/alphabill-org/alphabill/rootchain/partitions"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
+	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/stretchr/testify/require"
 )
 
-func TestGetRoundNumber(t *testing.T) {
+func TestGetRoundInfo(t *testing.T) {
 	observe := testobservability.Default(t)
 	node := &MockNode{}
-	api := NewStateAPI(node, nil, observe)
+	api := NewStateAPI(node, observe)
 
 	t.Run("ok", func(t *testing.T) {
 		node.maxRoundNumber = 1337
+		node.currentEpochNumber = 1234
 
-		roundNumber, err := api.GetRoundNumber(context.Background())
+		roundInfo, err := api.GetRoundInfo(context.Background())
 		require.NoError(t, err)
-		require.EqualValues(t, 1337, roundNumber)
+		require.EqualValues(t, 1337, roundInfo.RoundNumber)
+		require.EqualValues(t, 1234, roundInfo.EpochNumber)
 	})
 	t.Run("err", func(t *testing.T) {
 		node.err = errors.New("some error")
-		node.maxRoundNumber = 0
+		node.maxRoundNumber = 1337
+		node.currentEpochNumber = 1234
 
-		roundNumber, err := api.GetRoundNumber(context.Background())
+		roundInfo, err := api.GetRoundInfo(context.Background())
 		require.ErrorContains(t, err, "some error")
-		require.EqualValues(t, 0, roundNumber)
+		require.Nil(t, roundInfo)
 	})
 }
 
@@ -57,7 +62,7 @@ func TestGetUnit(t *testing.T) {
 			FixedState: prepareState(t, unitID),
 		},
 	}
-	api := NewStateAPI(node, nil, observe)
+	api := NewStateAPI(node, observe)
 
 	t.Run("get unit (proof=false)", func(t *testing.T) {
 		unit, err := api.GetUnit(unitID, false)
@@ -95,7 +100,7 @@ func TestGetUnitsByOwnerID(t *testing.T) {
 	observe := testobservability.Default(t)
 	node := &MockNode{}
 	ownerIndex := &MockOwnerIndex{ownerUnits: map[string][]types.UnitID{}}
-	api := NewStateAPI(node, ownerIndex, observe)
+	api := NewStateAPI(node, observe, WithOwnerIndex(ownerIndex))
 
 	t.Run("ok", func(t *testing.T) {
 		ownerID := []byte{1}
@@ -117,12 +122,48 @@ func TestGetUnitsByOwnerID(t *testing.T) {
 	})
 }
 
+func TestGetUnits(t *testing.T) {
+	observe := testobservability.Default(t)
+	unitID1 := append(make(types.UnitID, 31), 1, 1) // id=1 type=1
+	unitID2 := append(make(types.UnitID, 31), 2, 1) // id=2 type=1
+	unitID3 := append(make(types.UnitID, 31), 3, 1) // id=3 type=1
+	unitID4 := append(make(types.UnitID, 31), 4, 2) // id=4 type=2
+	unitID5 := append(make(types.UnitID, 31), 5, 2) // id=5 type=2
+	node := &MockNode{
+		txs: &testtxsystem.CounterTxSystem{
+			FixedState: prepareState(t, unitID1, unitID2, unitID3, unitID4, unitID5),
+		},
+	}
+	pdr := &types.PartitionDescriptionRecord{
+		Version:     1,
+		NetworkID:   types.NetworkLocal,
+		PartitionID: tokens.DefaultPartitionID,
+		TypeIDLen:   8,
+		UnitIDLen:   8 * 32,
+		T2Timeout:   2500 * time.Millisecond,
+	}
+	api := NewStateAPI(node, observe, WithGetUnits(true), WithPDR(pdr))
+
+	t.Run("ok", func(t *testing.T) {
+		unitIDs, err := api.GetUnits(nil)
+		require.NoError(t, err)
+		require.Len(t, unitIDs, 5)
+	})
+	t.Run("api disabled", func(t *testing.T) {
+		api := NewStateAPI(node, observe, WithGetUnits(false), WithPDR(pdr))
+		typeID := uint32(3)
+		unitIDs, err := api.GetUnits(&typeID)
+		require.ErrorContains(t, err, "state_getUnits is disabled")
+		require.Nil(t, unitIDs)
+	})
+}
+
 func TestSendTransaction(t *testing.T) {
 	observe := testobservability.Default(t)
 
 	t.Run("ok", func(t *testing.T) {
 		node := &MockNode{}
-		api := NewStateAPI(node, nil, observe)
+		api := NewStateAPI(node, observe)
 		tx := createTransactionOrder(t, []byte{1})
 		txHash, err := api.SendTransaction(context.Background(), tx)
 		require.NoError(t, err)
@@ -140,7 +181,7 @@ func TestSendTransaction(t *testing.T) {
 				return nil, nil
 			},
 		}
-		api := NewStateAPI(node, nil, observe)
+		api := NewStateAPI(node, observe)
 		tx := createTransactionOrder(t, failingUnitID)
 		txHash, err := api.SendTransaction(context.Background(), tx)
 		require.ErrorIs(t, err, expErr)
@@ -151,7 +192,7 @@ func TestSendTransaction(t *testing.T) {
 func TestGetTransactionProof(t *testing.T) {
 	observe := testobservability.Default(t)
 	node := &MockNode{}
-	api := NewStateAPI(node, nil, observe)
+	api := NewStateAPI(node, observe)
 
 	t.Run("ok", func(t *testing.T) {
 		txHash := []byte{1}
@@ -178,7 +219,7 @@ func TestGetTransactionProof(t *testing.T) {
 func TestGetBlock(t *testing.T) {
 	observe := testobservability.Default(t)
 	node := &MockNode{}
-	api := NewStateAPI(node, nil, observe)
+	api := NewStateAPI(node, observe)
 
 	t.Run("ok", func(t *testing.T) {
 		node.maxBlockNumber = 1
@@ -207,7 +248,7 @@ func TestGetBlock(t *testing.T) {
 func TestGetTrustBase(t *testing.T) {
 	observe := testobservability.Default(t)
 	node := &MockNode{}
-	api := NewStateAPI(node, nil, observe)
+	api := NewStateAPI(node, observe)
 
 	t.Run("ok", func(t *testing.T) {
 		_, verifier := testsig.CreateSignerAndVerifier(t)
@@ -230,13 +271,14 @@ func TestGetTrustBase(t *testing.T) {
 	})
 }
 
-func prepareState(t *testing.T, unitID types.UnitID) *state.State {
+func prepareState(t *testing.T, unitIDs ...types.UnitID) *state.State {
 	s := state.NewEmptyState()
-	require.NoError(t, s.Apply(
-		state.AddUnit(unitID, &unitData{I: 10, O: templates.AlwaysTrueBytes()}),
-	))
-
-	require.NoError(t, s.AddUnitLog(unitID, test.RandomBytes(32)))
+	for _, unitID := range unitIDs {
+		require.NoError(t, s.Apply(
+			state.AddUnit(unitID, &unitData{I: 10, O: templates.AlwaysTrueBytes()}),
+		))
+		require.NoError(t, s.AddUnitLog(unitID, test.RandomBytes(32)))
+	}
 
 	summaryValue, summaryHash, err := s.CalculateRoot()
 	require.NoError(t, err)
@@ -279,12 +321,13 @@ func (ud *unitData) Owner() []byte {
 
 type (
 	MockNode struct {
-		maxBlockNumber uint64
-		maxRoundNumber uint64
-		transactions   []*types.TransactionOrder
-		err            error
-		txs            txsystem.TransactionSystem
-		trustBase      types.RootTrustBase
+		maxBlockNumber     uint64
+		maxRoundNumber     uint64
+		currentEpochNumber uint64
+		transactions       []*types.TransactionOrder
+		err                error
+		txs                txsystem.TransactionSystem
+		trustBase          types.RootTrustBase
 
 		onSubmitTx func(context.Context, *types.TransactionOrder) ([]byte, error)
 	}
@@ -334,11 +377,11 @@ func (mn *MockNode) LatestBlockNumber() (uint64, error) {
 	return mn.maxBlockNumber, nil
 }
 
-func (mn *MockNode) CurrentRoundNumber(_ context.Context) (uint64, error) {
+func (mn *MockNode) CurrentRoundInfo(_ context.Context) (*partition.RoundInfo, error) {
 	if mn.err != nil {
-		return 0, mn.err
+		return nil, mn.err
 	}
-	return mn.maxRoundNumber, nil
+	return &partition.RoundInfo{RoundNumber: mn.maxRoundNumber, EpochNumber: mn.currentEpochNumber}, nil
 }
 
 func (mn *MockNode) NetworkID() types.NetworkID {
@@ -386,11 +429,11 @@ func (mn *MockNode) GetTrustBase(epochNumber uint64) (types.RootTrustBase, error
 	return mn.trustBase, nil
 }
 
-func (m *MockNode) IsPermissionedMode() bool {
+func (mn *MockNode) IsPermissionedMode() bool {
 	return false
 }
 
-func (m *MockNode) IsFeelessMode() bool {
+func (mn *MockNode) IsFeelessMode() bool {
 	return false
 }
 

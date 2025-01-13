@@ -3,6 +3,7 @@ package state
 import (
 	"bytes"
 	"crypto"
+	"errors"
 	"fmt"
 	"io"
 	"sync"
@@ -272,8 +273,6 @@ func (s *State) Commit(uc *types.UnicityCertificate) error {
 		}
 		summaryValue = unit.subTreeSummaryValue
 		summaryHash = unit.subTreeSummaryHash
-	} else {
-		summaryHash = make([]byte, s.hashAlgorithm.Size())
 	}
 
 	if !bytes.Equal(uc.InputRecord.Hash, summaryHash) {
@@ -477,6 +476,28 @@ func (s *State) Traverse(traverser avl.Traverser[types.UnitID, VersionedUnit]) e
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 	return s.committedTree.Traverse(traverser)
+}
+
+func (s *State) GetUnits(unitTypeID *uint32, pdr *types.PartitionDescriptionRecord) ([]types.UnitID, error) {
+	if pdr == nil && unitTypeID != nil {
+		return nil, errors.New("partition description record is nil")
+	}
+	traverser := NewFilter(func(unitID types.UnitID, unit VersionedUnit) (bool, error) {
+		// get all units if no unit type is provided
+		if unitTypeID == nil {
+			return true, nil
+		}
+		// filter by type if unit type is provided
+		unitIDType, err := pdr.ExtractUnitType(unitID)
+		if err != nil {
+			return false, fmt.Errorf("extracting unit type from unit ID: %w", err)
+		}
+		return unitIDType == *unitTypeID, nil
+	})
+	if err := s.Traverse(traverser); err != nil {
+		return nil, fmt.Errorf("failed to traverse state: %w", err)
+	}
+	return traverser.filteredUnitIDs, nil
 }
 
 func (s *State) createUnitTreeCert(unit *Unit, logIndex int) (*types.UnitTreeCert, error) {

@@ -57,10 +57,17 @@ func NewGenericTxSystem(pdr types.PartitionDescriptionRecord, shardID types.Shar
 	if observe == nil {
 		return nil, errors.New("observability must not be nil")
 	}
-	options := DefaultOptions()
-	for _, option := range opts {
-		option(options)
+
+	options, err := DefaultOptions(observe)
+	if err != nil {
+		return nil, fmt.Errorf("invalid default options: %w", err)
 	}
+	for _, option := range opts {
+		if err := option(options); err != nil {
+			return nil, fmt.Errorf("invalid option: %w", err)
+		}
+	}
+
 	txs := &GenericTxSystem{
 		pdr:                 pdr,
 		hashAlgorithm:       options.hashAlgorithm,
@@ -130,9 +137,6 @@ func (m *GenericTxSystem) getStateSummary() (StateSummary, error) {
 	if err != nil {
 		return nil, err
 	}
-	if hash == nil {
-		return NewStateSummary(make([]byte, m.hashAlgorithm.Size()), util.Uint64ToBytes(sv)), nil
-	}
 	return NewStateSummary(hash, util.Uint64ToBytes(sv)), nil
 }
 
@@ -159,7 +163,7 @@ func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (*types.Transactio
 	// First, check transaction credible and that there are enough fee credits on the FCR?
 	// buy gas according to the maximum tx fee allowed by client -
 	// if fee proof check fails, function will exit tx and tx will not be added to block
-	exeCtx := txtypes.NewExecutionContext(tx, m, m.fees, m.trustBase, tx.MaxFee())
+	exeCtx := txtypes.NewExecutionContext(m, m.fees, m.trustBase, tx.MaxFee())
 	// 2. If P.α != S.α ∨ fSH(P.ι) != S.σ ∨ S .n ≥ P.T 0 then return ⊥
 	// 3. If not P.MC .ι f = ⊥ = P.s f then return ⊥
 	if err := m.validateGenericTransaction(tx); err != nil {

@@ -32,11 +32,11 @@ func (p *StateUnlockProof) check(pr predicates.PredicateRunner, tx *types.Transa
 	}
 	switch p.Kind {
 	case StateUnlockExecute:
-		if err := pr(stateLock.ExecutionPredicate, p.Proof, tx.StateLockProofSigBytes, exeCtx); err != nil {
+		if err := pr(stateLock.ExecutionPredicate, p.Proof, tx, exeCtx.WithExArg(tx.StateLockProofSigBytes)); err != nil {
 			return fmt.Errorf("state lock's execution predicate failed: %w", err)
 		}
 	case StateUnlockRollback:
-		if err := pr(stateLock.RollbackPredicate, p.Proof, tx.StateLockProofSigBytes, exeCtx); err != nil {
+		if err := pr(stateLock.RollbackPredicate, p.Proof, tx, exeCtx.WithExArg(tx.StateLockProofSigBytes)); err != nil {
 			return fmt.Errorf("state lock's rollback predicate failed: %w", err)
 		}
 	default:

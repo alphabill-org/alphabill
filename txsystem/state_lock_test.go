@@ -12,6 +12,7 @@ import (
 	fcsdk "github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
 	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/predicates/templates"
@@ -78,7 +79,9 @@ func Test_proof_check_with_nil(t *testing.T) {
 	tx := &types.TransactionOrder{Version: 1, StateUnlock: append([]byte{byte(kind)}, proof...)}
 	result, err := stateUnlockProofFromTx(tx)
 	require.NoError(t, err)
-	predEng, err := predicates.Dispatcher(templates.New())
+	templEng, err := templates.New(observability.Default(t))
+	require.NoError(t, err)
+	predEng, err := predicates.Dispatcher(templEng)
 	require.NoError(t, err)
 	predicateRunner := predicates.NewPredicateRunner(predEng.Execute)
 	require.EqualError(t, result.check(predicateRunner, nil, nil, nil), "StateLock is nil")
@@ -95,7 +98,7 @@ func TestGenericTxSystem_handleUnlockUnitState(t *testing.T) {
 			testtransaction.WithPartitionID(money.DefaultPartitionID),
 			testtransaction.WithAttributes(&money.TransferAttributes{}),
 		)
-		execCtx := txtypes.NewExecutionContext(tx, txSys, abfc.NewNoFeeCreditModule(), nil, 10)
+		execCtx := txtypes.NewExecutionContext(txSys, abfc.NewNoFeeCreditModule(), nil, 10)
 		sm, err := txSys.handleUnlockUnitState(tx, execCtx)
 		require.NoError(t, err)
 		require.Nil(t, sm)
@@ -110,7 +113,7 @@ func TestGenericTxSystem_handleUnlockUnitState(t *testing.T) {
 			testtransaction.WithPartitionID(money.DefaultPartitionID),
 			testtransaction.WithAttributes(&money.TransferAttributes{}),
 		)
-		execCtx := txtypes.NewExecutionContext(tx, txSys, abfc.NewNoFeeCreditModule(), nil, 10)
+		execCtx := txtypes.NewExecutionContext(txSys, abfc.NewNoFeeCreditModule(), nil, 10)
 		sm, err := txSys.handleUnlockUnitState(tx, execCtx)
 		require.NoError(t, err)
 		require.Nil(t, sm)
@@ -125,7 +128,7 @@ func TestGenericTxSystem_handleUnlockUnitState(t *testing.T) {
 			testtransaction.WithPartitionID(money.DefaultPartitionID),
 			testtransaction.WithAttributes(&money.TransferAttributes{}),
 		)
-		execCtx := txtypes.NewExecutionContext(tx, txSys, abfc.NewNoFeeCreditModule(), nil, 10)
+		execCtx := txtypes.NewExecutionContext(txSys, abfc.NewNoFeeCreditModule(), nil, 10)
 		sm, err := txSys.handleUnlockUnitState(tx, execCtx)
 		require.NoError(t, err)
 		require.Nil(t, sm)
@@ -147,7 +150,7 @@ func TestGenericTxSystem_handleUnlockUnitState(t *testing.T) {
 			testtransaction.WithPartitionID(money.DefaultPartitionID),
 			testtransaction.WithAttributes(&money.TransferAttributes{}),
 		)
-		execCtx := txtypes.NewExecutionContext(tx, txSys, abfc.NewNoFeeCreditModule(), nil, 10)
+		execCtx := txtypes.NewExecutionContext(txSys, abfc.NewNoFeeCreditModule(), nil, 10)
 		sm, err := txSys.handleUnlockUnitState(tx, execCtx)
 		require.EqualError(t, err, "unlock proof error: invalid state unlock proof: empty")
 		require.Nil(t, sm)
@@ -171,7 +174,7 @@ func TestGenericTxSystem_handleUnlockUnitState(t *testing.T) {
 			testtransaction.WithAttributes(&money.TransferAttributes{}),
 			testtransaction.WithUnlockProof([]byte{255}),
 		)
-		execCtx := txtypes.NewExecutionContext(tx, txSys, abfc.NewNoFeeCreditModule(), nil, 10)
+		execCtx := txtypes.NewExecutionContext(txSys, abfc.NewNoFeeCreditModule(), nil, 10)
 		sm, err := txSys.handleUnlockUnitState(tx, execCtx)
 		require.EqualError(t, err, "unlock error: invalid state unlock proof kind")
 		require.Nil(t, sm)
@@ -203,7 +206,7 @@ func TestGenericTxSystem_handleUnlockUnitState(t *testing.T) {
 				FeeCreditRecordID: fcrID,
 				MaxTransactionFee: 10,
 			}))
-		execCtx := txtypes.NewExecutionContext(tx, txSys, abfc.NewNoFeeCreditModule(), nil, 10)
+		execCtx := txtypes.NewExecutionContext(txSys, abfc.NewNoFeeCreditModule(), nil, 10)
 		sm, err := txSys.handleUnlockUnitState(tx, execCtx)
 		require.EqualError(t, err, "unlock error: state lock's execution predicate failed: executing predicate: failed to decode P2PKH256 signature: cbor: 2 bytes of extraneous data starting at index 1")
 		require.Nil(t, sm)
@@ -227,7 +230,7 @@ func TestGenericTxSystem_handleUnlockUnitState(t *testing.T) {
 			testtransaction.WithAttributes(&money.TransferAttributes{}),
 			testtransaction.WithUnlockProof([]byte{byte(StateUnlockRollback), 1, 2, 3}),
 		)
-		execCtx := txtypes.NewExecutionContext(tx, txSys, abfc.NewNoFeeCreditModule(), nil, 10)
+		execCtx := txtypes.NewExecutionContext(txSys, abfc.NewNoFeeCreditModule(), nil, 10)
 		sm, err := txSys.handleUnlockUnitState(tx, execCtx)
 		require.EqualError(t, err, "unlock error: state lock's rollback predicate failed: predicate is empty")
 		require.Nil(t, sm)
@@ -251,7 +254,7 @@ func TestGenericTxSystem_handleUnlockUnitState(t *testing.T) {
 			testtransaction.WithAttributes(&money.TransferAttributes{}),
 			testtransaction.WithAuthProof(&money.TransferAuthProof{}),
 		)
-		execCtx := txtypes.NewExecutionContext(tx, txSys, abfc.NewNoFeeCreditModule(), nil, 10)
+		execCtx := txtypes.NewExecutionContext(txSys, abfc.NewNoFeeCreditModule(), nil, 10)
 
 		ownerProof := testsig.NewStateLockProofSignature(t, tx, sig1)
 		tx.StateUnlock = append([]byte{byte(StateUnlockExecute)}, ownerProof...)
@@ -273,7 +276,7 @@ func TestGenericTxSystem_executeLockUnitState(t *testing.T) {
 			testtransaction.WithAttributes(&money.TransferAttributes{}),
 			testtransaction.WithStateLock(&types.StateLock{}),
 		)
-		execCtx := txtypes.NewExecutionContext(tx, txSys, abfc.NewNoFeeCreditModule(), nil, 10)
+		execCtx := txtypes.NewExecutionContext(txSys, abfc.NewNoFeeCreditModule(), nil, 10)
 		sm, err := txSys.executeLockUnitState(tx, execCtx)
 		require.EqualError(t, err, "invalid state lock parameter: missing execution predicate")
 		require.Nil(t, sm)
@@ -289,7 +292,7 @@ func TestGenericTxSystem_executeLockUnitState(t *testing.T) {
 			testtransaction.WithAttributes(&money.TransferAttributes{}),
 			testtransaction.WithStateLock(&types.StateLock{ExecutionPredicate: []byte{1, 2, 3}}),
 		)
-		execCtx := txtypes.NewExecutionContext(tx, txSys, abfc.NewNoFeeCreditModule(), nil, 10)
+		execCtx := txtypes.NewExecutionContext(txSys, abfc.NewNoFeeCreditModule(), nil, 10)
 		sm, err := txSys.executeLockUnitState(tx, execCtx)
 		require.EqualError(t, err, "invalid state lock parameter: missing rollback predicate")
 		require.Nil(t, sm)
@@ -308,7 +311,7 @@ func TestGenericTxSystem_executeLockUnitState(t *testing.T) {
 				RollbackPredicate:  basetemplates.AlwaysTrueBytes(),
 			}),
 		)
-		execCtx := txtypes.NewExecutionContext(tx, txSys, abfc.NewNoFeeCreditModule(), nil, 10)
+		execCtx := txtypes.NewExecutionContext(txSys, abfc.NewNoFeeCreditModule(), nil, 10)
 		sm, err := txSys.executeLockUnitState(tx, execCtx)
 		require.NoError(t, err, "invalid state lock parameter: missing rollback predicate")
 		require.NotNil(t, sm)

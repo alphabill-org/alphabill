@@ -6,21 +6,23 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/alphabill-org/alphabill/state"
-	"github.com/libp2p/go-libp2p/core/peer"
-
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	"github.com/alphabill-org/alphabill/partition"
 	"github.com/alphabill-org/alphabill/rootchain/partitions"
+	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/tree/avl"
 	"github.com/alphabill-org/alphabill/txsystem"
+	"github.com/libp2p/go-libp2p/core/peer"
 )
 
 type (
 	StateAPI struct {
 		node       partitionNode
 		ownerIndex partition.IndexReader
+
+		pdr          *types.PartitionDescriptionRecord
+		withGetUnits bool
 
 		updMetrics    func(ctx context.Context, method string, start time.Time, apiErr error)
 		updTxReceived func(ctx context.Context, txType uint16, apiErr error)
@@ -35,7 +37,7 @@ type (
 		GetBlock(ctx context.Context, blockNr uint64) (*types.Block, error)
 		LatestBlockNumber() (uint64, error)
 		GetTransactionRecordProof(ctx context.Context, hash []byte) (*types.TxRecordProof, error)
-		CurrentRoundNumber(ctx context.Context) (uint64, error)
+		CurrentRoundInfo(ctx context.Context) (*partition.RoundInfo, error)
 		TransactionSystemState() txsystem.StateReader
 		Validators() peer.IDSlice
 		RegisterValidatorAssignmentRecord(v *partitions.ValidatorAssignmentRecord) error
@@ -57,25 +59,27 @@ type (
 	}
 )
 
-func NewStateAPI(node partitionNode, ownerIndex partition.IndexReader, obs Observability) *StateAPI {
+func NewStateAPI(node partitionNode, obs Observability, opts ...StateAPIOption) *StateAPI {
 	m := obs.Meter(metricsScopeJRPCAPI)
 	log := obs.Logger()
+	options := defaultStateAPIOptions()
+	for _, opt := range opts {
+		opt(options)
+	}
 	return &StateAPI{
 		node:          node,
-		ownerIndex:    ownerIndex,
+		ownerIndex:    options.ownerIndex,
+		pdr:           options.pdr,
+		withGetUnits:  options.withGetUnits,
 		updMetrics:    metricsUpdater(m, node, log),
 		updTxReceived: metricsUpdaterTxReceived(m, node, log),
 	}
 }
 
-// GetRoundNumber returns the current round number as seen by the node.
-func (s *StateAPI) GetRoundNumber(ctx context.Context) (_ hex.Uint64, retErr error) {
-	defer func(start time.Time) { s.updMetrics(ctx, "getRoundNumber", start, retErr) }(time.Now())
-	roundNumber, err := s.node.CurrentRoundNumber(ctx)
-	if err != nil {
-		return 0, err
-	}
-	return hex.Uint64(roundNumber), nil
+// GetRoundInfo returns the current round number and epoch as seen by the node.
+func (s *StateAPI) GetRoundInfo(ctx context.Context) (_ *partition.RoundInfo, retErr error) {
+	defer func(start time.Time) { s.updMetrics(ctx, "getRoundInfo", start, retErr) }(time.Now())
+	return s.node.CurrentRoundInfo(ctx)
 }
 
 // GetUnit returns unit data and optionally the state proof for the given unitID.
@@ -125,6 +129,19 @@ func (s *StateAPI) GetUnitsByOwnerID(ownerID hex.Bytes) (_ []types.UnitID, retEr
 		return nil, fmt.Errorf("failed to load owner units: %w", err)
 	}
 	return unitIds, nil
+}
+
+// GetUnits returns list of unit identifiers, optionally filtered by the given unit type identifier.
+func (s *StateAPI) GetUnits(unitTypeID *uint32) (_ []types.UnitID, retErr error) {
+	defer func(start time.Time) { s.updMetrics(context.Background(), "getUnits", start, retErr) }(time.Now())
+	if !s.withGetUnits {
+		return nil, errors.New("state_getUnits is disabled")
+	}
+	units, err := s.node.TransactionSystemState().GetUnits(unitTypeID, s.pdr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get units: %w", err)
+	}
+	return units, nil
 }
 
 // SendTransaction broadcasts the given transaction to the network, returns the submitted transaction hash.

@@ -3,7 +3,6 @@ package cmd
 import (
 	"bytes"
 	"context"
-	"crypto"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -48,7 +47,6 @@ var (
 			OwnerPredicate: templates.AlwaysTrueBytes(),
 		},
 	}
-	zeroHash = make([]byte, crypto.SHA256.Size())
 )
 
 type moneyGenesisConfig struct {
@@ -231,7 +229,7 @@ func addInitialBill(s *state.State, config *moneyGenesisConfig) error {
 	billData := moneysdk.NewBillData(config.InitialBillValue, config.InitialBillOwnerPredicate)
 	err := s.Apply(state.AddUnit(config.InitialBillID, billData))
 	if err == nil {
-		err = s.AddUnitLog(config.InitialBillID, zeroHash)
+		err = s.AddUnitLog(config.InitialBillID, nil)
 	}
 	return err
 }
@@ -240,7 +238,7 @@ func addInitialDustCollectorMoneySupply(s *state.State, config *moneyGenesisConf
 	billData := moneysdk.NewBillData(config.DCMoneySupplyValue, money.DustCollectorPredicate)
 	err := s.Apply(state.AddUnit(money.DustCollectorMoneySupplyID, billData))
 	if err == nil {
-		err = s.AddUnitLog(money.DustCollectorMoneySupplyID, zeroHash)
+		err = s.AddUnitLog(money.DustCollectorMoneySupplyID, nil)
 	}
 	return err
 }
@@ -271,7 +269,7 @@ func addInitialFeeCreditBills(s *state.State, config *moneyGenesisConfig) error 
 		if err := s.Apply(state.AddUnit(fcb.UnitID, billData)); err != nil {
 			return err
 		}
-		if err := s.AddUnitLog(fcb.UnitID, zeroHash); err != nil {
+		if err := s.AddUnitLog(fcb.UnitID, nil); err != nil {
 			return err
 		}
 	}

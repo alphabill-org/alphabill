@@ -48,7 +48,7 @@ func (f *FeeCreditModule) validateCloseFC(tx *types.TransactionOrder, attr *fc.C
 	}
 	// validate owner predicate
 	// S.N[P.ι] = ⊥ ∨ S.N[P.ι].φ = P.A.φ – if the target exists, the owner predicate matches
-	if err = f.execPredicate(fcr.OwnerPredicate, authProof.OwnerProof, tx.AuthProofSigBytes, exeCtx); err != nil {
+	if err = f.execPredicate(fcr.OwnerPredicate, authProof.OwnerProof, tx, exeCtx.WithExArg(tx.AuthProofSigBytes)); err != nil {
 		return fmt.Errorf("executing fee credit record owner predicate: %w", err)
 	}
 	// P.MC.fm ≤ S.N[ι].b - the transaction fee can’t exceed the current balance of the record

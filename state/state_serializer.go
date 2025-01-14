@@ -59,7 +59,7 @@ func (s *stateSerializer) Traverse(n *avl.Node[types.UnitID, VersionedUnit]) err
 }
 
 func (s *stateSerializer) WriteNode(n *avl.Node[types.UnitID, VersionedUnit]) error {
-	unit, err := UnitV1(n.Value())
+	unit, err := ToUnitV1(n.Value())
 	if err != nil {
 		return fmt.Errorf("failed to get unit: %w", err)
 	}

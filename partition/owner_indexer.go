@@ -75,7 +75,7 @@ func (o *OwnerIndexer) IndexBlock(b *types.Block, s StateProvider) error {
 			if err != nil {
 				return fmt.Errorf("failed to load unit: %w", err)
 			}
-			u, err := state.UnitV1(unit)
+			u, err := state.ToUnitV1(unit)
 			if err != nil {
 				return fmt.Errorf("failed to parse unit: %w", err)
 			}

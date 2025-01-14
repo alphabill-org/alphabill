@@ -9,11 +9,11 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/types"
 )
 
-var _ VersionedUnit = (*Unit)(nil)
+var _ VersionedUnit = (*UnitV1)(nil)
 
 type (
-	// Unit is a node in the state tree. It is used to build state tree and unit ledgers.
-	Unit struct {
+	// UnitV1 is a node in the state tree. It is used to build state tree and unit ledgers.
+	UnitV1 struct {
 		logs                []*Log         // state changes of the unit during the current round
 		logsHash            []byte         // root value of the hash tree built on the logs
 		data                types.UnitData // current data of the unit
@@ -32,21 +32,21 @@ type (
 	}
 )
 
-func NewUnit(data types.UnitData) *Unit {
-	return &Unit{
+func NewUnit(data types.UnitData) *UnitV1 {
+	return &UnitV1{
 		data: data,
 	}
 }
 
-func (u *Unit) GetVersion() types.ABVersion {
+func (u *UnitV1) GetVersion() types.ABVersion {
 	return 1
 }
 
-func (u *Unit) Clone() VersionedUnit {
+func (u *UnitV1) Clone() VersionedUnit {
 	if u == nil {
 		return nil
 	}
-	return &Unit{
+	return &UnitV1{
 		logs:                copyLogs(u.logs),
 		stateLockTx:         bytes.Clone(u.stateLockTx),
 		data:                copyData(u.data),
@@ -55,37 +55,37 @@ func (u *Unit) Clone() VersionedUnit {
 	}
 }
 
-func UnitV1(u VersionedUnit) (*Unit, error) {
+func ToUnitV1(u VersionedUnit) (*UnitV1, error) {
 	if u == nil {
 		return nil, fmt.Errorf("unit is nil")
 	}
 	if u.GetVersion() != 1 {
 		return nil, fmt.Errorf("unexpected unit version: %d, need 1", u.GetVersion())
 	}
-	return u.(*Unit), nil
+	return u.(*UnitV1), nil
 }
 
-func (u *Unit) String() string {
+func (u *UnitV1) String() string {
 	return fmt.Sprintf("summaryCalculated=%v, nodeSummary=%d, subtreeSummary=%d", u.summaryCalculated, u.data.SummaryValueInput(), u.subTreeSummaryValue)
 }
 
-func (u *Unit) IsStateLocked() bool {
+func (u *UnitV1) IsStateLocked() bool {
 	return len(u.stateLockTx) > 0
 }
 
-func (u *Unit) StateLockTx() []byte {
+func (u *UnitV1) StateLockTx() []byte {
 	return bytes.Clone(u.stateLockTx)
 }
 
-func (u *Unit) Data() types.UnitData {
+func (u *UnitV1) Data() types.UnitData {
 	return copyData(u.data)
 }
 
-func (u *Unit) Logs() []*Log {
+func (u *UnitV1) Logs() []*Log {
 	return u.logs
 }
 
-func (u *Unit) LastLogIndex() int {
+func (u *UnitV1) LastLogIndex() int {
 	return len(u.logs) - 1
 }
 
@@ -134,7 +134,7 @@ func (l *Log) Hash(algorithm crypto.Hash) ([]byte, error) {
 	return hasher.Sum()
 }
 
-func (u *Unit) latestUnitData() types.UnitData {
+func (u *UnitV1) latestUnitData() types.UnitData {
 	l := len(u.logs)
 	if l == 0 {
 		return u.data
@@ -142,7 +142,7 @@ func (u *Unit) latestUnitData() types.UnitData {
 	return u.logs[l-1].NewUnitData
 }
 
-func (u *Unit) latestStateLockTx() []byte {
+func (u *UnitV1) latestStateLockTx() []byte {
 	l := len(u.logs)
 	if l == 0 {
 		return u.stateLockTx

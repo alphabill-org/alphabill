@@ -427,13 +427,13 @@ func TestState_GetUnit(t *testing.T) {
 	u, err = s.GetUnit(unitID, false)
 	require.NoError(t, err)
 	require.NotNil(t, u)
-	unit1, err := UnitV1(u)
+	unit1, err := ToUnitV1(u)
 	require.NoError(t, err)
 
 	u2, err := s.GetUnit(unitID, true)
 	require.NoError(t, err)
 	require.NotNil(t, u2)
-	unit2, err := UnitV1(u2)
+	unit2, err := ToUnitV1(u2)
 	require.NoError(t, err)
 	// logRoot, subTreeSummaryHash and summaryCalculated do not get cloned - rest must match
 	require.Equal(t, unit1.logs, unit2.logs)
@@ -453,7 +453,7 @@ func TestState_AddUnitLog_OK(t *testing.T) {
 
 	u, err := s.GetUnit(unitID, false)
 	require.NoError(t, err)
-	unit, err := UnitV1(u)
+	unit, err := ToUnitV1(u)
 	require.NoError(t, err)
 	require.Len(t, unit.logs, 2)
 	require.Equal(t, txrHash, unit.logs[1].TxRecordHash)
@@ -500,13 +500,13 @@ func TestState_PruneState(t *testing.T) {
 	require.NoError(t, s.AddUnitLog(unitID, test.RandomBytes(32)))
 	u, err := s.GetUnit(unitID, false)
 	require.NoError(t, err)
-	unit, err := UnitV1(u)
+	unit, err := ToUnitV1(u)
 	require.NoError(t, err)
 	require.Len(t, unit.logs, 2)
 	require.NoError(t, s.Prune())
 	u, err = s.GetUnit(unitID, false)
 	require.NoError(t, err)
-	unit, err = UnitV1(u)
+	unit, err = ToUnitV1(u)
 	require.NoError(t, err)
 	require.Len(t, unit.logs, 1)
 	require.Nil(t, unit.logs[0].TxRecordHash)
@@ -920,10 +920,10 @@ func multiply(t uint64) func(data types.UnitData) (types.UnitData, error) {
 	}
 }
 
-func getUnit(t *testing.T, s *State, id []byte) *Unit {
+func getUnit(t *testing.T, s *State, id []byte) *UnitV1 {
 	unit, err := s.latestSavepoint().Get(id)
 	require.NoError(t, err)
-	u, err := UnitV1(unit)
+	u, err := ToUnitV1(unit)
 	require.NoError(t, err)
 	return u
 }

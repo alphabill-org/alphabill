@@ -45,7 +45,7 @@ func AddUnit(id types.UnitID, data types.UnitData) Action {
 		if err != nil {
 			return fmt.Errorf("add unit: unable to calculate subtree summary hash: %w", err)
 		}
-		u := &Unit{
+		u := &UnitV1{
 			logs:                []*Log{},
 			data:                d,
 			subTreeSummaryValue: unitDataSummaryValue,
@@ -80,7 +80,7 @@ func AddUnitWithLock(id types.UnitID, data types.UnitData, l []byte) Action {
 		if err != nil {
 			return fmt.Errorf("add unit: unable to calculate subtree summary hash: %w", err)
 		}
-		u := &Unit{
+		u := &UnitV1{
 			logs:                []*Log{},
 			data:                d,
 			stateLockTx:         l,
@@ -105,7 +105,7 @@ func UpdateUnitData(id types.UnitID, f UpdateFunction) Action {
 			return fmt.Errorf("failed to get unit: %w", err)
 		}
 
-		cloned, err := UnitV1(u.Clone())
+		cloned, err := ToUnitV1(u.Clone())
 		if err != nil {
 			return fmt.Errorf("unable to parse cloned unit: %w", err)
 		}
@@ -132,14 +132,14 @@ func SetStateLock(id types.UnitID, stateLockTx []byte) Action {
 			return fmt.Errorf("failed to find unit: %w", err)
 		}
 
-		unit, err := UnitV1(u)
+		unit, err := ToUnitV1(u)
 		if err != nil {
 			return fmt.Errorf("unable to parse unit: %w", err)
 		}
 		if unit.stateLockTx != nil && stateLockTx != nil {
 			return errors.New("unit already has a state lock")
 		}
-		cloned, err := UnitV1(unit.Clone())
+		cloned, err := ToUnitV1(unit.Clone())
 		if err != nil {
 			return fmt.Errorf("unable to parse cloned unit: %w", err)
 		}

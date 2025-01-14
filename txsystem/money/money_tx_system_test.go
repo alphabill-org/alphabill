@@ -439,7 +439,7 @@ func TestExecute_SwapOk(t *testing.T) {
 	dcBill, dcBillData := getBill(t, s, DustCollectorMoneySupplyID)
 	require.Equal(t, beforeCommitValue, dcBillData.Value)
 	// Make sure the DC bill logs are pruned
-	u, err := state.UnitV1(dcBill)
+	u, err := state.ToUnitV1(dcBill)
 	require.NoError(t, err)
 	require.Equal(t, 1, len(u.Logs()))
 }

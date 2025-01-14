@@ -303,7 +303,7 @@ func (m mockStateStoreOK) GetUnit(id types.UnitID, committed bool) (state.Versio
 	if m.err != nil {
 		return nil, m.err
 	}
-	return &state.Unit{}, nil
+	return &state.UnitV1{}, nil
 }
 
 func (m mockStateStoreOK) CreateUnitStateProof(id types.UnitID, logIndex int) (*types.UnitStateProof, error) {

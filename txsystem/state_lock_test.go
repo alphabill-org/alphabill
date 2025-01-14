@@ -320,7 +320,7 @@ func TestGenericTxSystem_executeLockUnitState(t *testing.T) {
 		// verify unit got locked
 		u, err := txSys.state.GetUnit(unitID, false)
 		require.NoError(t, err)
-		unit, err := state.UnitV1(u)
+		unit, err := state.ToUnitV1(u)
 		require.NoError(t, err)
 		require.True(t, unit.IsStateLocked())
 	})

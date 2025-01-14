@@ -106,7 +106,7 @@ func readNodeRecords(decoder *cbor.Decoder, unitDataConstructor UnitDataConstruc
 			return nil, fmt.Errorf("unable to evaluate merkle path: %w", err)
 		}
 
-		unit := &Unit{logsHash: logsHash}
+		unit := &UnitV1{logsHash: logsHash}
 		if len(nodeRecord.UnitTreePath) > 0 {
 			// A non-zero UnitTreePath length means that the unit had multiple logs at serialization.
 			// Those logs must be pruned at the beginning of the next round and the summary hash must
@@ -171,7 +171,7 @@ func (s *State) AddUnitLog(id types.UnitID, transactionRecordHash []byte) error 
 	if err != nil {
 		return fmt.Errorf("unable to add unit log for unit %v: %w", id, err)
 	}
-	unit, err := UnitV1(u.Clone())
+	unit, err := ToUnitV1(u.Clone())
 	if err != nil {
 		return fmt.Errorf("add log failed for unit %v: %w", id, err)
 	}
@@ -229,7 +229,7 @@ func (s *State) Commit(uc *types.UnicityCertificate) error {
 	var summaryValue uint64
 	var summaryHash []byte
 	if sp.Root() != nil {
-		unit, err := UnitV1(sp.Root().Value())
+		unit, err := ToUnitV1(sp.Root().Value())
 		if err != nil {
 			return fmt.Errorf("unable to get root unit: %w", err)
 		}
@@ -304,7 +304,7 @@ func (s *State) CalculateRoot() (uint64, []byte, error) {
 	if root == nil {
 		return 0, nil, nil
 	}
-	value, err := UnitV1(root.Value())
+	value, err := ToUnitV1(root.Value())
 	if err != nil {
 		return 0, nil, fmt.Errorf("unable to get root unit: %w", err)
 	}
@@ -386,7 +386,7 @@ func (s *State) CreateUnitStateProof(id types.UnitID, logIndex int) (*types.Unit
 		return nil, fmt.Errorf("unable to get unit %v: %w", id, err)
 	}
 
-	unit, err := UnitV1(u)
+	unit, err := ToUnitV1(u)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse the unit: %w", err)
 	}
@@ -462,7 +462,7 @@ func (s *State) GetUnits(unitTypeID *uint32, pdr *types.PartitionDescriptionReco
 	return traverser.filteredUnitIDs, nil
 }
 
-func (s *State) createUnitTreeCert(unit *Unit, logIndex int) (*types.UnitTreeCert, error) {
+func (s *State) createUnitTreeCert(unit *UnitV1, logIndex int) (*types.UnitTreeCert, error) {
 	merkle, err := mt.New(s.hashAlgorithm, unit.logs)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create merkle tree: %w", err)
@@ -596,7 +596,7 @@ func isRootClean(s *tree) (bool, error) {
 	if root == nil {
 		return true, nil
 	}
-	unit, err := UnitV1(root.Value())
+	unit, err := ToUnitV1(root.Value())
 	if err != nil {
 		return false, err
 	}
@@ -613,7 +613,7 @@ func getSummaryValueInput(n *node) (uint64, error) {
 	if n == nil || n.Value() == nil {
 		return 0, nil
 	}
-	u, err := UnitV1(n.Value())
+	u, err := ToUnitV1(n.Value())
 	if err != nil {
 		return 0, err
 	}
@@ -627,7 +627,7 @@ func getSubTreeSummaryValue(n *node) (uint64, error) {
 	if n == nil || n.Value() == nil {
 		return 0, nil
 	}
-	u, err := UnitV1(n.Value())
+	u, err := ToUnitV1(n.Value())
 	if err != nil {
 		return 0, err
 	}
@@ -638,7 +638,7 @@ func getSubTreeLogsHash(n *node) ([]byte, error) {
 	if n == nil || n.Value() == nil {
 		return nil, nil
 	}
-	u, err := UnitV1(n.Value())
+	u, err := ToUnitV1(n.Value())
 	if err != nil {
 		return nil, err
 	}
@@ -649,7 +649,7 @@ func getSubTreeSummaryHash(n *node) ([]byte, error) {
 	if n == nil || n.Value() == nil {
 		return nil, nil
 	}
-	u, err := UnitV1(n.Value())
+	u, err := ToUnitV1(n.Value())
 	if err != nil {
 		return nil, err
 	}
@@ -660,7 +660,7 @@ func getSubTreeSummary(n *node) (uint64, []byte, error) {
 	if n == nil || n.Value() == nil {
 		return 0, nil, nil
 	}
-	u, err := UnitV1(n.Value())
+	u, err := ToUnitV1(n.Value())
 	if err != nil {
 		return 0, nil, err
 	}

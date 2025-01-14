@@ -104,7 +104,7 @@ func (s *StateAPI) GetUnit(unitID types.UnitID, includeStateProof bool) (_ *Unit
 	}
 
 	if includeStateProof {
-		u, err := state.UnitV1(unit)
+		u, err := state.ToUnitV1(unit)
 		if err != nil {
 			return nil, fmt.Errorf("failed to convert unit to version 1: %w", err)
 		}

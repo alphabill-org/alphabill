@@ -162,7 +162,7 @@ func (p *ProofIndexer) create(ctx context.Context, block *types.Block, roundNumb
 			if err != nil {
 				return fmt.Errorf("unit load failed: %w", err)
 			}
-			u, err := state.UnitV1(unit)
+			u, err := state.ToUnitV1(unit)
 			if err != nil {
 				return fmt.Errorf("unit parse failed: %w", err)
 			}

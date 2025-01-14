@@ -21,7 +21,7 @@ func TestAdd(t *testing.T) {
 		args            args
 		initialState    *State
 		executionErrStr string
-		expectedUnit    *Unit
+		expectedUnit    *UnitV1
 	}
 	tests := []testCase{
 		{
@@ -52,7 +52,7 @@ func TestAdd(t *testing.T) {
 				data:   &TestData{Value: 123, OwnerPredicate: []byte{0x83, 0x00, 0x41, 0x01, 0xf6}},
 			},
 			initialState: NewEmptyState(),
-			expectedUnit: func() *Unit {
+			expectedUnit: func() *UnitV1 {
 				subTreeSumHash, err := abhash.HashValues(crypto.SHA256,
 					[]byte{1},
 					nil, // h_s is nil (we do not have a log entry)
@@ -63,7 +63,7 @@ func TestAdd(t *testing.T) {
 					make([]byte, 32),
 				)
 				require.NoError(t, err)
-				return &Unit{
+				return &UnitV1{
 					logs:                nil,
 					logsHash:            nil,
 					data:                &TestData{Value: 123},
@@ -97,7 +97,7 @@ func TestUpdate(t *testing.T) {
 		args            args
 		initialState    *State
 		executionErrStr string
-		expectedUnit    *Unit
+		expectedUnit    *UnitV1
 	}
 	tests := []testCase{
 		{
@@ -128,7 +128,7 @@ func TestUpdate(t *testing.T) {
 				},
 			},
 			initialState: newStateWithUnits(t),
-			expectedUnit: &Unit{
+			expectedUnit: &UnitV1{
 				logs:                nil,
 				logsHash:            nil,
 				data:                &TestData{Value: 200, OwnerPredicate: []byte{0x83, 0x00, 0x41, 0x01, 0xf6}},
@@ -219,7 +219,7 @@ func Test_SetStateLock(t *testing.T) {
 		err := SetStateLock([]byte{1, 1, 1, 1}, []byte{1})(s, crypto.SHA256)
 		require.NoError(t, err)
 		u, _ := s.Get([]byte{1, 1, 1, 1})
-		unit, err := UnitV1(u)
+		unit, err := ToUnitV1(u)
 		require.NoError(t, err)
 		require.Equal(t, []byte{1}, unit.stateLockTx)
 	})
@@ -235,12 +235,12 @@ func newStateWithUnits(t *testing.T) *State {
 	return s
 }
 
-func assertUnit(t *testing.T, state *State, unitID types.UnitID, expectedUnit *Unit, committed bool) {
+func assertUnit(t *testing.T, state *State, unitID types.UnitID, expectedUnit *UnitV1, committed bool) {
 	t.Helper()
 	unit, err := state.latestSavepoint().Get(unitID)
 	require.NoError(t, err)
 	require.NotNil(t, unit)
-	u, err := UnitV1(unit)
+	u, err := ToUnitV1(unit)
 	require.NoError(t, err)
 	assertUnitEqual(t, expectedUnit, u)
 
@@ -250,13 +250,13 @@ func assertUnit(t *testing.T, state *State, unitID types.UnitID, expectedUnit *U
 	} else {
 		require.NoError(t, err)
 		require.NotNil(t, committedUnit)
-		u, err = UnitV1(unit)
+		u, err = ToUnitV1(unit)
 		require.NoError(t, err)
 		assertUnitEqual(t, expectedUnit, u)
 	}
 }
 
-func assertUnitEqual(t *testing.T, expectedUnit *Unit, unit *Unit) {
+func assertUnitEqual(t *testing.T, expectedUnit *UnitV1, unit *UnitV1) {
 	require.Equal(t, expectedUnit.data, unit.data)
 	require.Equal(t, expectedUnit.subTreeSummaryValue, unit.subTreeSummaryValue)
 }

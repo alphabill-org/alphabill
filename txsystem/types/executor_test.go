@@ -73,7 +73,7 @@ func (s txSysInfo) GetUnit(id types.UnitID, committed bool) (state.VersionedUnit
 	if s.getUnit != nil {
 		return s.getUnit(id, committed)
 	}
-	return &state.Unit{}, fmt.Errorf("unit does not exist")
+	return &state.UnitV1{}, fmt.Errorf("unit does not exist")
 }
 
 func (s txSysInfo) CurrentRound() uint64 {

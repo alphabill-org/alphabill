@@ -14,7 +14,7 @@ type (
 	}
 
 	Index[T comparable]        map[T][]types.UnitID
-	KeyExtractor[T comparable] func(unit VersionedUnit) (T, error)
+	KeyExtractor[T comparable] func(unit Unit) (T, error)
 )
 
 func (s *stateIndexer[T]) Traverse(n *node) error {

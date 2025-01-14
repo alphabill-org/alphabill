@@ -254,7 +254,7 @@ func (m *TxSystem) TypeID() types.PartitionTypeID {
 	return evm.PartitionTypeID
 }
 
-func (vc *TxValidationContext) GetUnit(id types.UnitID, committed bool) (state.VersionedUnit, error) {
+func (vc *TxValidationContext) GetUnit(id types.UnitID, committed bool) (state.Unit, error) {
 	return vc.state.GetUnit(id, committed)
 }
 

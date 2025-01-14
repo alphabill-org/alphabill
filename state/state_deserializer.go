@@ -34,7 +34,7 @@ func readState(stateData io.Reader, udc UnitDataConstructor, opts ...Option) (*S
 	}
 
 	hasher := newStateHasher(options.hashAlgorithm)
-	t := avl.NewWithTraverserAndRoot[types.UnitID, VersionedUnit](hasher, root)
+	t := avl.NewWithTraverserAndRoot[types.UnitID, Unit](hasher, root)
 	state := &State{
 		hashAlgorithm: options.hashAlgorithm,
 		savepoints:    []*tree{t},

@@ -31,7 +31,7 @@ func runChainedPredicates[T types.UnitData](
 	args [][]byte,
 	exec predicates.PredicateRunner,
 	iter func(d T) (types.UnitID, []byte),
-	getUnit func(id types.UnitID, committed bool) (state.VersionedUnit, error),
+	getUnit func(id types.UnitID, committed bool) (state.Unit, error),
 ) error {
 	var predicate []byte
 	idx := 0
@@ -56,7 +56,7 @@ func runChainedPredicates[T types.UnitData](
 	return nil
 }
 
-func getUnitData[T types.UnitData](getUnit func(id types.UnitID, committed bool) (state.VersionedUnit, error), unitID types.UnitID) (T, error) {
+func getUnitData[T types.UnitData](getUnit func(id types.UnitID, committed bool) (state.Unit, error), unitID types.UnitID) (T, error) {
 	u, err := getUnit(unitID, false)
 	if err != nil {
 		return *new(T), err

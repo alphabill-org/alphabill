@@ -37,7 +37,7 @@ func Test_runChainedPredicates(t *testing.T) {
 				t.Error("unexpected call")
 				return nil, nil
 			},
-			func(id types.UnitID, committed bool) (state.VersionedUnit, error) {
+			func(id types.UnitID, committed bool) (state.Unit, error) {
 				t.Error("unexpected call")
 				return nil, ucErr
 			},
@@ -60,7 +60,7 @@ func Test_runChainedPredicates(t *testing.T) {
 				t.Error("unexpected call")
 				return nil, nil
 			},
-			func(id types.UnitID, committed bool) (state.VersionedUnit, error) {
+			func(id types.UnitID, committed bool) (state.Unit, error) {
 				t.Error("unexpected call")
 				return nil, ucErr
 			},
@@ -83,7 +83,7 @@ func Test_runChainedPredicates(t *testing.T) {
 				t.Error("unexpected call")
 				return nil, nil
 			},
-			func(id types.UnitID, committed bool) (state.VersionedUnit, error) {
+			func(id types.UnitID, committed bool) (state.Unit, error) {
 				t.Error("unexpected call")
 				return nil, ucErr
 			},
@@ -107,7 +107,7 @@ func Test_runChainedPredicates(t *testing.T) {
 				t.Error("unexpected call")
 				return nil, nil
 			},
-			func(id types.UnitID, committed bool) (state.VersionedUnit, error) {
+			func(id types.UnitID, committed bool) (state.Unit, error) {
 				if !bytes.Equal(id, []byte{0, 0, 1}) {
 					t.Errorf("unexpected type id %v", id)
 				}
@@ -132,7 +132,7 @@ func Test_runChainedPredicates(t *testing.T) {
 				return ucErr
 			},
 			func(d *tokens.NonFungibleTokenTypeData) (types.UnitID, []byte) { return nil, nil }, // returning nil predicate!
-			func(id types.UnitID, committed bool) (state.VersionedUnit, error) {
+			func(id types.UnitID, committed bool) (state.Unit, error) {
 				if !bytes.Equal(id, []byte{0, 0, 1}) {
 					t.Errorf("unexpected type id %v", id)
 				}
@@ -162,7 +162,7 @@ func Test_runChainedPredicates(t *testing.T) {
 				return expErr
 			},
 			func(d *tokens.NonFungibleTokenTypeData) (types.UnitID, []byte) { return nil, []byte("predicate") }, // no next item
-			func(id types.UnitID, committed bool) (state.VersionedUnit, error) {
+			func(id types.UnitID, committed bool) (state.Unit, error) {
 				if !bytes.Equal(id, []byte{0, 0, 1}) {
 					t.Errorf("unexpected type id %v", id)
 				}
@@ -191,7 +191,7 @@ func Test_runChainedPredicates(t *testing.T) {
 				return nil
 			},
 			func(d *tokens.NonFungibleTokenTypeData) (types.UnitID, []byte) { return nil, []byte("predicate") }, // no next item
-			func(id types.UnitID, committed bool) (state.VersionedUnit, error) {
+			func(id types.UnitID, committed bool) (state.Unit, error) {
 				if !bytes.Equal(id, []byte{0, 0, 1}) {
 					t.Errorf("unexpected type id %v", id)
 				}
@@ -206,7 +206,7 @@ func Test_getUnitData(t *testing.T) {
 	t.Run("getUnit returns error", func(t *testing.T) {
 		expErr := errors.New("no such unit")
 		data, err := getUnitData[*mockUnitData](
-			func(id types.UnitID, committed bool) (state.VersionedUnit, error) {
+			func(id types.UnitID, committed bool) (state.Unit, error) {
 				return nil, expErr
 			},
 			[]byte{1, 2, 3, 4, 5, 6},
@@ -220,7 +220,7 @@ func Test_getUnitData(t *testing.T) {
 		d := &tokens.NonFungibleTokenTypeData{}
 		unit := state.NewUnit(d)
 		data, err := getUnitData[*mockUnitData](
-			func(id types.UnitID, committed bool) (state.VersionedUnit, error) {
+			func(id types.UnitID, committed bool) (state.Unit, error) {
 				if !bytes.Equal(id, unitID) {
 					t.Errorf("unexpected unit id: %v", id)
 				}
@@ -237,7 +237,7 @@ func Test_getUnitData(t *testing.T) {
 		d := &tokens.NonFungibleTokenTypeData{Symbol: "SYM", Name: "my NFT"}
 		unit := state.NewUnit(d)
 		data, err := getUnitData[*tokens.NonFungibleTokenTypeData](
-			func(id types.UnitID, committed bool) (state.VersionedUnit, error) {
+			func(id types.UnitID, committed bool) (state.Unit, error) {
 				if !bytes.Equal(id, unitID) {
 					t.Errorf("unexpected unit id: %v", id)
 				}

@@ -34,7 +34,7 @@ type (
 	}
 
 	StateProvider interface {
-		GetUnit(id types.UnitID, committed bool) (state.VersionedUnit, error)
+		GetUnit(id types.UnitID, committed bool) (state.Unit, error)
 	}
 )
 
@@ -143,7 +143,7 @@ func (o *OwnerIndexer) delOwnerIndex(unitID types.UnitID, ownerPredicate []byte)
 	return nil
 }
 
-func (o *OwnerIndexer) extractOwnerID(unit state.VersionedUnit) (string, error) {
+func (o *OwnerIndexer) extractOwnerID(unit state.Unit) (string, error) {
 	return o.extractOwnerIDFromPredicate(unit.Data().Owner()), nil
 }
 

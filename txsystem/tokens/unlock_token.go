@@ -82,7 +82,7 @@ func (m *LockTokensModule) validateUnlockTokenTx(tx *types.TransactionOrder, att
 	}
 }
 
-func (m *LockTokensModule) validateUnlockNonFungibleToken(tx *types.TransactionOrder, attr *tokens.UnlockTokenAttributes, authProof *tokens.UnlockTokenAuthProof, u state.VersionedUnit, exeCtx txtypes.ExecutionContext) error {
+func (m *LockTokensModule) validateUnlockNonFungibleToken(tx *types.TransactionOrder, attr *tokens.UnlockTokenAttributes, authProof *tokens.UnlockTokenAuthProof, u state.Unit, exeCtx txtypes.ExecutionContext) error {
 	d, ok := u.Data().(*tokens.NonFungibleTokenData)
 	if !ok {
 		return fmt.Errorf("unit %v is not non-fungible token data", tx.UnitID)
@@ -96,7 +96,7 @@ func (m *LockTokensModule) validateUnlockNonFungibleToken(tx *types.TransactionO
 	return nil
 }
 
-func (m *LockTokensModule) validateUnlockFungibleToken(tx *types.TransactionOrder, attr *tokens.UnlockTokenAttributes, authProof *tokens.UnlockTokenAuthProof, u state.VersionedUnit, exeCtx txtypes.ExecutionContext) error {
+func (m *LockTokensModule) validateUnlockFungibleToken(tx *types.TransactionOrder, attr *tokens.UnlockTokenAttributes, authProof *tokens.UnlockTokenAuthProof, u state.Unit, exeCtx txtypes.ExecutionContext) error {
 	d, ok := u.Data().(*tokens.FungibleTokenData)
 	if !ok {
 		return fmt.Errorf("unit %v is not fungible token data", tx.UnitID)

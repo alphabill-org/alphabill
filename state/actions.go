@@ -11,9 +11,9 @@ import (
 
 type (
 	ShardState interface {
-		Add(id types.UnitID, u VersionedUnit) error
-		Get(id types.UnitID) (VersionedUnit, error)
-		Update(id types.UnitID, unit VersionedUnit) error
+		Add(id types.UnitID, u Unit) error
+		Get(id types.UnitID) (Unit, error)
+		Update(id types.UnitID, unit Unit) error
 		Delete(id types.UnitID) error
 	}
 

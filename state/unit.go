@@ -9,7 +9,7 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/types"
 )
 
-var _ VersionedUnit = (*UnitV1)(nil)
+var _ Unit = (*UnitV1)(nil)
 
 type (
 	// UnitV1 is a node in the state tree. It is used to build state tree and unit ledgers.
@@ -42,7 +42,7 @@ func (u *UnitV1) GetVersion() types.ABVersion {
 	return 1
 }
 
-func (u *UnitV1) Clone() VersionedUnit {
+func (u *UnitV1) Clone() Unit {
 	if u == nil {
 		return nil
 	}
@@ -55,7 +55,7 @@ func (u *UnitV1) Clone() VersionedUnit {
 	}
 }
 
-func ToUnitV1(u VersionedUnit) (*UnitV1, error) {
+func ToUnitV1(u Unit) (*UnitV1, error) {
 	if u == nil {
 		return nil, fmt.Errorf("unit is nil")
 	}

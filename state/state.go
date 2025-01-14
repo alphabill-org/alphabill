@@ -36,15 +36,15 @@ type (
 		savepoints []*tree
 	}
 
-	VersionedUnit interface {
+	Unit interface {
 		types.Versioned
-		avl.Value[VersionedUnit]
+		avl.Value[Unit]
 
 		Data() types.UnitData
 	}
 
-	tree = avl.Tree[types.UnitID, VersionedUnit]
-	node = avl.Node[types.UnitID, VersionedUnit]
+	tree = avl.Tree[types.UnitID, Unit]
+	node = avl.Node[types.UnitID, Unit]
 
 	// UnitDataConstructor is a function that constructs an empty UnitData structure based on UnitID
 	UnitDataConstructor func(types.UnitID) (types.UnitData, error)
@@ -54,7 +54,7 @@ func NewEmptyState(opts ...Option) *State {
 	options := loadOptions(opts...)
 
 	hasher := newStateHasher(options.hashAlgorithm)
-	t := avl.NewWithTraverser[types.UnitID, VersionedUnit](hasher)
+	t := avl.NewWithTraverser[types.UnitID, Unit](hasher)
 
 	return &State{
 		hashAlgorithm: options.hashAlgorithm,
@@ -127,7 +127,7 @@ func readNodeRecords(decoder *cbor.Decoder, unitDataConstructor UnitDataConstruc
 			left = nodeStack.Pop()
 		}
 
-		nodeStack.Push(avl.NewBalancedNode(nodeRecord.UnitID, VersionedUnit(unit), left, right))
+		nodeStack.Push(avl.NewBalancedNode(nodeRecord.UnitID, Unit(unit), left, right))
 	}
 
 	root := nodeStack.Pop()
@@ -150,7 +150,7 @@ func (s *State) Clone() *State {
 	}
 }
 
-func (s *State) GetUnit(id types.UnitID, committed bool) (VersionedUnit, error) {
+func (s *State) GetUnit(id types.UnitID, committed bool) (Unit, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 	if committed {
@@ -434,7 +434,7 @@ func (s *State) HashAlgorithm() crypto.Hash {
 	return s.hashAlgorithm
 }
 
-func (s *State) Traverse(traverser avl.Traverser[types.UnitID, VersionedUnit]) error {
+func (s *State) Traverse(traverser avl.Traverser[types.UnitID, Unit]) error {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 	return s.committedTree.Traverse(traverser)
@@ -444,7 +444,7 @@ func (s *State) GetUnits(unitTypeID *uint32, pdr *types.PartitionDescriptionReco
 	if pdr == nil && unitTypeID != nil {
 		return nil, errors.New("partition description record is nil")
 	}
-	traverser := NewFilter(func(unitID types.UnitID, unit VersionedUnit) (bool, error) {
+	traverser := NewFilter(func(unitID types.UnitID, unit Unit) (bool, error) {
 		// get all units if no unit type is provided
 		if unitTypeID == nil {
 			return true, nil
@@ -553,7 +553,7 @@ func (s *State) createStateTreeCert(id types.UnitID) (*types.StateTreeCert, erro
 func (s *State) createSavepoint() (int, error) {
 	clonedSavepoint := s.latestSavepoint().Clone()
 	// mark AVL Tree nodes as clean
-	err := clonedSavepoint.Traverse(&avl.PostOrderCommitTraverser[types.UnitID, VersionedUnit]{})
+	err := clonedSavepoint.Traverse(&avl.PostOrderCommitTraverser[types.UnitID, Unit]{})
 	if err != nil {
 		return 0, fmt.Errorf("unable to mark the tree clean: %w", err)
 	}

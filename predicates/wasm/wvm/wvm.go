@@ -70,7 +70,7 @@ type (
 	}
 
 	EvalEnvironment interface {
-		GetUnit(id types.UnitID, committed bool) (state.VersionedUnit, error)
+		GetUnit(id types.UnitID, committed bool) (state.Unit, error)
 		CurrentRound() uint64
 		TrustBase(epoch uint64) (types.RootTrustBase, error)
 		GasAvailable() uint64
@@ -83,7 +83,7 @@ type (
 	Encoder interface {
 		Encode(obj any, ver uint32, getHandle func(obj any) uint64) ([]byte, error)
 		TxAttributes(txo *types.TransactionOrder, ver uint32) ([]byte, error)
-		UnitData(unit state.VersionedUnit, ver uint32) ([]byte, error)
+		UnitData(unit state.Unit, ver uint32) ([]byte, error)
 	}
 
 	Observability interface {

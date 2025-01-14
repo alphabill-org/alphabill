@@ -43,7 +43,7 @@ func newStateSerializer(encoder func(any) error, hashAlgorithm crypto.Hash) *sta
 	}
 }
 
-func (s *stateSerializer) Traverse(n *avl.Node[types.UnitID, VersionedUnit]) error {
+func (s *stateSerializer) Traverse(n *avl.Node[types.UnitID, Unit]) error {
 	if n == nil {
 		return nil
 	}
@@ -58,7 +58,7 @@ func (s *stateSerializer) Traverse(n *avl.Node[types.UnitID, VersionedUnit]) err
 	return s.WriteNode(n)
 }
 
-func (s *stateSerializer) WriteNode(n *avl.Node[types.UnitID, VersionedUnit]) error {
+func (s *stateSerializer) WriteNode(n *avl.Node[types.UnitID, Unit]) error {
 	unit, err := ToUnitV1(n.Value())
 	if err != nil {
 		return fmt.Errorf("failed to get unit: %w", err)

@@ -940,7 +940,7 @@ func TestExecute_AddFeeCreditWithLocking_OK(t *testing.T) {
 	require.False(t, fcr.IsLocked())
 }
 
-func getBill(t *testing.T, s *state.State, billID types.UnitID) (state.VersionedUnit, *money.BillData) {
+func getBill(t *testing.T, s *state.State, billID types.UnitID) (state.Unit, *money.BillData) {
 	t.Helper()
 	ib, err := s.GetUnit(billID, false)
 	require.NoError(t, err)

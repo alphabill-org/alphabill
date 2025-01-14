@@ -342,7 +342,7 @@ func (s *State) Serialize(writer io.Writer, committed bool) error {
 		return fmt.Errorf("unable to get encoder: %w", err)
 	}
 
-	header := &header{}
+	header := &header{Version: 1}
 
 	var tree *tree
 	if committed {

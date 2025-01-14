@@ -14,12 +14,14 @@ const CBORChecksumLength = 5
 type (
 	header struct {
 		_                  struct{} `cbor:",toarray"`
+		Version            types.ABVersion
 		UnicityCertificate *types.UnicityCertificate
 		NodeRecordCount    uint64
 	}
 
 	nodeRecord struct {
 		_                  struct{} `cbor:",toarray"`
+		Version            types.ABVersion
 		UnitID             types.UnitID
 		UnitData           types.RawCBOR
 		UnitLedgerHeadHash []byte
@@ -82,6 +84,7 @@ func (s *stateSerializer) WriteNode(n *avl.Node[types.UnitID, VersionedUnit]) er
 	}
 
 	nr := &nodeRecord{
+		Version:            unit.GetVersion(),
 		UnitID:             n.Key(),
 		UnitLedgerHeadHash: latestLog.UnitLedgerHeadHash,
 		UnitData:           unitDataBytes,

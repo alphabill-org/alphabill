@@ -1733,6 +1733,10 @@ func (m mockUnitData) Owner() []byte {
 	return nil
 }
 
+func (m mockUnitData) GetVersion() types.ABVersion {
+	return 0
+}
+
 func createSigner(t *testing.T) (abcrypto.Signer, []byte) {
 	t.Helper()
 	signer, err := abcrypto.NewInMemorySecp256K1Signer()

@@ -215,6 +215,10 @@ func (m mockUnitData) Owner() []byte {
 	return m.ownerPredicate
 }
 
+func (m mockUnitData) GetVersion() types.ABVersion {
+	return 0
+}
+
 func commitState(t *testing.T, s *state.State) {
 	rootVal, rootHash, err := s.CalculateRoot()
 	require.NoError(t, err)

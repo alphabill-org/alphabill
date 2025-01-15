@@ -49,6 +49,10 @@ func (t *TestData) Owner() []byte {
 	return t.OwnerPredicate
 }
 
+func (t *TestData) GetVersion() types.ABVersion {
+	return 0
+}
+
 func TestNewEmptyState(t *testing.T) {
 	s := NewEmptyState()
 	require.Nil(t, s.committedTree.Root())
@@ -969,6 +973,10 @@ func (p *pruneUnitData) Copy() types.UnitData {
 
 func (p *pruneUnitData) Owner() []byte {
 	return p.O
+}
+
+func (p *pruneUnitData) GetVersion() types.ABVersion {
+	return 0
 }
 
 func unitDataConstructor(_ types.UnitID) (types.UnitData, error) {

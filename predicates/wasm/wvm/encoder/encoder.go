@@ -5,15 +5,15 @@ import (
 	"fmt"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill-go-base/types/hex"
 )
 
 const (
 	type_id_bytes  = 1
 	type_id_u64    = 2
 	type_id_u32    = 3
-	type_id_u16    = 4
-	type_id_string = 5
-	type_id_array  = 6
+	type_id_string = 4
+	type_id_array  = 5
 )
 
 /*
@@ -82,11 +82,6 @@ func (enc *TVEnc) WriteUInt32(value uint32) {
 	enc.buf = binary.LittleEndian.AppendUint32(enc.buf, value)
 }
 
-func (enc *TVEnc) WriteUInt16(value uint16) {
-	enc.writeTypeTag(type_id_u16)
-	enc.buf = binary.LittleEndian.AppendUint16(enc.buf, value)
-}
-
 func (enc *TVEnc) Encode(item any) {
 	switch it := item.(type) {
 	case []any:
@@ -97,12 +92,14 @@ func (enc *TVEnc) Encode(item any) {
 		}
 	case []byte:
 		enc.WriteBytes(it)
+	case hex.Bytes:
+		enc.WriteBytes(it)
 	case types.UnitID:
 		enc.WriteBytes(it)
 	case string:
 		enc.WriteString(it)
 	case uint16:
-		enc.WriteUInt16(it)
+		enc.WriteUInt32(uint32(it))
 	case uint32:
 		enc.WriteUInt32(it)
 	case uint64:

@@ -80,11 +80,10 @@ func (TXSystemEncoder) txRecord(txo *types.TransactionRecord, _ uint32, getHandl
 
 func (TXSystemEncoder) txOrder(txo *types.TransactionOrder, _ uint32) ([]byte, error) {
 	var buf TVEnc
-	buf.EncodeTagged(1, uint16(txo.NetworkID))
-	buf.EncodeTagged(2, uint32(txo.PartitionID))
-	buf.EncodeTagged(3, txo.UnitID)
-	buf.EncodeTagged(4, txo.Type)
-	buf.EncodeTagged(5, txo.ReferenceNumber())
+	buf.EncodeTagged(1, uint32(txo.PartitionID))
+	buf.EncodeTagged(2, txo.UnitID)
+	buf.EncodeTagged(3, txo.Type)
+	buf.EncodeTagged(4, txo.ReferenceNumber())
 	return buf.Bytes()
 }
 

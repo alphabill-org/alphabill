@@ -30,9 +30,8 @@ func udeNonFungibleTokenData(data types.UnitData, ver uint32) ([]byte, error) {
 	if value.Data != nil {
 		buf.EncodeTagged(4, value.Data)
 	}
-	//buf.EncodeTagged(5, value.T)
-	buf.EncodeTagged(6, value.Counter)
-	buf.EncodeTagged(7, value.Locked)
+	buf.EncodeTagged(5, value.Counter)
+	buf.EncodeTagged(6, value.Locked)
 	return buf.Bytes()
 }
 

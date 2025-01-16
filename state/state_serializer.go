@@ -14,12 +14,14 @@ const CBORChecksumLength = 5
 type (
 	header struct {
 		_                  struct{} `cbor:",toarray"`
+		Version            types.ABVersion
 		UnicityCertificate *types.UnicityCertificate
 		NodeRecordCount    uint64
 	}
 
 	nodeRecord struct {
 		_                  struct{} `cbor:",toarray"`
+		Version            types.ABVersion
 		UnitID             types.UnitID
 		UnitData           types.RawCBOR
 		UnitLedgerHeadHash []byte
@@ -41,7 +43,7 @@ func newStateSerializer(encoder func(any) error, hashAlgorithm crypto.Hash) *sta
 	}
 }
 
-func (s *stateSerializer) Traverse(n *avl.Node[types.UnitID, *Unit]) error {
+func (s *stateSerializer) Traverse(n *avl.Node[types.UnitID, Unit]) error {
 	if n == nil {
 		return nil
 	}
@@ -56,8 +58,11 @@ func (s *stateSerializer) Traverse(n *avl.Node[types.UnitID, *Unit]) error {
 	return s.WriteNode(n)
 }
 
-func (s *stateSerializer) WriteNode(n *avl.Node[types.UnitID, *Unit]) error {
-	unit := n.Value()
+func (s *stateSerializer) WriteNode(n *avl.Node[types.UnitID, Unit]) error {
+	unit, err := ToUnitV1(n.Value())
+	if err != nil {
+		return fmt.Errorf("failed to get unit: %w", err)
+	}
 	logSize := len(unit.logs)
 	if logSize == 0 {
 		return fmt.Errorf("unit state log is empty")
@@ -79,6 +84,7 @@ func (s *stateSerializer) WriteNode(n *avl.Node[types.UnitID, *Unit]) error {
 	}
 
 	nr := &nodeRecord{
+		Version:            unit.GetVersion(),
 		UnitID:             n.Key(),
 		UnitLedgerHeadHash: latestLog.UnitLedgerHeadHash,
 		UnitData:           unitDataBytes,

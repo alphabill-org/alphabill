@@ -6,12 +6,12 @@ import (
 
 type (
 	Filter struct {
-		filterFn        func(unitID types.UnitID, unit *Unit) (bool, error)
+		filterFn        func(unitID types.UnitID, unit Unit) (bool, error)
 		filteredUnitIDs []types.UnitID
 	}
 )
 
-func NewFilter(filterFn func(unitID types.UnitID, unit *Unit) (bool, error)) *Filter {
+func NewFilter(filterFn func(unitID types.UnitID, unit Unit) (bool, error)) *Filter {
 	return &Filter{filterFn: filterFn}
 }
 

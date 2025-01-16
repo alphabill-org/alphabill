@@ -94,7 +94,7 @@ func Test_conference_tickets_v2(t *testing.T) {
 		}
 
 		env := &mockTxContext{
-			getUnit: func(id types.UnitID, committed bool) (*state.Unit, error) {
+			getUnit: func(id types.UnitID, committed bool) (state.Unit, error) {
 				if !bytes.Equal(id, tokenID) {
 					return nil, fmt.Errorf("unknown unit %x", id)
 				}
@@ -150,7 +150,7 @@ func Test_conference_tickets_v2(t *testing.T) {
 			}))
 
 		env := &mockTxContext{
-			getUnit: func(id types.UnitID, committed bool) (*state.Unit, error) {
+			getUnit: func(id types.UnitID, committed bool) (state.Unit, error) {
 				if !bytes.Equal(id, tokenID) {
 					return nil, fmt.Errorf("unknown unit %x", id)
 				}
@@ -214,7 +214,7 @@ func Test_conference_tickets_v2(t *testing.T) {
 			}))
 
 		env := &mockTxContext{
-			getUnit: func(id types.UnitID, committed bool) (*state.Unit, error) {
+			getUnit: func(id types.UnitID, committed bool) (state.Unit, error) {
 				if !bytes.Equal(id, tokenID) {
 					return nil, fmt.Errorf("unknown unit %x", id)
 				}
@@ -298,7 +298,7 @@ func Test_conference_tickets_v2(t *testing.T) {
 			}))
 
 		env := &mockTxContext{
-			getUnit: func(id types.UnitID, committed bool) (*state.Unit, error) {
+			getUnit: func(id types.UnitID, committed bool) (state.Unit, error) {
 				if !bytes.Equal(id, tokenID) {
 					return nil, fmt.Errorf("unknown unit %x", id)
 				}

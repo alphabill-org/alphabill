@@ -20,7 +20,7 @@ type (
 	}
 
 	StateReader interface {
-		GetUnit(id types.UnitID, committed bool) (*state.Unit, error)
+		GetUnit(id types.UnitID, committed bool) (state.Unit, error)
 	}
 )
 

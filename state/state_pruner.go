@@ -1,6 +1,9 @@
 package state
 
-import "bytes"
+import (
+	"bytes"
+	"fmt"
+)
 
 type (
 	statePruner struct {
@@ -23,14 +26,20 @@ func (s *statePruner) Traverse(n *node) error {
 		return err
 	}
 
-	unit := n.Value()
+	unit, err := ToUnitV1(n.Value())
+	if err != nil {
+		return fmt.Errorf("failed to get unit: %w", err)
+	}
 	logSize := len(unit.logs)
 	if logSize <= 1 {
 		return nil
 	}
 
 	latestLog := unit.logs[logSize-1]
-	clonedUnit := unit.Clone()
+	clonedUnit, err := ToUnitV1(unit.Clone())
+	if err != nil {
+		return fmt.Errorf("unable to parse cloned unit: %w", err)
+	}
 	clonedUnit.logs = []*Log{{
 		TxRecordHash:       nil,
 		UnitLedgerHeadHash: bytes.Clone(latestLog.UnitLedgerHeadHash),

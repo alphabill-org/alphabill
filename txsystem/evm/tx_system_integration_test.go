@@ -226,13 +226,14 @@ func newGenesisState(t *testing.T, initialAccountAddress []byte, initialAccountB
 	s := state.NewEmptyState()
 	if len(initialAccountAddress) > 0 && initialAccountBalance.Cmp(big.NewInt(0)) > 0 {
 		address := common.BytesToAddress(initialAccountAddress)
-		id := s.Savepoint()
+		id, err := s.Savepoint()
+		require.NoError(t, err)
 		stateDB := statedb.NewStateDB(s, logger.New(t))
 		stateDB.CreateAccount(address)
 		stateDB.AddBalance(address, uint256.MustFromBig(initialAccountBalance), tracing.BalanceChangeUnspecified)
 		s.ReleaseToSavepoint(id)
 
-		_, _, err := s.CalculateRoot()
+		_, _, err = s.CalculateRoot()
 		require.NoError(t, err)
 	}
 	return s

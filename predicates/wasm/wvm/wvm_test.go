@@ -7,7 +7,6 @@ import (
 	"math"
 	"testing"
 
-	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tetratelabs/wazero"
@@ -15,6 +14,7 @@ import (
 
 	"github.com/alphabill-org/alphabill-go-base/predicates/wasm"
 	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/predicates/wasm/wvm/bumpallocator"
@@ -57,8 +57,8 @@ func TestReadHeapBase(t *testing.T) {
 	require.Error(t, err)
 	m, err := wvm.runtime.Instantiate(context.Background(), ticketsWasm)
 	require.NoError(t, err)
-	require.EqualValues(t, 8400, m.ExportedGlobal("__heap_base").Get())
-	require.EqualValues(t, 8400, wvm.ctx.memMngr.(*bumpallocator.BumpAllocator).HeapBase())
+	require.EqualValues(t, 8384, m.ExportedGlobal("__heap_base").Get())
+	require.EqualValues(t, 8384, wvm.ctx.memMngr.(*bumpallocator.BumpAllocator).HeapBase())
 }
 
 //go:embed testdata/stack_height.wasm

@@ -79,7 +79,6 @@ func Test_conference_tickets_v2(t *testing.T) {
 	tokenID := tokenid.NewNonFungibleTokenID(t)
 
 	t.Run("type_bearer", func(t *testing.T) {
-		t.SkipNow() // TODO AB-1724
 		// organizer sets the bearer predicate when creating token type for tickets
 		predWASM, err := ticketsWasmV2.ReadFile("testdata/conference_tickets/v2/type-bearer.wasm")
 		require.NoError(t, err)
@@ -116,7 +115,7 @@ func Test_conference_tickets_v2(t *testing.T) {
 		res, err := wvm.Exec(context.Background(), predWASM, nil, conf, txNFTTransfer, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.NoError(t, err)
-		checkSpentGas(t, 10950, curGas-env.GasRemaining)
+		checkSpentGas(t, 9907, curGas-env.GasRemaining)
 		require.EqualValues(t, 0, res)
 
 		// set date past D1, should eval to false
@@ -125,12 +124,11 @@ func Test_conference_tickets_v2(t *testing.T) {
 		res, err = wvm.Exec(context.Background(), predWASM, nil, conf, txNFTTransfer, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.NoError(t, err)
-		checkSpentGas(t, 10925, curGas-env.GasRemaining)
+		checkSpentGas(t, 9882, curGas-env.GasRemaining)
 		require.EqualValues(t, 1, res)
 	})
 
 	t.Run("type_update_data", func(t *testing.T) {
-		t.SkipNow() // TODO AB-1724
 		// organizer sets the update-data predicate when creating token type for tickets
 		// so it will be evaluated when update-nft tx is executed
 		// expects no arguments from user, doesn't require access to the "conference configuration"
@@ -172,7 +170,7 @@ func Test_conference_tickets_v2(t *testing.T) {
 		res, err := wvm.Exec(context.Background(), predWASM, nil, conf, txNFTUpdate, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.NoError(t, err)
-		checkSpentGas(t, 10372, curGas-env.GasRemaining)
+		checkSpentGas(t, 9838, curGas-env.GasRemaining)
 		require.EqualValues(t, 0, res)
 
 		// update data to "foobar", should evaluate to false
@@ -185,12 +183,11 @@ func Test_conference_tickets_v2(t *testing.T) {
 		res, err = wvm.Exec(context.Background(), predWASM, nil, conf, txNFTUpdate, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.NoError(t, err)
-		checkSpentGas(t, 5318, curGas-env.GasRemaining)
+		checkSpentGas(t, 5226, curGas-env.GasRemaining)
 		require.EqualValues(t, 0x201, res, `expected error code 2: new value of the token data is not "regular"`)
 	})
 
 	t.Run("token_bearer", func(t *testing.T) {
-		t.SkipNow() // TODO AB-1724
 		// predicate is used as "bearer predicate" by the conference organizer when
 		// minting an token (ticket) for "open-market" (ie not to concrete receiver).
 		// When organizer receives (ie off-line) payment he can transfer the token to
@@ -245,7 +242,7 @@ func Test_conference_tickets_v2(t *testing.T) {
 		res, err := wvm.Exec(context.Background(), predWASM, ownerProofOrg, conf, txNFTTransfer, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.NoError(t, err)
-		checkSpentGas(t, 7403, curGas-env.GasRemaining)
+		checkSpentGas(t, 6964, curGas-env.GasRemaining)
 		require.EqualValues(t, 0, res)
 
 		// sign the transfer with some other key - p2pkh check should eval to "false" and predicate
@@ -259,7 +256,7 @@ func Test_conference_tickets_v2(t *testing.T) {
 		res, err = wvm.Exec(context.Background(), predWASM, ownerProofAttendee, conf, txNFTTransfer, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.NoError(t, err)
-		checkSpentGas(t, 7417, curGas-env.GasRemaining)
+		checkSpentGas(t, 6978, curGas-env.GasRemaining)
 		require.EqualValues(t, 0x801, res)
 
 		// set the OwnerProof to BLOB containing the payment proof, token is "early-bird"
@@ -275,12 +272,11 @@ func Test_conference_tickets_v2(t *testing.T) {
 		res, err = wvm.Exec(context.Background(), predWASM, ownerProofAttendee, conf, txNFTTransfer, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.NoError(t, err)
-		checkSpentGas(t, 13495, curGas-env.GasRemaining)
+		checkSpentGas(t, 12604, curGas-env.GasRemaining)
 		require.EqualValues(t, 0, res)
 	})
 
 	t.Run("token_update_data", func(t *testing.T) {
-		t.SkipNow() // TODO AB-1724
 		// If the ticket was originally bought as "early-bird" and is being transferred
 		// after `D1`, it must first be "upgraded" to "regular" by paying the conference
 		// organizer the price difference `P2-P1`.
@@ -331,7 +327,7 @@ func Test_conference_tickets_v2(t *testing.T) {
 		res, err := wvm.Exec(context.Background(), predWASM, ownerProofOrg, conf, txNFTUpdate, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.NoError(t, err)
-		checkSpentGas(t, 6969, curGas-env.GasRemaining)
+		checkSpentGas(t, 6804, curGas-env.GasRemaining)
 		require.EqualValues(t, 0, res)
 
 		// set the OwnerProof to BLOB containing the payment proof (user upgrades the ticket)
@@ -344,7 +340,7 @@ func Test_conference_tickets_v2(t *testing.T) {
 		res, err = wvm.Exec(context.Background(), predWASM, ownerProof, conf, txNFTUpdate, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.NoError(t, err)
-		checkSpentGas(t, 8450, curGas-env.GasRemaining)
+		checkSpentGas(t, 8383, curGas-env.GasRemaining)
 		require.EqualValues(t, 0, res)
 
 		// user attempts to upgrade the ticket but the sum (amount of money transferred) in the payment proof is wrong
@@ -357,22 +353,13 @@ func Test_conference_tickets_v2(t *testing.T) {
 		res, err = wvm.Exec(context.Background(), predWASM, ownerProof, conf, txNFTUpdate, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.NoError(t, err)
-		checkSpentGas(t, 8450, curGas-env.GasRemaining)
+		checkSpentGas(t, 8383, curGas-env.GasRemaining)
 		require.EqualValues(t, 0x701, res, "expected code `7` = transferred amount doesn't equal to `P2 - P1`")
 	})
 }
 
 // create tx record and tx proof pair for money transfer and serialize them into
 // CBOR array usable as predicate argument for mint and update token tx
-// Type used by wallet to serialize tx proofs into file is struct
-//
-//	type Proof struct {
-//		_        struct{}                 `cbor:",toarray"`
-//		TxRecord *types.TransactionRecord `json:"txRecord"`
-//		TxProof  *types.TxProof           `json:"txProof"`
-//	}
-//
-// but we construct it manually out of raw CBOR arrays
 func proofOfPayment(t *testing.T, signer abcrypto.Signer, receiverPK []byte, value uint64, refNo []byte) []byte {
 	// attendee transfers to the organizer
 	txPayment := &types.TransactionOrder{
@@ -401,18 +388,7 @@ func proofOfPayment(t *testing.T, signer abcrypto.Signer, receiverPK []byte, val
 	txRec := &types.TransactionRecord{Version: 1, TransactionOrder: txBytes, ServerMetadata: &types.ServerMetadata{ActualFee: 25, SuccessIndicator: types.TxStatusSuccessful}}
 	txRecProof := testblock.CreateTxRecordProof(t, txRec, signer, testblock.WithPartitionID(money.DefaultPartitionID))
 
-	b, err := types.Cbor.Marshal(txRec)
-	require.NoError(t, err)
-
-	args := []types.RawCBOR{b}
-	b, err = types.Cbor.Marshal(txRecProof)
-	require.NoError(t, err)
-
-	b, err = types.Cbor.Marshal(append(args, b))
-	require.NoError(t, err)
-
-	// and wrap it into another array
-	b, err = types.Cbor.Marshal([]types.RawCBOR{b})
+	b, err := types.Cbor.Marshal([]*types.TxRecordProof{txRecProof})
 	require.NoError(t, err)
 	return b
 }

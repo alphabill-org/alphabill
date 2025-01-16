@@ -173,7 +173,7 @@ func NewGenesisBlock(hash crypto.Hash, pg []*genesis.GenesisPartitionRecord) (*E
 		}
 		shardStates[partitionShard{partitionID, shardID.Key()}] = si
 
-		nodeIDs := util.TransformSlice(partition.Nodes, func(pn *genesis.PartitionNode) string { return pn.NodeID })
+		nodeIDs := util.TransformSlice(partition.Validators, func(pn *genesis.PartitionNode) string { return pn.NodeID })
 		tr, err := rcgenesis.TechnicalRecord(partition.Certificate.InputRecord, nodeIDs)
 		if err != nil {
 			return nil, fmt.Errorf("creating TechnicalRecord: %w", err)

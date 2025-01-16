@@ -91,11 +91,6 @@ func orchestrationGenesisRunFun(_ context.Context, config *orchestrationGenesisC
 		return err
 	}
 
-	authPubKey, err := keys.AuthPrivKey.GetPublic().Raw()
-	if err != nil {
-		return err
-	}
-
 	genesisState := state.NewEmptyState()
 
 	params, err := config.getPartitionParams()
@@ -107,8 +102,7 @@ func orchestrationGenesisRunFun(_ context.Context, config *orchestrationGenesisC
 		genesisState,
 		*pdr,
 		partition.WithPeerID(peerID),
-		partition.WithSignPrivKey(keys.SignPrivKey),
-		partition.WithAuthPubKey(authPubKey),
+		partition.WithSigner(keys.Signer),
 		partition.WithParams(params),
 	)
 	if err != nil {

@@ -17,8 +17,7 @@ func TestPartitionNode_IsValid_InvalidInputs(t *testing.T) {
 	require.NoError(t, err)
 	type fields struct {
 		NodeID                           string
-		SignKey                          []byte
-		AuthKey                          []byte
+		SigKey                           []byte
 		BlockCertificationRequestRequest *certification.BlockCertificationRequest
 	}
 
@@ -37,43 +36,24 @@ func TestPartitionNode_IsValid_InvalidInputs(t *testing.T) {
 		{
 			name: "signing public key is missing",
 			fields: fields{
-				NodeID:  nodeID,
-				SignKey: nil,
+				NodeID: nodeID,
+				SigKey: nil,
 			},
-			wantErrStr: ErrSignKeyIsInvalid.Error(),
+			wantErrStr: ErrSigKeyIsInvalid.Error(),
 		},
 		{
 			name: "signing public key is invalid",
 			fields: fields{
-				NodeID:  "1",
-				SignKey: []byte{0, 0, 0, 0},
+				NodeID: "1",
+				SigKey: []byte{0, 0, 0, 0},
 			},
 			wantErrStr: "invalid signing public key, pubkey must be 33 bytes long, but is 4",
-		},
-		{
-			name: "authentication public key is missing",
-			fields: fields{
-				NodeID:  nodeID,
-				SignKey: pubKey,
-				AuthKey: nil,
-			},
-			wantErrStr: ErrAuthKeyIsInvalid.Error(),
-		},
-		{
-			name: "authentication public key is invalid",
-			fields: fields{
-				NodeID:  "1",
-				SignKey: pubKey,
-				AuthKey: []byte{0, 0, 0, 0},
-			},
-			wantErrStr: "invalid authentication public key, pubkey must be 33 bytes long, but is 4",
 		},
 		{
 			name: "invalid p1 request",
 			fields: fields{
 				NodeID:                           nodeID,
-				SignKey:                          pubKey,
-				AuthKey:                          pubKey,
+				SigKey:                           pubKey,
 				BlockCertificationRequestRequest: nil,
 			},
 			wantErrStr: "block certification request validation failed, block certification request is nil",
@@ -84,8 +64,7 @@ func TestPartitionNode_IsValid_InvalidInputs(t *testing.T) {
 			x := &PartitionNode{
 				Version:                   1,
 				NodeID:                    tt.fields.NodeID,
-				AuthKey:                   tt.fields.AuthKey,
-				SignKey:                   tt.fields.SignKey,
+				SigKey:                    tt.fields.SigKey,
 				BlockCertificationRequest: tt.fields.BlockCertificationRequestRequest,
 			}
 			err = x.IsValid()
@@ -100,7 +79,7 @@ func TestPartitionNode_IsValid_InvalidInputs(t *testing.T) {
 
 func TestPartitionNodeIsValid(t *testing.T) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
-	signKey, err := verifier.MarshalPublicKey()
+	sigKey, err := verifier.MarshalPublicKey()
 	require.NoError(t, err)
 	req := &certification.BlockCertificationRequest{
 		PartitionID: 1,
@@ -119,8 +98,7 @@ func TestPartitionNodeIsValid(t *testing.T) {
 	pn := &PartitionNode{
 		Version:                   1,
 		NodeID:                    nodeID,
-		AuthKey:                   signKey,
-		SignKey:                   signKey,
+		SigKey:                    sigKey,
 		BlockCertificationRequest: req,
 	}
 	require.NoError(t, pn.IsValid())

@@ -97,6 +97,7 @@ func txaDefineFungibleTokenAttributes(txo *types.TransactionOrder, ver uint32) (
 	if len(attr.ParentTypeID) != 0 {
 		buf.EncodeTagged(3, attr.ParentTypeID)
 	}
+	buf.EncodeTagged(4, attr.DecimalPlaces)
 	return buf.Bytes()
 }
 

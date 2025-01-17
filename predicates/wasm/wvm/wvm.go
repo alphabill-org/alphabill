@@ -71,6 +71,7 @@ type (
 
 	EvalEnvironment interface {
 		GetUnit(id types.UnitID, committed bool) (*state.Unit, error)
+		CommittedUC() *types.UnicityCertificate
 		CurrentRound() uint64
 		TrustBase(epoch uint64) (types.RootTrustBase, error)
 		GasAvailable() uint64

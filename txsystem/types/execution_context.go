@@ -10,6 +10,7 @@ import (
 type (
 	StateInfo interface {
 		GetUnit(id types.UnitID, committed bool) (*state.Unit, error)
+		CommittedUC() *types.UnicityCertificate
 		CurrentRound() uint64
 	}
 
@@ -32,6 +33,10 @@ type (
 
 func (ec *TxExecutionContext) GetUnit(id types.UnitID, committed bool) (*state.Unit, error) {
 	return ec.txs.GetUnit(id, committed)
+}
+
+func (ec *TxExecutionContext) CommittedUC() *types.UnicityCertificate {
+	return ec.txs.CommittedUC()
 }
 
 func (ec *TxExecutionContext) CurrentRound() uint64 { return ec.txs.CurrentRound() }

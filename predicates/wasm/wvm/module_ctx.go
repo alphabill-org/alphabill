@@ -2,6 +2,7 @@ package wvm
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/tetratelabs/wazero"
@@ -17,6 +18,7 @@ ie current transaction, predicate arguments, round number etc.
 */
 func addContextModule(ctx context.Context, rt wazero.Runtime, _ Observability) error {
 	_, err := rt.NewHostModuleBuilder("context").
+		NewFunctionBuilder().WithGoModuleFunction(hostAPI(expCurrentTime), nil, []api.ValueType{api.ValueTypeI64}).Export("now").
 		NewFunctionBuilder().WithGoModuleFunction(hostAPI(expCurrentRound), nil, []api.ValueType{api.ValueTypeI64}).Export("current_round").
 		NewFunctionBuilder().WithGoModuleFunction(hostAPI(createObjH), []api.ValueType{api.ValueTypeI32, api.ValueTypeI64}, []api.ValueType{api.ValueTypeI64}).Export("create_obj_h").
 		NewFunctionBuilder().WithGoModuleFunction(hostAPI(createObjMem), []api.ValueType{api.ValueTypeI32, api.ValueTypeI64}, []api.ValueType{api.ValueTypeI64}).Export("create_obj_m").
@@ -130,5 +132,14 @@ func expTxAttributes(vec *vmContext, mod api.Module, stack []uint64) error {
 
 func expCurrentRound(vec *vmContext, mod api.Module, stack []uint64) error {
 	stack[0] = vec.curPrg.env.CurrentRound()
+	return nil
+}
+
+func expCurrentTime(vec *vmContext, mod api.Module, stack []uint64) error {
+	uc := vec.curPrg.env.CommittedUC()
+	if uc == nil {
+		return errors.New("no committed UC available")
+	}
+	stack[0] = uc.UnicitySeal.Timestamp
 	return nil
 }

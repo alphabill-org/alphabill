@@ -100,7 +100,11 @@ func Test_conference_tickets_v2(t *testing.T) {
 				}
 				return state.NewUnit(&tokens.NonFungibleTokenData{Data: []byte("early-bird"), OwnerPredicate: []byte{1}}), nil
 			},
-			curRound:     func() uint64 { return earlyBirdDate },
+			committedUC: func() *types.UnicityCertificate {
+				return &types.UnicityCertificate{
+					UnicitySeal: &types.UnicitySeal{Timestamp: earlyBirdDate},
+				}
+			},
 			GasRemaining: 30000,
 			exArgument:   txNFTTransfer.AuthProofSigBytes,
 		}
@@ -119,7 +123,11 @@ func Test_conference_tickets_v2(t *testing.T) {
 		require.EqualValues(t, 0, res)
 
 		// set date past D1, should eval to false
-		env.curRound = func() uint64 { return earlyBirdDate + 1 }
+		env.committedUC = func() *types.UnicityCertificate {
+			return &types.UnicityCertificate{
+				UnicitySeal: &types.UnicitySeal{Timestamp: earlyBirdDate + 1},
+			}
+		}
 		start, curGas = time.Now(), env.GasRemaining
 		res, err = wvm.Exec(context.Background(), predWASM, nil, conf, txNFTTransfer, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
@@ -304,8 +312,12 @@ func Test_conference_tickets_v2(t *testing.T) {
 				}
 				return state.NewUnit(&tokens.NonFungibleTokenData{Data: []byte("early-bird"), OwnerPredicate: []byte{1}}), nil
 			},
-			trustBase:    func() (types.RootTrustBase, error) { return trustbase, nil },
-			curRound:     func() uint64 { return regularDate },
+			trustBase: func() (types.RootTrustBase, error) { return trustbase, nil },
+			committedUC: func() *types.UnicityCertificate {
+				return &types.UnicityCertificate{
+					UnicitySeal: &types.UnicitySeal{Timestamp: regularDate},
+				}
+			},
 			GasRemaining: 30000,
 			exArgument:   txNFTUpdate.AuthProofSigBytes,
 		}

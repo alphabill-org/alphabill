@@ -401,6 +401,7 @@ func Benchmark_templateExecute(b *testing.B) {
 type mockTxContext struct {
 	gasRemaining uint64
 	getUnit      func(id types.UnitID, committed bool) (*state.Unit, error)
+	committedUC  func() *types.UnicityCertificate
 	spendGas     func(gas uint64) error
 	exArgument   func() ([]byte, error)
 }
@@ -416,6 +417,8 @@ func (env *mockTxContext) SpendGas(gas uint64) error {
 func (env *mockTxContext) GetUnit(id types.UnitID, committed bool) (*state.Unit, error) {
 	return env.getUnit(id, committed)
 }
+
+func (env *mockTxContext) CommittedUC() *types.UnicityCertificate { return env.committedUC() }
 
 func (env *mockTxContext) CurrentRound() uint64 { return 0 }
 

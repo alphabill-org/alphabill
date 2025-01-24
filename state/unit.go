@@ -39,6 +39,8 @@ func NewUnit(data types.UnitData) *UnitV1 {
 }
 
 func (u *UnitV1) GetVersion() types.ABVersion {
+	// no need for the version field
+	// because this struct is not serialized directly
 	return 1
 }
 

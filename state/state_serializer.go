@@ -13,8 +13,9 @@ const CBORChecksumLength = 5
 
 type (
 	header struct {
-		_                  struct{} `cbor:",toarray"`
-		Version            types.ABVersion
+		_       struct{} `cbor:",toarray"`
+		Version types.ABVersion
+		// new version of UC implies new version of the header struct
 		UnicityCertificate *types.UnicityCertificate
 		NodeRecordCount    uint64
 	}

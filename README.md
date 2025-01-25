@@ -144,4 +144,4 @@ This repository contains the source code released under the AGPL-3.
 
 See [LICENSE](./LICENSE) file for details.
 
-Copyright © 2025 Guardtime SA, guardtime.com
+Copyright © 2022-2025 Guardtime SA, guardtime.com

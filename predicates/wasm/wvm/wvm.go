@@ -85,6 +85,7 @@ type (
 		Encode(obj any, ver uint32, getHandle func(obj any) uint64) ([]byte, error)
 		TxAttributes(txo *types.TransactionOrder, ver uint32) ([]byte, error)
 		UnitData(unit *state.Unit, ver uint32) ([]byte, error)
+		AuthProof(txo *types.TransactionOrder) ([]byte, error)
 	}
 
 	Observability interface {

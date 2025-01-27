@@ -69,6 +69,7 @@ func Test_conference_tickets_v2(t *testing.T) {
 	txsEnc := encoder.TXSystemEncoder{}
 	require.NoError(t, tokenenc.RegisterTxAttributeEncoders(txsEnc.RegisterAttrEncoder))
 	require.NoError(t, tokenenc.RegisterUnitDataEncoders(txsEnc.RegisterUnitDataEncoder))
+	require.NoError(t, tokenenc.RegisterAuthProof(txsEnc.RegisterAuthProof))
 
 	tmpPred, err := templates.New(observability.Default(t))
 	require.NoError(t, err)

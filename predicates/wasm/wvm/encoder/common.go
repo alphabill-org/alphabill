@@ -8,15 +8,20 @@ import (
 	"github.com/alphabill-org/alphabill/state"
 )
 
-// returns tx order attributes encoded to WASM representation
-type TxAttributesEncoder func(txo *types.TransactionOrder, ver uint32) ([]byte, error)
+type (
+	// returns tx order attributes encoded to WASM representation
+	TxAttributesEncoder func(txo *types.TransactionOrder, ver uint32) ([]byte, error)
 
-type UnitDataEncoder func(data types.UnitData, ver uint32) ([]byte, error)
+	// returns unit data encoded to WASM representation
+	UnitDataEncoder func(data types.UnitData, ver uint32) ([]byte, error)
 
-// tx attribute encoder ID
-type AttrEncID struct {
-	TxSys types.PartitionID
-	Attr  uint16 // tx type id
+	// returns authorization proof (aka OwnerProof) of the txo.
+	AuthProof func(txo *types.TransactionOrder) ([]byte, error)
+)
+
+type PartitionTxType struct {
+	Partition types.PartitionID
+	TxType    uint16 // tx type id
 }
 
 /*
@@ -24,21 +29,26 @@ TXSystemEncoder is "generic" tx system encoder, parts specific to given tx syste
 wants to use it with Wazero WASM predicates) must be added using Register*Encoder methods.
 */
 type TXSystemEncoder struct {
-	attrEnc map[AttrEncID]TxAttributesEncoder
+	attrEnc map[PartitionTxType]TxAttributesEncoder
 	udEnc   map[reflect.Type]UnitDataEncoder
+	auth    map[PartitionTxType]AuthProof
 }
 
 func New(f ...any) (TXSystemEncoder, error) {
 	enc := TXSystemEncoder{}
 	for x, v := range f {
 		switch rf := v.(type) {
-		case func(func(id AttrEncID, enc TxAttributesEncoder) error) error:
+		case func(func(id PartitionTxType, enc TxAttributesEncoder) error) error:
 			if err := rf(enc.RegisterAttrEncoder); err != nil {
 				return enc, fmt.Errorf("registering attribute encoder [%d]: %w", x, err)
 			}
 		case func(func(ud any, encoder UnitDataEncoder) error) error:
 			if err := rf(enc.RegisterUnitDataEncoder); err != nil {
 				return enc, fmt.Errorf("registering unit-data encoder [%d]: %w", x, err)
+			}
+		case func(reg func(id PartitionTxType, enc AuthProof) error) error:
+			if err := rf(enc.RegisterAuthProof); err != nil {
+				return enc, fmt.Errorf("registering auth proof handlers [%d]: %w", x, err)
 			}
 		default:
 			return enc, fmt.Errorf("unsupported registration function type [%d]: %T", x, v)
@@ -88,7 +98,7 @@ func (TXSystemEncoder) txOrder(txo *types.TransactionOrder, _ uint32) ([]byte, e
 }
 
 func (enc TXSystemEncoder) TxAttributes(txo *types.TransactionOrder, ver uint32) ([]byte, error) {
-	encoder, ok := enc.attrEnc[AttrEncID{TxSys: txo.PartitionID, Attr: txo.Type}]
+	encoder, ok := enc.attrEnc[PartitionTxType{txo.PartitionID, txo.Type}]
 	if !ok {
 		return nil, fmt.Errorf("serializing to bytes is not implemented for transaction system %d %q attributes", txo.PartitionID, txo.Type)
 	}
@@ -102,6 +112,25 @@ func (enc TXSystemEncoder) UnitData(unit *state.Unit, ver uint32) ([]byte, error
 		return nil, fmt.Errorf("serializing to bytes is not implemented for unit data type %T", data)
 	}
 	return encoder(data, ver)
+}
+
+func (enc TXSystemEncoder) AuthProof(txo *types.TransactionOrder) ([]byte, error) {
+	f, ok := enc.auth[PartitionTxType{txo.PartitionID, txo.Type}]
+	if !ok {
+		return nil, fmt.Errorf("auth proof handler for partition %s tx type %d not registered", txo.PartitionID, txo.Type)
+	}
+	return f(txo)
+}
+
+func (enc *TXSystemEncoder) RegisterAuthProof(id PartitionTxType, handler AuthProof) error {
+	if enc.auth == nil {
+		enc.auth = make(map[PartitionTxType]AuthProof)
+	}
+	if _, ok := enc.auth[id]; ok {
+		return fmt.Errorf("tx auth proof handler for %v is already registered", id)
+	}
+	enc.auth[id] = handler
+	return nil
 }
 
 func (enc *TXSystemEncoder) RegisterUnitDataEncoder(ud any, encoder UnitDataEncoder) error {
@@ -119,9 +148,9 @@ func (enc *TXSystemEncoder) RegisterUnitDataEncoder(ud any, encoder UnitDataEnco
 /*
 RegisterAttrEncoder registers tx attribute encoder.
 */
-func (enc *TXSystemEncoder) RegisterAttrEncoder(id AttrEncID, encoder TxAttributesEncoder) error {
+func (enc *TXSystemEncoder) RegisterAttrEncoder(id PartitionTxType, encoder TxAttributesEncoder) error {
 	if enc.attrEnc == nil {
-		enc.attrEnc = make(map[AttrEncID]TxAttributesEncoder)
+		enc.attrEnc = make(map[PartitionTxType]TxAttributesEncoder)
 	}
 	if _, ok := enc.attrEnc[id]; ok {
 		return fmt.Errorf("tx attribute encoder for %v is already registered", id)
@@ -137,8 +166,8 @@ out undesired encoders.
     executed and only these for which filter returned true actual registration is
     attempted.
 */
-func (enc *TXSystemEncoder) RegisterTxAttributeEncoders(reg func(func(id AttrEncID, enc TxAttributesEncoder) error) error, filter func(AttrEncID) bool) error {
-	return reg(func(id AttrEncID, encoder TxAttributesEncoder) error {
+func (enc *TXSystemEncoder) RegisterTxAttributeEncoders(reg func(func(id PartitionTxType, enc TxAttributesEncoder) error) error, filter func(PartitionTxType) bool) error {
+	return reg(func(id PartitionTxType, encoder TxAttributesEncoder) error {
 		if !filter(id) {
 			return nil
 		}

@@ -39,21 +39,18 @@ func (x *mockIRVerifier) VerifyIRChangeReq(_ uint64, irChReq *drctypes.IRChangeR
 }
 
 func TestNewExecutedBlockFromGenesis(t *testing.T) {
-	partitionNodes, partitionRecord := testutils.CreatePartitionNodesAndPartitionRecord(t, genesisInputRecord, partitionID1, 3)
+	peers, nodes := testutils.CreatePartitionNodes(t, genesisInputRecord, partitionID1, 3)
 	rootNode := testutils.NewTestNode(t)
-	verifier := rootNode.Verifier
-	rootPubKeyBytes, err := verifier.MarshalPublicKey()
-	require.NoError(t, err)
 	id := rootNode.PeerConf.ID
-	rootGenesis, _, err := rootgenesis.NewRootGenesis(id.String(), rootNode.Signer, rootPubKeyBytes, []*genesis.PartitionRecord{partitionRecord})
+	rootGenesis, _, err := rootgenesis.NewRootGenesis(id.String(), rootNode.Signer, nodes)
 	require.NoError(t, err)
 	hash := crypto.Hash(rootGenesis.Root.Consensus.HashAlgorithm)
-	var varNodes []partitions.NodeInfo
-	for _, pn := range partitionNodes {
-		varNodes = append(varNodes, partitions.NodeInfo{
-			NodeID:  pn.PeerConf.ID.String(),
-			AuthKey: pn.PeerConf.KeyPair.PublicKey,
-			SignKey: pn.PeerConf.KeyPair.PublicKey,
+	var varNodes []*types.NodeInfo
+	for _, peer := range peers {
+		varNodes = append(varNodes, &types.NodeInfo{
+			NodeID: peer.PeerConf.ID.String(),
+			SigKey: peer.PeerConf.KeyPair.PublicKey,
+			Stake:  1,
 		})
 	}
 	b, err := NewGenesisBlock(hash, rootGenesis.Partitions)
@@ -78,21 +75,17 @@ func TestNewExecutedBlockFromGenesis(t *testing.T) {
 }
 
 func TestExecutedBlock_Extend(t *testing.T) {
-	partitionNodes, partitionRecord := testutils.CreatePartitionNodesAndPartitionRecord(t, genesisInputRecord, partitionID1, 3)
+	peers, nodes := testutils.CreatePartitionNodes(t, genesisInputRecord, partitionID1, 3)
 	rootNode := testutils.NewTestNode(t)
-	verifier := rootNode.Verifier
-	rootPubKeyBytes, err := verifier.MarshalPublicKey()
-	require.NoError(t, err)
 	id := rootNode.PeerConf.ID
-	rootGenesis, _, err := rootgenesis.NewRootGenesis(id.String(), rootNode.Signer, rootPubKeyBytes, []*genesis.PartitionRecord{partitionRecord})
+	rootGenesis, _, err := rootgenesis.NewRootGenesis(id.String(), rootNode.Signer, nodes)
 	require.NoError(t, err)
 	hash := crypto.Hash(rootGenesis.Root.Consensus.HashAlgorithm)
-	var varNodes []partitions.NodeInfo
-	for _, pn := range partitionNodes {
-		varNodes = append(varNodes, partitions.NodeInfo{
-			NodeID:  pn.PeerConf.ID.String(),
-			AuthKey: pn.PeerConf.KeyPair.PublicKey,
-			SignKey: pn.PeerConf.KeyPair.PublicKey,
+	var varNodes []*types.NodeInfo
+	for _, peer := range peers {
+		varNodes = append(varNodes, &types.NodeInfo{
+			NodeID:  peer.PeerConf.ID.String(),
+			SigKey: peer.PeerConf.KeyPair.PublicKey,
 		})
 	}
 	orchestration := mockOrchestration{

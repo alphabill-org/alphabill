@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
+	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/util"
 	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
@@ -45,17 +46,18 @@ func Test_RootGenesis_New(t *testing.T) {
 		require.NoError(t, rootGenesis.Verify())
 		partitionGenesis, err := util.ReadJsonFile(filepath.Join(rootDir, "partition-genesis-1.json"), &genesis.PartitionGenesis{})
 		require.NoError(t, err)
-		require.Len(t, partitionGenesis.RootValidators, 1)
-		trustBase, err := partitionGenesis.GenerateRootTrustBase()
+
+		trustBase, err := types.NewTrustBaseGenesis(rootGenesis.Root.RootValidators, partitionGenesis.Certificate.UnicitySeal.Hash)
 		require.NoError(t, err)
 		require.NoError(t, partitionGenesis.IsValid(trustBase, crypto.SHA256))
+
 		// verify root consensus parameters, using defaults
 		require.EqualValues(t, 1, rootGenesis.Root.Consensus.TotalRootValidators)
 		require.EqualValues(t, 900, rootGenesis.Root.Consensus.BlockRateMs)
 		require.EqualValues(t, 10000, rootGenesis.Root.Consensus.ConsensusTimeoutMs)
 		require.Len(t, rootGenesis.Partitions, 1)
 		// verify, content
-		require.Len(t, rootGenesis.Partitions[0].Nodes, 1)
+		require.Len(t, rootGenesis.Partitions[0].Validators, 1)
 		require.EqualValues(t, rootGenesis.Partitions[0].PartitionDescription.PartitionID, money.DefaultPartitionID)
 	})
 

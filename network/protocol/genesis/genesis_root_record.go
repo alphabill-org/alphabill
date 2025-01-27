@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 
+	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
 )
 
@@ -15,10 +16,10 @@ var (
 )
 
 type GenesisRootRecord struct {
-	_              struct{}         `cbor:",toarray"`
-	Version        types.ABVersion  `json:"version"`
-	RootValidators []*PublicKeyInfo `json:"rootValidators"`
-	Consensus      *ConsensusParams `json:"consensus"`
+	_              struct{}          `cbor:",toarray"`
+	Version        types.ABVersion   `json:"version"`
+	RootValidators []*types.NodeInfo `json:"rootValidators"`
+	Consensus      *ConsensusParams  `json:"consensus"`
 }
 
 // IsValid only validates Consensus structure and that it signed by the listed root nodes
@@ -36,7 +37,7 @@ func (x *GenesisRootRecord) IsValid() error {
 		return ErrConsensusIsNil
 	}
 	// 1. Check all registered validator nodes are unique and have all fields set correctly
-	err := ValidatorInfoUnique(x.RootValidators)
+	err := validateNodes(x.RootValidators)
 	if err != nil {
 		return err
 	}
@@ -46,7 +47,7 @@ func (x *GenesisRootRecord) IsValid() error {
 		return fmt.Errorf("consensus parameters not valid: %w", err)
 	}
 	// 3. Verify that all signatures are valid and from known authors
-	verifiers, err := NewValidatorTrustBase(x.RootValidators)
+	verifiers, err := getVerifiers(x.RootValidators)
 	if err != nil {
 		return err
 	}
@@ -76,14 +77,14 @@ func (x *GenesisRootRecord) Verify() error {
 	return nil
 }
 
-// FindPubKeyById returns matching PublicKeyInfo matching node id or nil if not found
-func (x *GenesisRootRecord) FindPubKeyById(id string) *PublicKeyInfo {
+// FindRootValidatorByNodeID returns NodeInfo for the given nodeID or nil if not found
+func (x *GenesisRootRecord) FindRootValidatorByNodeID(nodeID string) *types.NodeInfo {
 	if x == nil {
 		return nil
 	}
 	// linear search for id
 	for _, info := range x.RootValidators {
-		if info.NodeID == id {
+		if info.NodeID == nodeID {
 			return info
 		}
 	}
@@ -102,4 +103,30 @@ func (x *GenesisRootRecord) MarshalCBOR() ([]byte, error) {
 func (x *GenesisRootRecord) UnmarshalCBOR(data []byte) error {
 	type alias GenesisRootRecord
 	return types.Cbor.UnmarshalTaggedValue(types.GenesisRootRecordTag, data, (*alias)(x))
+}
+
+func getVerifiers(nodes []*types.NodeInfo) (map[string]abcrypto.Verifier, error) {
+	res := make(map[string]abcrypto.Verifier, len(nodes))
+	for _, node := range nodes {
+		sigVerifier, err := node.SigVerifier()
+		if err != nil {
+			return nil, err
+		}
+		res[node.NodeID] = sigVerifier
+	}
+	return res, nil
+}
+
+func validateNodes(nodes []*types.NodeInfo) error {
+	var nodeIDs = make(map[string]struct{})
+	for _, node := range nodes {
+		if err := node.IsValid(); err != nil {
+			return err
+		}
+		if _, f := nodeIDs[node.NodeID]; f {
+			return fmt.Errorf("duplicate node id: %v", node.NodeID)
+		}
+		nodeIDs[node.NodeID] = struct{}{}
+	}
+	return nil
 }

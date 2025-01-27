@@ -298,10 +298,11 @@ func Test_ShardInfo_nextRound(t *testing.T) {
 			ShardID:     types.ShardID{},
 			EpochNumber: 3,
 			RoundNumber: 101,
-			Nodes: []partitions.NodeInfo{
+			Nodes: []*types.NodeInfo{
 				{
-					NodeID:  "2222",
-					SignKey: pubKey,
+					NodeID: "2222",
+					SigKey: pubKey,
+					Stake:  1,
 				},
 			},
 		}
@@ -355,10 +356,11 @@ func Test_ShardInfo_NextEpoch(t *testing.T) {
 		ShardID:     types.ShardID{},
 		EpochNumber: 2,
 		RoundNumber: 101,
-		Nodes: []partitions.NodeInfo{
+		Nodes: []*types.NodeInfo{
 			{
-				NodeID:  "2222",
-				SignKey: validKey,
+				NodeID: "2222",
+				SigKey: validKey,
+				Stake:  1,
 			},
 		},
 	}
@@ -486,11 +488,11 @@ func Test_NewShardInfoFromGenesis(t *testing.T) {
 	}
 	pdr := &types.PartitionDescriptionRecord{PartitionID: 7}
 	zH := make([]byte, 32)
-	nodeID, authKey := testutils.RandomNodeID(t)
+	nodeID, _ := testutils.RandomNodeID(t)
 	pgEpoch1 := &genesis.GenesisPartitionRecord{
 		Version: 1,
-		Nodes: []*genesis.PartitionNode{
-			{NodeID: nodeID, AuthKey: authKey, SignKey: validKey},
+		Validators: []*genesis.PartitionNode{
+			{NodeID: nodeID, SigKey: validKey},
 		},
 		Certificate:          testcertificates.CreateUnicityCertificate(t, signer, ir, pdr, 1, zH, zH),
 		PartitionDescription: pdr,
@@ -511,7 +513,7 @@ func Test_NewShardInfoFromGenesis(t *testing.T) {
 
 	t.Run("no nodes", func(t *testing.T) {
 		pg := *pgEpoch1
-		pg.Nodes = nil
+		pg.Validators = nil
 		si, err := NewShardInfoFromGenesis(&pg)
 		require.EqualError(t, err, `creating TechnicalRecord: node list is empty`)
 		require.Empty(t, si)
@@ -519,8 +521,8 @@ func Test_NewShardInfoFromGenesis(t *testing.T) {
 
 	t.Run("invalid key", func(t *testing.T) {
 		pg := *pgEpoch1
-		pg.Nodes = []*genesis.PartitionNode{
-			{NodeID: "1111", SignKey: []byte{1, 2, 3}},
+		pg.Validators = []*genesis.PartitionNode{
+			{NodeID: "1111", SigKey: []byte{1, 2, 3}},
 		}
 		si, err := NewShardInfoFromGenesis(&pg)
 		require.EqualError(t, err, `shard info init: creating verifier for the node "1111": pubkey must be 33 bytes long, but is 3`)

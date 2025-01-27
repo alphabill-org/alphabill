@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 
-	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/util"
 	"github.com/alphabill-org/alphabill/keyvaluedb"
@@ -42,17 +41,6 @@ func (x *Store) LoadTrustBase(epochNumber uint64) (types.RootTrustBase, error) {
 		if !ok {
 			return nil, nil
 		}
-		// post process the trust base struct to fill private fields
-		var nodes = make(map[string]*types.NodeInfo)
-		for _, rn := range tb.RootNodes {
-			verifier, err := abcrypto.NewVerifierSecp256k1(rn.PublicKey)
-			if err != nil {
-				return nil, err
-			}
-			nodeInfo := types.NewNodeInfo(rn.NodeID, rn.Stake, verifier)
-			nodes[nodeInfo.NodeID] = nodeInfo
-		}
-		tb.RootNodes = nodes
 		return tb, nil
 	} else {
 		return nil, fmt.Errorf("trust base version %d not implemented", version)

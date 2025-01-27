@@ -17,7 +17,7 @@ var (
 	ErrUnknownHashAlgorithm          = errors.New("unknown hash algorithm")
 	ErrInvalidConsensusTimeout       = errors.New("invalid consensus timeout")
 	ErrSignerIsNil                   = errors.New("signer is nil")
-	ErrRootValidatorInfoMissing      = errors.New("missing root node public info")
+	ErrRootValidatorInfoMissing      = errors.New("missing root node info")
 )
 
 const (
@@ -97,22 +97,22 @@ func (x *ConsensusParams) Sign(id string, signer crypto.Signer) error {
 	return nil
 }
 
-func (x *ConsensusParams) Verify(verifiers map[string]crypto.Verifier) error {
+func (x *ConsensusParams) Verify(rootValidators map[string]crypto.Verifier) error {
 	if x == nil {
 		return ErrConsensusParamsIsNil
 	}
-	if verifiers == nil {
+	if rootValidators == nil {
 		return ErrRootValidatorInfoMissing
 	}
 	// If there are more signatures, then we will give more detailed info below on what id is missing
-	if len(x.Signatures) < len(verifiers) {
+	if len(x.Signatures) < len(rootValidators) {
 		return fmt.Errorf("consensus parameters is not signed by all validators, validators %v/signatures %v",
-			len(verifiers), len(x.Signatures))
+			len(rootValidators), len(x.Signatures))
 	}
 	// Verify all signatures, all must be from known origin and valid
 	for id, sig := range x.Signatures {
 		// Find verifier info
-		ver, f := verifiers[id]
+		ver, f := rootValidators[id]
 		if !f {
 			return fmt.Errorf("consensus parameters signed by unknown validator: %v", id)
 		}
@@ -120,7 +120,6 @@ func (x *ConsensusParams) Verify(verifiers map[string]crypto.Verifier) error {
 		if err != nil {
 			return fmt.Errorf("failed to marshal consensus params %w", err)
 		}
-
 		if err := ver.VerifyBytes(sig, bs); err != nil {
 			return fmt.Errorf("consensus parameters signature verification error: %w", err)
 		}

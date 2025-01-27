@@ -38,7 +38,7 @@ func isConsecutive(blockRound, round uint64) bool {
 func NewSafetyModule(id string, signer crypto.Signer, db keyvaluedb.KeyValueDB) (*SafetyModule, error) {
 	ver, err := signer.Verifier()
 	if err != nil {
-		return nil, fmt.Errorf("invalid root validator sign key: %w", err)
+		return nil, fmt.Errorf("invalid root validator signing key: %w", err)
 	}
 
 	return &SafetyModule{peerID: id, signer: signer, verifier: ver, storage: db}, nil

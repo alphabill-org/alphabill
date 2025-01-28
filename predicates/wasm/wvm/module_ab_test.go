@@ -19,16 +19,22 @@ import (
 	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/predicates/wasm/wvm/bumpallocator"
+	"github.com/alphabill-org/alphabill/predicates/wasm/wvm/encoder"
 	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
+	tokenenc "github.com/alphabill-org/alphabill/txsystem/tokens/encoder"
 )
 
 func Test_txSignedByPKH(t *testing.T) {
 	buildContext := func(t *testing.T) (context.Context, *vmContext, *mockApiMod) {
+		txsEnc := encoder.TXSystemEncoder{}
+		require.NoError(t, tokenenc.RegisterAuthProof(txsEnc.RegisterAuthProof))
+
 		obs := observability.Default(t)
 		vm := &vmContext{
 			curPrg: &evalContext{
 				vars: map[uint64]any{},
 			},
+			encoder: txsEnc,
 			memMngr: bumpallocator.New(0, maxMem(10000)),
 			log:     obs.Logger(),
 		}
@@ -57,7 +63,7 @@ func Test_txSignedByPKH(t *testing.T) {
 				read: func(offset, byteCount uint32) ([]byte, bool) { return pkh, true },
 			}
 		}
-		txo := &types.TransactionOrder{Version: 1, Payload: types.Payload{Type: tokens.TransactionTypeTransferNFT}}
+		txo := &types.TransactionOrder{Version: 1, Payload: types.Payload{PartitionID: tokens.DefaultPartitionID, Type: tokens.TransactionTypeTransferNFT}}
 		require.NoError(t, txo.SetAuthProof(&tokens.TransferNonFungibleTokenAuthProof{}))
 		vm.curPrg.vars[handle_current_tx_order] = txo
 		predicateExecuted := false
@@ -81,7 +87,7 @@ func Test_txSignedByPKH(t *testing.T) {
 				read: func(offset, byteCount uint32) ([]byte, bool) { return pkh, true },
 			}
 		}
-		txo := &types.TransactionOrder{Version: 1, Payload: types.Payload{Type: tokens.TransactionTypeTransferNFT}}
+		txo := &types.TransactionOrder{Version: 1, Payload: types.Payload{PartitionID: tokens.DefaultPartitionID, Type: tokens.TransactionTypeTransferNFT}}
 		require.NoError(t, txo.SetAuthProof(&tokens.TransferNonFungibleTokenAuthProof{}))
 		vm.curPrg.vars[handle_current_tx_order] = txo
 		predicateExecuted := false
@@ -113,7 +119,7 @@ func Test_txSignedByPKH(t *testing.T) {
 			Version: 1,
 			Payload: types.Payload{
 				Type:        tokens.TransactionTypeTransferNFT,
-				PartitionID: 5,
+				PartitionID: tokens.DefaultPartitionID,
 			},
 		}
 		ownerProof := []byte{9, 8, 0}

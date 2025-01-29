@@ -25,7 +25,7 @@ const (
 
 type (
 	Keys struct {
-		SignPrivKey abcrypto.Signer
+		Signer      abcrypto.Signer
 		AuthPrivKey crypto.PrivKey
 	}
 
@@ -38,7 +38,7 @@ type (
 	}
 
 	keyFile struct {
-		SignKey key `json:"signKey"`
+		SigKey  key `json:"sigKey"`
 		AuthKey key `json:"authKey"`
 	}
 
@@ -61,7 +61,7 @@ func (keysConf *keysConfig) addCmdFlags(cmd *cobra.Command) {
 
 // GenerateKeys generates a new signing and authentication key.
 func GenerateKeys() (*Keys, error) {
-	signKey, err := abcrypto.NewInMemorySecp256K1Signer()
+	signer, err := abcrypto.NewInMemorySecp256K1Signer()
 	if err != nil {
 		return nil, err
 	}
@@ -70,7 +70,7 @@ func GenerateKeys() (*Keys, error) {
 		return nil, err
 	}
 	return &Keys{
-		SignPrivKey: signKey,
+		Signer:      signer,
 		AuthPrivKey: authPrivKey,
 	}, nil
 }
@@ -110,14 +110,14 @@ func LoadKeys(file string, generateNewIfNotExist bool, overwrite bool) (*Keys, e
 	if err != nil {
 		return nil, err
 	}
-	if kf.SignKey.Algorithm != secp256k1 {
-		return nil, fmt.Errorf("signing key algorithm %v is not supported", kf.SignKey.Algorithm)
+	if kf.SigKey.Algorithm != secp256k1 {
+		return nil, fmt.Errorf("signing key algorithm %v is not supported", kf.SigKey.Algorithm)
 	}
 	if kf.AuthKey.Algorithm != secp256k1 {
 		return nil, fmt.Errorf("authentication key algorithm %v is not supported", kf.AuthKey.Algorithm)
 	}
 
-	signPrivKey, err := abcrypto.NewInMemorySecp256K1SignerFromKey(kf.SignKey.PrivateKey)
+	signer, err := abcrypto.NewInMemorySecp256K1SignerFromKey(kf.SigKey.PrivateKey)
 	if err != nil {
 		return nil, fmt.Errorf("invalid signing key: %w", err)
 	}
@@ -127,7 +127,7 @@ func LoadKeys(file string, generateNewIfNotExist bool, overwrite bool) (*Keys, e
 	}
 
 	return &Keys{
-		SignPrivKey: signPrivKey,
+		Signer:      signer,
 		AuthPrivKey: authPrivKey,
 	}, nil
 }
@@ -148,7 +148,7 @@ func (k *Keys) getAuthKeyPair() (*network.PeerKeyPair, error) {
 }
 
 func (k *Keys) WriteTo(file string) error {
-	signPrivKeyBytes, err := k.SignPrivKey.MarshalPrivateKey()
+	sigPrivKeyBytes, err := k.Signer.MarshalPrivateKey()
 	if err != nil {
 		return err
 	}
@@ -157,9 +157,9 @@ func (k *Keys) WriteTo(file string) error {
 		return err
 	}
 	kf := &keyFile{
-		SignKey: key{
+		SigKey: key{
 			Algorithm:  secp256k1,
-			PrivateKey: signPrivKeyBytes,
+			PrivateKey: sigPrivKeyBytes,
 		},
 		AuthKey: key{
 			Algorithm:  secp256k1,

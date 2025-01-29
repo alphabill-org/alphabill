@@ -18,7 +18,7 @@ func TestGenerateAndLoadKeys(t *testing.T) {
 	require.NoError(t, err)
 	loaded, err := LoadKeys(file, false, false)
 	require.NoError(t, err)
-	require.Equal(t, keys.SignPrivKey, loaded.SignPrivKey)
+	require.Equal(t, keys.Signer, loaded.Signer)
 	require.Equal(t, keys.AuthPrivKey, loaded.AuthPrivKey)
 }
 
@@ -36,24 +36,24 @@ func TestLoadKeys_ForceGeneration(t *testing.T) {
 	require.NotNil(t, keys)
 	loaded, err := LoadKeys(file, true, false)
 	require.NoError(t, err)
-	require.Equal(t, keys.SignPrivKey, loaded.SignPrivKey)
+	require.Equal(t, keys.Signer, loaded.Signer)
 	require.Equal(t, keys.AuthPrivKey, loaded.AuthPrivKey)
 	// make sure force generation overwrites existing keys
 	overwritten, err := LoadKeys(file, true, true)
 	require.NoError(t, err)
 	require.NotNil(t, keys)
-	require.NotEqual(t, loaded.SignPrivKey, overwritten.SignPrivKey)
+	require.NotEqual(t, loaded.Signer, overwritten.Signer)
 	require.NotEqual(t, loaded.AuthPrivKey, overwritten.AuthPrivKey)
 	loadedOverwritten, err := LoadKeys(file, true, false)
 	require.NoError(t, err)
-	require.Equal(t, overwritten.SignPrivKey, loadedOverwritten.SignPrivKey)
+	require.Equal(t, overwritten.Signer, loadedOverwritten.Signer)
 	require.Equal(t, overwritten.AuthPrivKey, loadedOverwritten.AuthPrivKey)
 }
 
 func TestLoadKeys_InvalidSigningKeyAlgorithm(t *testing.T) {
 	file := filepath.Join(t.TempDir(), "keys.json")
 	kf := &keyFile{
-		SignKey: key{
+		SigKey: key{
 			Algorithm:  "invalid_algo",
 			PrivateKey: nil,
 		},
@@ -71,7 +71,7 @@ func TestLoadKeys_InvalidAuthenticationKeyAlgorithm(t *testing.T) {
 	bytes, err := signer.MarshalPrivateKey()
 	require.NoError(t, err)
 	kf := &keyFile{
-		SignKey: key{
+		SigKey: key{
 			Algorithm:  secp256k1,
 			PrivateKey: bytes,
 		},
@@ -93,7 +93,7 @@ func TestLoadKeys_InvalidAuthenticationKey(t *testing.T) {
 	bytes, err := signer.MarshalPrivateKey()
 	require.NoError(t, err)
 	kf := &keyFile{
-		SignKey: key{
+		SigKey: key{
 			Algorithm:  secp256k1,
 			PrivateKey: bytes,
 		},
@@ -115,7 +115,7 @@ func TestLoadKeys_InvalidSigningKey(t *testing.T) {
 	bytes, err := signer.MarshalPrivateKey()
 	require.NoError(t, err)
 	kf := &keyFile{
-		SignKey: key{
+		SigKey: key{
 			Algorithm:  secp256k1,
 			PrivateKey: []byte{0},
 		},

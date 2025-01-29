@@ -84,12 +84,13 @@ func (m *FungibleTokensModule) validateJoinFT(tx *types.TransactionOrder, attr *
 		prevUnitID = burnTxo.UnitID
 	}
 
-	if err = m.execPredicate(tokenData.Owner(), authProof.OwnerProof, tx.AuthProofSigBytes, exeCtx); err != nil {
+	exeCtx = exeCtx.WithExArg(tx.AuthProofSigBytes)
+	if err = m.execPredicate(tokenData.Owner(), authProof.OwnerProof, tx, exeCtx); err != nil {
 		return fmt.Errorf("evaluating owner predicate: %w", err)
 	}
 	err = runChainedPredicates[*tokens.FungibleTokenTypeData](
 		exeCtx,
-		tx.AuthProofSigBytes,
+		tx,
 		tokenData.TypeID,
 		authProof.TokenTypeOwnerProofs,
 		m.execPredicate,

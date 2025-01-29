@@ -13,6 +13,7 @@ import (
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtb "github.com/alphabill-org/alphabill/internal/testutils/trustbase"
 	"github.com/alphabill-org/alphabill/state"
+	"github.com/alphabill-org/alphabill/txsystem/testutils/exec_context"
 	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
 )
 
@@ -66,7 +67,7 @@ func TestCheckFeeCreditBalance(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			err := fcModule.IsCredible(nil, test.tx)
+			err := fcModule.IsCredible(exec_context.NewMockExecutionContext(), test.tx)
 			if test.expectedError != "" {
 				assert.ErrorContains(t, err, test.expectedError, "unexpected error")
 			} else {

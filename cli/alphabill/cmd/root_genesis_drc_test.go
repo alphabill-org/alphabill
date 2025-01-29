@@ -12,6 +12,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
 
+	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/util"
 	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/alphabill-org/alphabill/network/protocol/genesis"
@@ -42,33 +43,19 @@ func TestGenerateDistributedGenesisFiles(t *testing.T) {
 	require.NoError(t, rootGenesis.Verify())
 	partitionGenesis, err := util.ReadJsonFile(filepath.Join(outputDir, "partition-genesis-1.json"), &genesis.PartitionGenesis{})
 	require.NoError(t, err)
-	require.Len(t, partitionGenesis.RootValidators, 4)
-	trustBase, err := partitionGenesis.GenerateRootTrustBase()
+
+	trustBase, err := types.NewTrustBaseGenesis(rootGenesis.Root.RootValidators, partitionGenesis.Certificate.UnicitySeal.Hash)
 	require.NoError(t, err)
 	require.NoError(t, partitionGenesis.IsValid(trustBase, crypto.SHA256))
+
 	// iterate over key files and make sure that they are present
-	// FindPubKeyById returns matching PublicKeyInfo matching node id or nil if not found
-	findPubKeyFn := func(id string, keys []*genesis.PublicKeyInfo) *genesis.PublicKeyInfo {
-		if keys == nil {
-			return nil
-		}
-		// linear search for id
-		for _, info := range keys {
-			if info.NodeID == id {
-				return info
-			}
-		}
-		return nil
-	}
 	for i := 0; i < int(consensus.totalNodes); i++ {
 		rootNodeDir := filepath.Join(homeDir, defaultRootChainDir+strconv.Itoa(i))
 		keys, err := LoadKeys(filepath.Join(rootNodeDir, defaultKeysFileName), false, false)
 		require.NoError(t, err)
 		id, err := peer.IDFromPublicKey(keys.AuthPrivKey.GetPublic())
 		require.NoError(t, err)
-		require.NotNil(t, rootGenesis.Root.FindPubKeyById(id.String()))
-		// make sure the root node is also present in partition genesis
-		require.NotNil(t, findPubKeyFn(id.String(), partitionGenesis.RootValidators))
+		require.NotNil(t, rootGenesis.Root.FindRootValidatorByNodeID(id.String()))
 	}
 }
 
@@ -104,7 +91,7 @@ func TestDistributedGenesisFiles_DuplicateRootNode(t *testing.T) {
 	require.NoError(t, err)
 	// duplicate is ignored
 	require.Len(t, rootGenesis.Root.RootValidators, 3)
-	require.ErrorContains(t, rootGenesis.Verify(), "root genesis record error: registered root nodes do not match consensus total root nodes")
+	require.ErrorContains(t, rootGenesis.Verify(), "invalid root partition record: registered root nodes do not match consensus total root nodes")
 }
 
 func Test_RootGenesis_New_Sign(t *testing.T) {

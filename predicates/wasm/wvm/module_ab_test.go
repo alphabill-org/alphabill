@@ -6,8 +6,6 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/alphabill-org/alphabill-go-base/types/hex"
-	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
 	"github.com/stretchr/testify/require"
 	"github.com/tetratelabs/wazero/api"
 
@@ -16,19 +14,27 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/tokens"
 	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	testblock "github.com/alphabill-org/alphabill/internal/testutils/block"
 	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/predicates/wasm/wvm/bumpallocator"
+	"github.com/alphabill-org/alphabill/predicates/wasm/wvm/encoder"
+	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
+	tokenenc "github.com/alphabill-org/alphabill/txsystem/tokens/encoder"
 )
 
 func Test_txSignedByPKH(t *testing.T) {
 	buildContext := func(t *testing.T) (context.Context, *vmContext, *mockApiMod) {
+		txsEnc := encoder.TXSystemEncoder{}
+		require.NoError(t, tokenenc.RegisterAuthProof(txsEnc.RegisterAuthProof))
+
 		obs := observability.Default(t)
 		vm := &vmContext{
 			curPrg: &evalContext{
 				vars: map[uint64]any{},
 			},
+			encoder: txsEnc,
 			memMngr: bumpallocator.New(0, maxMem(10000)),
 			log:     obs.Logger(),
 		}
@@ -57,11 +63,11 @@ func Test_txSignedByPKH(t *testing.T) {
 				read: func(offset, byteCount uint32) ([]byte, bool) { return pkh, true },
 			}
 		}
-		txo := &types.TransactionOrder{Version: 1, Payload: types.Payload{Type: tokens.TransactionTypeTransferNFT}}
+		txo := &types.TransactionOrder{Version: 1, Payload: types.Payload{PartitionID: tokens.DefaultPartitionID, Type: tokens.TransactionTypeTransferNFT}}
 		require.NoError(t, txo.SetAuthProof(&tokens.TransferNonFungibleTokenAuthProof{}))
 		vm.curPrg.vars[handle_current_tx_order] = txo
 		predicateExecuted := false
-		vm.engines = func(context.Context, types.PredicateBytes, []byte, func() ([]byte, error), predicates.TxContext) (bool, error) {
+		vm.engines = func(context.Context, types.PredicateBytes, []byte, *types.TransactionOrder, predicates.TxContext) (bool, error) {
 			predicateExecuted = true
 			return true, expErr
 		}
@@ -81,11 +87,11 @@ func Test_txSignedByPKH(t *testing.T) {
 				read: func(offset, byteCount uint32) ([]byte, bool) { return pkh, true },
 			}
 		}
-		txo := &types.TransactionOrder{Version: 1, Payload: types.Payload{Type: tokens.TransactionTypeTransferNFT}}
+		txo := &types.TransactionOrder{Version: 1, Payload: types.Payload{PartitionID: tokens.DefaultPartitionID, Type: tokens.TransactionTypeTransferNFT}}
 		require.NoError(t, txo.SetAuthProof(&tokens.TransferNonFungibleTokenAuthProof{}))
 		vm.curPrg.vars[handle_current_tx_order] = txo
 		predicateExecuted := false
-		vm.engines = func(context.Context, types.PredicateBytes, []byte, func() ([]byte, error), predicates.TxContext) (bool, error) {
+		vm.engines = func(context.Context, types.PredicateBytes, []byte, *types.TransactionOrder, predicates.TxContext) (bool, error) {
 			predicateExecuted = true
 			return false, nil
 		}
@@ -113,7 +119,7 @@ func Test_txSignedByPKH(t *testing.T) {
 			Version: 1,
 			Payload: types.Payload{
 				Type:        tokens.TransactionTypeTransferNFT,
-				PartitionID: 5,
+				PartitionID: tokens.DefaultPartitionID,
 			},
 		}
 		ownerProof := []byte{9, 8, 0}
@@ -124,11 +130,12 @@ func Test_txSignedByPKH(t *testing.T) {
 
 		vm.curPrg.vars[handle_current_tx_order] = txOrder
 		predicateExecuted := false
-		vm.engines = func(ctx context.Context, predicate types.PredicateBytes, args []byte, sigBytesFn func() ([]byte, error), env predicates.TxContext) (bool, error) {
+		vm.engines = func(ctx context.Context, predicate types.PredicateBytes, args []byte, txo *types.TransactionOrder, env predicates.TxContext) (bool, error) {
 			predicateExecuted = true
-			// TODO TODO AB-1724
-			//require.Equal(t, txOrder, txo)
-			sigBytes, err := sigBytesFn()
+
+			require.Equal(t, txOrder, txo)
+
+			sigBytes, err := env.ExtraArgument()
 			require.NoError(t, err)
 			require.Equal(t, authProofSigBytes, sigBytes)
 

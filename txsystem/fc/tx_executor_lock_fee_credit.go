@@ -6,9 +6,8 @@ import (
 
 	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/types"
-	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
-
 	"github.com/alphabill-org/alphabill/state"
+	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 )
 
 func (f *FeeCreditModule) executeLockFC(tx *types.TransactionOrder, attr *fc.LockFeeCreditAttributes, _ *fc.LockFeeCreditAuthProof, execCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
@@ -57,7 +56,7 @@ func (f *FeeCreditModule) validateLockFC(tx *types.TransactionOrder, attr *fc.Lo
 		return errors.New("lock status must be non-zero value")
 	}
 	// validate owner
-	if err = f.execPredicate(fcr.OwnerPredicate, authProof.OwnerProof, tx.AuthProofSigBytes, exeCtx); err != nil {
+	if err = f.execPredicate(fcr.OwnerPredicate, authProof.OwnerProof, tx, exeCtx.WithExArg(tx.AuthProofSigBytes)); err != nil {
 		return fmt.Errorf("executing fee credit predicate: %w", err)
 	}
 	return nil

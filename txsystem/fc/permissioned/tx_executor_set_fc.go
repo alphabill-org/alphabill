@@ -63,7 +63,7 @@ func (f *FeeCreditModule) validateSetFC(tx *types.TransactionOrder, attr *permis
 	}
 
 	// verify tx is signed by admin key
-	if err := f.execPredicate(f.adminOwnerPredicate, authProof.OwnerProof, tx.AuthProofSigBytes, exeCtx); err != nil {
+	if err := f.execPredicate(f.adminOwnerPredicate, authProof.OwnerProof, tx, exeCtx.WithExArg(tx.AuthProofSigBytes)); err != nil {
 		return fmt.Errorf("invalid owner proof: %w", err)
 	}
 	return nil

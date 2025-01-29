@@ -137,3 +137,11 @@ The folder can add be added into Docker build context by specifying it as follow
 ```console
 DOCKER_GO_DEPENDENCY=../alphabill-go-base make build-docker
 ```
+
+## License
+
+This repository contains the source code released under the AGPL-3.
+
+See [LICENSE](./LICENSE) file for details.
+
+Copyright © 2022-2025 Guardtime SA, guardtime.com

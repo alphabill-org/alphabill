@@ -9,11 +9,11 @@ import (
 	"github.com/alphabill-org/alphabill/predicates/wasm/wvm/encoder"
 )
 
-func RegisterTxAttributeEncoders(reg func(id encoder.AttrEncID, enc encoder.TxAttributesEncoder) error) error {
-	key := func(attrID uint16) encoder.AttrEncID {
-		return encoder.AttrEncID{
-			TxSys: tokens.DefaultPartitionID,
-			Attr:  attrID,
+func RegisterTxAttributeEncoders(reg func(id encoder.PartitionTxType, enc encoder.TxAttributesEncoder) error) error {
+	key := func(attrID uint16) encoder.PartitionTxType {
+		return encoder.PartitionTxType{
+			Partition: tokens.DefaultPartitionID,
+			TxType:    attrID,
 		}
 	}
 	return errors.Join(
@@ -97,6 +97,7 @@ func txaDefineFungibleTokenAttributes(txo *types.TransactionOrder, ver uint32) (
 	if len(attr.ParentTypeID) != 0 {
 		buf.EncodeTagged(3, attr.ParentTypeID)
 	}
+	buf.EncodeTagged(4, attr.DecimalPlaces)
 	return buf.Bytes()
 }
 

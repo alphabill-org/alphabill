@@ -13,7 +13,6 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/hash"
 	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
-	"github.com/alphabill-org/alphabill-go-base/txsystem/tokens"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/logger"
 )
@@ -41,6 +40,7 @@ Returns:
   - 2: error, most likely the tx.OwnerProof is not valid argument for P2PKH ie
     some other (bearer) predicate is used;
   - 3: error, argument stack[0] is not valid tx handle;
+  - 4: error, failure to get owner proof;
 */
 func txSignedByPKH(ctx context.Context, mod api.Module, stack []uint64) {
 	vec := extractVMContext(ctx)
@@ -53,31 +53,16 @@ func txSignedByPKH(ctx context.Context, mod api.Module, stack []uint64) {
 	}
 	pkh := read(mod, stack[1])
 
-	var proof []byte
-	var unmarshalErr error
-	switch txo.Type {
-	case tokens.TransactionTypeTransferNFT:
-		var authProof tokens.TransferNonFungibleTokenAuthProof
-		if unmarshalErr = txo.UnmarshalAuthProof(&authProof); unmarshalErr == nil {
-			proof = authProof.OwnerProof
-		}
-	case tokens.TransactionTypeUpdateNFT:
-		var authProof tokens.UpdateNonFungibleTokenAuthProof
-		if unmarshalErr = txo.UnmarshalAuthProof(&authProof); unmarshalErr == nil {
-			proof = authProof.TokenDataUpdateProof
-		}
-	default:
-		unmarshalErr = errors.New("failed to extract OwnerProof from tx order")
-	}
-	if unmarshalErr != nil {
-		vec.log.DebugContext(ctx, "unknown tx order type", logger.Error(err))
-		stack[0] = 3
+	proof, err := vec.encoder.AuthProof(txo)
+	if err != nil {
+		vec.log.DebugContext(ctx, "extracting owner proof", logger.Error(err))
+		stack[0] = 4
 		return
 	}
 
 	predicate := templates.NewP2pkh256BytesFromKeyHash(pkh)
-	ok, err := vec.engines(ctx, predicate, proof, txo.AuthProofSigBytes, vec.curPrg.env)
-	//ok, err := vec.engines(ctx, predicate, proof, txo, vec.curPrg.env)
+	env := txoEvalCtx{EvalEnvironment: vec.curPrg.env, exArgument: txo.AuthProofSigBytes}
+	ok, err := vec.engines(ctx, predicate, proof, txo, env)
 	switch {
 	case err != nil:
 		vec.log.DebugContext(ctx, "failed to verify OwnerProof against p2pkh", logger.Error(err))
@@ -255,4 +240,16 @@ func transferredSum(trustBase types.RootTrustBase, txRecordProof *types.TxRecord
 	}
 
 	return sum, nil
+}
+
+type txoEvalCtx struct {
+	EvalEnvironment
+	exArgument func() ([]byte, error)
+}
+
+func (ec txoEvalCtx) ExtraArgument() ([]byte, error) {
+	if ec.exArgument == nil {
+		return nil, errors.New("extra arguments callback not assigned")
+	}
+	return ec.exArgument()
 }

@@ -81,7 +81,7 @@ func (m *Module) validateTransDC(tx *types.TransactionOrder, attr *money.Transfe
 	if unitData.Value != attr.Value {
 		return errors.New("the transaction value is not equal to the bill value")
 	}
-	if err = m.execPredicate(unitData.OwnerPredicate, authProof.OwnerProof, tx.AuthProofSigBytes, exeCtx); err != nil {
+	if err = m.execPredicate(unitData.OwnerPredicate, authProof.OwnerProof, tx, exeCtx.WithExArg(tx.AuthProofSigBytes)); err != nil {
 		return fmt.Errorf("evaluating owner predicate: %w", err)
 	}
 	return nil

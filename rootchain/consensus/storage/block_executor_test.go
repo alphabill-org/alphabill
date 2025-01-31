@@ -39,20 +39,12 @@ func (x *mockIRVerifier) VerifyIRChangeReq(_ uint64, irChReq *drctypes.IRChangeR
 }
 
 func TestNewExecutedBlockFromGenesis(t *testing.T) {
-	peers, nodes := testutils.CreatePartitionNodes(t, genesisInputRecord, partitionID1, 3)
+	_, nodes := testutils.CreatePartitionNodes(t, genesisInputRecord, partitionID1, 3)
 	rootNode := testutils.NewTestNode(t)
 	id := rootNode.PeerConf.ID
 	rootGenesis, _, err := rootgenesis.NewRootGenesis(id.String(), rootNode.Signer, nodes)
 	require.NoError(t, err)
 	hash := crypto.Hash(rootGenesis.Root.Consensus.HashAlgorithm)
-	var varNodes []*types.NodeInfo
-	for _, peer := range peers {
-		varNodes = append(varNodes, &types.NodeInfo{
-			NodeID: peer.PeerConf.ID.String(),
-			SigKey: peer.PeerConf.KeyPair.PublicKey,
-			Stake:  1,
-		})
-	}
 	b, err := NewGenesisBlock(hash, rootGenesis.Partitions)
 	require.NoError(t, err)
 	require.Equal(t, b.HashAlgo, crypto.SHA256)
@@ -84,7 +76,7 @@ func TestExecutedBlock_Extend(t *testing.T) {
 	var varNodes []*types.NodeInfo
 	for _, peer := range peers {
 		varNodes = append(varNodes, &types.NodeInfo{
-			NodeID:  peer.PeerConf.ID.String(),
+			NodeID: peer.PeerConf.ID.String(),
 			SigKey: peer.PeerConf.KeyPair.PublicKey,
 		})
 	}

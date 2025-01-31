@@ -19,7 +19,7 @@ func initSafetyModule(t *testing.T, id string) *SafetyModule {
 	require.Nil(t, err)
 	db, err := memorydb.New()
 	require.NoError(t, err)
-	safety, err := NewSafetyModule(id, signer, db)
+	safety, err := NewSafetyModule(types.NetworkLocal, id, signer, db)
 	require.NoError(t, err)
 	require.NotNil(t, safety)
 	require.NotNil(t, safety.verifier)
@@ -46,11 +46,12 @@ func TestNewSafetyModule_WithStorageEmpty(t *testing.T) {
 	require.Nil(t, err)
 	db, err := memorydb.New()
 	require.NoError(t, err)
-	s, err := NewSafetyModule("1", signer, db)
+	s, err := NewSafetyModule(types.NetworkTestNet, "1", signer, db)
 	require.NoError(t, err)
 	require.NotNil(t, s)
 	require.Equal(t, uint64(defaultHighestQcRound), s.GetHighestQcRound())
 	require.Equal(t, uint64(defaultHighestVotedRound), s.GetHighestVotedRound())
+	require.Equal(t, types.NetworkTestNet, s.network)
 }
 
 func TestNewSafetyModule_WithStorageNotEmpty(t *testing.T) {
@@ -63,11 +64,12 @@ func TestNewSafetyModule_WithStorageNotEmpty(t *testing.T) {
 	require.NoError(t, db.Write([]byte(highestQcKey), hQcRound))
 	signer, err := abcrypto.NewInMemorySecp256K1Signer()
 	require.Nil(t, err)
-	s, err := NewSafetyModule("1", signer, db)
+	s, err := NewSafetyModule(types.NetworkLocal, "1", signer, db)
 	require.NoError(t, err)
 	require.NotNil(t, s)
 	require.Equal(t, uint64(3), s.GetHighestQcRound())
 	require.Equal(t, uint64(4), s.GetHighestVotedRound())
+	require.Equal(t, types.NetworkLocal, s.network)
 }
 
 func TestSafetyModule_isSafeToVote(t *testing.T) {

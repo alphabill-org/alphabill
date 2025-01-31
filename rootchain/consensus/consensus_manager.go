@@ -151,7 +151,7 @@ func NewConsensusManager(
 	if err != nil {
 		return nil, fmt.Errorf("failed to create T2 timeout generator: %w", err)
 	}
-	safetyModule, err := NewSafetyModule(nodeID.String(), signer, optional.Storage)
+	safetyModule, err := NewSafetyModule(rg.Network(), nodeID.String(), signer, optional.Storage)
 	if err != nil {
 		return nil, err
 	}

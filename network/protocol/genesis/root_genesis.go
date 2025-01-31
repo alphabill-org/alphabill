@@ -128,6 +128,10 @@ func (x *RootGenesis) GetRoundHash() []byte {
 	return x.Partitions[0].Certificate.UnicitySeal.Hash
 }
 
+func (x *RootGenesis) Network() types.NetworkID {
+	return x.Partitions[0].Certificate.UnicitySeal.NetworkID
+}
+
 /*
 NodeIDs returns IDs of all root validator nodes.
 */

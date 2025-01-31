@@ -351,7 +351,9 @@ func (x *ExecutedBlock) GenerateCertificates(commitQc *rctypes.QuorumCert) ([]*c
 	// create UnicitySeal for pending certificates
 	uSeal := &types.UnicitySeal{
 		Version:              1,
+		NetworkID:            commitQc.LedgerCommitInfo.NetworkID,
 		RootChainRoundNumber: commitQc.LedgerCommitInfo.RootChainRoundNumber,
+		Epoch:                commitQc.LedgerCommitInfo.Epoch,
 		Hash:                 commitQc.LedgerCommitInfo.Hash,
 		Timestamp:            commitQc.LedgerCommitInfo.Timestamp,
 		PreviousHash:         commitQc.LedgerCommitInfo.PreviousHash,

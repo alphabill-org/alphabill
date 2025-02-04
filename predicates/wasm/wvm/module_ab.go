@@ -84,8 +84,8 @@ func verifyTxProof(vec *vmContext, mod api.Module, stack []uint64) error {
 	if err != nil {
 		return fmt.Errorf("tx record: %w", err)
 	}
-	// todo: add epoch number to UC Seal
-	tb, err := vec.curPrg.env.TrustBase(0)
+
+	tb, err := trustBaseLoader(vec.curPrg.env.TrustBase)(txProof)
 	if err != nil {
 		return fmt.Errorf("acquiring trust base: %w", err)
 	}
@@ -132,11 +132,6 @@ func amountTransferred(vec *vmContext, mod api.Module, stack []uint64) error {
 	if err := types.Cbor.Unmarshal(data, &txs); err != nil {
 		return fmt.Errorf("decoding data as slice of tx proofs: %w", err)
 	}
-	// todo: add epoch number to UC Seal
-	tb, err := vec.curPrg.env.TrustBase(0)
-	if err != nil {
-		return fmt.Errorf("acquiring trust base: %w", err)
-	}
 
 	pkh := read(mod, stack[1])
 
@@ -145,7 +140,7 @@ func amountTransferred(vec *vmContext, mod api.Module, stack []uint64) error {
 		refNo = read(mod, addrRefNo)
 	}
 
-	sum, err := amountTransferredSum(tb, txs, pkh, refNo)
+	sum, err := amountTransferredSum(txs, pkh, refNo, trustBaseLoader(vec.curPrg.env.TrustBase))
 	if err != nil {
 		vec.log.Debug(fmt.Sprintf("AmountTransferredSum(%d) returned %d and some error(s): %v", len(txs), sum, err))
 	}
@@ -158,10 +153,15 @@ The error return value is "for diagnostic" purposes, ie the func might return no
 case the error describes reason why some transaction(s) were not counted. The ref number or receiver not matching are
 not included in errors, only failures to determine whether the tx possibly could have been contributing to the sum...
 */
-func amountTransferredSum(trustBase types.RootTrustBase, proofs []*types.TxRecordProof, receiverPKH []byte, refNo []byte) (uint64, error) {
+func amountTransferredSum(proofs []*types.TxRecordProof, receiverPKH []byte, refNo []byte, getTrustBase func(*types.TxProof) (types.RootTrustBase, error)) (uint64, error) {
 	var total uint64
 	var rErr error
 	for i, v := range proofs {
+		trustBase, err := getTrustBase(v.TxProof)
+		if err != nil {
+			rErr = errors.Join(rErr, fmt.Errorf("record[%d]: acquiring trust base: %w", i, err))
+			continue
+		}
 		sum, err := transferredSum(trustBase, v, receiverPKH, refNo)
 		if err != nil {
 			rErr = errors.Join(rErr, fmt.Errorf("record[%d]: %w", i, err))
@@ -240,6 +240,27 @@ func transferredSum(trustBase types.RootTrustBase, txRecordProof *types.TxRecord
 	}
 
 	return sum, nil
+}
+
+/*
+trustBaseLoader returns function which loads the trustbase in effect on
+the epoch of the tx proof
+*/
+func trustBaseLoader(getTrustBase func(epoch uint64) (types.RootTrustBase, error)) func(proof *types.TxProof) (types.RootTrustBase, error) {
+	return func(proof *types.TxProof) (types.RootTrustBase, error) {
+		uc, err := proof.GetUC()
+		if err != nil {
+			return nil, fmt.Errorf("reading UC: %w", err)
+		}
+		if uc.UnicitySeal == nil {
+			return nil, fmt.Errorf("invalid UC: UnicitySeal is unassigned")
+		}
+		trustBase, err := getTrustBase(uc.UnicitySeal.Epoch)
+		if err != nil {
+			return nil, fmt.Errorf("acquiring trust base: %w", err)
+		}
+		return trustBase, nil
+	}
 }
 
 type txoEvalCtx struct {

@@ -21,6 +21,7 @@ const (
 
 type (
 	SafetyModule struct {
+		network  types.NetworkID
 		peerID   string
 		signer   crypto.Signer
 		verifier crypto.Verifier
@@ -35,13 +36,13 @@ func isConsecutive(blockRound, round uint64) bool {
 	return round+1 == blockRound
 }
 
-func NewSafetyModule(id string, signer crypto.Signer, db keyvaluedb.KeyValueDB) (*SafetyModule, error) {
+func NewSafetyModule(network types.NetworkID, id string, signer crypto.Signer, db keyvaluedb.KeyValueDB) (*SafetyModule, error) {
 	ver, err := signer.Verifier()
 	if err != nil {
-		return nil, fmt.Errorf("invalid root validator sign key: %w", err)
+		return nil, fmt.Errorf("invalid root validator signing key: %w", err)
 	}
 
-	return &SafetyModule{peerID: id, signer: signer, verifier: ver, storage: db}, nil
+	return &SafetyModule{network: network, peerID: id, signer: signer, verifier: ver, storage: db}, nil
 }
 
 func (s *SafetyModule) GetHighestVotedRound() uint64 {
@@ -110,8 +111,10 @@ func (s *SafetyModule) constructCommitInfo(block *drctypes.BlockData, voteInfoHa
 	}
 	return &types.UnicitySeal{
 		Version:              1,
+		NetworkID:            s.network,
 		PreviousHash:         voteInfoHash,
 		RootChainRoundNumber: committedRound.RoundNumber,
+		Epoch:                committedRound.Epoch,
 		Timestamp:            committedRound.Timestamp,
 		Hash:                 committedRound.CurrentRootHash,
 	}

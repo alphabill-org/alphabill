@@ -6,17 +6,18 @@ import (
 	"math"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/state"
-	"github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill/state"
+	"github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
 )
 
 const mockTx uint16 = 22
 
 type txSysInfo struct {
 	getUnit      func(id types.UnitID, committed bool) (state.Unit, error)
+	committedUC  func() *types.UnicityCertificate
 	currentRound func() uint64
 }
 
@@ -75,6 +76,8 @@ func (s txSysInfo) GetUnit(id types.UnitID, committed bool) (state.Unit, error) 
 	}
 	return &state.UnitV1{}, fmt.Errorf("unit does not exist")
 }
+
+func (s txSysInfo) CommittedUC() *types.UnicityCertificate { return s.committedUC() }
 
 func (s txSysInfo) CurrentRound() uint64 {
 	if s.currentRound != nil {

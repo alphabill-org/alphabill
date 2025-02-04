@@ -22,9 +22,7 @@ var (
 )
 
 func TestNewGenesisPartitionNode_NotOk(t *testing.T) {
-	signer, verifier := testsig.CreateSignerAndVerifier(t)
-	pubKeyBytes, err := verifier.MarshalPublicKey()
-	require.NoError(t, err)
+	signer, _ := testsig.CreateSignerAndVerifier(t)
 	validPDR := types.PartitionDescriptionRecord{
 		Version:     1,
 		NetworkID:   5,
@@ -55,21 +53,9 @@ func TestNewGenesisPartitionNode_NotOk(t *testing.T) {
 			args: args{
 				state: state.NewEmptyState(),
 				pdr:   validPDR,
-				opts:  []GenesisOption{WithPeerID("1"), WithAuthPubKey(pubKeyBytes)},
+				opts:  []GenesisOption{WithPeerID("1")},
 			},
 			wantErr: ErrSignerIsNil,
-		},
-		{
-			name: "authentication public key is nil",
-			args: args{
-				state: state.NewEmptyState(),
-				pdr:   validPDR,
-				opts: []GenesisOption{
-					WithSignPrivKey(signer),
-					WithAuthPubKey(nil),
-					WithPeerID("1")},
-			},
-			wantErr: ErrAuthPubKeyIsNil,
 		},
 		{
 			name: "peer ID is empty",
@@ -77,7 +63,7 @@ func TestNewGenesisPartitionNode_NotOk(t *testing.T) {
 				state: state.NewEmptyState(),
 				pdr:   validPDR,
 				opts: []GenesisOption{
-					WithSignPrivKey(signer),
+					WithSigner(signer),
 					WithPeerID(""),
 				},
 			},
@@ -98,8 +84,7 @@ func TestNewGenesisPartitionNode_NotOk(t *testing.T) {
 		state.NewEmptyState(),
 		types.PartitionDescriptionRecord{Version: 1, NetworkID: 5, PartitionID: 0},
 		WithPeerID("1"),
-		WithSignPrivKey(signer),
-		WithAuthPubKey(pubKeyBytes),
+		WithSigner(signer),
 		WithHashAlgorithm(gocrypto.SHA256),
 	)
 	require.Nil(t, got)
@@ -111,12 +96,10 @@ func TestNewGenesisPartitionNode_Ok(t *testing.T) {
 	pubKey, err := verifier.MarshalPublicKey()
 	require.NoError(t, err)
 	pdr := types.PartitionDescriptionRecord{Version: 1, NetworkID: 5, PartitionID: 1, T2Timeout: 2500 * time.Millisecond}
-	authKey, err := verifier.MarshalPublicKey()
-	require.NoError(t, err)
-	pn := createPartitionNode(t, signer, authKey, pdr, nodeID)
+	pn := createPartitionNode(t, signer, pdr, nodeID)
 	require.NotNil(t, pn)
 	require.Equal(t, base58.Encode([]byte(nodeID)), pn.NodeID)
-	require.Equal(t, hex.Bytes(pubKey), pn.SignKey)
+	require.Equal(t, hex.Bytes(pubKey), pn.SigKey)
 	blockCertificationRequestRequest := pn.BlockCertificationRequest
 	require.Equal(t, pdr.PartitionID, blockCertificationRequestRequest.PartitionID)
 	require.NoError(t, blockCertificationRequestRequest.IsValid(verifier))
@@ -127,14 +110,13 @@ func TestNewGenesisPartitionNode_Ok(t *testing.T) {
 	require.Nil(t, ir.PreviousHash)
 }
 
-func createPartitionNode(t *testing.T, nodeSigningKey crypto.Signer, authKey []byte, pdr types.PartitionDescriptionRecord, nodeID peer.ID) *genesis.PartitionNode {
+func createPartitionNode(t *testing.T, signer crypto.Signer, pdr types.PartitionDescriptionRecord, nodeID peer.ID) *genesis.PartitionNode {
 	t.Helper()
 	pn, err := NewNodeGenesis(
 		state.NewEmptyState(),
 		pdr,
 		WithPeerID(nodeID),
-		WithSignPrivKey(nodeSigningKey),
-		WithAuthPubKey(authKey),
+		WithSigner(signer),
 	)
 	require.NoError(t, err)
 	return pn

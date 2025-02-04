@@ -27,6 +27,7 @@ import (
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
 	testevent "github.com/alphabill-org/alphabill/internal/testutils/partition/event"
+	"github.com/alphabill-org/alphabill/internal/testutils/trustbase"
 	"github.com/alphabill-org/alphabill/keyvaluedb"
 	"github.com/alphabill-org/alphabill/keyvaluedb/boltdb"
 	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
@@ -135,16 +136,11 @@ func newRootPartition(t *testing.T, nofRootNodes uint8, nodePartitions []*NodePa
 		return nil, fmt.Errorf("failed to generate peer configuration, %w", err)
 	}
 	for i, peerCfg := range rootPeerCfg {
-		nodeGenesisFiles := getGenesisFiles(nodePartitions)
-		pr, err := rootgenesis.NewPartitionRecordFromNodes(nodeGenesisFiles)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create genesis partition record")
-		}
+		nodes := getGenesisFiles(nodePartitions)
 		rg, _, err := rootgenesis.NewRootGenesis(
 			peerCfg.ID.String(),
 			rootSigners[i],
-			peerCfg.KeyPair.PublicKey,
-			pr,
+			nodes,
 			rootgenesis.WithTotalNodes(uint32(nofRootNodes)),
 			rootgenesis.WithBlockRate(max(genesis.MinBlockRateMs, 300)), // set block rate at 300 ms to give a bit more time for nodes to bootstrap
 			rootgenesis.WithConsensusTimeout(genesis.DefaultConsensusTimeout))
@@ -162,7 +158,7 @@ func newRootPartition(t *testing.T, nofRootNodes uint8, nodePartitions []*NodePa
 			peerConf:   peerCfg,
 			homeDir:    t.TempDir(),
 		}
-		trustBaseNodes[i] = types.NewNodeInfo(peerCfg.ID.String(), 1, verifier)
+		trustBaseNodes[i] = trustbase.NewNodeInfoFromVerifier(t, peerCfg.ID.String(), 1, verifier)
 		for _, p := range rg.Partitions {
 			if len(unicityTreeRootHash) == 0 {
 				unicityTreeRootHash = p.Certificate.UnicitySeal.Hash
@@ -276,8 +272,7 @@ func NewPartition(t *testing.T, nodeCount uint8, txSystemProvider func(trustBase
 			state,
 			pdr,
 			partition.WithPeerID(peerConf.ID),
-			partition.WithSignPrivKey(signer),
-			partition.WithAuthPubKey(peerConf.KeyPair.PublicKey),
+			partition.WithSigner(signer),
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create node genesis, %w", err)
@@ -298,12 +293,6 @@ func (n *NodePartition) start(t *testing.T, ctx context.Context, bootNodes []pee
 	n.ctx = ctx
 	// partition nodes as they are set up for test, require bootstrap info
 	require.NotEmpty(t, bootNodes)
-	// start Nodes
-	trustBase, err := n.partitionGenesis.GenerateRootTrustBase()
-	if err != nil {
-		return fmt.Errorf("failed to extract root trust base from genesis file, %w", err)
-	}
-	n.tb = trustBase
 
 	committed, err := n.genesisState.IsCommitted()
 	if err != nil {
@@ -315,6 +304,7 @@ func (n *NodePartition) start(t *testing.T, ctx context.Context, bootNodes []pee
 		}
 	}
 
+	// start Nodes
 	for _, nd := range n.Nodes {
 		nd.EventHandler = &testevent.TestEventHandler{}
 		blockStore, err := boltdb.New(nd.dbFile)
@@ -383,6 +373,7 @@ func NewAlphabillPartition(t *testing.T, nodePartitions []*NodePartition) (*Alph
 	}
 	nodeParts := make(map[types.PartitionID]*NodePartition)
 	for _, part := range nodePartitions {
+		part.tb = rootPartition.TrustBase
 		nodeParts[part.partitionID] = part
 	}
 	return &AlphabillNetwork{
@@ -402,6 +393,7 @@ func NewMultiRootAlphabillPartition(t *testing.T, nofRootNodes uint8, nodePartit
 	}
 	nodeParts := make(map[types.PartitionID]*NodePartition)
 	for _, part := range nodePartitions {
+		part.tb = rootPartition.TrustBase
 		nodeParts[part.partitionID] = part
 	}
 	return &AlphabillNetwork{

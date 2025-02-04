@@ -18,6 +18,8 @@ func (s *stateInfo) GetUnit(id types.UnitID, committed bool) (state.Unit, error)
 	return nil, fmt.Errorf("unit does not exist")
 }
 
+func (s *stateInfo) CommittedUC() *types.UnicityCertificate { return nil }
+
 func (s *stateInfo) CurrentRound() uint64 {
 	return 1
 }

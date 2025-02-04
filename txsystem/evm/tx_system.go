@@ -258,6 +258,10 @@ func (vc *TxValidationContext) GetUnit(id types.UnitID, committed bool) (state.U
 	return vc.state.GetUnit(id, committed)
 }
 
+func (vc *TxValidationContext) CommittedUC() *types.UnicityCertificate {
+	return vc.state.CommittedUC()
+}
+
 func (vc *TxValidationContext) CurrentRound() uint64 { return vc.BlockNumber }
 
 func (vc *TxValidationContext) TrustBase(epoch uint64) (types.RootTrustBase, error) {

@@ -151,9 +151,6 @@ func createNode(ctx context.Context,
 	if err != nil {
 		return nil, err
 	}
-	if len(pg.RootValidators) < 1 {
-		return nil, errors.New("root validator info is missing")
-	}
 	if blockStore == nil {
 		blockStore, err = initStore(cfg.DbFile)
 		if err != nil {
@@ -177,7 +174,7 @@ func createNode(ctx context.Context,
 	node, err := partition.NewNode(
 		ctx,
 		peerConf,
-		keys.SignPrivKey,
+		keys.Signer,
 		txs,
 		pg,
 		trustBase,

@@ -7,7 +7,6 @@ import (
 	"math"
 	"testing"
 
-	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tetratelabs/wazero"
@@ -15,6 +14,7 @@ import (
 
 	"github.com/alphabill-org/alphabill-go-base/predicates/wasm"
 	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/predicates/wasm/wvm/bumpallocator"
@@ -57,8 +57,8 @@ func TestReadHeapBase(t *testing.T) {
 	require.Error(t, err)
 	m, err := wvm.runtime.Instantiate(context.Background(), ticketsWasm)
 	require.NoError(t, err)
-	require.EqualValues(t, 8400, m.ExportedGlobal("__heap_base").Get())
-	require.EqualValues(t, 8400, wvm.ctx.memMngr.(*bumpallocator.BumpAllocator).HeapBase())
+	require.EqualValues(t, 8384, m.ExportedGlobal("__heap_base").Get())
+	require.EqualValues(t, 8384, wvm.ctx.memMngr.(*bumpallocator.BumpAllocator).HeapBase())
 }
 
 //go:embed testdata/stack_height.wasm
@@ -178,6 +178,7 @@ func Benchmark_wazero_call_wasm_fn(b *testing.B) {
 
 type mockTxContext struct {
 	getUnit      func(id types.UnitID, committed bool) (state.Unit, error)
+	committedUC  func() *types.UnicityCertificate
 	curRound     func() uint64
 	trustBase    func() (types.RootTrustBase, error)
 	GasRemaining uint64
@@ -189,7 +190,10 @@ func (env *mockTxContext) GetUnit(id types.UnitID, committed bool) (state.Unit, 
 	return env.getUnit(id, committed)
 }
 
+func (env *mockTxContext) CommittedUC() *types.UnicityCertificate { return env.committedUC() }
+
 func (env *mockTxContext) CurrentRound() uint64 { return env.curRound() }
+
 func (env *mockTxContext) TrustBase(epoch uint64) (types.RootTrustBase, error) {
 	return env.trustBase()
 }

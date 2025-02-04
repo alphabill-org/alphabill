@@ -19,16 +19,22 @@ import (
 	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/predicates/wasm/wvm/bumpallocator"
+	"github.com/alphabill-org/alphabill/predicates/wasm/wvm/encoder"
 	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
+	tokenenc "github.com/alphabill-org/alphabill/txsystem/tokens/encoder"
 )
 
 func Test_txSignedByPKH(t *testing.T) {
 	buildContext := func(t *testing.T) (context.Context, *vmContext, *mockApiMod) {
+		txsEnc := encoder.TXSystemEncoder{}
+		require.NoError(t, tokenenc.RegisterAuthProof(txsEnc.RegisterAuthProof))
+
 		obs := observability.Default(t)
 		vm := &vmContext{
 			curPrg: &evalContext{
 				vars: map[uint64]any{},
 			},
+			encoder: txsEnc,
 			memMngr: bumpallocator.New(0, maxMem(10000)),
 			log:     obs.Logger(),
 		}
@@ -57,7 +63,7 @@ func Test_txSignedByPKH(t *testing.T) {
 				read: func(offset, byteCount uint32) ([]byte, bool) { return pkh, true },
 			}
 		}
-		txo := &types.TransactionOrder{Version: 1, Payload: types.Payload{Type: tokens.TransactionTypeTransferNFT}}
+		txo := &types.TransactionOrder{Version: 1, Payload: types.Payload{PartitionID: tokens.DefaultPartitionID, Type: tokens.TransactionTypeTransferNFT}}
 		require.NoError(t, txo.SetAuthProof(&tokens.TransferNonFungibleTokenAuthProof{}))
 		vm.curPrg.vars[handle_current_tx_order] = txo
 		predicateExecuted := false
@@ -81,7 +87,7 @@ func Test_txSignedByPKH(t *testing.T) {
 				read: func(offset, byteCount uint32) ([]byte, bool) { return pkh, true },
 			}
 		}
-		txo := &types.TransactionOrder{Version: 1, Payload: types.Payload{Type: tokens.TransactionTypeTransferNFT}}
+		txo := &types.TransactionOrder{Version: 1, Payload: types.Payload{PartitionID: tokens.DefaultPartitionID, Type: tokens.TransactionTypeTransferNFT}}
 		require.NoError(t, txo.SetAuthProof(&tokens.TransferNonFungibleTokenAuthProof{}))
 		vm.curPrg.vars[handle_current_tx_order] = txo
 		predicateExecuted := false
@@ -113,7 +119,7 @@ func Test_txSignedByPKH(t *testing.T) {
 			Version: 1,
 			Payload: types.Payload{
 				Type:        tokens.TransactionTypeTransferNFT,
-				PartitionID: 5,
+				PartitionID: tokens.DefaultPartitionID,
 			},
 		}
 		ownerProof := []byte{9, 8, 0}
@@ -153,6 +159,8 @@ func Test_amountTransferredSum(t *testing.T) {
 		// need VerifyQuorumSignatures for verifying tx proofs
 		verifyQuorumSignatures: func(data []byte, signatures map[string]hex.Bytes) (error, []error) { return nil, nil },
 	}
+	tbLoader := func(tp *types.TxProof) (types.RootTrustBase, error) { return trustBaseOK, nil }
+
 	tbSigner, err := abcrypto.NewInMemorySecp256K1Signer()
 	require.NoError(t, err)
 	// public key hashes
@@ -215,17 +223,34 @@ func Test_amountTransferredSum(t *testing.T) {
 
 	// because of invalid proof record we expect error but pkhA should receive
 	// total of 200 (transfer=100 + split=10+90)
-	sum, err := amountTransferredSum(trustBaseOK, proofs, pkhA, nil)
+	sum, err := amountTransferredSum(proofs, pkhA, nil, tbLoader)
 	require.EqualError(t, err, `record[0]: invalid input: transaction proof is nil`)
 	require.EqualValues(t, 200, sum)
 	// pkhB should get 50 from split
-	sum, err = amountTransferredSum(trustBaseOK, proofs, pkhB, nil)
+	sum, err = amountTransferredSum(proofs, pkhB, nil, tbLoader)
 	require.EqualError(t, err, `record[0]: invalid input: transaction proof is nil`)
 	require.EqualValues(t, 50, sum)
 	// nil as pkh
-	sum, err = amountTransferredSum(trustBaseOK, proofs[1:], nil, nil)
+	sum, err = amountTransferredSum(proofs[1:], nil, nil, tbLoader)
 	require.NoError(t, err)
 	require.Zero(t, sum)
+
+	// set the epoch in the UnicitySeal of the last tx (split)
+	uc, err := txRecProof.TxProof.GetUC()
+	require.NoError(t, err)
+	uc.UnicitySeal.Epoch = 160921087
+	txRecProof.TxProof.UnicityCertificate, err = uc.MarshalCBOR()
+	require.NoError(t, err)
+	// loader which finds trust base only for the epoch in the split tx proof
+	tbl := trustBaseLoader(func(epoch uint64) (types.RootTrustBase, error) {
+		if epoch == uc.UnicitySeal.Epoch {
+			return trustBaseOK, nil
+		}
+		return nil, errors.New("nope")
+	})
+	sum, err = amountTransferredSum(proofs, pkhA, nil, tbl)
+	require.EqualError(t, err, "record[0]: acquiring trust base: reading UC: tx proof is nil\nrecord[1]: acquiring trust base: acquiring trust base: nope")
+	require.EqualValues(t, 100, sum)
 }
 
 func Test_transferredSum(t *testing.T) {
@@ -471,5 +496,73 @@ func Test_transferredSum(t *testing.T) {
 		sum, err = transferredSum(tbNOK, txRecProof, pkHash, nil)
 		require.ErrorIs(t, err, errNOK)
 		require.Zero(t, sum)
+	})
+}
+
+func Test_trustBaseLoader(t *testing.T) {
+	t.Run("nil proof", func(t *testing.T) {
+		noCall := func(epoch uint64) (types.RootTrustBase, error) {
+			t.Errorf("unexpected call of the TB loader with epoch %d", epoch)
+			return nil, nil
+		}
+		loader := trustBaseLoader(noCall)
+		tb, err := loader(nil)
+		require.EqualError(t, err, `reading UC: tx proof is nil`)
+		require.Nil(t, tb)
+	})
+
+	t.Run("nil UC", func(t *testing.T) {
+		noCall := func(epoch uint64) (types.RootTrustBase, error) {
+			t.Errorf("unexpected call of the TB loader with epoch %d", epoch)
+			return nil, nil
+		}
+		loader := trustBaseLoader(noCall)
+		proof := types.TxProof{}
+		tb, err := loader(&proof)
+		require.EqualError(t, err, `reading UC: unicity certificate is nil`)
+		require.Nil(t, tb)
+	})
+
+	t.Run("nil UnicitySeal", func(t *testing.T) {
+		noCall := func(epoch uint64) (types.RootTrustBase, error) {
+			t.Errorf("unexpected call of the TB loader with epoch %d", epoch)
+			return nil, nil
+		}
+		loader := trustBaseLoader(noCall)
+		uc, err := (&types.UnicityCertificate{}).MarshalCBOR()
+		require.NoError(t, err)
+		proof := types.TxProof{UnicityCertificate: uc}
+		tb, err := loader(&proof)
+		require.EqualError(t, err, `invalid UC: UnicitySeal is unassigned`)
+		require.Nil(t, tb)
+	})
+
+	t.Run("loader returns error", func(t *testing.T) {
+		expErr := errors.New("failed to load TB")
+		noCall := func(epoch uint64) (types.RootTrustBase, error) {
+			require.EqualValues(t, 45, epoch)
+			return nil, expErr
+		}
+		loader := trustBaseLoader(noCall)
+		uc, err := (&types.UnicityCertificate{UnicitySeal: &types.UnicitySeal{Epoch: 45}}).MarshalCBOR()
+		require.NoError(t, err)
+		proof := types.TxProof{UnicityCertificate: uc}
+		tb, err := loader(&proof)
+		require.ErrorIs(t, err, expErr)
+		require.Nil(t, tb)
+	})
+
+	t.Run("success", func(t *testing.T) {
+		noCall := func(epoch uint64) (types.RootTrustBase, error) {
+			require.EqualValues(t, 45, epoch)
+			return nil, nil
+		}
+		loader := trustBaseLoader(noCall)
+		uc, err := (&types.UnicityCertificate{UnicitySeal: &types.UnicitySeal{Epoch: 45}}).MarshalCBOR()
+		require.NoError(t, err)
+		proof := types.TxProof{UnicityCertificate: uc}
+		tb, err := loader(&proof)
+		require.NoError(t, err)
+		require.Nil(t, tb)
 	})
 }

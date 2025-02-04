@@ -30,6 +30,8 @@ func (m *MockExecContext) GetUnit(id types.UnitID, committed bool) (state.Unit, 
 	return m.Unit, nil
 }
 
+func (m *MockExecContext) CommittedUC() *types.UnicityCertificate { return nil }
+
 func (m *MockExecContext) CurrentRound() uint64 { return m.RoundNumber }
 
 func (m *MockExecContext) TrustBase(epoch uint64) (types.RootTrustBase, error) {

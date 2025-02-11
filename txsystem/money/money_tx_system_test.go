@@ -510,7 +510,6 @@ func TestBillData_Value(t *testing.T) {
 
 func TestBillData_AddToHasher(t *testing.T) {
 	bd := &money.BillData{
-		Version: 1,
 		Value:   10,
 		Counter: 0,
 		Locked:  1,

@@ -634,10 +634,10 @@ func WaitTxProof(t *testing.T, part *NodePartition, txOrder *types.TransactionOr
 	return txRecordProof, nil
 }
 
-func WaitUnitProof(t *testing.T, part *NodePartition, ID types.UnitID, txOrder *types.TransactionOrder) (*types.UnitDataAndProof, error) {
+func WaitUnitProof(t *testing.T, part *NodePartition, ID types.UnitID, txOrder *types.TransactionOrder) (*types.UnitStateWithProof, error) {
 	t.Helper()
 	var (
-		unitProof *types.UnitDataAndProof
+		unitProof *types.UnitStateWithProof
 	)
 	txHash := test.DoHash(t, txOrder)
 	if ok := test.Eventually(func() bool {

@@ -64,6 +64,9 @@ func (m *Module) validateTransferDCTx(tx *types.TransactionOrder, attr *money.Tr
 }
 
 func (m *Module) validateTransDC(tx *types.TransactionOrder, attr *money.TransferDCAttributes, authProof *money.TransferDCAuthProof, exeCtx txtypes.ExecutionContext) error {
+	if tx.HasStateLock() {
+		return errors.New("transDC transaction cannot contain state lock")
+	}
 	unit, err := m.state.GetUnit(tx.UnitID, false)
 	if err != nil {
 		return err

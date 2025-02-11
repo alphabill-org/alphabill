@@ -52,6 +52,9 @@ func (m *Module) executeSwapTx(tx *types.TransactionOrder, _ *money.SwapDCAttrib
 }
 
 func (m *Module) validateSwapTx(tx *types.TransactionOrder, attr *money.SwapDCAttributes, authProof *money.SwapDCAuthProof, exeCtx txtypes.ExecutionContext) error {
+	if tx.HasStateLock() {
+		return errors.New("swapDC transaction cannot contain state lock")
+	}
 	// transaction unit id identifies an existing bill
 	unitData, err := m.state.GetUnit(tx.UnitID, false)
 	if err != nil {

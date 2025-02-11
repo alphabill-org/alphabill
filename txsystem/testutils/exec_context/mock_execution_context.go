@@ -17,6 +17,7 @@ type MockExecContext struct {
 	mockErr       error
 	customData    []byte
 	exArgument    func() ([]byte, error)
+	exeType       txtypes.ExecutionType
 }
 
 func (m *MockExecContext) GetUnit(id types.UnitID, committed bool) (state.Unit, error) {
@@ -100,7 +101,15 @@ func (m *MockExecContext) CalculateCost() uint64 {
 	return 1 // (gasUsed + GasUnitsPerTema/2) / GasUnitsPerTema
 }
 
-func NewMockExecutionContext(options ...TestOption) txtypes.ExecutionContext {
+func (m *MockExecContext) ExecutionType() txtypes.ExecutionType {
+	return txtypes.ExecutionTypeUnconditional
+}
+
+func (m *MockExecContext) SetExecutionType(exeType txtypes.ExecutionType) {
+	m.exeType = exeType
+}
+
+func NewMockExecutionContext(options ...TestOption) *MockExecContext {
 	execCtx := &MockExecContext{}
 	for _, o := range options {
 		o(execCtx)

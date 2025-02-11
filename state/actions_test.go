@@ -10,6 +10,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var unitID = []byte{1, 1, 1, 1}
+
 func TestAdd(t *testing.T) {
 	type args struct {
 		id     types.UnitID
@@ -23,6 +25,8 @@ func TestAdd(t *testing.T) {
 		executionErrStr string
 		expectedUnit    *UnitV1
 	}
+	ownerPredicate := []byte{0x83, 0x00, 0x41, 0x01, 0xf6}
+
 	tests := []testCase{
 		{
 			name: "unit id is nil",
@@ -35,21 +39,21 @@ func TestAdd(t *testing.T) {
 		{
 			name: "unit ID exists",
 			args: args{
-				id:     []byte{1, 1, 1, 1},
-				bearer: []byte{0x83, 0x00, 0x41, 0x01, 0xf6},
+				id:     unitID,
+				bearer: ownerPredicate,
 				data: &TestData{
 					Value: 100,
 				},
 			},
 			initialState:    newStateWithUnits(t),
-			executionErrStr: "unable to add unit: key 01010101 exists",
+			executionErrStr: "unable to add unit: node already exists: key 01010101 exists",
 		},
 		{
 			name: "ok",
 			args: args{
 				id:     []byte{1},
-				bearer: []byte{0x83, 0x00, 0x41, 0x01, 0xf6},
-				data:   &TestData{Value: 123, OwnerPredicate: []byte{0x83, 0x00, 0x41, 0x01, 0xf6}},
+				bearer: ownerPredicate,
+				data:   &TestData{Value: 123, OwnerPredicate: ownerPredicate},
 			},
 			initialState: NewEmptyState(),
 			expectedUnit: func() *UnitV1 {
@@ -66,7 +70,7 @@ func TestAdd(t *testing.T) {
 				return &UnitV1{
 					logs:                nil,
 					logsHash:            nil,
-					data:                &TestData{Value: 123},
+					data:                &TestData{Value: 123, OwnerPredicate: ownerPredicate},
 					subTreeSummaryValue: 123,
 					subTreeSummaryHash:  subTreeSumHash,
 				}
@@ -122,7 +126,7 @@ func TestUpdate(t *testing.T) {
 		{
 			name: "ok",
 			args: args{
-				id: []byte{1, 1, 1, 1},
+				id: unitID,
 				f: func(data types.UnitData) (types.UnitData, error) {
 					return &TestData{Value: 200, OwnerPredicate: []byte{0x83, 0x00, 0x41, 0x01, 0xf6}}, nil
 				},
@@ -173,7 +177,7 @@ func TestDelete(t *testing.T) {
 		},
 		{
 			name:         "ok",
-			unitID:       []byte{1, 1, 1, 1},
+			unitID:       unitID,
 			initialState: newStateWithUnits(t),
 		},
 	}
@@ -207,21 +211,116 @@ func Test_SetStateLock(t *testing.T) {
 
 	t.Run("unit already has a state lock", func(t *testing.T) {
 		s := newStateWithUnits(t)
-		err := SetStateLock([]byte{1, 1, 1, 1}, []byte{1})(s.latestSavepoint(), crypto.SHA256)
+		err := SetStateLock(unitID, []byte{1})(s.latestSavepoint(), crypto.SHA256)
 		require.NoError(t, err)
-		err = SetStateLock([]byte{1, 1, 1, 1}, []byte{1})(s.latestSavepoint(), crypto.SHA256)
+		err = SetStateLock(unitID, []byte{1})(s.latestSavepoint(), crypto.SHA256)
 		require.Error(t, err)
 		require.Equal(t, "unit already has a state lock", err.Error())
 	})
 
 	t.Run("successful state lock set", func(t *testing.T) {
 		s := newStateWithUnits(t).latestSavepoint()
-		err := SetStateLock([]byte{1, 1, 1, 1}, []byte{1})(s, crypto.SHA256)
+		err := SetStateLock(unitID, []byte{1})(s, crypto.SHA256)
 		require.NoError(t, err)
-		u, _ := s.Get([]byte{1, 1, 1, 1})
+		u, _ := s.Get(unitID)
 		unit, err := ToUnitV1(u)
 		require.NoError(t, err)
 		require.Equal(t, []byte{1}, unit.stateLockTx)
+	})
+}
+
+func Test_RemoveStateLock(t *testing.T) {
+	stateLockTx := []byte{1}
+
+	t.Run("id is nil", func(t *testing.T) {
+		err := RemoveStateLock(nil)(NewEmptyState().latestSavepoint(), crypto.SHA256)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "id is nil")
+	})
+
+	t.Run("unit not found", func(t *testing.T) {
+		err := RemoveStateLock(unitID)(NewEmptyState().latestSavepoint(), crypto.SHA256)
+		require.ErrorContains(t, err, "failed to find unit")
+	})
+
+	t.Run("unit does not have a state lock", func(t *testing.T) {
+		s := newStateWithUnits(t)
+		err := RemoveStateLock(unitID)(s.latestSavepoint(), crypto.SHA256)
+		require.EqualError(t, err, "unit does not have a state lock")
+	})
+
+	t.Run("state lock removed successfully", func(t *testing.T) {
+		s := newStateWithUnits(t).latestSavepoint()
+		require.NoError(t, SetStateLock(unitID, stateLockTx)(s, crypto.SHA256))
+		require.NoError(t, RemoveStateLock(unitID)(s, crypto.SHA256))
+		u, err := s.Get(unitID)
+		require.NoError(t, err)
+		unit, err := ToUnitV1(u)
+		require.NoError(t, err)
+		require.Nil(t, unit.stateLockTx)
+	})
+}
+
+func Test_AddOrPromoteUnit(t *testing.T) {
+	unitData := &TestData{Value: 10, OwnerPredicate: []byte{0x83, 0x00, 0x41, 0x01, 0xf6}}
+
+	t.Run("id is nil", func(t *testing.T) {
+		err := AddOrPromoteUnit(nil, unitData)(NewEmptyState().latestSavepoint(), crypto.SHA256)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "id is nil")
+	})
+
+	t.Run("add unit ok - dummy unit exists", func(t *testing.T) {
+		s := newStateWithDummyUnits(t)
+		add := AddOrPromoteUnit(unitID, unitData)
+		err := add(s.latestSavepoint(), crypto.SHA256)
+		require.NoError(t, err)
+		u, err := s.GetUnit(unitID, false)
+		require.NoError(t, err)
+		unit, err := ToUnitV1(u)
+		require.NoError(t, err)
+		require.False(t, unit.IsDummy())
+		require.Equal(t, unitData, unit.data)
+	})
+
+	t.Run("add unit ok - unit does not exist", func(t *testing.T) {
+		s := NewEmptyState()
+		err := AddOrPromoteUnit(unitID, unitData)(s.latestSavepoint(), crypto.SHA256)
+		require.NoError(t, err)
+		u, err := s.GetUnit(unitID, false)
+		require.NoError(t, err)
+		unit, err := ToUnitV1(u)
+		require.NoError(t, err)
+		require.Equal(t, unitData, unit.data)
+	})
+
+	t.Run("add unit nok - normal unit already exists", func(t *testing.T) {
+		s := newStateWithUnits(t)
+		err := AddOrPromoteUnit(unitID, unitData)(s.latestSavepoint(), crypto.SHA256)
+		require.ErrorContains(t, err, "non-dummy unit already exists")
+	})
+}
+
+func Test_MarkForDeletion(t *testing.T) {
+	t.Run("id is nil", func(t *testing.T) {
+		err := MarkForDeletion(nil, 0)(NewEmptyState().latestSavepoint(), crypto.SHA256)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "id is nil")
+	})
+
+	t.Run("unit not found", func(t *testing.T) {
+		err := MarkForDeletion(unitID, 0)(NewEmptyState().latestSavepoint(), crypto.SHA256)
+		require.ErrorContains(t, err, "failed to find unit")
+	})
+
+	t.Run("ok", func(t *testing.T) {
+		s := newStateWithUnits(t).latestSavepoint()
+		require.NoError(t, MarkForDeletion(unitID, 10)(s, crypto.SHA256))
+		u, err := s.Get(unitID)
+		require.NoError(t, err)
+		unit, err := ToUnitV1(u)
+		require.NoError(t, err)
+		require.EqualValues(t, 10, unit.deletionRound)
 	})
 }
 
@@ -229,7 +328,17 @@ func newStateWithUnits(t *testing.T) *State {
 	s := NewEmptyState()
 	require.NoError(t,
 		s.Apply(
-			AddUnit([]byte{1, 1, 1, 1}, &TestData{Value: 10, OwnerPredicate: []byte{0x83, 0x00, 0x41, 0x01, 0xf6}}),
+			AddUnit(unitID, &TestData{Value: 10, OwnerPredicate: []byte{0x83, 0x00, 0x41, 0x01, 0xf6}}),
+		),
+	)
+	return s
+}
+
+func newStateWithDummyUnits(t *testing.T) *State {
+	s := NewEmptyState()
+	require.NoError(t,
+		s.Apply(
+			AddDummyUnit(unitID),
 		),
 	)
 	return s

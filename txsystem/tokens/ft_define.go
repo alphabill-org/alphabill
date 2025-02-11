@@ -24,6 +24,9 @@ func (m *FungibleTokensModule) executeDefineFT(tx *types.TransactionOrder, attr 
 }
 
 func (m *FungibleTokensModule) validateDefineFT(tx *types.TransactionOrder, attr *tokens.DefineFungibleTokenAttributes, authProof *tokens.DefineFungibleTokenAuthProof, exeCtx txtypes.ExecutionContext) error {
+	if tx.HasStateLock() {
+		return errors.New("defFT transaction cannot contain state lock")
+	}
 	unitID := tx.GetUnitID()
 	if err := unitID.TypeMustBe(tokens.FungibleTokenTypeUnitType, &m.pdr); err != nil {
 		return fmt.Errorf("invalid unit ID: %w", err)

@@ -20,6 +20,7 @@ import (
 )
 
 const mockTxType uint16 = 22
+const mockSplitTxType uint16 = 23
 const mockNetworkID types.NetworkID = 5
 const mockPartitionID types.PartitionID = 10
 
@@ -410,6 +411,12 @@ type MockTxAuthProof struct {
 	OwnerProof []byte
 }
 
+type MockSplitTxAttributes struct {
+	_           struct{} `cbor:",toarray"`
+	Value       uint64
+	TargetUnits []types.UnitID
+}
+
 func newMockLockTx(t *testing.T, option ...transaction.Option) []byte {
 	txo := transaction.NewTransactionOrder(t, option...)
 	txBytes, err := types.Cbor.Marshal(txo)
@@ -437,9 +444,25 @@ func (mm MockModule) mockExecuteTx(tx *types.TransactionOrder, _ *MockTxAttribut
 	return &types.ServerMetadata{ActualFee: 0, SuccessIndicator: types.TxStatusSuccessful}, nil
 }
 
+func (mm MockModule) mockValidateSplitTx(tx *types.TransactionOrder, _ *MockSplitTxAttributes, _ *MockTxAuthProof, _ txtypes.ExecutionContext) (err error) {
+	return mm.ValidateError
+}
+
+func (mm MockModule) mockExecuteSplitTx(tx *types.TransactionOrder, _ *MockSplitTxAttributes, _ *MockTxAuthProof, _ txtypes.ExecutionContext) (*types.ServerMetadata, error) {
+	if mm.Result != nil {
+		return &types.ServerMetadata{SuccessIndicator: types.TxStatusFailed}, mm.Result
+	}
+	return &types.ServerMetadata{ActualFee: 0, SuccessIndicator: types.TxStatusSuccessful}, nil
+}
+
+func (mm MockModule) mockSplitTargetUnits(tx *types.TransactionOrder, attr *MockSplitTxAttributes, _ *MockTxAuthProof, _ txtypes.ExecutionContext) ([]types.UnitID, error) {
+	return attr.TargetUnits, nil
+}
+
 func (mm MockModule) TxHandlers() map[uint16]txtypes.TxExecutor {
 	return map[uint16]txtypes.TxExecutor{
-		mockTxType: txtypes.NewTxHandler[MockTxAttributes](mm.mockValidateTx, mm.mockExecuteTx),
+		mockTxType:      txtypes.NewTxHandler[MockTxAttributes, MockTxAuthProof](mm.mockValidateTx, mm.mockExecuteTx),
+		mockSplitTxType: txtypes.NewTxHandler[MockSplitTxAttributes, MockTxAuthProof](mm.mockValidateSplitTx, mm.mockExecuteSplitTx, txtypes.WithTargetUnitsFn(mm.mockSplitTargetUnits)),
 	}
 }
 

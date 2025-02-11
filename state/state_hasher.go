@@ -53,10 +53,12 @@ func (p *stateHasher) Traverse(n *avl.Node[types.UnitID, Unit]) error {
 		unit.logsHash = merkleTree.GetRootHash()
 	}
 
-	unit.stateLockTx = unit.latestStateLockTx()
-
-	// D - unit data
-	unit.data = unit.latestUnitData()
+	l := unit.latestUnitLog()
+	if l != nil {
+		unit.stateLockTx = l.NewStateLockTx
+		unit.data = l.NewUnitData
+		unit.deletionRound = l.DeletionRound
+	}
 
 	// V - calculate summary value
 	lv, lh, err := getSubTreeSummary(left)

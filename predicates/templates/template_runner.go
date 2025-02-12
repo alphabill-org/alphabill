@@ -39,7 +39,7 @@ func New(obs Observability) (TemplateRunner, error) {
 	execDur, err := m.Float64Histogram("exec.time",
 		metric.WithDescription("How long it took to execute an predicate"),
 		metric.WithUnit("s"),
-		metric.WithExplicitBucketBoundaries(3e-9, 4e-9, 5e-9, 1e-8, 50e-6, 100e-6, 200e-6, 400e-6, 800e-6, 0.002))
+		metric.WithExplicitBucketBoundaries(1e-6, 50e-6, 100e-6, 200e-6, 400e-6, 800e-6, 0.002, 0.004, 0.008))
 	if err != nil {
 		return TemplateRunner{}, fmt.Errorf("creating histogram for predicate execution time: %w", err)
 	}

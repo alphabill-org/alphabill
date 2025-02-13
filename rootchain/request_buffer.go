@@ -79,7 +79,7 @@ func NewCertificationRequestBuffer(m metric.Meter) (*CertRequestBuffer, error) {
 	consensusDur, err := m.Float64Histogram("cert.req.consensus.time",
 		metric.WithDescription("How long it took to achieve consensus about shard's certification request, ie enough shard nodes have sent in their take for the round"),
 		metric.WithUnit("s"),
-		metric.WithExplicitBucketBoundaries(200e-6, 400e-6, 800e-6, 0.0016, 0.003, 0.006, 0.01, 0.05, 0.1))
+		metric.WithExplicitBucketBoundaries(200e-6, 400e-6, 800e-6, 0.0016, 0.003, 0.006, 0.01, 0.05, 0.1, 0.2))
 	if err != nil {
 		return nil, fmt.Errorf("creating histogram for req consensus time: %w", err)
 	}

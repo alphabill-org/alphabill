@@ -167,7 +167,7 @@ func (buf *TxBuffer) initMetrics(partition types.PartitionID, shard types.ShardI
 		"queued",
 		metric.WithDescription("For how long transaction was in the buffer before being processed."),
 		metric.WithUnit("s"),
-		metric.WithExplicitBucketBoundaries(50e-6, 100e-6, 250e-6, 500e-6, 0.001, 0.01, 0.1, 0.2, 0.4, 0.8, 1.5, 3),
+		metric.WithExplicitBucketBoundaries(50e-6, 100e-6, 250e-6, 500e-6, 0.001, 0.01, 0.1, 0.2, 0.4, 0.8, 1.5, 3, 6),
 	); err != nil {
 		return fmt.Errorf("creating duration histogram: %w", err)
 	}

@@ -486,6 +486,28 @@ func (s *State) createUnitTreeCert(unit *UnitV1, logIndex int) (*types.UnitTreeC
 }
 
 func (s *State) createStateTreeCert(id types.UnitID) (*types.StateTreeCert, error) {
+	getStateTreePathItem := func(n *node, child *node, summaryValueInput uint64, nodeKey types.UnitID) (*types.StateTreePathItem, error) {
+		logsHash, err := getSubTreeLogsHash(n)
+		if err != nil {
+			return nil, fmt.Errorf("unable to extract logs hash for unit %s: %w", id, err)
+		}
+		siblingSummaryHash, err := getSubTreeSummaryHash(child)
+		if err != nil {
+			return nil, fmt.Errorf("unable to extract sibling summary hash for unit %s: %w", id, err)
+		}
+		siblingSummaryValue, err := getSubTreeSummaryValue(child)
+		if err != nil {
+			return nil, fmt.Errorf("unable to extract sibling summary value for unit %s: %w", id, err)
+		}
+		return &types.StateTreePathItem{
+			UnitID:              nodeKey,
+			LogsHash:            logsHash,
+			Value:               summaryValueInput,
+			SiblingSummaryHash:  siblingSummaryHash,
+			SiblingSummaryValue: siblingSummaryValue,
+		}, nil
+	}
+
 	var path []*types.StateTreePathItem
 	n := s.committedTree.Root()
 	for n != nil && !id.Eq(n.Key()) {
@@ -495,32 +517,12 @@ func (s *State) createStateTreeCert(id types.UnitID) (*types.StateTreeCert, erro
 			return nil, fmt.Errorf("unable to extract summary value input for unit %s: %w", id, err)
 		}
 		var item *types.StateTreePathItem
-		getStateTreePathItem := func(n *node, child *node) (*types.StateTreePathItem, error) {
-			logsHash, err := getSubTreeLogsHash(n)
-			if err != nil {
-				return nil, fmt.Errorf("unable to extract logs hash for unit %s: %w", id, err)
-			}
-			siblingSummaryHash, err := getSubTreeSummaryHash(child)
-			if err != nil {
-				return nil, fmt.Errorf("unable to extract sibling summary hash for unit %s: %w", id, err)
-			}
-			siblingSummaryValue, err := getSubTreeSummaryValue(child)
-			if err != nil {
-				return nil, fmt.Errorf("unable to extract sibling summary value for unit %s: %w", id, err)
-			}
-			return &types.StateTreePathItem{
-				UnitID:              nodeKey,
-				LogsHash:            logsHash,
-				Value:               v,
-				SiblingSummaryHash:  siblingSummaryHash,
-				SiblingSummaryValue: siblingSummaryValue,
-			}, nil
-		}
+
 		if id.Compare(nodeKey) == -1 {
-			item, err = getStateTreePathItem(n, n.Right())
+			item, err = getStateTreePathItem(n, n.Right(), v, nodeKey)
 			n = n.Left()
 		} else {
-			item, err = getStateTreePathItem(n, n.Left())
+			item, err = getStateTreePathItem(n, n.Left(), v, nodeKey)
 			n = n.Right()
 		}
 		if err != nil {

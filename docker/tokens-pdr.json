@@ -1,0 +1,12 @@
+{
+  "networkId": 3,
+  "partitionId": 2,
+  "typeIdLength": 8,
+  "unitIdLength": 256,
+  "shardingScheme": null,
+  "t2timeout": 2500000000,
+  "feeCreditBill": {
+    "unitId": "0x000000000000000000000000000000000000000000000000000000000000001201",
+    "ownerPredicate": "0x830041025820f52022bb450407d92f13bf1c53128a676bcf304818e9f41a5ef4ebeae9c0d6b0"
+  }
+}

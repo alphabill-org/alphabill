@@ -67,8 +67,12 @@ func (m *GenericTxSystem) handleUnlockUnitState(tx *types.TransactionOrder, exeC
 		}
 		return nil, fmt.Errorf("getting unit: %w", err)
 	}
+	unit, err := state.ToUnitV1(u)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert unit to version 1: %w", err)
+	}
 	// if unit is not locked, then this method is done - nothing to unlock
-	if !u.IsStateLocked() {
+	if !unit.IsStateLocked() {
 		return nil, nil
 	}
 	// unit has a state lock, any transaction with locked unit must first unlock
@@ -79,7 +83,7 @@ func (m *GenericTxSystem) handleUnlockUnitState(tx *types.TransactionOrder, exeC
 		return nil, fmt.Errorf("unlock proof error: %w", err)
 	}
 	txOnHold := &types.TransactionOrder{Version: 1}
-	if err = types.Cbor.Unmarshal(u.StateLockTx(), txOnHold); err != nil {
+	if err = types.Cbor.Unmarshal(unit.StateLockTx(), txOnHold); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal state lock transaction: %w", err)
 	}
 	// The following line assumes that the pending transaction is valid and has a Payload

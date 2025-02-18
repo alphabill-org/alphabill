@@ -111,14 +111,22 @@ func (m *GenericTxSystem) IsFeelessMode() bool {
 }
 
 func (m *GenericTxSystem) StateSize() (uint64, error) {
-	if !m.state.IsCommitted() {
+	committed, err := m.state.IsCommitted()
+	if err != nil {
+		return 0, fmt.Errorf("unable to check state committed status: %w", err)
+	}
+	if !committed {
 		return 0, ErrStateContainsUncommittedChanges
 	}
 	return m.state.Size()
 }
 
 func (m *GenericTxSystem) StateSummary() (StateSummary, error) {
-	if !m.state.IsCommitted() {
+	committed, err := m.state.IsCommitted()
+	if err != nil {
+		return nil, fmt.Errorf("unable to check state committed status: %w", err)
+	}
+	if !committed {
 		return nil, ErrStateContainsUncommittedChanges
 	}
 	return m.getStateSummary()
@@ -198,7 +206,10 @@ func (m *GenericTxSystem) doExecute(tx *types.TransactionOrder, exeCtx *txtypes.
 		TransactionOrder: txBytes,
 		ServerMetadata:   &types.ServerMetadata{SuccessIndicator: types.TxStatusSuccessful},
 	}
-	savepointID := m.state.Savepoint()
+	savepointID, err := m.state.Savepoint()
+	if err != nil {
+		return nil, fmt.Errorf("savepoint error: %w", err)
+	}
 	defer func() {
 		// set the correct success indicator
 		if txExecErr != nil {
@@ -301,7 +312,10 @@ func (m *GenericTxSystem) executeFc(tx *types.TransactionOrder, exeCtx *txtypes.
 	}
 	// 8. b ← SNFees(S, P; &MS) - is at the moment done for all tx before this call
 	// 9. TakeSnapshot
-	savepointID := m.state.Savepoint()
+	savepointID, err := m.state.Savepoint()
+	if err != nil {
+		return nil, fmt.Errorf("savepoint error: %w", err)
+	}
 	// skip step 10 b ← Unlock(S, P; &MS) - nothing to unlock if state lock is disabled in step 4?
 	// skip 11 If S .N[P.ι].L != ⊥ - unlock fail, as currently no attempt is made to unlock
 	// proceed with the transaction execution
@@ -415,7 +429,7 @@ func (m *GenericTxSystem) TypeID() types.PartitionTypeID {
 	return m.pdr.PartitionTypeID
 }
 
-func (m *GenericTxSystem) GetUnit(id types.UnitID, committed bool) (*state.Unit, error) {
+func (m *GenericTxSystem) GetUnit(id types.UnitID, committed bool) (state.Unit, error) {
 	return m.state.GetUnit(id, committed)
 }
 

@@ -10,6 +10,7 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	"github.com/alphabill-org/alphabill/partition"
 	"github.com/alphabill-org/alphabill/rootchain/partitions"
+	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/tree/avl"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -85,8 +86,8 @@ func (s *StateAPI) GetRoundInfo(ctx context.Context) (_ *partition.RoundInfo, re
 func (s *StateAPI) GetUnit(unitID types.UnitID, includeStateProof bool) (_ *Unit[any], retErr error) {
 	defer func(start time.Time) { s.updMetrics(context.Background(), "getUnit", start, retErr) }(time.Now())
 
-	state := s.node.TransactionSystemState()
-	unit, err := state.GetUnit(unitID, true)
+	st := s.node.TransactionSystemState()
+	unit, err := st.GetUnit(unitID, true)
 	if err != nil {
 		if errors.Is(err, avl.ErrNotFound) {
 			return nil, nil
@@ -103,7 +104,11 @@ func (s *StateAPI) GetUnit(unitID types.UnitID, includeStateProof bool) (_ *Unit
 	}
 
 	if includeStateProof {
-		stateProof, err := state.CreateUnitStateProof(unitID, unit.LastLogIndex())
+		u, err := state.ToUnitV1(unit)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert unit to version 1: %w", err)
+		}
+		stateProof, err := st.CreateUnitStateProof(unitID, u.LastLogIndex())
 		if err != nil {
 			return nil, fmt.Errorf("failed to generate unit state proof: %w", err)
 		}

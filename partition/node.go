@@ -216,6 +216,8 @@ func NewNode(
 	n.stopTxProcessor.Store(func() { /* init to NOP */ })
 	n.status.Store(initializing)
 
+	n.log.InfoContext(ctx, fmt.Sprintf("Node '%s' initializing, starting round #%d", peerConf.ID, txSystem.CommittedUC().GetRoundNumber()))
+
 	if err := n.initMetrics(observe); err != nil {
 		return nil, fmt.Errorf("initialize metrics: %w", err)
 	}

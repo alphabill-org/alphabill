@@ -320,6 +320,10 @@ func (ud *unitData) Owner() []byte {
 	return ud.O
 }
 
+func (ud *unitData) GetVersion() types.ABVersion {
+	return 0
+}
+
 type (
 	MockNode struct {
 		maxBlockNumber     uint64

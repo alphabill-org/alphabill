@@ -177,7 +177,7 @@ func Benchmark_wazero_call_wasm_fn(b *testing.B) {
 }
 
 type mockTxContext struct {
-	getUnit      func(id types.UnitID, committed bool) (*state.Unit, error)
+	getUnit      func(id types.UnitID, committed bool) (state.Unit, error)
 	committedUC  func() *types.UnicityCertificate
 	curRound     func() uint64
 	trustBase    func() (types.RootTrustBase, error)
@@ -186,7 +186,7 @@ type mockTxContext struct {
 	exArgument   func() ([]byte, error)
 }
 
-func (env *mockTxContext) GetUnit(id types.UnitID, committed bool) (*state.Unit, error) {
+func (env *mockTxContext) GetUnit(id types.UnitID, committed bool) (state.Unit, error) {
 	return env.getUnit(id, committed)
 }
 

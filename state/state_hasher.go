@@ -2,6 +2,7 @@ package state
 
 import (
 	"crypto"
+	"fmt"
 
 	abhash "github.com/alphabill-org/alphabill-go-base/hash"
 	"github.com/alphabill-org/alphabill-go-base/tree/mt"
@@ -12,7 +13,7 @@ import (
 // stateHasher calculates the root hash of the state tree (see "Invariants of the State Tree" chapter from the
 // yellowpaper for more information).
 type stateHasher struct {
-	avl.PostOrderCommitTraverser[types.UnitID, *Unit]
+	avl.PostOrderCommitTraverser[types.UnitID, Unit]
 	hashAlgorithm crypto.Hash
 }
 
@@ -22,8 +23,15 @@ func newStateHasher(hashAlgorithm crypto.Hash) *stateHasher {
 
 // Traverse visits changed nodes in the state tree and recalculates a new root hash of the state tree.
 // Executed when the State.Commit function is called.
-func (p *stateHasher) Traverse(n *avl.Node[types.UnitID, *Unit]) error {
-	if n == nil || (n.Clean() && n.Value().summaryCalculated) {
+func (p *stateHasher) Traverse(n *avl.Node[types.UnitID, Unit]) error {
+	if n == nil {
+		return nil
+	}
+	unit, err := ToUnitV1(n.Value())
+	if err != nil {
+		return fmt.Errorf("failed to get unit: %w", err)
+	}
+	if n.Clean() && unit.summaryCalculated {
 		return nil
 	}
 	var left = n.Left()
@@ -34,8 +42,6 @@ func (p *stateHasher) Traverse(n *avl.Node[types.UnitID, *Unit]) error {
 	if err := p.Traverse(right); err != nil {
 		return err
 	}
-
-	unit := n.Value()
 
 	// h_s - calculate state log root hash
 	// Skip this step if state has been recovered from file and logsHash is already present.
@@ -53,22 +59,30 @@ func (p *stateHasher) Traverse(n *avl.Node[types.UnitID, *Unit]) error {
 	unit.data = unit.latestUnitData()
 
 	// V - calculate summary value
-	leftSummary := getSubTreeSummaryValue(left)
-	rightSummary := getSubTreeSummaryValue(right)
-	unitDataSummaryInputValue := getSummaryValueInput(n)
-	unit.subTreeSummaryValue = unitDataSummaryInputValue + leftSummary + rightSummary
+	lv, lh, err := getSubTreeSummary(left)
+	if err != nil {
+		return err
+	}
+	rv, rh, err := getSubTreeSummary(right)
+	if err != nil {
+		return err
+	}
+	unitDataSummaryInputValue, err := getSummaryValueInput(n)
+	if err != nil {
+		return err
+	}
+	unit.subTreeSummaryValue = unitDataSummaryInputValue + lv + rv
 
 	// h - subtree summary hash
 	hasher := abhash.New(p.hashAlgorithm.New())
 	hasher.Write(n.Key())
 	hasher.Write(unit.logsHash)
 	hasher.Write(unit.subTreeSummaryValue)
-	hasher.Write(getSubTreeSummaryHash(left))
-	hasher.Write(leftSummary)
-	hasher.Write(getSubTreeSummaryHash(right))
-	hasher.Write(rightSummary)
+	hasher.Write(lh)
+	hasher.Write(lv)
+	hasher.Write(rh)
+	hasher.Write(rv)
 
-	var err error
 	unit.subTreeSummaryHash, err = hasher.Sum()
 	if err != nil {
 		return err

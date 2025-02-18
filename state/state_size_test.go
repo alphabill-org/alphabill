@@ -94,6 +94,10 @@ func (t *ud) Owner() []byte {
 	return nil
 }
 
+func (t *ud) GetVersion() types.ABVersion {
+	return 0
+}
+
 // create Write implementation for "ud" which writes "count" random bytes
 func writeRandomBytes(count int) func(h hash.Hash) error {
 	return func(h hash.Hash) error {

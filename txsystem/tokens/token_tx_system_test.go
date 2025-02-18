@@ -646,7 +646,9 @@ func TestMintNFT_Ok(t *testing.T) {
 	require.IsType(t, &tokens.NonFungibleTokenData{}, u.Data())
 
 	// verify unit log was added
-	require.Len(t, u.Logs(), 1)
+	unit, err := state.ToUnitV1(u)
+	require.NoError(t, err)
+	require.Len(t, unit.Logs(), 1)
 
 	d := u.Data().(*tokens.NonFungibleTokenData)
 	require.Equal(t, zeroSummaryValue, d.SummaryValueInput())
@@ -1729,6 +1731,10 @@ func (m mockUnitData) Copy() types.UnitData {
 
 func (m mockUnitData) Owner() []byte {
 	return nil
+}
+
+func (m mockUnitData) GetVersion() types.ABVersion {
+	return 0
 }
 
 func createSigner(t *testing.T) (abcrypto.Signer, []byte) {

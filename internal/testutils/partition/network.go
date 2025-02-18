@@ -294,7 +294,11 @@ func (n *NodePartition) start(t *testing.T, ctx context.Context, bootNodes []pee
 	// partition nodes as they are set up for test, require bootstrap info
 	require.NotEmpty(t, bootNodes)
 
-	if !n.genesisState.IsCommitted() {
+	committed, err := n.genesisState.IsCommitted()
+	if err != nil {
+		return fmt.Errorf("failed to check if state is committed: %w", err)
+	}
+	if !committed {
 		if err := n.genesisState.Commit(n.partitionGenesis.Certificate); err != nil {
 			return fmt.Errorf("invalid genesis state: %w", err)
 		}

@@ -11,9 +11,9 @@ import (
 
 type (
 	ShardState interface {
-		Add(id types.UnitID, u *Unit) error
-		Get(id types.UnitID) (*Unit, error)
-		Update(id types.UnitID, unit *Unit) error
+		Add(id types.UnitID, u Unit) error
+		Get(id types.UnitID) (Unit, error)
+		Update(id types.UnitID, unit Unit) error
 		Delete(id types.UnitID) error
 	}
 
@@ -45,7 +45,7 @@ func AddUnit(id types.UnitID, data types.UnitData) Action {
 		if err != nil {
 			return fmt.Errorf("add unit: unable to calculate subtree summary hash: %w", err)
 		}
-		u := &Unit{
+		u := &UnitV1{
 			logs:                []*Log{},
 			data:                d,
 			subTreeSummaryValue: unitDataSummaryValue,
@@ -80,7 +80,7 @@ func AddUnitWithLock(id types.UnitID, data types.UnitData, l []byte) Action {
 		if err != nil {
 			return fmt.Errorf("add unit: unable to calculate subtree summary hash: %w", err)
 		}
-		u := &Unit{
+		u := &UnitV1{
 			logs:                []*Log{},
 			data:                d,
 			stateLockTx:         l,
@@ -105,7 +105,10 @@ func UpdateUnitData(id types.UnitID, f UpdateFunction) Action {
 			return fmt.Errorf("failed to get unit: %w", err)
 		}
 
-		cloned := u.Clone()
+		cloned, err := ToUnitV1(u.Clone())
+		if err != nil {
+			return fmt.Errorf("unable to parse cloned unit: %w", err)
+		}
 		newData, err := f(cloned.data)
 		if err != nil {
 			return fmt.Errorf("unable to update unit data: %w", err)
@@ -129,10 +132,17 @@ func SetStateLock(id types.UnitID, stateLockTx []byte) Action {
 			return fmt.Errorf("failed to find unit: %w", err)
 		}
 
-		if u.stateLockTx != nil && stateLockTx != nil {
+		unit, err := ToUnitV1(u)
+		if err != nil {
+			return fmt.Errorf("unable to parse unit: %w", err)
+		}
+		if unit.stateLockTx != nil && stateLockTx != nil {
 			return errors.New("unit already has a state lock")
 		}
-		cloned := u.Clone()
+		cloned, err := ToUnitV1(unit.Clone())
+		if err != nil {
+			return fmt.Errorf("unable to parse cloned unit: %w", err)
+		}
 		cloned.stateLockTx = stateLockTx
 		if err = s.Update(id, cloned); err != nil {
 			return fmt.Errorf("unable to update unit: %w", err)

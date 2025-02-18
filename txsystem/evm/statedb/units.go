@@ -67,6 +67,10 @@ func (s *StateObject) Copy() types.UnitData {
 	}
 }
 
+func (s *StateObject) GetVersion() types.ABVersion {
+	return 1
+}
+
 func (s *StateObject) Owner() []byte {
 	if s == nil || s.AlphaBill == nil {
 		return nil

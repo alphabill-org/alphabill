@@ -31,6 +31,7 @@ func (t *TestData) Copy() types.UnitData { return &TestData{} }
 func (t *TestData) Owner() []byte {
 	return nil
 }
+func (t *TestData) GetVersion() types.ABVersion { return 0 }
 
 func TestAddVar_AddNewUnit_OK(t *testing.T) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)

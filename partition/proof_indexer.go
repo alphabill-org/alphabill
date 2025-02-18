@@ -24,7 +24,7 @@ type (
 	// UnitAndProof read access to state to access unit and unit proofs
 	UnitAndProof interface {
 		// GetUnit - access tx system unit state
-		GetUnit(id types.UnitID, committed bool) (*state.Unit, error)
+		GetUnit(id types.UnitID, committed bool) (state.Unit, error)
 		// CreateUnitStateProof - create unit proofs
 		CreateUnitStateProof(id types.UnitID, logIndex int) (*types.UnitStateProof, error)
 	}
@@ -157,12 +157,16 @@ func (p *ProofIndexer) create(ctx context.Context, block *types.Block, roundNumb
 			return fmt.Errorf("unable to hash transaction record: %w", err)
 		}
 		for _, unitID := range tx.TargetUnits() {
-			var unit *state.Unit
+			var unit state.Unit
 			unit, err = stateReader.GetUnit(unitID, true)
 			if err != nil {
 				return fmt.Errorf("unit load failed: %w", err)
 			}
-			unitLogs := unit.Logs()
+			u, err := state.ToUnitV1(unit)
+			if err != nil {
+				return fmt.Errorf("unit parse failed: %w", err)
+			}
+			unitLogs := u.Logs()
 			p.log.Log(ctx, logger.LevelTrace, fmt.Sprintf("Generating %d proof(s) for unit %X", len(unitLogs), unitID))
 			for j, unitLog := range unitLogs {
 				if !bytes.Equal(unitLog.TxRecordHash, txrHash) {

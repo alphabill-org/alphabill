@@ -407,7 +407,11 @@ func (s *StateDB) RevertToSnapshot(i int) {
 }
 
 func (s *StateDB) Snapshot() int {
-	id := s.tree.Savepoint()
+	id, err := s.tree.Savepoint()
+	if err != nil {
+		// cannot change StateDB interface
+		panic(fmt.Sprintf("failed to create a savepoint: %v", err))
+	}
 	s.revisions = append(s.revisions, revision{id, s.journal.length()})
 	return id
 }

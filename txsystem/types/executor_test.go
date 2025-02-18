@@ -16,7 +16,7 @@ import (
 const mockTx uint16 = 22
 
 type txSysInfo struct {
-	getUnit      func(id types.UnitID, committed bool) (*state.Unit, error)
+	getUnit      func(id types.UnitID, committed bool) (state.Unit, error)
 	committedUC  func() *types.UnicityCertificate
 	currentRound func() uint64
 }
@@ -70,11 +70,11 @@ func (f *MockFeeHandling) BuyGas(_ uint64) uint64 {
 	return math.MaxUint64
 }
 
-func (s txSysInfo) GetUnit(id types.UnitID, committed bool) (*state.Unit, error) {
+func (s txSysInfo) GetUnit(id types.UnitID, committed bool) (state.Unit, error) {
 	if s.getUnit != nil {
 		return s.getUnit(id, committed)
 	}
-	return &state.Unit{}, fmt.Errorf("unit does not exist")
+	return &state.UnitV1{}, fmt.Errorf("unit does not exist")
 }
 
 func (s txSysInfo) CommittedUC() *types.UnicityCertificate { return s.committedUC() }

@@ -25,8 +25,9 @@ func (t *testData) Write(hasher abhash.Hasher) { hasher.Write(t) }
 func (t *testData) SummaryValueInput() uint64 {
 	return 0
 }
-func (t *testData) Copy() types.UnitData { return &testData{} }
-func (t *testData) Owner() []byte        { return nil }
+func (t *testData) Copy() types.UnitData        { return &testData{} }
+func (t *testData) Owner() []byte               { return nil }
+func (t *testData) GetVersion() types.ABVersion { return 0 }
 
 // test
 func TestValidateGenericFeeCreditTx(t *testing.T) {

@@ -214,15 +214,15 @@ func Test_SetStateLock(t *testing.T) {
 		err := SetStateLock(unitID, []byte{1})(s.latestSavepoint(), crypto.SHA256)
 		require.NoError(t, err)
 		err = SetStateLock(unitID, []byte{1})(s.latestSavepoint(), crypto.SHA256)
-		require.Error(t, err)
-		require.Equal(t, "unit already has a state lock", err.Error())
+		require.EqualError(t, err, "unit already has a state lock")
 	})
 
-	t.Run("successful state lock set", func(t *testing.T) {
+	t.Run("ok", func(t *testing.T) {
 		s := newStateWithUnits(t).latestSavepoint()
 		err := SetStateLock(unitID, []byte{1})(s, crypto.SHA256)
 		require.NoError(t, err)
-		u, _ := s.Get(unitID)
+		u, err := s.Get(unitID)
+		require.NoError(t, err)
 		unit, err := ToUnitV1(u)
 		require.NoError(t, err)
 		require.Equal(t, []byte{1}, unit.stateLockTx)

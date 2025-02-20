@@ -37,7 +37,7 @@ func (l *Log) Clone() *Log {
 
 func (l *Log) Hash(algorithm crypto.Hash) ([]byte, error) {
 	// y_j
-	unitState, err := types.NewUnitState(l.NewUnitData, l.DeletionRound, l.NewStateLockTx)
+	unitState, err := l.UnitState()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create unit state data: %w", err)
 	}

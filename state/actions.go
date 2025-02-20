@@ -33,16 +33,7 @@ func AddUnit(id types.UnitID, data types.UnitData) Action {
 		d := copyData(data)
 
 		unitDataSummaryValue := d.SummaryValueInput()
-		hasher := abhash.New(hashAlgorithm.New())
-		// h = H(ι, ⊥, V; ⊥, V0; ⊥, V0)
-		hasher.Write(id)
-		hasher.Write(nil)
-		hasher.Write(unitDataSummaryValue)
-		hasher.Write(nil)
-		hasher.Write(uint64(0))
-		hasher.Write(nil)
-		hasher.Write(uint64(0))
-		subTreeSummaryHash, err := hasher.Sum()
+		subTreeSummaryHash, err := summaryHashForNewUnit(hashAlgorithm, id, unitDataSummaryValue)
 		if err != nil {
 			return fmt.Errorf("add unit: unable to calculate subtree summary hash: %w", err)
 		}
@@ -129,17 +120,7 @@ func AddUnitWithLock(id types.UnitID, data types.UnitData, l []byte) Action {
 			clonedData = copyData(data)
 			unitDataSummaryValue = clonedData.SummaryValueInput()
 		}
-
-		hasher := abhash.New(hashAlgorithm.New())
-		// h = H(ι, ⊥, V; ⊥, V0; ⊥, V0)
-		hasher.Write(id)
-		hasher.Write(nil)
-		hasher.Write(unitDataSummaryValue)
-		hasher.Write(nil)
-		hasher.Write(uint64(0))
-		hasher.Write(nil)
-		hasher.Write(uint64(0))
-		subTreeSummaryHash, err := hasher.Sum()
+		subTreeSummaryHash, err := summaryHashForNewUnit(hashAlgorithm, id, unitDataSummaryValue)
 		if err != nil {
 			return fmt.Errorf("add unit: unable to calculate subtree summary hash: %w", err)
 		}

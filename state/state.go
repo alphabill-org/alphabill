@@ -8,7 +8,6 @@ import (
 	"io"
 	"sync"
 
-	abhash "github.com/alphabill-org/alphabill-go-base/hash"
 	"github.com/alphabill-org/alphabill-go-base/tree/mt"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/util"
@@ -163,35 +162,21 @@ func (s *State) GetUnit(id types.UnitID, committed bool) (Unit, error) {
 	return u.Clone(), nil
 }
 
-func (s *State) AddUnitLog(id types.UnitID, transactionRecordHash []byte) error {
+func (s *State) AddUnitLog(id types.UnitID, txrHash []byte) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
 	u, err := s.latestSavepoint().Get(id)
 	if err != nil {
-		return fmt.Errorf("unable to add unit log for unit %v: %w", id, err)
+		return fmt.Errorf("unable to find unit: %w", err)
 	}
 	unit, err := ToUnitV1(u.Clone())
 	if err != nil {
 		return fmt.Errorf("add log failed for unit %v: %w", id, err)
 	}
-	logsCount := len(unit.logs)
-	l := &Log{
-		TxRecordHash:   transactionRecordHash,
-		NewUnitData:    copyData(unit.data),
-		NewStateLockTx: bytes.Clone(unit.stateLockTx),
+	if err := unit.AddUnitLog(s.hashAlgorithm, txrHash); err != nil {
+		return fmt.Errorf("failed to add unit log: %w", err)
 	}
-	if logsCount == 0 {
-		// newly created unit
-		l.UnitLedgerHeadHash, err = abhash.HashValues(s.hashAlgorithm, nil, transactionRecordHash)
-	} else {
-		// a pre-existing unit
-		l.UnitLedgerHeadHash, err = abhash.HashValues(s.hashAlgorithm, unit.logs[logsCount-1].UnitLedgerHeadHash, transactionRecordHash)
-	}
-	if err != nil {
-		return fmt.Errorf("unable to hash unit ledger head: %w", err)
-	}
-	unit.logs = append(unit.logs, l)
 	return s.latestSavepoint().Update(id, unit)
 }
 
@@ -472,15 +457,18 @@ func (s *State) createUnitTreeCert(unit *UnitV1, logIndex int) (*types.UnitTreeC
 		return nil, err
 	}
 	l := unit.logs[logIndex]
-	dataHasher := abhash.New(s.hashAlgorithm.New())
-	l.NewUnitData.Write(dataHasher)
-	h, err := dataHasher.Sum()
+
+	unitState, err := l.UnitState()
 	if err != nil {
-		return nil, fmt.Errorf("unable to hash unit data: %w", err)
+		return nil, fmt.Errorf("failed to create unit state: %w", err)
+	}
+	unitStateHash, err := unitState.Hash(s.hashAlgorithm)
+	if err != nil {
+		return nil, fmt.Errorf("failed to hash unit state: %w", err)
 	}
 	return &types.UnitTreeCert{
 		TransactionRecordHash: l.TxRecordHash,
-		UnitDataHash:          h,
+		UnitStateHash:         unitStateHash,
 		Path:                  path,
 	}, nil
 }

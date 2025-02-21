@@ -44,6 +44,7 @@ type TxValidationContext struct {
 	BlockNumber uint64
 	CustomData  []byte
 	exArgument  func() ([]byte, error)
+	exeType     txtypes.ExecutionType
 }
 
 type TxSystem struct {
@@ -298,4 +299,12 @@ func (vc *TxValidationContext) ExtraArgument() ([]byte, error) {
 func (vc *TxValidationContext) WithExArg(f func() ([]byte, error)) txtypes.ExecutionContext {
 	vc.exArgument = f
 	return vc
+}
+
+func (vc *TxValidationContext) ExecutionType() txtypes.ExecutionType {
+	return vc.exeType
+}
+
+func (vc *TxValidationContext) SetExecutionType(exeType txtypes.ExecutionType) {
+	vc.exeType = exeType
 }

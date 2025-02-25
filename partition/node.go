@@ -116,22 +116,23 @@ type (
 		epochChangeEvent            chan struct{}
 		peer                        *network.Peer
 
-		rootNodes                   peer.IDSlice
-		shardStore                  *shardStore
-		network                     ValidatorNetwork
-		eventCh                     chan event.Event
-		lastLedgerReqTime           time.Time
-		eventHandler                event.Handler
-		recoveryLastProp            *blockproposal.BlockProposal
-		log                         *slog.Logger
-		tracer                      trace.Tracer
+		rootNodes         peer.IDSlice
+		shardStore        *shardStore
+		network           ValidatorNetwork
+		eventCh           chan event.Event
+		lastLedgerReqTime time.Time
+		eventHandler      event.Handler
+		recoveryLastProp  *blockproposal.BlockProposal
+		log               *slog.Logger
+		tracer            trace.Tracer
 
 		execTxCnt   metric.Int64Counter
 		execTxDur   metric.Float64Histogram
 		leaderCnt   metric.Int64Counter
-		blockSize   metric.Int64Counter
+		blockSize   metric.Int64Histogram
 		execMsgCnt  metric.Int64Counter
 		execMsgDur  metric.Float64Histogram
+		execT1Dur   metric.Float64Histogram
 		recoveryReq metric.Int64Counter
 		fixedAttr   metric.MeasurementOption
 	}
@@ -253,7 +254,10 @@ func (n *Node) initMetrics(observe Observability) (err error) {
 	if err != nil {
 		return fmt.Errorf("creating counter for leader count: %w", err)
 	}
-	n.blockSize, err = m.Int64Counter("block.size", metric.WithDescription("Number of transactions in the proposal made by the node"), metric.WithUnit("{transaction}"))
+	n.blockSize, err = m.Int64Histogram("block.size",
+		metric.WithDescription("Number of transactions in the proposal made by the node"),
+		metric.WithUnit("{transaction}"),
+		metric.WithExplicitBucketBoundaries(1, 10, 50, 100, 200, 400, 800, 1600, 3200))
 	if err != nil {
 		return fmt.Errorf("creating counter for block size: %w", err)
 	}
@@ -277,10 +281,19 @@ func (n *Node) initMetrics(observe Observability) (err error) {
 	n.execMsgDur, err = m.Float64Histogram("exec.msg.time",
 		metric.WithDescription("How long it took to process AB network message"),
 		metric.WithUnit("s"),
-		metric.WithExplicitBucketBoundaries(100e-6, 200e-6, 400e-6, 800e-6, 0.0016, 0.01, 0.05),
+		metric.WithExplicitBucketBoundaries(100e-6, 200e-6, 400e-6, 800e-6, 0.0016, 0.01, 0.05, 0.1, 0.2, 0.4, 0.8),
 	)
 	if err != nil {
 		return fmt.Errorf("creating histogram for processed messages: %w", err)
+	}
+
+	n.execT1Dur, err = m.Float64Histogram("exec.t1.time",
+		metric.WithDescription("How long it took to process T1 timeout (build and send proposal)"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(100e-6, 200e-6, 400e-6, 800e-6, 0.0016, 0.01, 0.05, 0.1, 0.2, 0.4, 0.8),
+	)
+	if err != nil {
+		return fmt.Errorf("creating histogram for processing T1 timeouts: %w", err)
 	}
 
 	n.recoveryReq, err = m.Int64Counter("recovery", metric.WithDescription("Number of times node has entered into recovery state and sent out state request"))
@@ -1086,7 +1099,10 @@ func (n *Node) finalizeBlock(ctx context.Context, b *types.Block, uc *types.Unic
 
 func (n *Node) handleT1TimeoutEvent(ctx context.Context) {
 	ctx, span := n.tracer.Start(ctx, "node.handleT1TimeoutEvent", trace.WithNewRoot(), trace.WithAttributes(n.attrRound()))
-	defer span.End()
+	defer func(start time.Time) {
+		n.execT1Dur.Record(ctx, time.Since(start).Seconds(), n.fixedAttr)
+		span.End()
+	}(time.Now())
 
 	if !n.IsValidator() {
 		n.log.InfoContext(ctx, "T1 timeout: node is non-validator")
@@ -1453,7 +1469,7 @@ func (n *Node) sendBlockProposal(ctx context.Context) error {
 	if err := prop.Sign(n.configuration.hashAlgorithm, n.configuration.signer); err != nil {
 		return fmt.Errorf("block proposal sign failed, %w", err)
 	}
-	n.blockSize.Add(ctx, int64(len(prop.Transactions)), n.fixedAttr)
+	n.blockSize.Record(ctx, int64(len(prop.Transactions)), n.fixedAttr)
 	return n.network.Send(ctx, prop, n.FilterValidatorNodes(nodeID)...)
 }
 

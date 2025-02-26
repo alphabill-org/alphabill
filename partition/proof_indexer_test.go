@@ -60,7 +60,7 @@ func TestNewProofIndexer_history_2(t *testing.T) {
 		require.True(t, f)
 
 		// verify unit proofs are deleted
-		var unitProof *types.UnitDataAndProof
+		var unitProof *types.UnitStateWithProof
 		unitProofKey := bytes.Join([][]byte{unitID, txoHash}, nil)
 		f, err = proofDB.Read(unitProofKey, &unitProof)
 		require.NoError(t, err)
@@ -261,7 +261,7 @@ func TestNewProofIndexer_RunLoop(t *testing.T) {
 			require.True(t, f)
 
 			// verify unit proofs are deleted
-			var unitProof *types.UnitDataAndProof
+			var unitProof *types.UnitStateWithProof
 			unitProofKey := bytes.Join([][]byte{unitID, txoHash}, nil)
 			f, err = proofDB.Read(unitProofKey, &unitProof)
 			require.NoError(t, err)

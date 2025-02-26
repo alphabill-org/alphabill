@@ -42,7 +42,7 @@ func (t *TestData) SummaryValueInput() uint64 {
 }
 
 func (t *TestData) Copy() types.UnitData {
-	return &TestData{Value: t.Value}
+	return &TestData{Value: t.Value, OwnerPredicate: t.OwnerPredicate}
 }
 
 func (t *TestData) Owner() []byte {
@@ -486,7 +486,7 @@ func TestState_CommitTreeWithLeftAndRightChildNodes(t *testing.T) {
 func TestState_AddUnitLog_UnitDoesNotExist(t *testing.T) {
 	unitID := []byte{0, 0, 0, 1}
 	s := NewEmptyState()
-	require.ErrorContains(t, s.AddUnitLog(unitID, test.RandomBytes(32)), "unable to add unit log for unit 00000001")
+	require.ErrorContains(t, s.AddUnitLog(unitID, test.RandomBytes(32)), "unable to find unit: item 00000001 does not exist")
 }
 
 func TestState_PruneState(t *testing.T) {
@@ -594,13 +594,12 @@ func TestCreateAndVerifyStateProofs_CreateUnitProof(t *testing.T) {
 		s, _, _ := prepareState(t)
 		proof, err := s.CreateUnitStateProof([]byte{0, 0, 0, 5}, 0)
 		require.NoError(t, err)
-		unit, err := s.GetUnit([]byte{0, 0, 0, 5}, true)
+		u, err := s.GetUnit([]byte{0, 0, 0, 5}, true)
 		require.NoError(t, err)
-		unitData, err := MarshalUnitData(unit.Data())
+		unit, err := ToUnitV1(u)
 		require.NoError(t, err)
-		data := &types.StateUnitData{
-			Data: unitData,
-		}
+		data, err := types.NewUnitState(unit.data, 0, nil)
+		require.NoError(t, err)
 		require.NoError(t, proof.Verify(crypto.SHA256, data, &alwaysValid{}))
 	})
 	t.Run("unit not found", func(t *testing.T) {

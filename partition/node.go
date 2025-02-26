@@ -1099,13 +1099,10 @@ func (n *Node) finalizeBlock(ctx context.Context, b *types.Block, uc *types.Unic
 
 func (n *Node) handleT1TimeoutEvent(ctx context.Context) {
 	ctx, span := n.tracer.Start(ctx, "node.handleT1TimeoutEvent", trace.WithNewRoot(), trace.WithAttributes(n.attrRound()))
-	defer func(start time.Time) {
-		n.execT1Dur.Record(ctx, time.Since(start).Seconds(), n.fixedAttr)
-		span.End()
-	}(time.Now())
+	defer span.End()
 
 	if !n.IsValidator() {
-		n.log.InfoContext(ctx, "T1 timeout: node is non-validator")
+		n.log.DebugContext(ctx, "T1 timeout: node is non-validator")
 		return
 	}
 
@@ -1121,6 +1118,8 @@ func (n *Node) handleT1TimeoutEvent(ctx context.Context) {
 		n.log.DebugContext(ctx, "Current node is not the leader.")
 		return
 	}
+
+	defer func(start time.Time) { n.execT1Dur.Record(ctx, time.Since(start).Seconds(), n.fixedAttr) }(time.Now())
 	n.log.DebugContext(ctx, "Current node is the leader.")
 	if err := n.sendBlockProposal(ctx); err != nil {
 		n.log.WarnContext(ctx, "Failed to send BlockProposal", logger.Error(err))

@@ -257,7 +257,7 @@ func (n *Node) initMetrics(observe Observability) (err error) {
 	n.blockSize, err = m.Int64Histogram("block.size",
 		metric.WithDescription("Number of transactions in the proposal made by the node"),
 		metric.WithUnit("{transaction}"),
-		metric.WithExplicitBucketBoundaries(1, 10, 50, 100, 200, 400, 800, 1600, 3200))
+		metric.WithExplicitBucketBoundaries(1, 50, 100, 200, 300, 400, 500, 600, 700, 800, 900))
 	if err != nil {
 		return fmt.Errorf("creating counter for block size: %w", err)
 	}
@@ -290,7 +290,7 @@ func (n *Node) initMetrics(observe Observability) (err error) {
 	n.execT1Dur, err = m.Float64Histogram("exec.t1.time",
 		metric.WithDescription("How long it took to process T1 timeout (build and send proposal)"),
 		metric.WithUnit("s"),
-		metric.WithExplicitBucketBoundaries(100e-6, 200e-6, 400e-6, 800e-6, 0.0016, 0.01, 0.05, 0.1, 0.2, 0.4, 0.8),
+		metric.WithExplicitBucketBoundaries(0.005, 0.01, 0.02, 0.04, 0.08, 0.16, 0.32, 0.64, 1),
 	)
 	if err != nil {
 		return fmt.Errorf("creating histogram for processing T1 timeouts: %w", err)

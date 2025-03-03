@@ -35,7 +35,7 @@ func (m *FungibleTokensModule) TxHandlers() map[uint16]txtypes.TxExecutor {
 		tokens.TransactionTypeDefineFT:   txtypes.NewTxHandler[tokens.DefineFungibleTokenAttributes, tokens.DefineFungibleTokenAuthProof](m.validateDefineFT, m.executeDefineFT),
 		tokens.TransactionTypeMintFT:     txtypes.NewTxHandler[tokens.MintFungibleTokenAttributes, tokens.MintFungibleTokenAuthProof](m.validateMintFT, m.executeMintFT),
 		tokens.TransactionTypeTransferFT: txtypes.NewTxHandler[tokens.TransferFungibleTokenAttributes, tokens.TransferFungibleTokenAuthProof](m.validateTransferFT, m.executeTransferFT),
-		tokens.TransactionTypeSplitFT:    txtypes.NewTxHandler[tokens.SplitFungibleTokenAttributes, tokens.SplitFungibleTokenAuthProof](m.validateSplitFT, m.executeSplitFT),
+		tokens.TransactionTypeSplitFT:    txtypes.NewTxHandler[tokens.SplitFungibleTokenAttributes, tokens.SplitFungibleTokenAuthProof](m.validateSplitFT, m.executeSplitFT, txtypes.WithTargetUnitsFn(m.splitFTTargetUnits)),
 		tokens.TransactionTypeBurnFT:     txtypes.NewTxHandler[tokens.BurnFungibleTokenAttributes, tokens.BurnFungibleTokenAuthProof](m.validateBurnFT, m.executeBurnFT),
 		tokens.TransactionTypeJoinFT:     txtypes.NewTxHandler[tokens.JoinFungibleTokenAttributes, tokens.JoinFungibleTokenAuthProof](m.validateJoinFT, m.executeJoinFT),
 	}

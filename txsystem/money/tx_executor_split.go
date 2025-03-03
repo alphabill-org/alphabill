@@ -11,7 +11,7 @@ import (
 	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 )
 
-func (m *Module) executeSplitTx(tx *types.TransactionOrder, attr *money.SplitAttributes, _ *money.SplitAuthProof, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
+func (m *Module) executeSplitTx(tx *types.TransactionOrder, attr *money.SplitAttributes, authProof *money.SplitAuthProof, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
 	unitID := tx.GetUnitID()
 	targetUnitIDs := []types.UnitID{unitID}
 	// add new units
@@ -25,7 +25,7 @@ func (m *Module) executeSplitTx(tx *types.TransactionOrder, attr *money.SplitAtt
 		}
 		targetUnitIDs = append(targetUnitIDs, newUnitID)
 		newUnitData := money.NewBillData(targetUnit.Amount, targetUnit.OwnerPredicate)
-		actions = append(actions, state.AddUnit(newUnitID, newUnitData))
+		actions = append(actions, state.AddOrPromoteUnit(newUnitID, newUnitData))
 		sum, _, err = util.AddUint64(sum, targetUnit.Amount)
 		if err != nil {
 			return nil, fmt.Errorf("failed to add target unit amounts: %w", err)
@@ -63,6 +63,20 @@ func (m *Module) validateSplitTx(tx *types.TransactionOrder, attr *money.SplitAt
 		return fmt.Errorf("evaluating owner predicate: %w", err)
 	}
 	return nil
+}
+
+func (m *Module) splitTxTargetUnits(tx *types.TransactionOrder, attr *money.SplitAttributes, _ *money.SplitAuthProof, _ txtypes.ExecutionContext) ([]types.UnitID, error) {
+	targetUnits := make([]types.UnitID, 0, len(attr.TargetUnits)+1)
+	targetUnits = append(targetUnits, tx.UnitID)
+	idGen := money.PrndSh(tx)
+	for range attr.TargetUnits {
+		newUnitID, err := m.pdr.ComposeUnitID(types.ShardID{}, money.BillUnitType, idGen)
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate new bill id: %w", err)
+		}
+		targetUnits = append(targetUnits, newUnitID)
+	}
+	return targetUnits, nil
 }
 
 func validateSplit(data types.UnitData, attr *money.SplitAttributes) error {

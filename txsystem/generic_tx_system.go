@@ -155,6 +155,7 @@ func (m *GenericTxSystem) pruneState(roundNo uint64) error {
 	return m.state.Prune()
 }
 
+// snFees charge storage and network fees.
 func (m *GenericTxSystem) snFees(_ *types.TransactionOrder, execCxt txtypes.ExecutionContext) error {
 	return execCxt.SpendGas(abfc.GeneralTxCostGasUnits)
 }
@@ -264,23 +265,31 @@ func (m *GenericTxSystem) doExecute(tx *types.TransactionOrder, exeCtx *txtypes.
 		// transaction execution succeeded
 		m.state.ReleaseToSavepoint(savepointID)
 	}()
-	// check conditional state unlock and release it, either roll back or execute the pending Tx
-	unlockSm, err := m.handleUnlockUnitState(tx, exeCtx)
-	txr.ServerMetadata = appendServerMetadata(txr.ServerMetadata, unlockSm)
+
+	// unmarshal tx
+	attr, authProof, targetUnits, err := m.handlers.UnmarshalTx(tx, exeCtx)
 	if err != nil {
-		txExecErr = fmt.Errorf("unit state lock error: %w", err)
+		txExecErr = fmt.Errorf("failed to unmarshal transaction: %w", err)
 		return txr, nil
 	}
+	// check conditional state unlock and release it, either roll back or execute the pending tx
+	for _, targetUnit := range targetUnits {
+		sm, err := m.handleUnlockUnitState(tx, targetUnit, exeCtx)
+		txr.ServerMetadata = appendServerMetadata(txr.ServerMetadata, sm)
+		if err != nil {
+			txExecErr = fmt.Errorf("unit state unlock error: %w", err)
+			return txr, nil
+		}
+	}
 	// perform transaction-system-specific validation and owner predicate check
-	attr, authProof, err := m.handlers.Validate(tx, exeCtx)
-	if err != nil {
+	if err := m.handlers.Validate(tx, attr, authProof, exeCtx); err != nil {
 		txExecErr = fmt.Errorf("transaction validation error (type=%d): %w", tx.Type, err)
 		return txr, nil
 	}
-	// either state lock or execute Tx
+	// either state lock or execute tx
 	if tx.HasStateLock() {
 		// handle conditional lock of units
-		sm, err := m.executeLockUnitState(tx, exeCtx)
+		sm, err := m.executeLockUnitState(tx, txBytes, targetUnits, exeCtx)
 		txr.ServerMetadata = appendServerMetadata(txr.ServerMetadata, sm)
 		if err != nil {
 			txExecErr = fmt.Errorf("unit state lock error: %w", err)
@@ -306,9 +315,12 @@ func (m *GenericTxSystem) executeFc(tx *types.TransactionOrder, exeCtx *txtypes.
 	// 6. If S.N[P.ι] != ⊥ and not EvalPred(S.N[P.ι].φ; S, P, P.s; &MS) - will be done during VerifyPsi
 	// 7. If not VerifyPsi(S, P; &MS)
 	// perform transaction-system-specific validation and owner predicate check
-	attr, authProof, err := m.handlers.Validate(tx, exeCtx)
+	attr, authProof, _, err := m.handlers.UnmarshalTx(tx, exeCtx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to unmarshal transaction: %w", err)
+	}
+	if err := m.handlers.Validate(tx, attr, authProof, exeCtx); err != nil {
+		return nil, fmt.Errorf("failed to validate transaction: %w", err)
 	}
 	// 8. b ← SNFees(S, P; &MS) - is at the moment done for all tx before this call
 	// 9. TakeSnapshot

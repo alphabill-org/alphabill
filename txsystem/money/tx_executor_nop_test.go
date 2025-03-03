@@ -3,7 +3,6 @@ package money
 import (
 	"testing"
 
-	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
 	moneyid "github.com/alphabill-org/alphabill-go-base/testutils/money"
 	fcsdk "github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
@@ -101,9 +100,9 @@ func TestModule_executeNopTx(t *testing.T) {
 		bill, ok := u.Data().(*money.BillData)
 		require.True(t, ok)
 		require.EqualValues(t, 2, bill.Counter)
-		require.EqualValues(t, templates.AlwaysTrueBytes(), bill.OwnerPredicate)
 		require.EqualValues(t, 10, bill.Value)
 		require.EqualValues(t, 0, bill.Locked)
+		require.Nil(t, bill.OwnerPredicate)
 	})
 	t.Run("fcr unit ok - counter is incremented", func(t *testing.T) {
 		counter := uint64(1)
@@ -124,9 +123,9 @@ func TestModule_executeNopTx(t *testing.T) {
 		fcr, ok := u.Data().(*fcsdk.FeeCreditRecord)
 		require.True(t, ok)
 		require.EqualValues(t, 2, fcr.Counter)
-		require.EqualValues(t, templates.AlwaysTrueBytes(), fcr.OwnerPredicate)
 		require.EqualValues(t, 10, fcr.Balance)
 		require.EqualValues(t, 0, fcr.Locked)
+		require.Nil(t, fcr.OwnerPredicate)
 	})
 	t.Run("dummy unit ok - nothing is changed", func(t *testing.T) {
 		unitID := moneyid.NewBillID(t)
@@ -148,7 +147,7 @@ func TestModule_executeNopTx(t *testing.T) {
 }
 
 func createNopTx(t *testing.T, fromID types.UnitID, fcrID types.UnitID, counter *uint64) (*types.TransactionOrder, *nop.Attributes, *nop.AuthProof) {
-	tx := createTx(fromID, fcrID, money.TransactionTypeUnlock)
+	tx := createTx(fromID, fcrID, nop.TransactionTypeNOP)
 	attr := &nop.Attributes{
 		Counter: counter,
 	}

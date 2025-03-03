@@ -17,7 +17,7 @@ func defaultTx() *types.TransactionOrder {
 	payload := types.Payload{
 		NetworkID:      defaultNetworkID,
 		PartitionID:    defaultPartitionID,
-		Type:           22,
+		Type:           50,
 		UnitID:         test.RandomBytes(33),
 		ClientMetadata: defaultClientMetadata(),
 	}
@@ -84,9 +84,9 @@ func WithFeeProof(feeProof []byte) Option {
 	}
 }
 
-func WithUnlockProof(unlockProof []byte) Option {
+func WithStateUnlock(stateUnlock []byte) Option {
 	return func(tx *types.TransactionOrder) error {
-		tx.StateUnlock = unlockProof
+		tx.StateUnlock = stateUnlock
 		return nil
 	}
 }

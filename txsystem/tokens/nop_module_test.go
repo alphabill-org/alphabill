@@ -310,8 +310,7 @@ func newNopModule(t *testing.T, verifier abcrypto.Verifier, opts ...nopModuleOpt
 	require.NoError(t, err)
 	options.trustBase = testtb.NewTrustBase(t, verifier)
 	options.state = state.NewEmptyState()
-	module, err := NewNopModule(tokensid.PDR(), options)
-	require.NoError(t, err)
+	module := NewNopModule(tokensid.PDR(), options)
 	for _, opt := range opts {
 		require.NoError(t, opt(module))
 	}

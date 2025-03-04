@@ -40,6 +40,9 @@ func (m *Module) verifyCounter(unitData types.UnitData, attr *nop.Attributes) er
 		}
 		return nil
 	}
+	if attr.Counter == nil {
+		return ErrInvalidCounter
+	}
 	var counter uint64
 	switch data := unitData.(type) {
 	case *fc.FeeCreditRecord:
@@ -49,7 +52,7 @@ func (m *Module) verifyCounter(unitData types.UnitData, attr *nop.Attributes) er
 	default:
 		return errors.New("invalid unit data type")
 	}
-	if attr.Counter == nil || *attr.Counter != counter {
+	if *attr.Counter != counter {
 		return ErrInvalidCounter
 	}
 	return nil

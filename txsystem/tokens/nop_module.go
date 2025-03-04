@@ -23,13 +23,13 @@ type NopModule struct {
 	pdr           types.PartitionDescriptionRecord
 }
 
-func NewNopModule(pdr types.PartitionDescriptionRecord, options *Options) (*NopModule, error) {
+func NewNopModule(pdr types.PartitionDescriptionRecord, options *Options) *NopModule {
 	return &NopModule{
 		state:         options.state,
 		hashAlgorithm: options.hashAlgorithm,
 		execPredicate: predicates.NewPredicateRunner(options.exec),
 		pdr:           pdr,
-	}, nil
+	}
 }
 
 func (m *NopModule) TxHandlers() map[uint16]txtypes.TxExecutor {
@@ -110,9 +110,9 @@ func (m *NopModule) incrementCounterFn() func(data types.UnitData) (types.UnitDa
 			d.Counter += 1
 			return d, nil
 		case *tokens.FungibleTokenTypeData:
-			return d, nil // do nothing, NFT type does not have counter
-		case *tokens.NonFungibleTokenTypeData:
 			return d, nil // do nothing, FT type does not have counter
+		case *tokens.NonFungibleTokenTypeData:
+			return d, nil // do nothing, NFT type does not have counter
 		default:
 			return nil, fmt.Errorf("invalid unit data type")
 		}

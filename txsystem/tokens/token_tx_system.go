@@ -57,10 +57,7 @@ func NewTxSystem(pdr basetypes.PartitionDescriptionRecord, shardID basetypes.Sha
 	if err != nil {
 		return nil, fmt.Errorf("failed to load lock tokens module: %w", err)
 	}
-	nopModule, err := NewNopModule(pdr, options)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load nop tokens module: %w", err)
-	}
+	nopModule := NewNopModule(pdr, options)
 
 	var feeCreditModule txtypes.FeeCreditModule
 	if len(options.adminOwnerPredicate) > 0 {

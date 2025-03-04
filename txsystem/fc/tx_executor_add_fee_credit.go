@@ -53,7 +53,7 @@ func (f *FeeCreditModule) validateAddFC(tx *types.TransactionOrder, attr *fc.Add
 	if createFC {
 		// if the target does not exist,
 		// the identifier must agree with the owner predicate
-		fcrID, err := f.NewFeeCreditRecordID(tx.UnitID, attr.FeeCreditOwnerPredicate, transAttr.LatestAdditionTime)
+		fcrID, err := f.NewFeeCreditRecordID(attr.FeeCreditOwnerPredicate, transAttr.LatestAdditionTime)
 		if err != nil {
 			return fmt.Errorf("failed to create fee credit record id: %w", err)
 		}
@@ -84,6 +84,7 @@ func (f *FeeCreditModule) validateAddFC(tx *types.TransactionOrder, attr *fc.Add
 		return fmt.Errorf("transFC proof is not valid: %w", err)
 	}
 	// the owner proof satisfies the bill's owner predicate
+	// the attr.FeeCreditOwnerPredicate is verified to be equal to fcr.OwnerPredicate above, for existing unit
 	if err = f.execPredicate(attr.FeeCreditOwnerPredicate, authProof.OwnerProof, tx, exeCtx.WithExArg(tx.AuthProofSigBytes)); err != nil {
 		return fmt.Errorf("executing fee credit predicate: %w", err)
 	}
@@ -157,6 +158,6 @@ func getTransferFC(addFeeCreditProof *types.TxRecordProof) (*fc.TransferFeeCredi
 	return transferAttributes, nil
 }
 
-func (f *FeeCreditModule) NewFeeCreditRecordID(unitID types.UnitID, ownerPredicate []byte, timeout uint64) (types.UnitID, error) {
+func (f *FeeCreditModule) NewFeeCreditRecordID(ownerPredicate []byte, timeout uint64) (types.UnitID, error) {
 	return f.pdr.ComposeUnitID(types.ShardID{}, f.feeCreditRecordUnitType, fc.PrndSh(ownerPredicate, timeout))
 }

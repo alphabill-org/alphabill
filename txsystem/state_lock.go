@@ -54,35 +54,24 @@ func stateUnlockProofFromTx(tx *types.TransactionOrder) (*StateUnlockProof, erro
 }
 
 // handleUnlockUnitState - tries to unlock state locked units.
-// Returns nil error if target units were successfully unlocked or there was nothing to unlock.
-// Returns non-nil error if any target unit could not be unlocked (e.g. either predicate fails or invalid input is provided).
+// Returns no error if target units were successfully unlocked or there was nothing to unlock.
+// Returns error if any target unit could not be unlocked (e.g. either predicate fails or invalid input is provided).
 func (m *GenericTxSystem) handleUnlockUnitState(tx *types.TransactionOrder, unitID types.UnitID, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
-	u, err := m.state.GetUnit(unitID, false)
+	txOnHold, err := m.parseTxOnHold(unitID)
 	if err != nil {
-		if errors.Is(err, avl.ErrNotFound) {
-			// no unit, no state lock, duh
-			return nil, nil
-		}
-		return nil, fmt.Errorf("getting unit: %w", err)
+		return nil, fmt.Errorf("failed to parse txOnHold: %w", err)
 	}
-	unit, err := state.ToUnitV1(u)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert unit to version 1: %w", err)
+	return m.handleTxOnHold(tx, txOnHold, exeCtx)
+}
+
+func (m *GenericTxSystem) handleTxOnHold(tx *types.TransactionOrder, txOnHold *types.TransactionOrder, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
+	if txOnHold == nil {
+		return nil, nil // if no tx on hold then nothing to handle
 	}
-	// if unit is not locked, then this method is done - nothing to unlock
-	if !unit.IsStateLocked() {
-		return nil, nil
-	}
-	// unit has a state lock, any transaction with locked unit must first unlock
-	m.log.Debug(fmt.Sprintf("unit %s has a state lock", unitID))
 	// need to unlock (or rollback the lock). Fail the tx if no unlock proof is provided
 	proof, err := stateUnlockProofFromTx(tx)
 	if err != nil {
 		return nil, fmt.Errorf("unlock proof error: %w", err)
-	}
-	txOnHold := &types.TransactionOrder{Version: 1}
-	if err = types.Cbor.Unmarshal(unit.StateLockTx(), txOnHold); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal state lock transaction: %w", err)
 	}
 	// The following line assumes that the pending transaction is valid and has a Payload
 	// this will crash if not, a separate method to return state lock or nil would be better
@@ -95,6 +84,11 @@ func (m *GenericTxSystem) handleUnlockUnitState(tx *types.TransactionOrder, unit
 		return nil, err
 	}
 
+	// sanity check, verify that TxHandler returned at least one target unit
+	if sm == nil || len(sm.TargetUnits) == 0 {
+		return nil, errors.New("failed to execute txOnHold: TxHandler returned nil server metadata or no target units")
+	}
+
 	// unlock the existing target units
 	for _, targetUnit := range sm.TargetUnits {
 		if err = m.state.Apply(state.RemoveStateLock(targetUnit)); err != nil {
@@ -103,6 +97,32 @@ func (m *GenericTxSystem) handleUnlockUnitState(tx *types.TransactionOrder, unit
 		m.log.Debug(fmt.Sprintf("unit %s state lock removed", targetUnit))
 	}
 	return sm, nil
+}
+
+func (m *GenericTxSystem) parseTxOnHold(unitID types.UnitID) (*types.TransactionOrder, error) {
+	u, err := m.state.GetUnit(unitID, false)
+	if err != nil {
+		if errors.Is(err, avl.ErrNotFound) {
+			// no unit, no state lock, duh
+			return nil, nil
+		}
+		return nil, fmt.Errorf("getting unit: %w", err)
+	}
+	unit, err := state.ToUnitV1(u)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert unit to version 1: %w", err)
+	}
+	// if unit is not locked, then this method is done - nothing to parse
+	if !unit.IsStateLocked() {
+		return nil, nil
+	}
+	// unit has a state lock, any transaction with locked unit must first unlock
+	m.log.Debug(fmt.Sprintf("unit %s has a state lock", unitID))
+	txOnHold := &types.TransactionOrder{Version: 1}
+	if err = types.Cbor.Unmarshal(unit.StateLockTx(), txOnHold); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal state lock transaction: %w", err)
+	}
+	return txOnHold, nil
 }
 
 func (m *GenericTxSystem) executeLockedTx(proof *StateUnlockProof, txOnHold *types.TransactionOrder, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {

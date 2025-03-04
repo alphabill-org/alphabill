@@ -1207,6 +1207,12 @@ func withStateUnit(unitID []byte, data types.UnitData) moneyModuleOption {
 	}
 }
 
+func withDummyUnit(unitID []byte) moneyModuleOption {
+	return func(m *Module) error {
+		return m.state.Apply(state.AddDummyUnit(unitID))
+	}
+}
+
 func newTestMoneyModule(t *testing.T, verifier abcrypto.Verifier, opts ...moneyModuleOption) *Module {
 	module := defaultMoneyModule(t, moneyid.PDR(), verifier)
 	for _, opt := range opts {

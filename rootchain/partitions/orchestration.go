@@ -30,7 +30,7 @@ NewOrchestration creates new boltDB implementation of shard validator orchestrat
   - dbFile is filename (full path) to the Bolt DB file to use for storage,
     if the file does not exist it will be created;
 */
-func NewOrchestration(dbFile string, log *slog.Logger) (*Orchestration, error) {
+func NewOrchestration(networkID types.NetworkID, dbFile string, log *slog.Logger) (*Orchestration, error) {
 	db, err := bolt.Open(dbFile, 0600, &bolt.Options{Timeout: 3 * time.Second})
 	if err != nil {
 		return nil, fmt.Errorf("opening bolt DB: %w", err)
@@ -45,7 +45,11 @@ func NewOrchestration(dbFile string, log *slog.Logger) (*Orchestration, error) {
 		return nil
 	})
 
-	return &Orchestration{db: db}, nil
+	return &Orchestration{
+		networkID: networkID,
+		db:        db,
+		log:       log,
+	}, nil
 }
 
 // ShardConfig returns ShardConf for the given root round.
@@ -60,7 +64,10 @@ func (o *Orchestration) ShardConfig(partitionID types.PartitionID, shardID types
 		return nil
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to load ShardConf for partition %q shard %s and root round %d: %w", partitionID, shardID.String(), rootRound, err)
+		return nil, fmt.Errorf("failed to load shard conf for partition %q shard %s and root round %d: %w", partitionID, shardID.String(), rootRound, err)
+	}
+	if shardConf.NetworkID != o.networkID {
+		return nil, fmt.Errorf("shard conf loaded from database has wrong netorkID %d, expected %d", shardConf.NetworkID, o.networkID)
 	}
 	return shardConf, nil
 }
@@ -130,6 +137,9 @@ func (o *Orchestration) ShardConfigs(rootRound uint64) (map[types.PartitionShard
 //   - The activation round number must be strictly greater than the current round of the only shard in the specified partition
 //   - The node identifiers must match their authentication keys
 func (o *Orchestration) AddShardConfig(shardConf *types.PartitionDescriptionRecord) error {
+	if shardConf.NetworkID != o.networkID {
+		return fmt.Errorf("invalid networkID %d, expected %d", shardConf.NetworkID, o.networkID)
+	}
 	err := o.db.Update(func(tx *bolt.Tx) error {
 		if err := verifyShardConf(tx, shardConf); err != nil {
 			return fmt.Errorf("verify shard conf: %w", err)

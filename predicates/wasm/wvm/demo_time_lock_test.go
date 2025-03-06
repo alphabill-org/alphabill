@@ -23,6 +23,8 @@ import (
 	tokenenc "github.com/alphabill-org/alphabill/txsystem/tokens/encoder"
 )
 
+// the source code of the predicate is in the Rust SDK repo under examples
+//
 //go:embed testdata/time_lock.wasm
 var timeLockWasm []byte
 

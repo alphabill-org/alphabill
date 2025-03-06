@@ -1,12 +1,17 @@
 package cmd
 
+import "context"
+
 type (
 	Options struct {
-		nodeRunFunc moneyNodeRunnable
+		shardNodeRunFn nodeRunnable
 	}
 
 	Option     func(*Options)
 	allOptions struct{}
+
+	// nodeRunnable is the function that is run after configuration is loaded.
+	nodeRunnable func(ctx context.Context, flags *shardNodeRunFlags) error
 )
 
 var (
@@ -14,20 +19,20 @@ var (
 )
 
 // NodeRunFunc sets the node runnable function. Otherwise, default function will be used.
-func (o *allOptions) NodeRunFunc(shardRunFunc moneyNodeRunnable) Option {
+func (o *allOptions) ShardNodeRunFn(shardNodeRunFn nodeRunnable) Option {
 	return func(options *Options) {
-		options.nodeRunFunc = shardRunFunc
+		options.shardNodeRunFn = shardNodeRunFn
 	}
 }
 
-func convertOptsToRunnable(opts interface{}) moneyNodeRunnable {
+func convertOptsToRunnable(opts interface{}) nodeRunnable {
 	switch v := opts.(type) {
-	case moneyNodeRunnable:
+	case nodeRunnable:
 		return v
 	case Option:
 		executeOpts := Options{}
 		v(&executeOpts)
-		return executeOpts.nodeRunFunc
+		return executeOpts.shardNodeRunFn
 	case []interface{}:
 		for _, op := range v {
 			if f := convertOptsToRunnable(op); f != nil {

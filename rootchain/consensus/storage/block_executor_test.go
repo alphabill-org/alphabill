@@ -7,9 +7,7 @@ import (
 
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/network/protocol/certification"
-	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
-	rootgenesis "github.com/alphabill-org/alphabill/rootchain/genesis"
 	"github.com/alphabill-org/alphabill/rootchain/partitions"
 	"github.com/alphabill-org/alphabill/rootchain/testutils"
 	"github.com/stretchr/testify/require"
@@ -35,11 +33,11 @@ func NewAlwaysTrueIRReqVerifier() *mockIRVerifier {
 type mockIRVerifier struct{}
 
 func (x *mockIRVerifier) VerifyIRChangeReq(_ uint64, irChReq *drctypes.IRChangeReq) (*InputData, error) {
-	return &InputData{Partition: irChReq.Partition, IR: irChReq.Requests[0].InputRecord, PDRHash: []byte{0, 0, 0, 0, 1}}, nil
+	return &InputData{Partition: irChReq.Partition, IR: irChReq.Requests[0].InputRecord, ShardConfHash: []byte{0, 0, 0, 0, 1}}, nil
 }
 
 func TestNewExecutedBlockFromGenesis(t *testing.T) {
-	peers, nodes := testutils.CreatePartitionNodes(t, genesisInputRecord, partitionID1, 3)
+	peers, nodes := testutils.CreateTestNodes(t, genesisInputRecord, partitionID1, 3)
 	rootNode := testutils.NewTestNode(t)
 	id := rootNode.PeerConf.ID
 	rootGenesis, _, err := rootgenesis.NewRootGenesis(id.String(), rootNode.Signer, nodes)
@@ -53,13 +51,13 @@ func TestNewExecutedBlockFromGenesis(t *testing.T) {
 			Stake:  1,
 		})
 	}
-	b, err := NewGenesisBlock(hash, rootGenesis.Partitions)
+	b, err := newGenesisBlock(hash, rootGenesis.Partitions)
 	require.NoError(t, err)
 	require.Equal(t, b.HashAlgo, crypto.SHA256)
 	data := b.CurrentIR.Find(partitionID1)
 	require.Equal(t, rootGenesis.Partitions[0].PartitionDescription.PartitionID, data.Partition)
 	require.Equal(t, rootGenesis.Partitions[0].Certificate.InputRecord, data.IR)
-	require.Equal(t, rootGenesis.Partitions[0].Certificate.UnicityTreeCertificate.PDRHash, data.PDRHash)
+	require.Equal(t, rootGenesis.Partitions[0].Certificate.UnicityTreeCertificate.PDRHash, data.ShardConfHash)
 	require.Empty(t, b.Changed)
 	require.Len(t, b.RootHash, 32)
 	require.Len(t, b.Changed, 0)
@@ -75,7 +73,7 @@ func TestNewExecutedBlockFromGenesis(t *testing.T) {
 }
 
 func TestExecutedBlock_Extend(t *testing.T) {
-	peers, nodes := testutils.CreatePartitionNodes(t, genesisInputRecord, partitionID1, 3)
+	peers, nodes := testutils.CreateTestNodes(t, genesisInputRecord, partitionID1, 3)
 	rootNode := testutils.NewTestNode(t)
 	id := rootNode.PeerConf.ID
 	rootGenesis, _, err := rootgenesis.NewRootGenesis(id.String(), rootNode.Signer, nodes)
@@ -101,7 +99,7 @@ func TestExecutedBlock_Extend(t *testing.T) {
 			}, nil
 		},
 	}
-	parent, err := NewGenesisBlock(hash, rootGenesis.Partitions)
+	parent, err := newGenesisBlock(hash, rootGenesis.Partitions)
 	require.NoError(t, err)
 	certReq := &certification.BlockCertificationRequest{
 		PartitionID: partitionID1,
@@ -137,7 +135,7 @@ func TestExecutedBlock_Extend(t *testing.T) {
 	require.Equal(t, genesis.RootRound+1, executedBlock.BlockData.Round)
 	require.Equal(t, certReq, executedBlock.BlockData.Payload.Requests[0].Requests[0])
 	require.Len(t, executedBlock.Changed, 1)
-	require.Contains(t, executedBlock.Changed, partitionShard{partition: partitionID1, shard: types.ShardID{}.Key()})
+	require.Contains(t, executedBlock.Changed, types.PartitionShardID{PartitionID: partitionID1, ShardID: types.ShardID{}.Key()})
 	require.Len(t, executedBlock.CurrentIR, 1)
 	require.Equal(t, certReq.InputRecord, executedBlock.CurrentIR.Find(partitionID1).IR)
 	// parent remains unchanged
@@ -173,7 +171,7 @@ func TestExecutedBlock_GenerateCertificates(t *testing.T) {
 					SumOfEarnedFees: 4,
 					Timestamp:       20241113,
 				},
-				PDRHash: []byte{1, 2, 3, 4},
+				ShardConfHash: []byte{1, 2, 3, 4},
 			},
 			{
 				Partition: partitionID2,
@@ -187,16 +185,16 @@ func TestExecutedBlock_GenerateCertificates(t *testing.T) {
 					SumOfEarnedFees: 6,
 					Timestamp:       20241113,
 				},
-				PDRHash: []byte{4, 5, 6, 7},
+				ShardConfHash: []byte{4, 5, 6, 7},
 			},
 		},
 		ShardInfo: shardStates{
-			partitionShard{partitionID1, types.ShardID{}.Key()}: &ShardInfo{},
-			partitionShard{partitionID2, types.ShardID{}.Key()}: &ShardInfo{},
+			types.PartitionShardID{PartitionID: partitionID1, ShardID: types.ShardID{}.Key()}: &ShardInfo{},
+			types.PartitionShardID{PartitionID: partitionID2, ShardID: types.ShardID{}.Key()}: &ShardInfo{},
 		},
-		Changed: map[partitionShard]struct{}{
-			{partitionID1, types.ShardID{}.Key()}: {},
-			{partitionID2, types.ShardID{}.Key()}: {},
+		Changed: map[types.PartitionShardID]struct{}{
+			{PartitionID: partitionID1, ShardID: types.ShardID{}.Key()}: {},
+			{PartitionID: partitionID2, ShardID: types.ShardID{}.Key()}: {},
 		},
 		HashAlgo: crypto.SHA256,
 		RootHash: rh,
@@ -234,7 +232,7 @@ func TestExecutedBlock_GenerateCertificates(t *testing.T) {
 	certs, err = block.GenerateCertificates(commitQc)
 	require.NoError(t, err)
 	require.Len(t, certs, 2)
-	si, ok := block.ShardInfo[partitionShard{partitionID1, types.ShardID{}.Key()}]
+	si, ok := block.ShardInfo[types.PartitionShardID{PartitionID: partitionID1, ShardID: types.ShardID{}.Key()}]
 	require.True(t, ok)
 	require.NotNil(t, si.LastCR)
 }
@@ -276,7 +274,7 @@ func Test_ExecutedBlock_serialization(t *testing.T) {
 		require.EqualValues(t, b1.Changed, b2.Changed)
 
 		// set with one item
-		b1.Changed = map[partitionShard]struct{}{{partition: 1, shard: types.ShardID{}.Key()}: {}}
+		b1.Changed = map[types.PartitionShardID]struct{}{{PartitionID: 1, ShardID: types.ShardID{}.Key()}: {}}
 		buf, err = types.Cbor.Marshal(b1)
 		require.NoError(t, err)
 
@@ -313,7 +311,7 @@ func Test_ExecutedBlock_serialization(t *testing.T) {
 				},
 			},
 		}
-		psKey := partitionShard{si.LastCR.Partition, si.LastCR.Shard.Key()}
+		psKey := types.PartitionShardID{PartitionID: si.LastCR.Partition, ShardID: si.LastCR.Shard.Key()}
 		b1.ShardInfo[psKey] = &si
 		buf, err = types.Cbor.Marshal(b1)
 		require.NoError(t, err)

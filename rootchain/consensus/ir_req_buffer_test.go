@@ -21,7 +21,7 @@ func NewAlwaysTrueIRReqVerifier() *mockIRVerifier {
 }
 
 func (x *mockIRVerifier) VerifyIRChangeReq(_ uint64, irChReq *drctypes.IRChangeReq) (*storage.InputData, error) {
-	return &storage.InputData{Partition: irChReq.Partition, IR: irChReq.Requests[0].InputRecord, PDRHash: []byte{0, 0, 0, 0, 1}}, nil
+	return &storage.InputData{Partition: irChReq.Partition, IR: irChReq.Requests[0].InputRecord, ShardConfHash: []byte{0, 0, 0, 0, 1}}, nil
 }
 
 const partitionID1 types.PartitionID = 1

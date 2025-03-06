@@ -89,6 +89,7 @@ func NewRecoveredState(stateData io.Reader, udc UnitDataConstructor, opts ...Opt
 
 	hasher := newStateHasher(options.hashAlgorithm)
 	t := avl.NewWithTraverserAndRoot[types.UnitID, *Unit](hasher, root)
+
 	state := &State{
 		hashAlgorithm: options.hashAlgorithm,
 		savepoints:    []*tree{t},
@@ -100,6 +101,10 @@ func NewRecoveredState(stateData io.Reader, udc UnitDataConstructor, opts ...Opt
 		if err := state.Commit(header.UnicityCertificate); err != nil {
 			return nil, fmt.Errorf("unable to commit recovered state: %w", err)
 		}
+	} else {
+		// Must be genesis state, save it as committed tree, so it's never reverted.
+		// TODO: unitProof generation should not be attempted from a committedTree when committedTreeUC is missing
+		state.committedTree = t
 	}
 
 	return state, nil
@@ -570,11 +575,11 @@ func (s *State) releaseToSavepoint(id int) {
 	s.savepoints = s.savepoints[0:id]
 }
 
+// TODO: a better name perhaps, committed state and committed tree are different things, this checks if tree is committed/clean
 func (s *State) isCommitted() bool {
 	return len(s.savepoints) == 1 &&
 		s.savepoints[0].IsClean() &&
-		isRootClean(s.savepoints[0]) &&
-		s.committedTreeUC != nil
+		isRootClean(s.savepoints[0])
 }
 
 func isRootClean(s *tree) bool {

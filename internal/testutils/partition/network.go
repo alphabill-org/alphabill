@@ -33,12 +33,10 @@ import (
 	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/logger"
 	"github.com/alphabill-org/alphabill/network"
-	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/observability"
 	"github.com/alphabill-org/alphabill/partition"
 	"github.com/alphabill-org/alphabill/rootchain"
 	"github.com/alphabill-org/alphabill/rootchain/consensus"
-	rootgenesis "github.com/alphabill-org/alphabill/rootchain/genesis"
 	"github.com/alphabill-org/alphabill/rootchain/partitions"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
@@ -61,7 +59,7 @@ type RootPartition struct {
 
 type NodePartition struct {
 	partitionID      types.PartitionID
-	partitionGenesis *genesis.PartitionGenesis
+	shardConf        *types.PartitionDescriptionRecord
 	genesisState     *state.State
 	txSystemFunc     func(trustBase types.RootTrustBase) txsystem.TransactionSystem
 	ctx              context.Context
@@ -109,6 +107,7 @@ func (rn *rootNode) Stop() error {
 
 const testNetworkTimeout = 600 * time.Millisecond
 
+// TODO: needed?
 // getGenesisFiles is a helper function to collect all node genesis files
 func getGenesisFiles(nodePartitions []*NodePartition) []*genesis.PartitionNode {
 	var partitionRecords []*genesis.PartitionNode
@@ -136,11 +135,9 @@ func newRootPartition(t *testing.T, nofRootNodes uint8, nodePartitions []*NodePa
 		return nil, fmt.Errorf("failed to generate peer configuration, %w", err)
 	}
 	for i, peerCfg := range rootPeerCfg {
-		nodes := getGenesisFiles(nodePartitions)
-		rg, _, err := rootgenesis.NewRootGenesis(
+		rg, err := rootgenesis.NewRootGenesis(
 			peerCfg.ID.String(),
 			rootSigners[i],
-			nodes,
 			rootgenesis.WithTotalNodes(uint32(nofRootNodes)),
 			rootgenesis.WithBlockRate(max(genesis.MinBlockRateMs, 300)), // set block rate at 300 ms to give a bit more time for nodes to bootstrap
 			rootgenesis.WithConsensusTimeout(genesis.DefaultConsensusTimeout))
@@ -158,7 +155,7 @@ func newRootPartition(t *testing.T, nofRootNodes uint8, nodePartitions []*NodePa
 			peerConf:   peerCfg,
 			homeDir:    t.TempDir(),
 		}
-		trustBaseNodes[i] = trustbase.NewNodeInfoFromVerifier(t, peerCfg.ID.String(), 1, verifier)
+		trustBaseNodes[i] = trustbase.NewNodeInfoFromVerifier(t, peerCfg.ID.String(), verifier)
 		for _, p := range rg.Partitions {
 			if len(unicityTreeRootHash) == 0 {
 				unicityTreeRootHash = p.Certificate.UnicitySeal.Hash
@@ -172,17 +169,9 @@ func newRootPartition(t *testing.T, nofRootNodes uint8, nodePartitions []*NodePa
 		return nil, fmt.Errorf("failed to create genesis trust base, %w", err)
 	}
 
-	rootGenesis, partitionGenesisFiles, err := rootgenesis.MergeRootGenesisFiles(rootGenesisFiles)
+	rootGenesis, err := rootgenesis.MergeRootGenesisFiles(rootGenesisFiles)
 	if err != nil {
 		return nil, fmt.Errorf("failed to finalize root genesis, %w", err)
-	}
-	// update partition genesis files
-	for _, pg := range partitionGenesisFiles {
-		for _, part := range nodePartitions {
-			if part.partitionID == pg.PartitionDescription.PartitionID {
-				part.partitionGenesis = pg
-			}
-		}
 	}
 	return &RootPartition{
 		rcGenesis: rootGenesis,
@@ -294,12 +283,6 @@ func (n *NodePartition) start(t *testing.T, ctx context.Context, bootNodes []pee
 	// partition nodes as they are set up for test, require bootstrap info
 	require.NotEmpty(t, bootNodes)
 
-	if !n.genesisState.IsCommitted() {
-		if err := n.genesisState.Commit(n.partitionGenesis.Certificate); err != nil {
-			return fmt.Errorf("invalid genesis state: %w", err)
-		}
-	}
-
 	// start Nodes
 	for _, nd := range n.Nodes {
 		nd.EventHandler = &testevent.TestEventHandler{}
@@ -341,7 +324,8 @@ func (n *NodePartition) startNode(ctx context.Context, pn *partitionNode) error 
 		pn.peerConf,
 		pn.signer,
 		n.txSystemFunc(n.tb),
-		n.partitionGenesis,
+		nil, // TODO: PDR
+		n.shardConf,
 		n.tb,
 		nil,
 		observability.WithLogger(n.obs.DefaultObserver(), log),
@@ -548,7 +532,7 @@ func (a *AlphabillNetwork) GetValidator(sysID types.PartitionID) (partition.Unic
 	if !f {
 		return nil, fmt.Errorf("unknown partition %s", sysID)
 	}
-	return partition.NewDefaultUnicityCertificateValidator(part.partitionGenesis.PartitionDescription, a.RootPartition.TrustBase, crypto.SHA256)
+	return partition.NewDefaultUnicityCertificateValidator(part.shardConf, a.RootPartition.TrustBase, crypto.SHA256)
 }
 
 // BroadcastTx sends transactions to all nodes.

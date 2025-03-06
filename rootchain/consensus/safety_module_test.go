@@ -271,7 +271,7 @@ func TestSafetyModule_MakeVote(t *testing.T) {
 	// try to make a successful dummy vote
 	voteInfo := NewDummyVoteInfo(3, []byte{0, 1, 2, 3})
 	// create a dummy QC
-	blockData.Qc, err = drctypes.NewQuorumCertificate(voteInfo, nil)
+	blockData.Qc, err = newQuorumCertificate(t, voteInfo, nil)
 	require.NoError(t, err)
 	vote, err = s.MakeVote(blockData, dummyRootHash, nil, tc)
 	require.NoError(t, err)
@@ -311,7 +311,7 @@ func TestSafetyModule_SignProposal(t *testing.T) {
 	require.ErrorContains(t, s.Sign(proposal), "missing quorum certificate")
 	// create dummy QC
 	voteInfo := NewDummyVoteInfo(3, []byte{0, 1, 2, 3})
-	qc, err := drctypes.NewQuorumCertificate(voteInfo, nil)
+	qc, err := newQuorumCertificate(t, voteInfo, nil)
 	require.NoError(t, err)
 	// add some dummy signatures
 	qc.Signatures = map[string]hex.Bytes{"1": {1, 2}, "2": {1, 2}, "3": {1, 2}}
@@ -336,7 +336,7 @@ func TestSafetyModule_SignTimeout(t *testing.T) {
 	require.NotNil(t, s)
 	// previous round did not time out
 	voteInfo := NewDummyVoteInfo(3, []byte{0, 1, 2, 3})
-	qc, err := drctypes.NewQuorumCertificate(voteInfo, nil)
+	qc, err := newQuorumCertificate(t, voteInfo, nil)
 	require.NoError(t, err)
 	qc.Signatures = map[string]hex.Bytes{"1": {1, 2}, "2": {1, 2}, "3": {1, 2}}
 	tmoMsg := &abdrc.TimeoutMsg{

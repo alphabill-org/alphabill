@@ -55,7 +55,6 @@ func TestPartition_Ok(t *testing.T) {
 			observability.Default(t),
 			WithState(s),
 			WithHashAlgorithm(crypto.SHA256),
-			WithPartitionDescriptionRecords(pdrs),
 			WithTrustBase(tb),
 		)
 		require.NoError(t, err)
@@ -183,7 +182,6 @@ func TestPartition_SwapDCOk(t *testing.T) {
 			types.ShardID{},
 			observability.Default(t),
 			WithHashAlgorithm(crypto.SHA256),
-			WithPartitionDescriptionRecords(pdrs),
 			WithTrustBase(tb),
 			WithState(txsState),
 		)

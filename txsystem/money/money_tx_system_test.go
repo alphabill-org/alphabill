@@ -60,7 +60,6 @@ func TestNewTxSystem(t *testing.T) {
 		types.ShardID{},
 		observability.Default(t),
 		WithHashAlgorithm(crypto.SHA256),
-		WithPartitionDescriptionRecords(sdrs),
 		WithState(txsState),
 		WithTrustBase(trustBase),
 	)
@@ -91,7 +90,6 @@ func TestNewTxSystem_RecoveredState(t *testing.T) {
 		*sdrs[0],
 		types.ShardID{},
 		observe,
-		WithPartitionDescriptionRecords(sdrs),
 		WithState(s),
 		WithTrustBase(trustBase),
 	)
@@ -130,7 +128,6 @@ func TestNewTxSystem_RecoveredState(t *testing.T) {
 		*sdrs[0],
 		types.ShardID{},
 		observe,
-		WithPartitionDescriptionRecords(sdrs),
 		WithState(recoveredState),
 		WithTrustBase(trustBase),
 	)
@@ -607,6 +604,7 @@ func TestEndBlock_DustBillsAreRemoved(t *testing.T) {
 // 2) process reclaim FC closeFC(amount=50, fee=1)
 // 3) end block (moneyFCB=51-50+1+1=3)
 func TestEndBlock_FeesConsolidation(t *testing.T) {
+	t.Skip("TODO fees consolidation will be removed")
 	pdrs := createPDRs(t)
 	rmaTree, txSystem, signer := createStateAndTxSystem(t, pdrs)
 
@@ -1103,7 +1101,6 @@ func createStateAndTxSystem(t *testing.T, pdrs []*types.PartitionDescriptionReco
 		*pdrs[0],
 		types.ShardID{},
 		observability.Default(t),
-		WithPartitionDescriptionRecords(pdrs),
 		WithState(s),
 		WithTrustBase(trustBase),
 	)

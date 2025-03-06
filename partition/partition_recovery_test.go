@@ -179,7 +179,7 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withPendingProposa
 	uc := tp.IssueBlockUC(t)
 
 	system := &testtxsystem.CounterTxSystem{}
-	system.Commit(tp.nodeConf.genesis.Certificate)
+	system.Commit(tp.nodeConf.shardConf.Certificate)
 	tp.nodeDeps.txSystem = system
 
 	// kill current partition node and start it a new
@@ -1354,7 +1354,7 @@ func createBlock(t *testing.T, tp *SingleNodePartition, txs *testtxsystem.Counte
 		Header: &types.Header{
 			Version:           1,
 			PartitionID:       uc.UnicityTreeCertificate.Partition,
-			ShardID:           tp.nodeConf.shardID,
+			ShardID:           tp.nodeConf.shardConf.ShardID,
 			ProposerID:        "test",
 			PreviousBlockHash: uc.InputRecord.BlockHash,
 		},

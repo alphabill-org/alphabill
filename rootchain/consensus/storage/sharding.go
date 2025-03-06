@@ -7,44 +7,49 @@ import (
 	"fmt"
 	"maps"
 	"slices"
+	"time"
 
 	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	abhash "github.com/alphabill-org/alphabill-go-base/hash"
 	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill-go-base/util"
 	"github.com/alphabill-org/alphabill/network/protocol/certification"
-	"github.com/alphabill-org/alphabill/network/protocol/genesis"
-	rcgenesis "github.com/alphabill-org/alphabill/rootchain/genesis"
-	"github.com/alphabill-org/alphabill/rootchain/partitions"
 )
 
-type shardStates map[partitionShard]*ShardInfo
+type shardStates map[types.PartitionShardID]*ShardInfo
 
 /*
 nextBlock returns shard states for the next block by "cloning" the current states.
 */
-func (ss shardStates) nextBlock(parentIR InputRecords, orchestration Orchestration) (shardStates, error) {
+func (ss shardStates) nextBlock(parentIRs InputRecords, orchestration Orchestration, rootRound uint64, hashAlg crypto.Hash) (shardStates, error) {
 	nextBlock := make(shardStates, len(ss))
+
+	shardConfs, err := orchestration.ShardConfigs(rootRound)
+	if err != nil {
+		return nil, fmt.Errorf("loading shard configurations for round %d: %w", rootRound, err)
+	}
+
 	for shardKey, prevSI := range ss {
-		irData := parentIR.Find(prevSI.LastCR.Partition)
-		if irData == nil {
+		parentIR := parentIRs.Find(prevSI.PartitionID, prevSI.ShardID)
+
+		// There should be a parent IR, unless it's a newly activated shard at round 0
+		if parentIR == nil && parentIR.Technical.Round > 0 {
 			return nil, fmt.Errorf("no previous round data for shard %s - %s", prevSI.LastCR.Partition, prevSI.LastCR.Shard)
 		}
-		// irData.Technical is the TR parent block created (or inherited) so the Round there is the
-		// round we're creating new block for.
-		epoch, err := orchestration.ShardEpoch(prevSI.LastCR.Partition, prevSI.LastCR.Shard, irData.Technical.Round)
-		if err != nil {
-			return nil, fmt.Errorf("querying shard epoch: %w", err)
-		}
-		// irData.IR is the state in the shard when irData.Technical was created - so when the epoch
+
+		// parentIR.IR is the state in the shard when parentIR.Technical was created - so when the epoch
 		// is different this new block is in the new epoch
-		if epoch != irData.IR.Epoch {
-			rec, err := orchestration.ShardConfig(prevSI.LastCR.Partition, prevSI.LastCR.Shard, epoch)
-			if err != nil {
-				return nil, fmt.Errorf("loading shard config: %w", err)
+		if parentIR != nil && parentIR.Technical.Epoch != parentIR.IR.Epoch {
+			shardConf, ok := shardConfs[shardKey]
+			if !ok {
+				return nil, fmt.Errorf("shard %s missing configuration", shardKey)
 			}
-			if nextBlock[shardKey], err = prevSI.nextEpoch(epoch, rec); err != nil {
-				return nil, fmt.Errorf("creating ShardInfo %s - %s of the next epoch: %w", prevSI.LastCR.Partition, prevSI.LastCR.Shard, err)
+			if parentIR.Technical.Epoch != shardConf.ShardEpoch {
+				return nil, fmt.Errorf("shard %s expected epoch %d, loaded configuration has epoch %d",
+					shardKey, parentIR.Technical.Epoch, shardConf.ShardEpoch)
+			}
+			if nextBlock[shardKey], err = prevSI.nextEpoch(shardConf.ShardEpoch, shardConf, hashAlg); err != nil {
+				return nil, fmt.Errorf("creating ShardInfo %s - %s of the next epoch: %w",
+					prevSI.LastCR.Partition, prevSI.LastCR.Shard, err)
 			}
 		} else {
 			si := *prevSI
@@ -52,6 +57,20 @@ func (ss shardStates) nextBlock(parentIR InputRecords, orchestration Orchestrati
 			nextBlock[shardKey] = &si
 		}
 	}
+
+	// Do we have new shards activated in this round?
+	for shardKey, shardConf := range shardConfs {
+		if _, ok := nextBlock[shardKey]; ok {
+			// not a new shard
+			continue
+		}
+		si, err := NewShardInfo(shardConf, hashAlg)
+		if err != nil {
+			return nil, fmt.Errorf("creating ShardInfo for partition %s: %w", shardConf.PartitionID, err)
+		}
+		nextBlock[shardKey] = si
+	}
+
 	return nextBlock, nil
 }
 
@@ -92,40 +111,33 @@ func (ss *shardStates) UnmarshalCBOR(data []byte) error {
 	}
 	ssn := make(shardStates, len(d.Data))
 	for _, itm := range d.Data {
-		ssn[partitionShard{itm.LastCR.Partition, itm.LastCR.Shard.Key()}] = itm
+		ssn[types.PartitionShardID{PartitionID: itm.LastCR.Partition, ShardID: itm.LastCR.Shard.Key()}] = itm
 	}
 	*ss = ssn
 	return nil
 }
 
-func NewShardInfoFromGenesis(pg *genesis.GenesisPartitionRecord) (*ShardInfo, error) {
+func NewShardInfo(shardConf *types.PartitionDescriptionRecord, hashAlg crypto.Hash) (*ShardInfo, error) {
+	shardConfHash, err := shardConf.Hash(hashAlg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to calculate shard conf hash: %w", err)
+	}
 	si := &ShardInfo{
-		RootHash:      pg.Certificate.InputRecord.Hash,
+		PartitionID:   shardConf.PartitionID,
+		ShardID:       shardConf.ShardID,
+		T2Timeout:     shardConf.T2Timeout,
+		ShardConfHash: shardConfHash,
+		RootHash:      nil,
 		PrevEpochFees: types.RawCBOR{0xA0}, // CBOR map(0)
-		LastCR: &certification.CertificationResponse{
-			Partition: pg.PartitionDescription.PartitionID,
-			Shard:     types.ShardID{},
-			UC:        *pg.Certificate,
-		},
+		LastCR:        nil,
 	}
 
-	var err error
 	if si.PrevEpochStat, err = types.Cbor.Marshal(si.Stat); err != nil {
 		return nil, fmt.Errorf("init previous epoch stat: %w", err)
 	}
 
-	nodeIDs := util.TransformSlice(pg.Validators, func(pn *genesis.PartitionNode) string { return pn.NodeID })
-	tr, err := rcgenesis.TechnicalRecord(pg.Certificate.InputRecord, nodeIDs)
-	if err != nil {
-		return nil, fmt.Errorf("creating TechnicalRecord: %w", err)
-	}
-	if err = si.LastCR.SetTechnicalRecord(tr); err != nil {
-		return nil, fmt.Errorf("setting TechnicalRecord: %w", err)
-	}
-
-	rec := partitions.NewVARFromGenesis(pg)
-	si.resetFeeList(rec)
-	if err = si.resetTrustBase(rec); err != nil {
+	si.resetFeeList(shardConf)
+	if err = si.resetTrustBase(shardConf); err != nil {
 		return nil, fmt.Errorf("shard info init: %w", err)
 	}
 
@@ -134,8 +146,12 @@ func NewShardInfoFromGenesis(pg *genesis.GenesisPartitionRecord) (*ShardInfo, er
 
 type ShardInfo struct {
 	_        struct{} `cbor:",toarray"`
-	RootHash []byte   // last certified root hash
+	PartitionID   types.PartitionID
+	ShardID       types.ShardID
+	T2Timeout     time.Duration
+	ShardConfHash []byte
 
+	RootHash      []byte   // last certified root hash
 	// statistical record of the previous epoch. As we only need
 	// it for hashing we keep it in serialized representation
 	PrevEpochStat types.RawCBOR
@@ -156,26 +172,24 @@ type ShardInfo struct {
 	trustBase map[string]abcrypto.Verifier
 }
 
-func (si *ShardInfo) resetFeeList(rec *partitions.ValidatorAssignmentRecord) {
+func (si *ShardInfo) resetFeeList(shardConf *types.PartitionDescriptionRecord) {
 	fees := make(map[string]uint64)
-	for _, n := range rec.Nodes {
+	for _, n := range shardConf.Validators {
 		fees[n.NodeID] = 0
 	}
 	si.Fees = fees
 }
 
-func (si *ShardInfo) resetTrustBase(rec *partitions.ValidatorAssignmentRecord) error {
-	// TODO: genesis must support sharding - currently we only support
-	// single shard partitions so all nodes belong into the same shard!
-	si.nodeIDs = make([]string, 0, len(rec.Nodes))
+func (si *ShardInfo) resetTrustBase(shardConf *types.PartitionDescriptionRecord) error {
+	si.nodeIDs = make([]string, 0, len(shardConf.Validators))
 	si.trustBase = make(map[string]abcrypto.Verifier)
-	for _, n := range rec.Nodes {
-		ver, err := abcrypto.NewVerifierSecp256k1(n.SigKey)
+	for _, v := range shardConf.Validators {
+		ver, err := v.SigVerifier()
 		if err != nil {
-			return fmt.Errorf("creating verifier for the node %q: %w", n.NodeID, err)
+			return fmt.Errorf("creating verifier for validator %q: %w", v.NodeID, err)
 		}
-		si.trustBase[n.NodeID] = ver
-		si.nodeIDs = append(si.nodeIDs, n.NodeID)
+		si.trustBase[v.NodeID] = ver
+		si.nodeIDs = append(si.nodeIDs, v.NodeID)
 	}
 	slices.Sort(si.nodeIDs)
 
@@ -186,22 +200,31 @@ func (si *ShardInfo) IsValid() error {
 	if n := len(si.Fees); n != len(si.nodeIDs) {
 		return fmt.Errorf("shard has %d nodes but fee list contains %d nodes", len(si.nodeIDs), n)
 	}
-	if err := si.LastCR.IsValid(); err != nil {
-		return fmt.Errorf("last certification response is invalid: %w", err)
+	if si.LastCR != nil {
+		if err := si.LastCR.IsValid(); err != nil {
+			return fmt.Errorf("last certification response is invalid: %w", err)
+		}
 	}
 	return nil
 }
 
-func (si *ShardInfo) nextEpoch(epoch uint64, rec *partitions.ValidatorAssignmentRecord) (*ShardInfo, error) {
-	if rec.EpochNumber != epoch {
-		return nil, fmt.Errorf("epochs must be consecutive, expected %d proposed next %d", epoch, rec.EpochNumber)
+func (si *ShardInfo) nextEpoch(shardEpoch uint64, shardConf *types.PartitionDescriptionRecord, hashAlg crypto.Hash) (*ShardInfo, error) {
+	if shardEpoch != shardConf.ShardEpoch {
+		return nil, fmt.Errorf("epochs must be consecutive, expected %d proposed next %d", shardEpoch, shardConf.ShardEpoch)
+	}
+	shardConfHash, err := shardConf.Hash(hashAlg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to calculate shard conf hash: %w", err)
 	}
 	nextSI := &ShardInfo{
-		RootHash: si.RootHash,
-		LastCR:   si.LastCR,
+		PartitionID:   shardConf.PartitionID,
+		ShardID:       shardConf.ShardID,
+		T2Timeout:     shardConf.T2Timeout,
+		ShardConfHash: shardConfHash,
+		RootHash:      si.RootHash,
+		LastCR:        si.LastCR,
 	}
 
-	var err error
 	if nextSI.PrevEpochFees, err = types.Cbor.Marshal(si.Fees); err != nil {
 		return nil, fmt.Errorf("encoding previous epoch fees: %w", err)
 	}
@@ -209,15 +232,15 @@ func (si *ShardInfo) nextEpoch(epoch uint64, rec *partitions.ValidatorAssignment
 		return nil, fmt.Errorf("encoding previous epoch stat: %w", err)
 	}
 
-	nextSI.resetFeeList(rec)
-	if err = nextSI.resetTrustBase(rec); err != nil {
+	nextSI.resetFeeList(shardConf)
+	if err = nextSI.resetTrustBase(shardConf); err != nil {
 		return nil, fmt.Errorf("initializing shard trustbase: %w", err)
 	}
 
 	return nextSI, nil
 }
 
-func (si *ShardInfo) nextRound(req *certification.BlockCertificationRequest, lastTR certification.TechnicalRecord, orc Orchestration) (tr certification.TechnicalRecord, err error) {
+func (si *ShardInfo) nextRound(req *certification.BlockCertificationRequest, lastTR certification.TechnicalRecord, orc Orchestration, rootRound uint64, hashAlg crypto.Hash) (tr certification.TechnicalRecord, err error) {
 	// timeout IRChangeRequest doesn't have BlockCertificationRequest
 	if req != nil {
 		si.update(req, lastTR.Leader)
@@ -225,28 +248,28 @@ func (si *ShardInfo) nextRound(req *certification.BlockCertificationRequest, las
 
 	tr.Round = lastTR.Round + 1
 
-	siTR := si
-	tr.Epoch, err = orc.ShardEpoch(si.LastCR.Partition, si.LastCR.Shard, tr.Round)
+	nextShardInfo := si
+	// New shard epoch is activated for the next shard round, if current root round
+	// reaches the activation root round of the shard configuration.
+	nextShardConf, err := orc.ShardConfig(si.PartitionID, si.ShardID, rootRound)
 	if err != nil {
-		return tr, fmt.Errorf("querying shard's epoch: %w", err)
+		return tr, fmt.Errorf("reading config of the epoch: %w", err)
 	}
+
+	tr.Epoch = nextShardConf.ShardEpoch
 	if lastTR.Epoch != tr.Epoch {
-		rec, err := orc.ShardConfig(si.LastCR.Partition, si.LastCR.Shard, tr.Epoch)
-		if err != nil {
-			return tr, fmt.Errorf("reading config of the epoch: %w", err)
-		}
-		if siTR, err = si.nextEpoch(lastTR.Epoch+1, rec); err != nil {
+		if nextShardInfo, err = si.nextEpoch(lastTR.Epoch+1, nextShardConf, hashAlg); err != nil {
 			return tr, fmt.Errorf("creating ShardInfo of the next epoch: %w", err)
 		}
 	}
 
-	if tr.FeeHash, err = siTR.feeHash(crypto.SHA256); err != nil {
+	if tr.FeeHash, err = nextShardInfo.feeHash(crypto.SHA256); err != nil {
 		return tr, fmt.Errorf("hashing fees: %w", err)
 	}
-	if tr.StatHash, err = siTR.statHash(crypto.SHA256); err != nil {
+	if tr.StatHash, err = nextShardInfo.statHash(crypto.SHA256); err != nil {
 		return tr, fmt.Errorf("hashing statistics: %w", err)
 	}
-	tr.Leader = siTR.selectLeader(tr.Round)
+	tr.Leader = nextShardInfo.selectLeader(tr.Round)
 
 	return tr, nil
 }
@@ -332,6 +355,7 @@ func (si *ShardInfo) Verify(nodeID string, f func(v abcrypto.Verifier) error) er
 }
 
 func (si *ShardInfo) selectLeader(seed uint64) string {
+	// TODO: if rootHash is nil for new shard, leader is predicatble
 	extra := si.RootHash
 	if len(extra) >= 4 {
 		seed += (uint64(extra[0]) | uint64(extra[1])<<8 | uint64(extra[2])<<16 | uint64(extra[3])<<24)

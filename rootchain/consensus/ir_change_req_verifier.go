@@ -14,7 +14,7 @@ var ErrDuplicateChangeReq = errors.New("duplicate ir change request")
 
 type (
 	State interface {
-		ShardInfo(partition types.PartitionID, shard types.ShardID) (*storage.ShardInfo, error)
+		ShardInfo(partition types.PartitionID, shard types.ShardID) *storage.ShardInfo
 		GetCertificates() []*types.UnicityCertificate
 		IsChangeInProgress(id types.PartitionID, shard types.ShardID) *types.InputRecord
 	}
@@ -49,27 +49,21 @@ func NewIRChangeReqVerifier(c *Parameters, orchestration Orchestration, sMonitor
 	}, nil
 }
 
-func (x *IRChangeReqVerifier) VerifyIRChangeReq(round uint64, irChReq *drctypes.IRChangeReq) (*storage.InputData, error) {
+func (x *IRChangeReqVerifier) VerifyIRChangeReq(rootRound uint64, irChReq *drctypes.IRChangeReq) (*storage.InputData, error) {
 	if irChReq == nil {
 		return nil, fmt.Errorf("IR change request is nil")
 	}
-	// Certify input, everything needs to be verified again as if received from partition node, since we cannot trust the leader is honest
-	si, err := x.state.ShardInfo(irChReq.Partition, irChReq.Shard)
-	if err != nil {
-		return nil, fmt.Errorf("acquiring shard info: %w", err)
+	// Certify input, everything needs to be verified again as if received from partition node, since we cannot trust the leader is honest.
+	// This gets the shardInfo from committed round (for which there is UC), and irChReq should build on that.
+	si := x.state.ShardInfo(irChReq.Partition, irChReq.Shard)
+	if si == nil {
+		// There shouldn't be an IR change request for a shard with no committed state
+		return nil, fmt.Errorf("missing shard info for partition %d shard %s", irChReq.Partition, irChReq.Shard.String())
 	}
 
-	epoch, err := x.orchestration.ShardEpoch(irChReq.Partition, irChReq.Shard, round)
-	if err != nil {
-		return nil, fmt.Errorf("querying shard epoch: %w", err)
-	}
-	pdr, err := x.orchestration.PartitionDescription(irChReq.Partition, epoch)
-	if err != nil {
-		return nil, fmt.Errorf("acquiring partition genesis: %w", err)
-	}
 	// verify request
 	luc := si.LastCR.UC
-	inputRecord, err := irChReq.Verify(si, &luc, round, t2TimeoutToRootRounds(pdr.T2Timeout, x.params.BlockRate/2))
+	inputRecord, err := irChReq.Verify(si, &luc, rootRound, t2TimeoutToRootRounds(si.T2Timeout, x.params.BlockRate/2))
 	if err != nil {
 		return nil, fmt.Errorf("certification request verification failed: %w", err)
 	}
@@ -85,18 +79,14 @@ func (x *IRChangeReqVerifier) VerifyIRChangeReq(round uint64, irChReq *drctypes.
 		return nil, fmt.Errorf("add state failed: partition %s has pending changes in pipeline", irChReq.Partition)
 	}
 	// check - should never happen, somehow the root node round must have been reset
-	if round < luc.UnicitySeal.RootChainRoundNumber {
-		return nil, fmt.Errorf("current round %v is in the past, LUC round %v", round, luc.UnicitySeal.RootChainRoundNumber)
-	}
-	pdrHash, err := pdr.Hash(x.params.HashAlgorithm)
-	if err != nil {
-		return nil, fmt.Errorf("hashing partition description: %w", err)
+	if rootRound < luc.UnicitySeal.RootChainRoundNumber {
+		return nil, fmt.Errorf("current round %v is in the past, LUC round %v", rootRound, luc.UnicitySeal.RootChainRoundNumber)
 	}
 	return &storage.InputData{
-		Partition: irChReq.Partition,
-		Shard:     irChReq.Shard,
-		IR:        inputRecord,
-		PDRHash:   pdrHash,
+		Partition:     irChReq.Partition,
+		Shard:         irChReq.Shard,
+		IR:            inputRecord,
+		ShardConfHash: si.ShardConfHash,
 	}, nil
 }
 
@@ -117,30 +107,26 @@ func NewLucBasedT2TimeoutGenerator(c *Parameters, orchestration Orchestration, s
 	}, nil
 }
 
-func (x *PartitionTimeoutGenerator) GetT2Timeouts(currentRound uint64) (_ []types.PartitionID, retErr error) {
-	pdrs, err := x.orchestration.RoundPartitions(currentRound)
-	if err != nil {
-		return nil, fmt.Errorf("loading PDRs of the round %d: %w", currentRound, err)
-	}
-	timeoutIds := make([]types.PartitionID, 0, len(pdrs))
-	for _, partition := range pdrs {
-		partitionID := partition.PartitionID
-		// do not create T2 timeout requests if partition has a change already in pipeline
-		if ir := x.state.IsChangeInProgress(partitionID, types.ShardID{}); ir != nil {
+func (x *PartitionTimeoutGenerator) GetT2Timeouts(currentRound uint64) ([]*types.UnicityCertificate, error) {
+	// Only activated shards with an UC can time out. New shards are activated by adding their ShardInfo and
+	// an empty IR to the ExectuedBlock in the activation root round. Once the block gets committed, they
+	// get their first UC and can start timing out.
+	ucs := x.state.GetCertificates()
+
+	timedOutShards := make([]*types.UnicityCertificate, 0, len(ucs))
+	for _, uc := range ucs {
+		// do not create T2 timeout requests if shard has a change already in pipeline
+		if x.state.IsChangeInProgress(uc.GetPartitionID(), uc.GetShardID()) != nil {
 			continue
 		}
-		si, err := x.state.ShardInfo(partitionID, types.ShardID{})
-		if err != nil {
-			retErr = errors.Join(retErr, fmt.Errorf("read shard %s info: %w", partitionID, err))
-			// still try to check the rest of the partitions
-			continue
-		}
-		lastRootRound := si.LastCR.UC.UnicitySeal.RootChainRoundNumber
-		if currentRound-lastRootRound >= t2TimeoutToRootRounds(partition.T2Timeout, x.blockRate/2) {
-			timeoutIds = append(timeoutIds, partitionID)
+
+		si := x.state.ShardInfo(uc.GetPartitionID(), uc.GetShardID())
+		lastRootRound := uc.GetRootRoundNumber()
+		if currentRound-lastRootRound >= t2TimeoutToRootRounds(si.T2Timeout, x.blockRate/2) {
+			timedOutShards = append(timedOutShards, uc)
 		}
 	}
-	return timeoutIds, retErr
+	return timedOutShards, nil
 }
 
 func t2TimeoutToRootRounds(t2Timeout time.Duration, blockRate time.Duration) uint64 {

@@ -51,9 +51,9 @@ type ShardInfo struct {
 	TR certification.TechnicalRecord
 
 	// input data of the block
-	IR      *types.InputRecord
-	IRTR    certification.TechnicalRecord
-	PDRHash []byte // Partition Description Record Hash
+	IR            *types.InputRecord
+	IRTR          certification.TechnicalRecord
+	ShardConfHash []byte
 }
 
 type StateMsg struct {
@@ -167,11 +167,11 @@ func (si *ShardInfo) IsValid() error {
 	if err := si.IR.IsValid(); err != nil {
 		return fmt.Errorf("invalid input record: %w", err)
 	}
-	if len(si.PDRHash) == 0 {
-		return errors.New("system description hash not set")
+	if len(si.ShardConfHash) == 0 {
+		return errors.New("shard conf hash not set")
 	}
 
-	if err := si.UC.IsValid(si.Partition, si.PDRHash); err != nil {
+	if err := si.UC.IsValid(si.Partition, si.ShardConfHash); err != nil {
 		return fmt.Errorf("invalid UC: %w", err)
 	}
 	if err := si.TR.IsValid(); err != nil {

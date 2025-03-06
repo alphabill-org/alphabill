@@ -11,8 +11,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	ethrpc "github.com/ethereum/go-ethereum/rpc"
-	"github.com/libp2p/go-libp2p/core/crypto"
-	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
@@ -26,18 +24,13 @@ import (
 	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtime "github.com/alphabill-org/alphabill/internal/testutils/time"
-	"github.com/alphabill-org/alphabill/network/protocol/genesis"
-	rootgenesis "github.com/alphabill-org/alphabill/rootchain/genesis"
+	"github.com/alphabill-org/alphabill/internal/testutils/trustbase"
 	"github.com/alphabill-org/alphabill/rpc"
 )
 
 func TestRunTokensNode(t *testing.T) {
 	homeDir := t.TempDir()
-	keysFileLocation := filepath.Join(homeDir, defaultKeysFileName)
-	nodeGenesisFileLocation := filepath.Join(homeDir, utGenesisFileName)
-	nodeGenesisStateFileLocation := filepath.Join(homeDir, utGenesisStateFileName)
-	partitionGenesisFileLocation := filepath.Join(homeDir, "partition-genesis.json")
-	trustBaseFileLocation := filepath.Join(homeDir, rootTrustBaseFileName)
+	trustBaseFileLocation := filepath.Join(homeDir, trustBaseFileName)
 	pdr := types.PartitionDescriptionRecord{
 		Version:     1,
 		NetworkID:   5,
@@ -46,7 +39,7 @@ func TestRunTokensNode(t *testing.T) {
 		UnitIDLen:   256,
 		T2Timeout:   2500 * time.Millisecond,
 	}
-	pdrFilename := filepath.Join(homeDir, "pdr.json")
+	pdrFilename := filepath.Join(homeDir, shardConfFileName)
 	require.NoError(t, util.WriteJsonFile(pdrFilename, &pdr))
 
 	testtime.MustRunInTime(t, 5*time.Second, func() {
@@ -59,32 +52,18 @@ func TestRunTokensNode(t *testing.T) {
 		logF := testobserve.NewFactory(t)
 		// generate node genesis
 		cmd := New(logF)
-		args := "tokens-genesis --home " + homeDir +
-			" --partition-description " + pdrFilename +
-			" -o " + nodeGenesisFileLocation +
-			" --output-state " + nodeGenesisStateFileLocation +
-			" -g -k " + keysFileLocation
+		args := "genesis -g --home " + homeDir
 		cmd.baseCmd.SetArgs(strings.Split(args, " "))
 		require.NoError(t, cmd.Execute(ctx))
 
-		pn, err := util.ReadJsonFile(nodeGenesisFileLocation, &genesis.PartitionNode{Version: 1})
-		require.NoError(t, err)
+		// TODO: produce VAR/shardConf
+		// err = util.WriteJsonFile(partitionGenesisFileLocation, partitionGenesisFiles[0])
+		// require.NoError(t, err)
 
-		// use same keys for signing and authentication.
-		rootSigner, verifier := testsig.CreateSignerAndVerifier(t)
-		rootPubKeyBytes, err := verifier.MarshalPublicKey()
-		require.NoError(t, err)
-		rootAuthKey, err := crypto.UnmarshalSecp256k1PublicKey(rootPubKeyBytes)
-		require.NoError(t, err)
-		rootID, err := peer.IDFromPublicKey(rootAuthKey)
-		require.NoError(t, err)
-		rootGenesis, partitionGenesisFiles, err := rootgenesis.NewRootGenesis(rootID.String(), rootSigner, []*genesis.PartitionNode{pn})
-		require.NoError(t, err)
-		err = util.WriteJsonFile(partitionGenesisFileLocation, partitionGenesisFiles[0])
-		require.NoError(t, err)
-		trustBase, err := rootGenesis.GenerateTrustBase()
-		require.NoError(t, err)
-		err = util.WriteJsonFile(trustBaseFileLocation, trustBase)
+		_, verifier := testsig.CreateSignerAndVerifier(t)
+		trustBase := trustbase.NewTrustBase(t, verifier)
+
+		err := util.WriteJsonFile(trustBaseFileLocation, trustBase)
 		require.NoError(t, err)
 		rpcServerAddr := fmt.Sprintf("127.0.0.1:%d", net.GetFreeRandomPort(t))
 
@@ -94,10 +73,7 @@ func TestRunTokensNode(t *testing.T) {
 			defer appStoppedWg.Done()
 			cmd = New(logF)
 			args = "tokens --home " + homeDir +
-				" -g " + partitionGenesisFileLocation +
-				" -s " + nodeGenesisStateFileLocation +
 				" -t " + trustBaseFileLocation +
-				" -k " + keysFileLocation +
 				" --rpc-server-address " + rpcServerAddr
 			cmd.baseCmd.SetArgs(strings.Split(args, " "))
 

@@ -21,6 +21,8 @@ import (
 	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 )
 
+const PartitionType = "evm"
+
 type Observability interface {
 	Tracer(name string, options ...trace.TracerOption) trace.Tracer
 	TracerProvider() trace.TracerProvider

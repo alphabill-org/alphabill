@@ -452,10 +452,10 @@ func toRecoveryShardInfo(block *ExecutedBlock) ([]rcnet.ShardInfo, error) {
 		si[idx].Fees = maps.Clone(v.Fees)
 		si[idx].UC = v.LastCR.UC
 		si[idx].TR = v.LastCR.Technical
-		if ir := block.CurrentIR.Find(v.LastCR.Partition); ir != nil {
+		if ir := block.CurrentIR.Find(v.LastCR.Partition, v.LastCR.Shard); ir != nil {
 			si[idx].IR = ir.IR
 			si[idx].IRTR = ir.Technical
-			si[idx].PDRHash = ir.PDRHash
+			si[idx].ShardConfHash = ir.ShardConfHash
 		} else {
 			return nil, fmt.Errorf("no InputData for shard %s-%s", v.LastCR.Partition, v.LastCR.Shard)
 		}

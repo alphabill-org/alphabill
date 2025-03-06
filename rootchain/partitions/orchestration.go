@@ -5,97 +5,122 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	bolt "go.etcd.io/bbolt"
 )
 
 var (
-	partitionsBucketName   = []byte("partition-bucket")
-	roundToEpochBucketName = []byte("round-to-epoch-bucket")
-	epochToVarBucketName   = []byte("epoch-to-var-bucket")
+	rootBucketName             = []byte("root")
+	roundToShardConfBucketName = []byte("round-to-shard-conf")
 )
 
 type (
 	Orchestration struct {
-		db *bolt.DB
-
-		// Partition Description Record "cache", initialized from the
-		// seed genesis - as we currently support only single shard partitions
-		// the PRDs never change
-		pdrs []*types.PartitionDescriptionRecord
+		networkID types.NetworkID // TODO: init somehow
+		db        *bolt.DB
+		log       *slog.Logger
 	}
 )
 
 /*
 NewOrchestration creates new boltDB implementation of shard validator orchestration.
-  - seed is the root genesis file used to generate db schema and the first VARs.
   - dbFile is filename (full path) to the Bolt DB file to use for storage,
     if the file does not exist it will be created;
 */
-func NewOrchestration(seed *genesis.RootGenesis, dbFile string) (*Orchestration, error) {
-	if seed == nil {
-		return nil, errors.New("root genesis file is required")
-	}
+func NewOrchestration(dbFile string, log *slog.Logger) (*Orchestration, error) {
 	db, err := bolt.Open(dbFile, 0600, &bolt.Options{Timeout: 3 * time.Second})
 	if err != nil {
 		return nil, fmt.Errorf("opening bolt DB: %w", err)
 	}
-	if err = createSchemaAndFirstVAR(db, seed); err != nil {
-		return nil, fmt.Errorf("initializing the DB: %w", err)
-	}
-	var pdrs []*types.PartitionDescriptionRecord
-	for _, v := range seed.Partitions {
-		pdrs = append(pdrs, v.PartitionDescription)
-	}
-	return &Orchestration{db: db, pdrs: pdrs}, nil
-}
 
-// ShardEpoch returns the active epoch number for the given round in a shard.
-func (o *Orchestration) ShardEpoch(partition types.PartitionID, shard types.ShardID, shardRound uint64) (uint64, error) {
-	var epoch uint64
-	err := o.db.View(func(tx *bolt.Tx) error {
-		roundToEpochBucket, _, err := shardBuckets(tx, partition, shard)
+	// ensure root bucket exists
+	err = db.Update(func(tx *bolt.Tx) error {
+		_, err := tx.CreateBucketIfNotExists(rootBucketName)
 		if err != nil {
-			return err
+			return fmt.Errorf("creating %q bucket: %w", rootBucketName, err)
 		}
-
-		c := roundToEpochBucket.Cursor()
-		for k, v := c.Last(); k != nil; k, v = c.Prev() {
-			epoch = keyToUint64(v)
-			epochStartRound := keyToUint64(k)
-			if epochStartRound <= shardRound {
-				return nil
-			}
-		}
-		return errors.New("epoch not found (db is empty?)")
+		return nil
 	})
-	if err != nil {
-		return 0, fmt.Errorf("db tx failed: %w", err)
-	}
-	return epoch, nil
+
+	return &Orchestration{db: db}, nil
 }
 
-// ShardConfig returns VAR for the given shard epoch.
-func (o *Orchestration) ShardConfig(partition types.PartitionID, shard types.ShardID, epoch uint64) (*ValidatorAssignmentRecord, error) {
-	var rec *ValidatorAssignmentRecord
+// ShardConfig returns ShardConf for the given root round.
+func (o *Orchestration) ShardConfig(partitionID types.PartitionID, shardID types.ShardID, rootRound uint64) (*types.PartitionDescriptionRecord, error) {
+	var shardConf *types.PartitionDescriptionRecord
 	err := o.db.View(func(tx *bolt.Tx) error {
 		var err error
-		rec, err = getVAR(tx, partition, shard, epoch)
+		shardConf, err = getShardConf(tx, partitionID, shardID, rootRound)
 		if err != nil {
 			return err
 		}
 		return nil
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to load VAR for partition %q shard %q and epoch %q: %w", partition, shard, epoch, err)
+		return nil, fmt.Errorf("failed to load ShardConf for partition %q shard %s and root round %d: %w", partitionID, shardID.String(), rootRound, err)
 	}
-	return rec, nil
+	return shardConf, nil
 }
 
-// AddShardConfig verifies and stores the given VAR.
+/*
+   ShardConfigs returns shard confs active in the given root round.
+*/
+func (o *Orchestration) ShardConfigs(rootRound uint64) (map[types.PartitionShardID]*types.PartitionDescriptionRecord, error) {
+	shardConfs := make(map[types.PartitionShardID]*types.PartitionDescriptionRecord)
+
+	err := o.db.View(func(tx *bolt.Tx) error {
+		rootBucket := tx.Bucket(rootBucketName)
+		if rootBucket == nil {
+			return fmt.Errorf("bucket %q does not exist", rootBucketName)
+		}
+
+		// check all partitions
+		rootBucket.ForEachBucket(func(partitionID []byte) error {
+			partitionBucket := rootBucket.Bucket(partitionID)
+
+			// check all shards
+			partitionBucket.ForEachBucket(func(shardID []byte) error {
+				shardBucket := partitionBucket.Bucket(shardID)
+				roundToShardConfBucket := shardBucket.Bucket(roundToShardConfBucketName)
+
+				// check if there is an active shard conf for the given root round
+				c := roundToShardConfBucket.Cursor()
+				for k, v := c.Last(); k != nil; k, v = c.Prev() {
+					epochStartRound := keyToUint64(k)
+					if epochStartRound > rootRound {
+						continue
+					}
+
+					var shardConf *types.PartitionDescriptionRecord
+					if err := json.Unmarshal(v, &shardConf); err != nil {
+						return fmt.Errorf("failed to unmarshal shard conf: %w", err)
+					}
+					ps := types.PartitionShardID{
+						PartitionID: shardConf.PartitionID,
+						ShardID:     shardConf.ShardID.Key(),
+					}
+					shardConfs[ps] = shardConf
+
+					// active shard conf found, look no further for this shard
+					break
+				}
+				return nil
+			})
+			return nil
+		})
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to read shard confs: %w", err)
+	}
+
+	return shardConfs, nil
+}
+
+// AddShardConfig verifies and stores the given shard conf.
 //
 // Validation rules:
 //   - The network ID must match
@@ -104,13 +129,13 @@ func (o *Orchestration) ShardConfig(partition types.PartitionID, shard types.Sha
 //   - The new epoch number must be one greater than the current epoch of the only shard in the specified partition
 //   - The activation round number must be strictly greater than the current round of the only shard in the specified partition
 //   - The node identifiers must match their authentication keys
-func (o *Orchestration) AddShardConfig(rec *ValidatorAssignmentRecord) error {
+func (o *Orchestration) AddShardConfig(shardConf *types.PartitionDescriptionRecord) error {
 	err := o.db.Update(func(tx *bolt.Tx) error {
-		if err := verifyVAR(tx, rec); err != nil {
-			return fmt.Errorf("verify var: %w", err)
+		if err := verifyShardConf(tx, shardConf); err != nil {
+			return fmt.Errorf("verify shard conf: %w", err)
 		}
-		if err := setVAR(tx, rec); err != nil {
-			return fmt.Errorf("set var: %w", err)
+		if err := storeShardConf(tx, shardConf); err != nil {
+			return fmt.Errorf("store shard conf: %w", err)
 		}
 		return nil
 	})
@@ -120,171 +145,128 @@ func (o *Orchestration) AddShardConfig(rec *ValidatorAssignmentRecord) error {
 	return nil
 }
 
-/*
-RoundPartitions returns Partition Descriptions active on the given RootChain round.
-*/
-func (o *Orchestration) RoundPartitions(rootRound uint64) ([]*types.PartitionDescriptionRecord, error) {
-	// TODO: dynamic/multi shard support - currently we only support single shard partitions and PDRs
-	// never change, so we can return genesis data. Once sharding is supported the ShardingScheme
-	// becomes "dynamic" and we must return the PRDs in effect at the given round
-	return o.pdrs, nil
-}
-
-func (o *Orchestration) PartitionDescription(partitionID types.PartitionID, epoch uint64) (*types.PartitionDescriptionRecord, error) {
-	// TODO: dynamic/multi shard support - currently all epochs of the partition share the same PDR
-	// as we do not support "shard splitting"
-	for _, pg := range o.pdrs {
-		if pg.PartitionID == partitionID {
-			return pg, nil
-		}
-	}
-	return nil, fmt.Errorf("partition genesis not found for partition %d", partitionID)
-}
-
 func (o *Orchestration) Close() error {
 	return o.db.Close()
 }
 
-func getVAR(tx *bolt.Tx, partition types.PartitionID, shard types.ShardID, epoch uint64) (*ValidatorAssignmentRecord, error) {
-	_, epochToVarBucket, err := shardBuckets(tx, partition, shard)
+func getShardConf(tx *bolt.Tx, partitionID types.PartitionID, shardID types.ShardID, rootRound uint64) (*types.PartitionDescriptionRecord, error) {
+	roundToShardConfBucket, err := shardBuckets(tx, partitionID, shardID)
 	if err != nil {
 		return nil, err
 	}
-	varBytes := epochToVarBucket.Get(uint64ToKey(epoch))
-	if varBytes == nil {
-		return nil, fmt.Errorf("the epoch %d does not exist", epoch)
+	c := roundToShardConfBucket.Cursor()
+	for k, v := c.Last(); k != nil; k, v = c.Prev() {
+		epochStartRound := keyToUint64(k)
+		if epochStartRound > rootRound {
+			continue
+		}
+
+		var shardConf *types.PartitionDescriptionRecord
+		if err := json.Unmarshal(v, &shardConf); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal shard conf: %w", err)
+		}
+		return shardConf, nil
 	}
-	var rec *ValidatorAssignmentRecord
-	if err := json.Unmarshal(varBytes, &rec); err != nil {
-		return nil, fmt.Errorf("failed to parse VAR json: %w", err)
-	}
-	return rec, nil
+
+	return nil, fmt.Errorf("shard conf missing for root round %d", rootRound)
 }
 
-func setVAR(tx *bolt.Tx, rec *ValidatorAssignmentRecord) error {
-	varBytes, err := json.Marshal(rec)
+func storeShardConf(tx *bolt.Tx, shardConf *types.PartitionDescriptionRecord) error {
+	shardConfBytes, err := json.Marshal(shardConf)
 	if err != nil {
-		return fmt.Errorf("failed to parse VAR json: %w", err)
+		return fmt.Errorf("failed to marshal shard conf to json: %w", err)
 	}
-	roundToEpochBucket, epochToVarBucket, err := shardBuckets(tx, rec.PartitionID, rec.ShardID)
+
+	roundToShardConfBucket, err := createShardBuckets(tx, shardConf.PartitionID, shardConf.ShardID)
 	if err != nil {
 		return err
 	}
-	if err = roundToEpochBucket.Put(uint64ToKey(rec.RoundNumber), uint64ToKey(rec.EpochNumber)); err != nil {
-		return fmt.Errorf("storing round to epoch index: %w", err)
-	}
-	if err = epochToVarBucket.Put(uint64ToKey(rec.EpochNumber), varBytes); err != nil {
-		return fmt.Errorf("storing var: %w", err)
+
+	if err = roundToShardConfBucket.Put(uint64ToKey(shardConf.RootRound), shardConfBytes); err != nil {
+		return fmt.Errorf("storing shard conf: %w", err)
 	}
 	return nil
 }
 
-func verifyVAR(tx *bolt.Tx, rec *ValidatorAssignmentRecord) error {
-	// currently every VAR must extend previous VAR (no adding of new partitions/shards)
-	if rec.EpochNumber == 0 {
-		return errors.New("invalid epoch number, must not be zero")
+func verifyShardConf(tx *bolt.Tx, shardConf *types.PartitionDescriptionRecord) error {
+	if shardConf.ShardEpoch == 0 {
+		return shardConf.IsValid()
 	}
-	lastVAR, err := getLastVAR(tx, rec.PartitionID, rec.ShardID)
+
+	lastShardConf, err := getLastShardConf(tx, shardConf.PartitionID, shardConf.ShardID)
 	if err != nil {
-		return fmt.Errorf("last var not found: %w", err)
+		return fmt.Errorf("last shard conf not found: %w", err)
 	}
-	if err = rec.Verify(lastVAR); err != nil {
-		return fmt.Errorf("var does not extend previous var: %w", err)
+	if err = shardConf.Verify(lastShardConf); err != nil {
+		return fmt.Errorf("shard conf does not extend previous shard conf: %w", err)
 	}
 	return err
 }
 
-// getLastVAR returns the last VAR stored in the db for the given partition shard
-func getLastVAR(tx *bolt.Tx, partition types.PartitionID, shard types.ShardID) (*ValidatorAssignmentRecord, error) {
-	_, epochToVarBucket, err := shardBuckets(tx, partition, shard)
+// getLastShardConf returns the last ShardConf stored in the db for the given partition shard
+func getLastShardConf(tx *bolt.Tx, partitionID types.PartitionID, shardID types.ShardID) (*types.PartitionDescriptionRecord, error) {
+	roundToShardConfBucket, err := shardBuckets(tx, partitionID, shardID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("last shard conf not found: %w", err)
 	}
-	c := epochToVarBucket.Cursor()
-	_, lastVar := c.Last()
-	if lastVar == nil {
-		return nil, errors.New("latest VAR not found (db is empty?)")
+	c := roundToShardConfBucket.Cursor()
+	_, lastShardConfBytes := c.Last()
+	if lastShardConfBytes == nil {
+		return nil, errors.New("last shard conf not found (db is empty?)")
 	}
-	var rec *ValidatorAssignmentRecord
-	if err := json.Unmarshal(lastVar, &rec); err != nil {
-		return nil, fmt.Errorf("failed to parse VAR json: %w", err)
+
+	var shardConf *types.PartitionDescriptionRecord
+	if err := json.Unmarshal(lastShardConfBytes, &shardConf); err != nil {
+		return nil, fmt.Errorf("failed to parse last shard conf: %w", err)
 	}
-	return rec, nil
+	return shardConf, nil
 }
 
-func shardBuckets(tx *bolt.Tx, partition types.PartitionID, shard types.ShardID) (*bolt.Bucket, *bolt.Bucket, error) {
-	partitionsBucket := tx.Bucket(partitionsBucketName)
-	if partitionsBucket == nil {
-		return nil, nil, fmt.Errorf("the partitions root bucket %q does not exist", partitionsBucketName)
+// schema:
+// root bucket (root bucket)
+//   multiple partition buckets (partition id to partition bucket)
+//     multiple shard buckets (shard id to shard bucket)
+//       root round to shard conf bucket
+func createShardBuckets(tx *bolt.Tx, partitionID types.PartitionID, shardID types.ShardID) (*bolt.Bucket, error) {
+	rootBucket := tx.Bucket(rootBucketName)
+	if rootBucket == nil {
+		return nil, fmt.Errorf("bucket %q does not exist", rootBucketName)
 	}
-	partitionBucket := partitionsBucket.Bucket(partition.Bytes())
+	partitionBucket, err := rootBucket.CreateBucketIfNotExists(partitionID.Bytes())
+	if err != nil {
+		return nil, fmt.Errorf("creating partition 0x%x bucket: %w", partitionID.Bytes(), err)
+	}
+	shardBucket, err := partitionBucket.CreateBucketIfNotExists(shardID.Bytes())
+	if err != nil {
+		return nil, fmt.Errorf("creating shard 0x%x bucket: %w", shardID.Bytes(), err)
+	}
+	roundToShardConfBucket, err := shardBucket.CreateBucketIfNotExists(roundToShardConfBucketName)
+	if err != nil {
+		return nil, fmt.Errorf("creating %q bucket: %w", roundToShardConfBucketName, err)
+	}
+
+	return roundToShardConfBucket, nil
+}
+
+func shardBuckets(tx *bolt.Tx, partitionID types.PartitionID, shardID types.ShardID) (*bolt.Bucket, error) {
+	rootBucket := tx.Bucket(rootBucketName)
+	if rootBucket == nil {
+		return nil, fmt.Errorf("bucket %q does not exist", rootBucketName)
+	}
+	partitionBucket := rootBucket.Bucket(partitionID.Bytes())
 	if partitionBucket == nil {
-		return nil, nil, fmt.Errorf("the partition 0x%x does not exist", partition.Bytes())
+		return nil, fmt.Errorf("partition 0x%x does not exist", partitionID.Bytes())
 	}
-	shardBucket := partitionBucket.Bucket(shard.Bytes())
+	shardBucket := partitionBucket.Bucket(shardID.Bytes())
 	if shardBucket == nil {
-		return nil, nil, fmt.Errorf("the partition shard 0x%x does not exist", shard.Bytes())
+		return nil, fmt.Errorf("partition shard 0x%x does not exist", shardID.Bytes())
 	}
-	epochToVarBucket := shardBucket.Bucket(epochToVarBucketName)
-	if epochToVarBucket == nil {
-		return nil, nil, fmt.Errorf("the epoch to var bucket %q does not exist", epochToVarBucketName)
+	// TODO: perhaps this intermediary bucket not needed?
+	roundToShardConfBucket := shardBucket.Bucket(roundToShardConfBucketName)
+	if roundToShardConfBucket == nil {
+		return nil, fmt.Errorf("bucket %q does not exist", roundToShardConfBucketName)
 	}
-	roundToEpochBucket := shardBucket.Bucket(roundToEpochBucketName)
-	if roundToEpochBucket == nil {
-		return nil, nil, fmt.Errorf("the round to epoch bucket %q does not exist", roundToEpochBucketName)
-	}
-	return roundToEpochBucket, epochToVarBucket, nil
-}
-
-func createSchemaAndFirstVAR(db *bolt.DB, seed *genesis.RootGenesis) error {
-	// schema:
-	// partitions bucket (root bucket)
-	//   multiple partition buckets (partition id to shard bucket)
-	//     multiple shard buckets (shard id to shard bucket)
-	//       shard round to epoch bucket
-	//       epoch to var bucket
-	return db.Update(func(tx *bolt.Tx) error {
-		// skip schema creation if it already exists
-		partitionsBucket := tx.Bucket(partitionsBucketName)
-		if partitionsBucket != nil {
-			return nil
-		}
-
-		partitionsBucket, err := tx.CreateBucketIfNotExists(partitionsBucketName)
-		if err != nil {
-			return fmt.Errorf("creating the root %q bucket: %w", partitionsBucketName, err)
-		}
-		for _, partition := range seed.Partitions {
-			rec := NewVARFromGenesis(partition)
-			partitionBucket, err := partitionsBucket.CreateBucketIfNotExists(rec.PartitionID.Bytes())
-			if err != nil {
-				return fmt.Errorf("creating the partition %q bucket: %w", rec.PartitionID.Bytes(), err)
-			}
-			shardBucket, err := partitionBucket.CreateBucketIfNotExists(rec.ShardID.Bytes())
-			if err != nil {
-				return fmt.Errorf("creating the shard %q bucket: %w", rec.ShardID.Bytes(), err)
-			}
-			roundToEpochBucket, err := shardBucket.CreateBucketIfNotExists(roundToEpochBucketName)
-			if err != nil {
-				return fmt.Errorf("creating the round to epoch %q bucket: %w", roundToEpochBucketName, err)
-			}
-			epochToVarBucket, err := shardBucket.CreateBucketIfNotExists(epochToVarBucketName)
-			if err != nil {
-				return fmt.Errorf("creating the epoch to var %q bucket: %w", epochToVarBucketName, err)
-			}
-			if err = roundToEpochBucket.Put(uint64ToKey(rec.RoundNumber), uint64ToKey(rec.EpochNumber)); err != nil {
-				return fmt.Errorf("storing round to epoch index: %w", err)
-			}
-			varBytes, err := json.Marshal(rec)
-			if err != nil {
-				return fmt.Errorf("marshalling var to json: %w", err)
-			}
-			if err = epochToVarBucket.Put(uint64ToKey(rec.EpochNumber), varBytes); err != nil {
-				return fmt.Errorf("storing var: %w", err)
-			}
-		}
-		return nil
-	})
+	return roundToShardConfBucket, nil
 }
 
 func uint64ToKey(n uint64) []byte {

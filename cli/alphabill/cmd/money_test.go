@@ -14,8 +14,6 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	ethrpc "github.com/ethereum/go-ethereum/rpc"
-	"github.com/libp2p/go-libp2p/core/crypto"
-	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
@@ -28,8 +26,7 @@ import (
 	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	test "github.com/alphabill-org/alphabill/internal/testutils/time"
-	"github.com/alphabill-org/alphabill/network/protocol/genesis"
-	rootgenesis "github.com/alphabill-org/alphabill/rootchain/genesis"
+	"github.com/alphabill-org/alphabill/internal/testutils/trustbase"
 	"github.com/alphabill-org/alphabill/rpc"
 )
 
@@ -55,7 +52,7 @@ func TestMoneyNodeConfig_EnvAndFlags(t *testing.T) {
 			args: "money --home=/custom-home",
 			expectedConfig: func() *moneyNodeConfiguration {
 				sc := defaultMoneyNodeConfiguration()
-				sc.Base = &baseConfiguration{
+				sc.Base = &baseFlags{
 					HomeDir:    "/custom-home",
 					CfgFile:    filepath.Join("/custom-home", defaultConfigFile),
 					LogCfgFile: defaultLoggerConfigFile,
@@ -66,7 +63,7 @@ func TestMoneyNodeConfig_EnvAndFlags(t *testing.T) {
 			args: "money --home=/custom-home --config=custom-config.props",
 			expectedConfig: func() *moneyNodeConfiguration {
 				sc := defaultMoneyNodeConfiguration()
-				sc.Base = &baseConfiguration{
+				sc.Base = &baseFlags{
 					HomeDir:    "/custom-home",
 					CfgFile:    "/custom-home/custom-config.props",
 					LogCfgFile: defaultLoggerConfigFile,
@@ -77,7 +74,7 @@ func TestMoneyNodeConfig_EnvAndFlags(t *testing.T) {
 			args: "money --config=custom-config.props",
 			expectedConfig: func() *moneyNodeConfiguration {
 				sc := defaultMoneyNodeConfiguration()
-				sc.Base = &baseConfiguration{
+				sc.Base = &baseFlags{
 					HomeDir:    alphabillHomeDir(),
 					CfgFile:    alphabillHomeDir() + "/custom-config.props",
 					LogCfgFile: defaultLoggerConfigFile,
@@ -142,7 +139,7 @@ func TestMoneyNodeConfig_EnvAndFlags(t *testing.T) {
 			},
 			expectedConfig: func() *moneyNodeConfiguration {
 				sc := defaultMoneyNodeConfiguration()
-				sc.Base = &baseConfiguration{
+				sc.Base = &baseFlags{
 					HomeDir:    "/custom-home-1",
 					CfgFile:    "/custom-home-1/custom-config.props",
 					LogCfgFile: logCfgFilename,
@@ -157,7 +154,7 @@ func TestMoneyNodeConfig_EnvAndFlags(t *testing.T) {
 			},
 			expectedConfig: func() *moneyNodeConfiguration {
 				sc := defaultMoneyNodeConfiguration()
-				sc.Base = &baseConfiguration{
+				sc.Base = &baseFlags{
 					HomeDir:    "/custom-home",
 					CfgFile:    "/custom-home/custom-config.props",
 					LogCfgFile: defaultLoggerConfigFile,
@@ -247,13 +244,13 @@ logger-config: "` + logCfgFilename + `"
 func defaultMoneyNodeConfiguration() *moneyNodeConfiguration {
 	return &moneyNodeConfiguration{
 		baseNodeConfiguration: baseNodeConfiguration{
-			Base: &baseConfiguration{
+			Base: &baseFlags{
 				HomeDir:    alphabillHomeDir(),
 				CfgFile:    filepath.Join(alphabillHomeDir(), defaultConfigFile),
 				LogCfgFile: defaultLoggerConfigFile,
 			},
 		},
-		Node: &startNodeConfiguration{
+		Node: &shardNodeFlags{
 			Address:                         "/ip4/127.0.0.1/tcp/26652",
 			LedgerReplicationMaxBlocksFetch: 1000,
 			LedgerReplicationMaxBlocks:      1000,
@@ -292,47 +289,45 @@ func envVarsStr(envVars []envVar) (out string) {
 }
 
 func TestRunMoneyNode_Ok(t *testing.T) {
-	homeDirMoney := t.TempDir()
-	keysFileLocation := filepath.Join(homeDirMoney, defaultKeysFileName)
-	nodeGenesisFileLocation := filepath.Join(homeDirMoney, moneyGenesisFileName)
-	nodeGenesisStateFileLocation := filepath.Join(homeDirMoney, moneyGenesisStateFileName)
-	partitionGenesisFileLocation := filepath.Join(homeDirMoney, "partition-genesis.json")
-	trustBaseFileLocation := filepath.Join(homeDirMoney, rootTrustBaseFileName)
-	pdrFilename, err := createPDRFile(homeDirMoney, defaultMoneyPDR)
-	require.NoError(t, err)
+	homeDir := createPDRFile(t, defaultMoneyPDR)
+
+	trustBaseFileLocation := filepath.Join(homeDir, trustBaseFileName)
+
 	test.MustRunInTime(t, 5*time.Second, func() {
 		logF := testobserve.NewFactory(t)
 		ctx, ctxCancel := context.WithCancel(context.Background())
 
-		// generate node genesis
+		// TODO: some helper function for this cmd execution
 		cmd := New(logF)
-		args := "money-genesis --home " + homeDirMoney +
-			" --partition-description " + pdrFilename +
-			" -o " + nodeGenesisFileLocation +
-			" --output-state " + nodeGenesisStateFileLocation +
-			" -g -k " + keysFileLocation
-		cmd.baseCmd.SetArgs(strings.Split(args, " "))
-		err := cmd.Execute(context.Background())
-		require.NoError(t, err)
+		cmd.baseCmd.SetArgs([]string{
+			"node", "init",	"--home", homeDir, "--gen-keys",
+		})
+		require.NoError(t, cmd.Execute(context.Background()))
 
-		pn, err := util.ReadJsonFile(nodeGenesisFileLocation, &genesis.PartitionNode{Version: 1})
-		require.NoError(t, err)
+		cmd = New(logF)
+		cmd.baseCmd.SetArgs([]string{
+			"genesis", "--home", homeDir,
+		})
+		require.NoError(t, cmd.Execute(context.Background()))
 
-		// use same keys for signing and authentication.
-		rootSigner, verifier := testsig.CreateSignerAndVerifier(t)
-		rootPubKeyBytes, err := verifier.MarshalPublicKey()
-		require.NoError(t, err)
-		rootAuthKey, err := crypto.UnmarshalSecp256k1PublicKey(rootPubKeyBytes)
-		require.NoError(t, err)
-		rootID, err := peer.IDFromPublicKey(rootAuthKey)
-		require.NoError(t, err)
-		rootGenesis, partitionGenesisFiles, err := rootgenesis.NewRootGenesis(rootID.String(), rootSigner, []*genesis.PartitionNode{pn})
-		require.NoError(t, err)
-		err = util.WriteJsonFile(partitionGenesisFileLocation, partitionGenesisFiles[0])
-		require.NoError(t, err)
-		trustBase, err := rootGenesis.GenerateTrustBase()
-		require.NoError(t, err)
-		err = util.WriteJsonFile(trustBaseFileLocation, trustBase)
+		cmd = New(logF)
+		cmd.baseCmd.SetArgs([]string{
+			"var", "generate", "--home", homeDir,
+			"--epoch-number", "0",
+			"--round-number", "100",
+			"--node-info-files", filepath.Join(homeDir, nodeInfoFileName),
+		})
+		require.NoError(t, cmd.Execute(context.Background()))
+
+		// TODO: generate shardconf from nodeInfos
+
+		// pn, err := util.ReadJsonFile(nodeGenesisFileLocation, &genesis.PartitionNode{Version: 1})
+		// require.NoError(t, err)
+
+		_, verifier := testsig.CreateSignerAndVerifier(t)
+		trustBase := trustbase.NewTrustBase(t, verifier)
+
+		err := util.WriteJsonFile(trustBaseFileLocation, trustBase)
 		require.NoError(t, err)
 		rpcServerAddress := fmt.Sprintf("127.0.0.1:%d", net.GetFreeRandomPort(t))
 
@@ -342,16 +337,14 @@ func TestRunMoneyNode_Ok(t *testing.T) {
 		go func() {
 			defer appStoppedWg.Done()
 			cmd = New(logF)
-			args = "money --home " + homeDirMoney +
-				" -g " + partitionGenesisFileLocation +
-				" -s " + nodeGenesisStateFileLocation +
+			args := "money --home " + homeDir +
+				// " -g " + partitionGenesisFileLocation + // TODO: use default partition-description.json
+				// " -s " + nodeGenesisStateFileLocation + // TODO: default should be genesis-state.cbor
 				" -t " + trustBaseFileLocation +
-				" -k " + keysFileLocation +
+				// " -k " + keysFileLocation +             // TODO: should use keys.json
 				" --rpc-server-address " + rpcServerAddress
 			cmd.baseCmd.SetArgs(strings.Split(args, " "))
-
-			err = cmd.Execute(ctx)
-			require.ErrorIs(t, err, context.Canceled)
+			require.ErrorIs(t, cmd.Execute(ctx), context.Canceled)
 		}()
 
 		t.Log("Started money node and dialing...")
@@ -380,10 +373,10 @@ func TestRunMoneyNode_Ok(t *testing.T) {
 }
 
 func makeSuccessfulPayment(t *testing.T, ctx context.Context, rpcClient *ethrpc.Client) {
-	initialBillID := defaultInitialBillID
+	initialBillID := moneyPartitionInitialBillID
 	attr := &money.TransferAttributes{
 		NewOwnerPredicate: templates.AlwaysTrueBytes(),
-		TargetValue:       defaultInitialBillValue,
+		TargetValue:       500,
 	}
 	attrBytes, err := types.Cbor.Marshal(attr)
 	require.NoError(t, err)
@@ -411,7 +404,7 @@ func makeSuccessfulPayment(t *testing.T, ctx context.Context, rpcClient *ethrpc.
 func makeFailingPayment(t *testing.T, ctx context.Context, rpcClient *ethrpc.Client) {
 	attr := &money.TransferAttributes{
 		NewOwnerPredicate: templates.AlwaysTrueBytes(),
-		TargetValue:       defaultInitialBillValue,
+		TargetValue:       500,
 	}
 	attrBytes, err := types.Cbor.Marshal(attr)
 	require.NoError(t, err)
@@ -420,7 +413,7 @@ func makeFailingPayment(t *testing.T, ctx context.Context, rpcClient *ethrpc.Cli
 		Version: 1,
 		Payload: types.Payload{
 			Type:           money.TransactionTypeTransfer,
-			UnitID:         defaultInitialBillID[:],
+			UnitID:         moneyPartitionInitialBillID[:],
 			ClientMetadata: &types.ClientMetadata{Timeout: 10},
 			PartitionID:    0, // invalid partition id
 			Attributes:     attrBytes,

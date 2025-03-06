@@ -19,8 +19,8 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	"github.com/alphabill-org/alphabill-go-base/util"
 
 	"github.com/alphabill-org/alphabill/keyvaluedb"
@@ -28,12 +28,10 @@ import (
 	"github.com/alphabill-org/alphabill/network"
 	"github.com/alphabill-org/alphabill/network/protocol/blockproposal"
 	"github.com/alphabill-org/alphabill/network/protocol/certification"
-	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/network/protocol/handshake"
 	"github.com/alphabill-org/alphabill/network/protocol/replication"
 	"github.com/alphabill-org/alphabill/observability"
 	"github.com/alphabill-org/alphabill/partition/event"
-	"github.com/alphabill-org/alphabill/rootchain/partitions"
 	"github.com/alphabill-org/alphabill/txsystem"
 )
 
@@ -86,13 +84,14 @@ type (
 		PrometheusRegisterer() prometheus.Registerer
 		Logger() *slog.Logger
 		RoundLogger(curRound func() uint64) *slog.Logger
+		Shutdown() error
 	}
 
 	// Node represents a member in the partition and implements an instance of a specific TransactionSystem. Partition
 	// is a distributed system, it consists of either a set of shards, or one or more partition nodes.
 	Node struct {
 		status            atomic.Value
-		configuration     *configuration
+		configuration     *NodeConf
 		transactionSystem txsystem.TransactionSystem
 		// First UC for this node. The node is guaranteed to have blocks starting at fuc+1.
 		fuc *types.UnicityCertificate
@@ -151,37 +150,27 @@ Functions implementing the NodeOption interface can be used to override default 
 The following restrictions apply to the inputs:
   - the network peer and signer must use the same keys that were used to generate node genesis file;
 */
-func NewNode(
-	ctx context.Context,
-	peerConf *network.PeerConfiguration,
-	signer crypto.Signer, // used to sign block proposals and block certification requests
-	txSystem txsystem.TransactionSystem, // used transaction system
-	genesis *genesis.PartitionGenesis, // partition genesis file, created by root chain.
-	trustBase types.RootTrustBase, // root trust base file
-	network ValidatorNetwork, // network layer of the validator node
-	observe Observability,
-	nodeOptions ...NodeOption, // additional optional configuration parameters
-) (*Node, error) {
-	tracer := observe.Tracer("partition.node", trace.WithInstrumentationAttributes(observability.PeerID(observability.NodeIDKey, peerConf.ID)))
+func NewNode(ctx context.Context, txSystem txsystem.TransactionSystem, conf *NodeConf) (*Node, error) {
+	peerConf, err := conf.PeerConf()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create peer configuration: %w", err)
+	}
+	nodeID := peerConf.ID
+
+	tracer := conf.observability.Tracer("partition.node", trace.WithInstrumentationAttributes(observability.PeerID(observability.NodeIDKey, nodeID)))
 	ctx, span := tracer.Start(ctx, "partition.NewNode")
 	defer span.End()
 
-	// load and validate node configuration
-	conf, err := loadAndValidateConfiguration(signer, genesis, trustBase, txSystem, nodeOptions...)
-	if err != nil {
-		return nil, fmt.Errorf("invalid node configuration: %w", err)
-	}
+	shardStore := newShardStore(conf.shardStore, conf.observability.Logger())
 
-	shardStore := newShardStore(conf.shardStore, observe.Logger())
-	vaRecord := newVARFromGenesis(genesis)
-	if err := shardStore.StoreValidatorAssignmentRecord(vaRecord); err != nil {
-		return nil, fmt.Errorf("failed to store VAR created from partition genesis: %w", err)
+	if err := shardStore.StoreShardConf(conf.shardConf); err != nil {
+		return nil, fmt.Errorf("failed to store shard configuration: %w", err)
 	}
-	if err := shardStore.LoadEpoch(vaRecord.EpochNumber); err != nil {
+	if err := shardStore.LoadEpoch(conf.shardConf.ShardEpoch); err != nil {
 		return nil, fmt.Errorf("failed to load epoch configuration: %w", err)
 	}
 
-	rn, err := conf.getRootNodes()
+	rootNodes, err := conf.getRootNodes()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get root nodes: %w", err)
 	}
@@ -204,19 +193,19 @@ func NewNode(
 		t1event:                     make(chan struct{}), // do not buffer!
 		epochChangeEvent:            make(chan struct{}, 1),
 		eventHandler:                conf.eventHandler,
-		rootNodes:                   rn,
+		rootNodes:                   rootNodes,
 		shardStore:                  shardStore,
-		network:                     network,
+		network:                     conf.validatorNetwork,
 		lastLedgerReqTime:           time.Time{},
 		tracer:                      tracer,
 	}
-	n.log = observe.RoundLogger(n.currentRoundNumber)
+	n.log = conf.observability.RoundLogger(n.currentRoundNumber)
 	n.proofIndexer = NewProofIndexer(conf.hashAlgorithm, conf.proofIndexConfig.store, conf.proofIndexConfig.historyLen, n.log)
 	n.resetProposal()
 	n.stopTxProcessor.Store(func() { /* init to NOP */ })
 	n.status.Store(initializing)
 
-	if err := n.initMetrics(observe); err != nil {
+	if err := n.initMetrics(conf.observability); err != nil {
 		return nil, fmt.Errorf("initialize metrics: %w", err)
 	}
 
@@ -228,7 +217,7 @@ func NewNode(
 		return nil, fmt.Errorf("node state initialization failed: %w", err)
 	}
 
-	if err = n.initNetwork(ctx, peerConf, observe); err != nil {
+	if err = n.initNetwork(ctx, peerConf, conf.observability); err != nil {
 		return nil, fmt.Errorf("node network initialization failed: %w", err)
 	}
 
@@ -286,7 +275,7 @@ func (n *Node) initMetrics(observe Observability) (err error) {
 		return fmt.Errorf("creating counter for recovery attempts: %w", err)
 	}
 
-	n.fixedAttr = observability.Shard(n.PartitionID(), n.configuration.shardID)
+	n.fixedAttr = observability.Shard(n.PartitionID(), n.configuration.shardConf.ShardID)
 
 	return nil
 }
@@ -394,8 +383,14 @@ func (n *Node) currentEpoch() uint64 {
 	if ltr != nil {
 		return ltr.Epoch
 	}
+
 	// If we miss LTR then LUC is our best knowledge of current epoch
-	return n.luc.Load().InputRecord.Epoch
+	luc := n.luc.Load()
+	if luc != nil {
+		return luc.InputRecord.Epoch
+	}
+
+	return 0
 }
 
 func (n *Node) currentRoundNumber() uint64 {
@@ -419,7 +414,7 @@ func (n *Node) sendHandshake(ctx context.Context) {
 	if err = n.network.Send(ctx,
 		handshake.Handshake{
 			PartitionID: n.configuration.GetPartitionID(),
-			ShardID:     n.configuration.shardID,
+			ShardID:     n.configuration.shardConf.ShardID,
 			NodeID:      n.peer.ID().String(),
 		},
 		rootIDs...); err != nil {
@@ -730,14 +725,14 @@ func (n *Node) handleBlockProposal(ctx context.Context, prop *blockproposal.Bloc
 		return fmt.Errorf("expecting leader %v, leader in proposal: %v", expectedLeader, prop.NodeID)
 	}
 
-	prevHash := uc.InputRecord.Hash
 	txState, err := n.transactionSystem.StateSummary()
 	if err != nil {
 		return fmt.Errorf("transaction system state error, %w", err)
 	}
-	// check previous state matches before processing transactions
-	if !bytes.Equal(prevHash, txState.Root()) {
-		return fmt.Errorf("transaction system start state mismatch error, expected: %X, got: %X", txState.Root(), prevHash)
+	// Check previous state matches before processing transactions.
+	// Initial UC does contain a state hash and needs not to match.
+	if !uc.IsInitial() && !bytes.Equal(uc.GetStateHash(), txState.Root()) {
+		return fmt.Errorf("transaction system start state mismatch error, expected: %X, got: %X", txState.Root(), uc.GetStateHash())
 	}
 	if err := n.transactionSystem.BeginBlock(n.currentRoundNumber()); err != nil {
 		return fmt.Errorf("transaction system BeginBlock error, %w", err)
@@ -901,7 +896,7 @@ func (n *Node) handleCertificationResponse(ctx context.Context, cr *certificatio
 	defer span.End()
 	n.log.InfoContext(ctx, fmt.Sprintf("handleCertificationResponse: Round %d, Leader %s", cr.Technical.Round, cr.Technical.Leader))
 
-	if cr.Partition != n.PartitionID() || !cr.Shard.Equal(n.configuration.shardID) {
+	if cr.Partition != n.PartitionID() || !cr.Shard.Equal(n.configuration.shardConf.ShardID) {
 		return fmt.Errorf("got CertificationResponse for a wrong shard %s - %s", cr.Partition, cr.Shard)
 	}
 
@@ -980,6 +975,12 @@ func (n *Node) handleUnicityCertificate(ctx context.Context, uc *types.UnicityCe
 	// this node will start a new round (the one that has been already finalized).
 	// Eventually it will start the recovery and catch up.
 	if n.pendingBlockProposal == nil {
+		// Initial UC has no state hash, no need to recover
+		if uc.IsInitial() {
+			n.log.DebugContext(ctx, "Initial UC received, start new round to certify genesis state")
+			return n.startNewRound(ctx)
+		}
+
 		// Start recovery unless the state is already up-to-date with UC.
 		state, err := n.transactionSystem.StateSummary()
 		if err != nil {
@@ -987,6 +988,7 @@ func (n *Node) handleUnicityCertificate(ctx context.Context, uc *types.UnicityCe
 			return fmt.Errorf("recovery needed, failed to get transaction system state: %w", err)
 		}
 		// if state hash does not match - start recovery
+		// state hash is nil before the genesis state is certified
 		if !bytes.Equal(uc.GetStateHash(), state.Root()) {
 			n.startRecovery(ctx)
 			return ErrNodeDoesNotHaveLatestBlock
@@ -994,6 +996,7 @@ func (n *Node) handleUnicityCertificate(ctx context.Context, uc *types.UnicityCe
 		n.log.DebugContext(ctx, "No pending block proposal, UC IR hash is equal to State hash, so are block hashes")
 		return n.startNewRound(ctx)
 	}
+
 	proposedIR, err := n.pendingBlockProposal.InputRecord()
 	if err != nil {
 		n.log.WarnContext(ctx, fmt.Sprintf("Invalid block proposal: %v", err))
@@ -1319,7 +1322,7 @@ func (n *Node) handleBlock(ctx context.Context, b *types.Block) error {
 		return fmt.Errorf("failed to extract UC from block: %w", err)
 	}
 	algo := n.configuration.hashAlgorithm
-	pdrHash, err := n.configuration.genesis.PartitionDescription.Hash(algo)
+	pdrHash, err := n.configuration.shardConf.Hash(algo)
 	if err != nil {
 		return fmt.Errorf("failed to hash partition description: %w", err)
 	}
@@ -1394,7 +1397,7 @@ func (n *Node) sendLedgerReplicationRequest(ctx context.Context) {
 	req := &replication.LedgerReplicationRequest{
 		UUID:             uuid.New(),
 		PartitionID:      n.configuration.GetPartitionID(),
-		ShardID:          n.configuration.shardID,
+		ShardID:          n.configuration.shardConf.ShardID,
 		NodeID:           n.peer.ID().String(),
 		BeginBlockNumber: startingBlockNr,
 		EndBlockNumber:   startingBlockNr + n.configuration.replicationConfig.maxFetchBlocks,
@@ -1441,7 +1444,7 @@ func (n *Node) sendBlockProposal(ctx context.Context) error {
 	nodeID := n.peer.ID()
 	prop := &blockproposal.BlockProposal{
 		PartitionID:        n.configuration.GetPartitionID(),
-		ShardID:            n.configuration.shardID,
+		ShardID:            n.configuration.shardConf.ShardID,
 		NodeID:             nodeID,
 		UnicityCertificate: n.luc.Load(),
 		Technical:          *ltr,
@@ -1489,13 +1492,19 @@ func (n *Node) sendCertificationRequest(ctx context.Context, blockAuthor string)
 	if err != nil {
 		return fmt.Errorf("failed to marshal unicity certificate: %w", err)
 	}
+
+	var prevBlockHash hex.Bytes
+	committedUC := n.committedUC()
+	if committedUC != nil {
+		prevBlockHash = committedUC.InputRecord.BlockHash
+	}
 	pendingProposal := &types.Block{
 		Header: &types.Header{
 			Version:           1,
 			PartitionID:       n.configuration.GetPartitionID(),
-			ShardID:           n.configuration.shardID,
+			ShardID:           n.configuration.shardConf.ShardID,
 			ProposerID:        blockAuthor,
-			PreviousBlockHash: n.committedUC().InputRecord.BlockHash,
+			PreviousBlockHash: prevBlockHash,
 		},
 		Transactions:       n.proposedTransactions,
 		UnicityCertificate: ucBytes,
@@ -1514,7 +1523,7 @@ func (n *Node) sendCertificationRequest(ctx context.Context, blockAuthor string)
 	// send new input record for certification
 	req := &certification.BlockCertificationRequest{
 		PartitionID: n.configuration.GetPartitionID(),
-		ShardID:     n.configuration.shardID,
+		ShardID:     n.configuration.shardConf.ShardID,
 		NodeID:      n.peer.ID().String(),
 		InputRecord: ir,
 	}
@@ -1619,7 +1628,7 @@ func (n *Node) PartitionTypeID() types.PartitionTypeID {
 }
 
 func (n *Node) ShardID() types.ShardID {
-	return n.configuration.shardID
+	return n.configuration.shardConf.ShardID
 }
 
 func (n *Node) Peer() *network.Peer {
@@ -1634,10 +1643,10 @@ func (n *Node) IsValidator() bool {
 	return n.shardStore.IsValidator(n.peer.ID())
 }
 
-func (n *Node) RegisterValidatorAssignmentRecord(v *partitions.ValidatorAssignmentRecord) error {
-	n.log.Info(fmt.Sprintf("Registering VAR for epoch %d", v.EpochNumber))
-	if err := n.shardStore.StoreValidatorAssignmentRecord(v); err != nil {
-		n.log.Error(fmt.Sprintf("Failed to register VAR for epoch %d", v.EpochNumber), logger.Error(err))
+func (n *Node) RegisterShardConf(shardConf *types.PartitionDescriptionRecord) error {
+	n.log.Info(fmt.Sprintf("Registering shard conf for epoch %d", shardConf.ShardEpoch))
+	if err := n.shardStore.StoreShardConf(shardConf); err != nil {
+		n.log.Error(fmt.Sprintf("Failed to register shard conf for epoch %d", shardConf.ShardEpoch), logger.Error(err))
 		return err
 	}
 	return nil
@@ -1780,20 +1789,10 @@ func (n *Node) stopValidating(ctx context.Context) {
 }
 
 func printUC(uc *types.UnicityCertificate) string {
+	if uc == nil {
+		return ""
+	}
 	return fmt.Sprintf("H:\t%X\nH':\t%X\nHb:\t%X\nfees:%d, round:%d, root round:%d",
 		uc.InputRecord.Hash, uc.InputRecord.PreviousHash, uc.InputRecord.BlockHash,
 		uc.InputRecord.SumOfEarnedFees, uc.GetRoundNumber(), uc.GetRootRoundNumber())
-}
-
-func newVARFromGenesis(genesis *genesis.PartitionGenesis) *partitions.ValidatorAssignmentRecord {
-	if genesis == nil {
-		return nil
-	}
-	return &partitions.ValidatorAssignmentRecord{
-		NetworkID:   genesis.PartitionDescription.NetworkID,
-		PartitionID: genesis.PartitionDescription.PartitionID,
-		EpochNumber: genesis.Certificate.InputRecord.Epoch,
-		RoundNumber: genesis.Certificate.GetRoundNumber(),
-		Nodes:       genesis.PartitionValidators,
-	}
 }

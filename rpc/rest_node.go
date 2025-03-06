@@ -8,7 +8,6 @@ import (
 
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/logger"
-	"github.com/alphabill-org/alphabill/rootchain/partitions"
 	"github.com/gorilla/mux"
 )
 
@@ -18,7 +17,7 @@ func NodeEndpoints(node partitionNode, obs Observability) RegistrarFunc {
 
 		// get the state file
 		r.HandleFunc("/state", getState(node, log)).Methods("GET")
-		r.HandleFunc("/configurations", putVar(node.RegisterValidatorAssignmentRecord)).Methods("PUT")
+		r.HandleFunc("/configurations", putShardConf(node.RegisterShardConf)).Methods("PUT")
 	}
 }
 
@@ -40,18 +39,18 @@ func getState(node partitionNode, log *slog.Logger) http.HandlerFunc {
 	}
 }
 
-func putVar(registerVAR func(v *partitions.ValidatorAssignmentRecord) error) http.HandlerFunc {
+func putShardConf(registerShardConf func(shardConf *types.PartitionDescriptionRecord) error) http.HandlerFunc {
 	return func(w http.ResponseWriter, request *http.Request) {
 		defer request.Body.Close()
-		v := &partitions.ValidatorAssignmentRecord{}
-		if err := json.NewDecoder(request.Body).Decode(&v); err != nil {
+		shardConf := &types.PartitionDescriptionRecord{}
+		if err := json.NewDecoder(request.Body).Decode(&shardConf); err != nil {
 			w.WriteHeader(http.StatusBadRequest)
-			fmt.Fprintf(w, "failed to parse validator assignment record: %v", err)
+			fmt.Fprintf(w, "failed to parse shard conf: %v", err)
 			return
 		}
-		if err := registerVAR(v); err != nil {
+		if err := registerShardConf(shardConf); err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
-			fmt.Fprintf(w, "failed to register validator assignment record: %v", err)
+			fmt.Fprintf(w, "failed to register shard conf: %v", err)
 			return
 		}
 		w.WriteHeader(http.StatusOK)

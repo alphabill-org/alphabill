@@ -539,7 +539,7 @@ func Test_shardStates_nextBlock(t *testing.T) {
 				Partition: 1,
 			},
 		}
-		shardKey := partitionShard{si.LastCR.Partition, si.LastCR.Shard.Key()}
+		shardKey := types.PartitionShardID{PartitionID: si.LastCR.Partition, ShardID: si.LastCR.Shard.Key()}
 		ssA := shardStates{shardKey: &si}
 		ssB, err := ssA.nextBlock(nil, orc)
 		require.EqualError(t, err, `no previous round data for shard 00000001 - `)
@@ -561,7 +561,7 @@ func Test_shardStates_nextBlock(t *testing.T) {
 			Shard:     si.LastCR.Shard,
 			IR:        &types.InputRecord{Epoch: 1},
 		}}
-		shardKey := partitionShard{si.LastCR.Partition, si.LastCR.Shard.Key()}
+		shardKey := types.PartitionShardID{PartitionID: si.LastCR.Partition, ShardID: si.LastCR.Shard.Key()}
 		ssA := shardStates{shardKey: &si}
 		ssB, err := ssA.nextBlock(parentIR, orc)
 		require.NoError(t, err)
@@ -591,7 +591,7 @@ func Test_shardStates_nextBlock(t *testing.T) {
 			Shard:     si.LastCR.Shard,
 			IR:        &types.InputRecord{Epoch: 1},
 		}}
-		shardKey := partitionShard{si.LastCR.Partition, si.LastCR.Shard.Key()}
+		shardKey := types.PartitionShardID{PartitionID: si.LastCR.Partition, ShardID: si.LastCR.Shard.Key()}
 		ssA := shardStates{shardKey: &si}
 		ssB, err := ssA.nextBlock(parentIR, orc)
 		require.ErrorIs(t, err, expErr)
@@ -622,7 +622,7 @@ func Test_shardStates_nextBlock(t *testing.T) {
 			Shard:     si.LastCR.Shard,
 			IR:        &types.InputRecord{Epoch: 1},
 		}}
-		shardKey := partitionShard{si.LastCR.Partition, si.LastCR.Shard.Key()}
+		shardKey := types.PartitionShardID{PartitionID: si.LastCR.Partition, ShardID: si.LastCR.Shard.Key()}
 		ssA := shardStates{shardKey: &si}
 		ssB, err := ssA.nextBlock(parentIR, orc)
 		require.EqualError(t, err, `creating ShardInfo 00000001 -  of the next epoch: epochs must be consecutive, expected 2 proposed next 3`)

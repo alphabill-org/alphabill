@@ -23,12 +23,10 @@ import (
 	"github.com/alphabill-org/alphabill/logger"
 	"github.com/alphabill-org/alphabill/network/protocol/abdrc"
 	"github.com/alphabill-org/alphabill/network/protocol/certification"
-	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/observability"
 	"github.com/alphabill-org/alphabill/rootchain/consensus/leader"
 	"github.com/alphabill-org/alphabill/rootchain/consensus/storage"
 	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
-	"github.com/alphabill-org/alphabill/rootchain/partitions"
 )
 
 type (
@@ -55,10 +53,8 @@ type (
 	}
 
 	Orchestration interface {
-		ShardEpoch(partition types.PartitionID, shard types.ShardID, round uint64) (uint64, error)
-		ShardConfig(partition types.PartitionID, shard types.ShardID, epoch uint64) (*partitions.ValidatorAssignmentRecord, error)
-		RoundPartitions(rootRound uint64) ([]*types.PartitionDescriptionRecord, error)
-		PartitionDescription(partition types.PartitionID, epoch uint64) (*types.PartitionDescriptionRecord, error)
+		ShardConfig(partitionID types.PartitionID, shardID types.ShardID, rootRound uint64) (*types.PartitionDescriptionRecord, error)
+		ShardConfigs(rootRound uint64) (map[types.PartitionShardID]*types.PartitionDescriptionRecord, error)
 	}
 
 	certRequest struct {
@@ -113,7 +109,6 @@ type (
 // NewConsensusManager creates new "Atomic Broadcast" protocol based distributed consensus manager
 func NewConsensusManager(
 	nodeID peer.ID,
-	rg *genesis.RootGenesis,
 	trustBase types.RootTrustBase,
 	orchestration Orchestration,
 	net RootNet,
@@ -122,9 +117,6 @@ func NewConsensusManager(
 	opts ...Option,
 ) (*ConsensusManager, error) {
 	// Sanity checks
-	if rg == nil {
-		return nil, errors.New("cannot start distributed consensus, genesis root record is nil")
-	}
 	if net == nil {
 		return nil, errors.New("network is nil")
 	}
@@ -136,10 +128,16 @@ func NewConsensusManager(
 	if err != nil {
 		return nil, fmt.Errorf("loading optional configuration: %w", err)
 	}
-	// load consensus configuration from genesis
-	cParams := NewConsensusParams(rg.Root)
+
+	cParams := NewConsensusParams()
+	pm, err := NewPacemaker(cParams.BlockRate/2, cParams.LocalTimeout, observe)
+	if err != nil {
+		return nil, fmt.Errorf("creating Pacemaker: %w", err)
+	}
+	log := observe.RoundLogger(pm.GetCurrentRound)
+
 	// init storage
-	bStore, err := storage.New(cParams.HashAlgorithm, rg.Partitions, optional.Storage, orchestration)
+	bStore, err := storage.New(cParams.HashAlgorithm, optional.Storage, orchestration, log)
 	if err != nil {
 		return nil, fmt.Errorf("consensus block storage init failed: %w", err)
 	}
@@ -155,15 +153,10 @@ func NewConsensusManager(
 	if err != nil {
 		return nil, err
 	}
-	ls, err := leaderSelector(rg)
+	ls, err := leaderSelector(trustBase)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create consensus leader selector: %w", err)
 	}
-	pm, err := NewPacemaker(cParams.BlockRate/2, cParams.LocalTimeout, observe)
-	if err != nil {
-		return nil, fmt.Errorf("creating Pacemaker: %w", err)
-	}
-	log := observe.RoundLogger(pm.GetCurrentRound)
 	consensusManager := &ConsensusManager{
 		certReqCh:      make(chan certRequest),
 		certResultCh:   make(chan *certification.CertificationResponse),
@@ -254,28 +247,41 @@ func (x *ConsensusManager) initMetrics(observe Observability) (err error) {
 	return nil
 }
 
-func leaderSelector(rg *genesis.RootGenesis) (ls Leader, err error) {
+func leaderSelector(trustBase types.RootTrustBase) (ls Leader, err error) {
 	// NB! both leader selector algorithms make the assumption that the rootNodes slice is
 	// sorted, and it's content doesn't change!
-	rootNodes, err := rg.NodeIDs()
+	validators, err := toPeerIDs(trustBase.GetRootNodes())
 	if err != nil {
-		return nil, fmt.Errorf("failed to get root node IDs: %w", err)
+		return nil, fmt.Errorf("failed to get root validator peerIDs: %w", err)
 	}
-	slices.Sort(rootNodes)
 
-	switch len(rootNodes) {
+	slices.Sort(validators)
+
+	switch len(validators) {
 	case 0:
 		return nil, errors.New("number of peers must be greater than zero")
 	case 1:
 		// really should have "constant leader" algorithm but this shouldn't happen IRL.
 		// we need this case as some tests create only one root node. Could use reputation
 		// based selection with excludeSize=0 but round-robin is more efficient...
-		return leader.NewRoundRobin(rootNodes, 1)
+		return leader.NewRoundRobin(validators, 1)
 	default:
 		// we're limited to window size and exclude size 1 as our block loader (block store) doesn't
 		// keep history, ie we can't load blocks older than previous block.
-		return leader.NewReputationBased(rootNodes, 1, 1)
+		return leader.NewReputationBased(validators, 1, 1)
 	}
+}
+
+func toPeerIDs(nodes []*types.NodeInfo) ([]peer.ID, error) {
+	peerIDs := make([]peer.ID, len(nodes))
+	for n, v := range nodes {
+		peerID, err := peer.Decode(v.NodeID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert node ID %q: %w", v.NodeID, err)
+		}
+		peerIDs[n] = peerID
+	}
+	return peerIDs, nil
 }
 
 func (x *ConsensusManager) RequestCertification(ctx context.Context, cr IRChangeRequest) error {
@@ -425,11 +431,11 @@ func (x *ConsensusManager) onLocalTimeout(ctx context.Context) {
 			x.id.String(),
 			x.pacemaker.LastRoundTC())
 		if err := x.safety.SignTimeout(timeoutVoteMsg, x.pacemaker.LastRoundTC()); err != nil {
-			x.log.WarnContext(ctx, "signing timeout", logger.Error(err))
+			x.log.WarnContext(ctx, "failed to sign timeout", logger.Error(err))
 			return
 		}
 		if err := x.blockStore.StoreLastVote(timeoutVoteMsg); err != nil {
-			x.log.WarnContext(ctx, "timeout vote store failed", logger.Error(err))
+			x.log.WarnContext(ctx, "failed to store timeout vote", logger.Error(err))
 		}
 		x.pacemaker.SetTimeoutVote(timeoutVoteMsg)
 	}
@@ -770,11 +776,6 @@ func (x *ConsensusManager) processTC(ctx context.Context, tc *drctypes.TimeoutCe
 	x.pacemaker.AdvanceRoundTC(ctx, tc)
 }
 
-type partitionShard struct {
-	partition types.PartitionID
-	shard     string // types.ShardID is not comparable
-}
-
 /*
 sendCertificates reads UCs produced by processing QC and makes them available for
 validator via certResultCh chan (returned by CertificationResult method).
@@ -785,7 +786,7 @@ func (x *ConsensusManager) sendCertificates(ctx context.Context) error {
 	// pending certificates, to be consumed by the validator.
 	// access to it is "serialized" ie we either update it with
 	// new certs sent by CM or we feed it's content to validator
-	certs := make(map[partitionShard]*certification.CertificationResponse)
+	certs := make(map[types.PartitionShardID]*certification.CertificationResponse)
 
 	feedValidator := func(ctx context.Context) chan struct{} {
 		stopped := make(chan struct{})
@@ -812,7 +813,7 @@ func (x *ConsensusManager) sendCertificates(ctx context.Context) error {
 			// this means that the validator sees newer UC than expected and goes into recovery,
 			// rolling back pending block proposal?
 			for _, uc := range nm {
-				certs[partitionShard{partition: uc.Partition, shard: uc.Shard.Key()}] = uc
+				certs[types.PartitionShardID{PartitionID: uc.Partition, ShardID: uc.Shard.Key()}] = uc
 			}
 			feedCtx, cancel := context.WithCancel(ctx)
 			stopped := feedValidator(feedCtx)
@@ -871,8 +872,9 @@ func (x *ConsensusManager) processNewRoundEvent(ctx context.Context) {
 
 	x.leaderCnt.Add(ctx, 1)
 	x.log.InfoContext(ctx, "new round start, node is leader")
-	// find partitions with T2 timeouts
-	timeoutIds, err := x.t2Timeouts.GetT2Timeouts(round)
+
+	// find shards with T2 timeouts
+	timedOutShards, err := x.t2Timeouts.GetT2Timeouts(round)
 	if err != nil {
 		// error here is not fatal, still make a proposal, hopefully the next node will generate timeout
 		// requests for partitions this node failed to query
@@ -885,7 +887,7 @@ func (x *ConsensusManager) processNewRoundEvent(ctx context.Context) {
 			Round:     round,
 			Epoch:     0,
 			Timestamp: types.NewTimestamp(),
-			Payload:   x.irReqBuffer.GeneratePayload(round, timeoutIds, x.blockStore.IsChangeInProgress),
+			Payload:   x.irReqBuffer.GeneratePayload(round, timedOutShards, x.blockStore.IsChangeInProgress),
 			Qc:        x.blockStore.GetHighQc(),
 		},
 		LastRoundTc: x.pacemaker.LastRoundTC(),
@@ -1076,7 +1078,11 @@ func (x *ConsensusManager) ShardInfo(partition types.PartitionID, shard types.Sh
 	if x.recovery.InRecovery() {
 		return nil, fmt.Errorf("node is in recovery: %s", x.recovery)
 	}
-	return x.blockStore.ShardInfo(partition, shard)
+	si := x.blockStore.ShardInfo(partition, shard)
+	if si == nil {
+		return nil, fmt.Errorf("unknown partition %s shard %s", partition, shard.String())
+	}
+	return si, nil
 }
 
 /*

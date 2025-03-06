@@ -9,8 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/libp2p/go-libp2p/core/crypto"
-	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
@@ -18,17 +16,17 @@ import (
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
-	"github.com/alphabill-org/alphabill/network/protocol/genesis"
-	rootgenesis "github.com/alphabill-org/alphabill/rootchain/genesis"
+	"github.com/alphabill-org/alphabill/internal/testutils/trustbase"
+	"github.com/alphabill-org/alphabill/txsystem/evm"
 )
 
 func TestRunEvmNode_StartStop(t *testing.T) {
 	homeDir := t.TempDir()
-	keysFileLocation := filepath.Join(homeDir, defaultKeysFileName)
-	nodeGenesisFileLocation := filepath.Join(homeDir, evmGenesisFileName)
-	nodeGenesisStateFileLocation := filepath.Join(homeDir, evmGenesisStateFileName)
+	keysFileLocation := filepath.Join(homeDir, keyConfFileName)
+	nodeGenesisFileLocation := filepath.Join(homeDir, stateFileName)
+	nodeGenesisStateFileLocation := filepath.Join(homeDir, stateFileName)
 	partitionGenesisFileLocation := filepath.Join(homeDir, "evm-genesis.json")
-	trustBaseFileLocation := filepath.Join(homeDir, rootTrustBaseFileName)
+	trustBaseFileLocation := filepath.Join(homeDir, trustBaseFileName)
 	pdr := types.PartitionDescriptionRecord{
 		Version:     1,
 		NetworkID:   5,
@@ -53,25 +51,12 @@ func TestRunEvmNode_StartStop(t *testing.T) {
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	require.NoError(t, cmd.Execute(ctx))
 
-	pn, err := util.ReadJsonFile(nodeGenesisFileLocation, &genesis.PartitionNode{Version: 1})
-	require.NoError(t, err)
+	_, verifier := testsig.CreateSignerAndVerifier(t)
+	trustBase := trustbase.NewTrustBase(t, verifier)
+	bootNodeStr := fmt.Sprintf("/ip4/127.0.0.1/tcp/26662/p2p/%s", trustBase.GetRootNodes()[0].NodeID)
 
-	// use same keys for signing and authenticatoin.
-	rootSigner, verifier := testsig.CreateSignerAndVerifier(t)
-	rootPubKeyBytes, err := verifier.MarshalPublicKey()
-	require.NoError(t, err)
-	rootAuthKey, err := crypto.UnmarshalSecp256k1PublicKey(rootPubKeyBytes)
-	require.NoError(t, err)
-	rootID, err := peer.IDFromPublicKey(rootAuthKey)
-	require.NoError(t, err)
-	bootNodeStr := fmt.Sprintf("/ip4/127.0.0.1/tcp/26662/p2p/%s", rootID.String())
-	rootGenesis, partitionGenesisFiles, err := rootgenesis.NewRootGenesis(rootID.String(), rootSigner, []*genesis.PartitionNode{pn})
-	require.NoError(t, err)
-	err = util.WriteJsonFile(partitionGenesisFileLocation, partitionGenesisFiles[0])
-	require.NoError(t, err)
-	trustBase, err := rootGenesis.GenerateTrustBase()
-	require.NoError(t, err)
-	err = util.WriteJsonFile(trustBaseFileLocation, trustBase)
+	// TODO: this util should probably not be in base
+	err := util.WriteJsonFile(trustBaseFileLocation, trustBase)
 	require.NoError(t, err)
 
 	listenAddr := fmt.Sprintf("127.0.0.1:%d", net.GetFreeRandomPort(t))
@@ -82,7 +67,7 @@ func TestRunEvmNode_StartStop(t *testing.T) {
 		defer appStoppedWg.Done()
 		dbLocation := homeDir + "/tx.db"
 		cmd = New(logF)
-		args = "evm --home " + evmDir +
+		args = "evm --home " + evm.PartitionType +
 			" --tx-db " + dbLocation +
 			" -g " + partitionGenesisFileLocation +
 			" -s " + nodeGenesisStateFileLocation +

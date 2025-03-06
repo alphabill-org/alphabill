@@ -177,7 +177,7 @@ func TestStateMsg_Verify(t *testing.T) {
 						FeeHash:  []byte{0xF, 0xE, 0xE},
 					},
 					IR:      headIR,
-					PDRHash: test.DoHash(t, &pdr),
+					ShardConfHash: test.DoHash(t, &pdr),
 				}},
 				Block: &rctypes.BlockData{
 					Round:   5,
@@ -324,7 +324,7 @@ func TestRecoveryBlock_IsValid(t *testing.T) {
 					StatHash: []byte{5},
 					FeeHash:  []byte{0xF, 0xE, 0xE},
 				},
-				PDRHash: test.DoHash(t, &pdr),
+				ShardConfHash: test.DoHash(t, &pdr),
 			}},
 			Qc:       &rctypes.QuorumCert{},
 			CommitQc: &rctypes.QuorumCert{},

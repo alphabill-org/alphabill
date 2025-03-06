@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -14,6 +13,9 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"gopkg.in/yaml.v3"
 
+	"github.com/alphabill-org/alphabill-go-base/util"
+	"github.com/alphabill-org/alphabill/keyvaluedb"
+	"github.com/alphabill-org/alphabill/keyvaluedb/boltdb"
 	"github.com/alphabill-org/alphabill/logger"
 )
 
@@ -30,7 +32,7 @@ type (
 		RoundLogger(func() uint64) *slog.Logger
 	}
 
-	baseConfiguration struct {
+	baseFlags struct {
 		// The Alphabill home directory
 		HomeDir string
 		// Configuration file URL. If it's relative, then it's relative from the HomeDir.
@@ -51,8 +53,7 @@ const (
 	defaultAlphabillDir = ".alphabill"
 	// The default logger configuration file name.
 	defaultLoggerConfigFile = "logger-config.yaml"
-	// The default rootchain directory
-	defaultRootChainDir = "rootchain"
+
 	// The configuration key for home directory.
 	keyHome = "home"
 	// The configuration key for config file name.
@@ -67,7 +68,7 @@ const (
 	flagNameLogFormat     = "log-format"
 )
 
-func (r *baseConfiguration) addConfigurationFlags(cmd *cobra.Command) {
+func (r *baseFlags) addBaseFlags(cmd *cobra.Command) {
 	cmd.PersistentFlags().StringVar(&r.HomeDir, keyHome, "", fmt.Sprintf("set the AB_HOME for this invocation (default is %s)", alphabillHomeDir()))
 	cmd.PersistentFlags().StringVar(&r.CfgFile, keyConfig, "", fmt.Sprintf("config file URL (default is $AB_HOME/%s)", defaultConfigFile))
 
@@ -81,7 +82,7 @@ func (r *baseConfiguration) addConfigurationFlags(cmd *cobra.Command) {
 	cmd.PersistentFlags().String(flagNameLogFormat, "", "log format, one of: text, json, console, ecs")
 }
 
-func (r *baseConfiguration) initConfigFileLocation() {
+func (r *baseFlags) initConfigFileLocation() {
 	// Home directory and config file are special configuration values as these are used for loading in rest of the configuration.
 	// Handle these manually, before other configuration loaded with Viper.
 
@@ -111,32 +112,28 @@ of the flag set by user or default cfg location.
 The flag will be assigned the default filename (ie without path) if user
 doesn't specify that flag.
 */
-func (r *baseConfiguration) LoggerCfgFilename() string {
+func (r *baseFlags) LoggerCfgFilename() string {
 	if !filepath.IsAbs(r.LogCfgFile) {
 		return filepath.Join(r.HomeDir, r.LogCfgFile)
 	}
 	return r.LogCfgFile
 }
 
-func (r *baseConfiguration) configFileExists() bool {
+func (r *baseFlags) configFileExists() bool {
 	_, err := os.Stat(r.CfgFile)
 	return err == nil
-}
-
-func (r *baseConfiguration) defaultRootchainDir() string {
-	return filepath.Join(r.HomeDir, defaultRootChainDir)
 }
 
 /*
 initLogger creates Logger based on configuration flags in "cmd".
 */
-func (r *baseConfiguration) initLogger(cmd *cobra.Command, loggerBuilder LoggerFactory) (*slog.Logger, error) {
+func (r *baseFlags) initLogger(cmd *cobra.Command, loggerBuilder LoggerFactory) (*slog.Logger, error) {
 	cfg := &logger.LogConfiguration{}
 
 	loggerCfgFile := filepath.Clean(r.LoggerCfgFilename())
 	if f, err := os.Open(loggerCfgFile); err != nil {
 		defaultLoggerCfg := filepath.Join(r.HomeDir, defaultLoggerConfigFile)
-		if !(errors.Is(err, os.ErrNotExist) && loggerCfgFile == defaultLoggerCfg) {
+		if loggerCfgFile != defaultLoggerCfg && !util.FileExists(loggerCfgFile) {
 			return nil, fmt.Errorf("opening logger configuration file: %w", err)
 		}
 	} else {
@@ -172,6 +169,31 @@ func (r *baseConfiguration) initLogger(cmd *cobra.Command, loggerBuilder LoggerF
 		return nil, fmt.Errorf("building logger: %w", err)
 	}
 	return l, nil
+}
+
+func (r *baseFlags) pathWithDefault(path string, defaultFileName string) string {
+	if path != "" {
+		return path
+	}
+	return filepath.Join(r.HomeDir, defaultFileName)
+}
+
+func (r *baseFlags) loadConf(path string, defaultFileName string, conf any) error {
+	path = r.pathWithDefault(path, defaultFileName)
+	if _, err := util.ReadJsonFile(path, &conf); err != nil {
+		return fmt.Errorf("failed to load %q", path)
+	}
+	return nil
+}
+
+func (f *baseFlags) initStore(path string, defaultFileName string) (keyvaluedb.KeyValueDB, error) {
+	path = f.pathWithDefault(path, defaultFileName)
+
+	db, err := boltdb.New(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to init %q", path)
+	}
+	return db, nil
 }
 
 func envKey(key string) string {

@@ -62,25 +62,25 @@ type (
 
 // New creates a new instance of the root chain node
 func New(
-	p *network.Peer,
+	peer *network.Peer,
 	pNet PartitionNet,
 	cm ConsensusManager,
 	observe Observability,
 ) (*Node, error) {
-	if p == nil {
+	if peer == nil {
 		return nil, fmt.Errorf("partition listener is nil")
 	}
 	if pNet == nil {
 		return nil, fmt.Errorf("network is nil")
 	}
 
-	meter := observe.Meter("rootchain.node", metric.WithInstrumentationAttributes(observability.PeerID("node.id", p.ID())))
+	meter := observe.Meter("rootchain.node", metric.WithInstrumentationAttributes(observability.PeerID("node.id", peer.ID())))
 	reqBuf, err := NewCertificationRequestBuffer(meter)
 	if err != nil {
 		return nil, fmt.Errorf("creating request buffer: %w", err)
 	}
 	node := &Node{
-		peer:             p,
+		peer:             peer,
 		incomingRequests: reqBuf,
 		subscription:     NewSubscriptions(meter),
 		net:              pNet,

@@ -8,7 +8,7 @@ import (
 type (
 	StateAPIOptions struct {
 		withGetUnits bool
-		pdr          *types.PartitionDescriptionRecord
+		shardConf    *types.PartitionDescriptionRecord
 		ownerIndex   partition.IndexReader
 	}
 
@@ -21,9 +21,9 @@ func WithGetUnits(withGetUnits bool) StateAPIOption {
 	}
 }
 
-func WithPDR(pdr *types.PartitionDescriptionRecord) StateAPIOption {
+func WithShardConf(shardConf *types.PartitionDescriptionRecord) StateAPIOption {
 	return func(c *StateAPIOptions) {
-		c.pdr = pdr
+		c.shardConf = shardConf
 	}
 }
 
@@ -36,7 +36,7 @@ func WithOwnerIndex(ownerIndex partition.IndexReader) StateAPIOption {
 func defaultStateAPIOptions() *StateAPIOptions {
 	return &StateAPIOptions{
 		withGetUnits: false,
-		pdr:          nil,
+		shardConf:    nil,
 		ownerIndex:   nil,
 	}
 }

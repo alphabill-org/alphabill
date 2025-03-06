@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"log/slog"
 
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/util"
 	"github.com/alphabill-org/alphabill/keyvaluedb"
@@ -24,7 +26,7 @@ type (
 	// UnitAndProof read access to state to access unit and unit proofs
 	UnitAndProof interface {
 		// GetUnit - access tx system unit state
-		GetUnit(id types.UnitID, committed bool) (*state.Unit, error)
+		GetUnit(id types.UnitID, committed bool) (state.Unit, error)
 		// CreateUnitStateProof - create unit proofs
 		CreateUnitStateProof(id types.UnitID, logIndex int) (*types.UnitStateProof, error)
 	}
@@ -47,22 +49,27 @@ type (
 		hashAlgorithm crypto.Hash
 		storage       keyvaluedb.KeyValueDB
 		historySize   uint64 // number of rounds for which the history of unit states is kept
-		log           *slog.Logger
 		blockCh       chan *BlockAndState
+		log           *slog.Logger
+		tracer        trace.Tracer
 	}
 )
 
-func NewProofIndexer(algo crypto.Hash, db keyvaluedb.KeyValueDB, historySize uint64, l *slog.Logger) *ProofIndexer {
+func NewProofIndexer(algo crypto.Hash, db keyvaluedb.KeyValueDB, historySize uint64, obs Observability) *ProofIndexer {
 	return &ProofIndexer{
 		hashAlgorithm: algo,
 		storage:       db,
 		historySize:   historySize,
-		log:           l,
 		blockCh:       make(chan *BlockAndState, 20),
+		log:           obs.Logger(),
+		tracer:        obs.Tracer("proof-indexer"),
 	}
 }
 
 func (p *ProofIndexer) IndexBlock(ctx context.Context, block *types.Block, roundNumber uint64, state UnitAndProof) error {
+	ctx, span := p.tracer.Start(ctx, "proofIndexer.IndexBlock")
+	defer span.End()
+
 	if roundNumber <= p.latestIndexedBlockNumber() {
 		p.log.DebugContext(ctx, fmt.Sprintf("block for round %v is already indexed", roundNumber))
 		return nil
@@ -79,6 +86,9 @@ func (p *ProofIndexer) IndexBlock(ctx context.Context, block *types.Block, round
 }
 
 func (p *ProofIndexer) Handle(ctx context.Context, block *types.Block, state UnitAndProof) {
+	ctx, span := p.tracer.Start(ctx, "proofIndexer.Handle")
+	defer span.End()
+
 	select {
 	case <-ctx.Done():
 	case p.blockCh <- &BlockAndState{
@@ -157,12 +167,16 @@ func (p *ProofIndexer) create(ctx context.Context, block *types.Block, roundNumb
 			return fmt.Errorf("unable to hash transaction record: %w", err)
 		}
 		for _, unitID := range tx.TargetUnits() {
-			var unit *state.Unit
+			var unit state.Unit
 			unit, err = stateReader.GetUnit(unitID, true)
 			if err != nil {
 				return fmt.Errorf("unit load failed: %w", err)
 			}
-			unitLogs := unit.Logs()
+			u, err := state.ToUnitV1(unit)
+			if err != nil {
+				return fmt.Errorf("unit parse failed: %w", err)
+			}
+			unitLogs := u.Logs()
 			p.log.Log(ctx, logger.LevelTrace, fmt.Sprintf("Generating %d proof(s) for unit %X", len(unitLogs), unitID))
 			for j, unitLog := range unitLogs {
 				if !bytes.Equal(unitLog.TxRecordHash, txrHash) {
@@ -170,7 +184,7 @@ func (p *ProofIndexer) create(ctx context.Context, block *types.Block, roundNumb
 				}
 				usp, e := stateReader.CreateUnitStateProof(unitID, j)
 				if e != nil {
-					err = errors.Join(err, fmt.Errorf("unit %X proof creatioon failed: %w", unitID, e))
+					err = errors.Join(err, fmt.Errorf("unit %X proof creation failed: %w", unitID, e))
 					continue
 				}
 				res, e := state.MarshalUnitData(unitLog.NewUnitData)

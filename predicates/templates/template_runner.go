@@ -39,8 +39,7 @@ func New(obs Observability) (TemplateRunner, error) {
 	execDur, err := m.Float64Histogram("exec.time",
 		metric.WithDescription("How long it took to execute an predicate"),
 		metric.WithUnit("s"),
-		// expecting "always true/false" to be around 4ns (4e-9) and p2pkh 46µs (46e-6)
-		metric.WithExplicitBucketBoundaries(3e-9, 4e-9, 5e-9, 45e-6, 46e-6, 47e-6, 48e-6, 49e-6))
+		metric.WithExplicitBucketBoundaries(1e-6, 50e-6, 100e-6, 200e-6, 400e-6, 800e-6, 0.002, 0.004, 0.008))
 	if err != nil {
 		return TemplateRunner{}, fmt.Errorf("creating histogram for predicate execution time: %w", err)
 	}
@@ -51,7 +50,7 @@ func (TemplateRunner) ID() uint64 {
 	return templates.TemplateStartByte
 }
 
-func (tr TemplateRunner) Execute(ctx context.Context, p *sdkpredicates.Predicate, args []byte, sigBytesFn func() ([]byte, error), env predicates.TxContext) (bool, error) {
+func (tr TemplateRunner) Execute(ctx context.Context, p *sdkpredicates.Predicate, args []byte, txo *types.TransactionOrder, env predicates.TxContext) (bool, error) {
 	if p.Tag != templates.TemplateStartByte {
 		return false, fmt.Errorf("expected predicate template tag %d but got %d", templates.TemplateStartByte, p.Tag)
 	}
@@ -64,7 +63,7 @@ func (tr TemplateRunner) Execute(ctx context.Context, p *sdkpredicates.Predicate
 
 	switch p.Code[0] {
 	case templates.P2pkh256ID:
-		return executeP2PKH256TxAuth(p.Params, args, sigBytesFn, env)
+		return executeP2PKH256(p.Params, args, env)
 	case templates.AlwaysTrueID:
 		return executeAlwaysTrue(p.Params, args, env)
 	case templates.AlwaysFalseID:
@@ -98,17 +97,13 @@ func executeAlwaysFalse(params, args []byte, env predicates.TxContext) (bool, er
 	return false, fmt.Errorf(`"always false" predicate arguments must be empty`)
 }
 
-func executeP2PKH256TxAuth(pubKeyHash, args []byte, sigBytesFn func() ([]byte, error), env predicates.TxContext) (bool, error) {
-	sigBytes, err := sigBytesFn()
-	if err != nil {
-		return false, fmt.Errorf("reading transaction sig bytes: %w", err)
-	}
-	return executeP2PKH256(pubKeyHash, args, sigBytes, env)
-}
-
-func executeP2PKH256(pubKeyHash, args []byte, sigBytes []byte, env predicates.TxContext) (bool, error) {
+func executeP2PKH256(pubKeyHash, args []byte, env predicates.TxContext) (bool, error) {
 	if err := env.SpendGas(P2PKHGasCost); err != nil {
 		return false, err
+	}
+	sigBytes, err := env.ExtraArgument()
+	if err != nil {
+		return false, fmt.Errorf("reading tx signature bytes: %w", err)
 	}
 	p2pkh256Signature := templates.P2pkh256Signature{}
 	if err := types.Cbor.Unmarshal(args, &p2pkh256Signature); err != nil {

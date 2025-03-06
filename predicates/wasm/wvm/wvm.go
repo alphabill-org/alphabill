@@ -70,20 +70,22 @@ type (
 	}
 
 	EvalEnvironment interface {
-		GetUnit(id types.UnitID, committed bool) (*state.Unit, error)
+		GetUnit(id types.UnitID, committed bool) (state.Unit, error)
+		CommittedUC() *types.UnicityCertificate
 		CurrentRound() uint64
 		TrustBase(epoch uint64) (types.RootTrustBase, error)
 		GasAvailable() uint64
 		SpendGas(gas uint64) error
 		CalculateCost() uint64
-		TransactionOrder() (*types.TransactionOrder, error)
+		ExtraArgument() ([]byte, error)
 	}
 
 	// translates AB types to WASM consumable representation
 	Encoder interface {
 		Encode(obj any, ver uint32, getHandle func(obj any) uint64) ([]byte, error)
 		TxAttributes(txo *types.TransactionOrder, ver uint32) ([]byte, error)
-		UnitData(unit *state.Unit, ver uint32) ([]byte, error)
+		UnitData(unit state.Unit, ver uint32) ([]byte, error)
+		AuthProof(txo *types.TransactionOrder) ([]byte, error)
 	}
 
 	Observability interface {
@@ -213,7 +215,7 @@ Exec loads the WASM module passed in as "predicate" argument and calls the "conf
   - The entrypoint function signature must be "no parameters and single i64 return value" where
     zero means "true" and non-zero is "false" (ie the returned number is error code);
 */
-func (vm *WasmVM) Exec(ctx context.Context, predicate, args []byte, conf wasm.PredicateParams, sigBytesFn func() ([]byte, error), env EvalEnvironment) (uint64, error) {
+func (vm *WasmVM) Exec(ctx context.Context, predicate, args []byte, conf wasm.PredicateParams, txo *types.TransactionOrder, env EvalEnvironment) (uint64, error) {
 	if len(predicate) < 1 {
 		return 0, fmt.Errorf("predicate is nil")
 	}
@@ -247,7 +249,7 @@ func (vm *WasmVM) Exec(ctx context.Context, predicate, args []byte, conf wasm.Pr
 	vm.ctx.curPrg.mod = m
 	vm.ctx.curPrg.env = env
 	vm.ctx.curPrg.varIdx = handle_max_reserved
-	//vm.ctx.curPrg.vars[handle_current_tx_order] = txo // TODO AB-1724
+	vm.ctx.curPrg.vars[handle_current_tx_order] = txo
 	vm.ctx.curPrg.vars[handle_current_args] = args
 	vm.ctx.curPrg.vars[handle_predicate_conf] = conf.Args
 

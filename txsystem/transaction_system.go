@@ -62,7 +62,7 @@ type (
 	}
 
 	StateReader interface {
-		GetUnit(id types.UnitID, committed bool) (*state.Unit, error)
+		GetUnit(id types.UnitID, committed bool) (state.Unit, error)
 
 		CreateUnitStateProof(id types.UnitID, logIndex int) (*types.UnitStateProof, error)
 

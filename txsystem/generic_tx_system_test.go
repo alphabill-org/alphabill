@@ -43,6 +43,8 @@ func (t *MockData) Owner() []byte {
 	return t.OwnerPredicate
 }
 
+func (t *MockData) GetVersion() types.ABVersion { return 0 }
+
 func Test_NewGenericTxSystem(t *testing.T) {
 	validPDR := types.PartitionDescriptionRecord{
 		Version:     1,

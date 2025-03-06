@@ -13,7 +13,6 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/hash"
 	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
-	"github.com/alphabill-org/alphabill-go-base/txsystem/tokens"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/logger"
 )
@@ -41,6 +40,7 @@ Returns:
   - 2: error, most likely the tx.OwnerProof is not valid argument for P2PKH ie
     some other (bearer) predicate is used;
   - 3: error, argument stack[0] is not valid tx handle;
+  - 4: error, failure to get owner proof;
 */
 func txSignedByPKH(ctx context.Context, mod api.Module, stack []uint64) {
 	vec := extractVMContext(ctx)
@@ -53,31 +53,16 @@ func txSignedByPKH(ctx context.Context, mod api.Module, stack []uint64) {
 	}
 	pkh := read(mod, stack[1])
 
-	var proof []byte
-	var unmarshalErr error
-	switch txo.Type {
-	case tokens.TransactionTypeTransferNFT:
-		var authProof tokens.TransferNonFungibleTokenAuthProof
-		if unmarshalErr = txo.UnmarshalAuthProof(&authProof); unmarshalErr == nil {
-			proof = authProof.OwnerProof
-		}
-	case tokens.TransactionTypeUpdateNFT:
-		var authProof tokens.UpdateNonFungibleTokenAuthProof
-		if unmarshalErr = txo.UnmarshalAuthProof(&authProof); unmarshalErr == nil {
-			proof = authProof.TokenDataUpdateProof
-		}
-	default:
-		unmarshalErr = errors.New("failed to extract OwnerProof from tx order")
-	}
-	if unmarshalErr != nil {
-		vec.log.DebugContext(ctx, "unknown tx order type", logger.Error(err))
-		stack[0] = 3
+	proof, err := vec.encoder.AuthProof(txo)
+	if err != nil {
+		vec.log.DebugContext(ctx, "extracting owner proof", logger.Error(err))
+		stack[0] = 4
 		return
 	}
 
 	predicate := templates.NewP2pkh256BytesFromKeyHash(pkh)
-	ok, err := vec.engines(ctx, predicate, proof, txo.AuthProofSigBytes, vec.curPrg.env)
-	//ok, err := vec.engines(ctx, predicate, proof, txo, vec.curPrg.env)
+	env := txoEvalCtx{EvalEnvironment: vec.curPrg.env, exArgument: txo.AuthProofSigBytes}
+	ok, err := vec.engines(ctx, predicate, proof, txo, env)
 	switch {
 	case err != nil:
 		vec.log.DebugContext(ctx, "failed to verify OwnerProof against p2pkh", logger.Error(err))
@@ -99,8 +84,8 @@ func verifyTxProof(vec *vmContext, mod api.Module, stack []uint64) error {
 	if err != nil {
 		return fmt.Errorf("tx record: %w", err)
 	}
-	// todo: add epoch number to UC Seal
-	tb, err := vec.curPrg.env.TrustBase(0)
+
+	tb, err := trustBaseLoader(vec.curPrg.env.TrustBase)(txProof)
 	if err != nil {
 		return fmt.Errorf("acquiring trust base: %w", err)
 	}
@@ -147,11 +132,6 @@ func amountTransferred(vec *vmContext, mod api.Module, stack []uint64) error {
 	if err := types.Cbor.Unmarshal(data, &txs); err != nil {
 		return fmt.Errorf("decoding data as slice of tx proofs: %w", err)
 	}
-	// todo: add epoch number to UC Seal
-	tb, err := vec.curPrg.env.TrustBase(0)
-	if err != nil {
-		return fmt.Errorf("acquiring trust base: %w", err)
-	}
 
 	pkh := read(mod, stack[1])
 
@@ -160,7 +140,7 @@ func amountTransferred(vec *vmContext, mod api.Module, stack []uint64) error {
 		refNo = read(mod, addrRefNo)
 	}
 
-	sum, err := amountTransferredSum(tb, txs, pkh, refNo)
+	sum, err := amountTransferredSum(txs, pkh, refNo, trustBaseLoader(vec.curPrg.env.TrustBase))
 	if err != nil {
 		vec.log.Debug(fmt.Sprintf("AmountTransferredSum(%d) returned %d and some error(s): %v", len(txs), sum, err))
 	}
@@ -173,10 +153,15 @@ The error return value is "for diagnostic" purposes, ie the func might return no
 case the error describes reason why some transaction(s) were not counted. The ref number or receiver not matching are
 not included in errors, only failures to determine whether the tx possibly could have been contributing to the sum...
 */
-func amountTransferredSum(trustBase types.RootTrustBase, proofs []*types.TxRecordProof, receiverPKH []byte, refNo []byte) (uint64, error) {
+func amountTransferredSum(proofs []*types.TxRecordProof, receiverPKH []byte, refNo []byte, getTrustBase func(*types.TxProof) (types.RootTrustBase, error)) (uint64, error) {
 	var total uint64
 	var rErr error
 	for i, v := range proofs {
+		trustBase, err := getTrustBase(v.TxProof)
+		if err != nil {
+			rErr = errors.Join(rErr, fmt.Errorf("record[%d]: acquiring trust base: %w", i, err))
+			continue
+		}
 		sum, err := transferredSum(trustBase, v, receiverPKH, refNo)
 		if err != nil {
 			rErr = errors.Join(rErr, fmt.Errorf("record[%d]: %w", i, err))
@@ -255,4 +240,37 @@ func transferredSum(trustBase types.RootTrustBase, txRecordProof *types.TxRecord
 	}
 
 	return sum, nil
+}
+
+/*
+trustBaseLoader returns function which loads the trustbase in effect on
+the epoch of the tx proof
+*/
+func trustBaseLoader(getTrustBase func(epoch uint64) (types.RootTrustBase, error)) func(proof *types.TxProof) (types.RootTrustBase, error) {
+	return func(proof *types.TxProof) (types.RootTrustBase, error) {
+		uc, err := proof.GetUC()
+		if err != nil {
+			return nil, fmt.Errorf("reading UC: %w", err)
+		}
+		if uc.UnicitySeal == nil {
+			return nil, fmt.Errorf("invalid UC: UnicitySeal is unassigned")
+		}
+		trustBase, err := getTrustBase(uc.UnicitySeal.Epoch)
+		if err != nil {
+			return nil, fmt.Errorf("acquiring trust base: %w", err)
+		}
+		return trustBase, nil
+	}
+}
+
+type txoEvalCtx struct {
+	EvalEnvironment
+	exArgument func() ([]byte, error)
+}
+
+func (ec txoEvalCtx) ExtraArgument() ([]byte, error) {
+	if ec.exArgument == nil {
+		return nil, errors.New("extra arguments callback not assigned")
+	}
+	return ec.exArgument()
 }

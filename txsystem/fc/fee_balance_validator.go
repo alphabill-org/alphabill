@@ -20,7 +20,7 @@ type (
 	}
 
 	StateReader interface {
-		GetUnit(id types.UnitID, committed bool) (*state.Unit, error)
+		GetUnit(id types.UnitID, committed bool) (state.Unit, error)
 	}
 )
 
@@ -58,7 +58,7 @@ func (f *FeeBalanceValidator) IsCredible(exeCtx txtypes.ExecutionContext, tx *ty
 		return fmt.Errorf("the max fee cannot exceed fee credit balance. FC balance %d vs max fee %d", fcr.Balance, tx.MaxFee())
 	}
 	// VerifyFeeAuth(N[ιf].φ, T, T.sf) - fee authorization proof satisfies the owner predicate of the fee credit record
-	if err := f.execPredicate(fcr.OwnerPredicate, tx.FeeProof, tx.FeeProofSigBytes, exeCtx); err != nil {
+	if err := f.execPredicate(fcr.OwnerPredicate, tx.FeeProof, tx, exeCtx.WithExArg(tx.FeeProofSigBytes)); err != nil {
 		return fmt.Errorf("evaluating fee proof: %w", err)
 	}
 	return nil

@@ -115,24 +115,25 @@ type (
 		epochChangeEvent            chan struct{}
 		peer                        *network.Peer
 
-		rootNodes                   peer.IDSlice
-		shardStore                  *shardStore
-		network                     ValidatorNetwork
-		eventCh                     chan event.Event
-		lastLedgerReqTime           time.Time
-		eventHandler                event.Handler
-		recoveryLastProp            *blockproposal.BlockProposal
-		log                         *slog.Logger
-		tracer                      trace.Tracer
+		rootNodes         peer.IDSlice
+		shardStore        *shardStore
+		network           ValidatorNetwork
+		eventCh           chan event.Event
+		lastLedgerReqTime time.Time
+		eventHandler      event.Handler
+		recoveryLastProp  *blockproposal.BlockProposal
+		log               *slog.Logger
+		tracer            trace.Tracer
 
 		execTxCnt   metric.Int64Counter
 		execTxDur   metric.Float64Histogram
 		leaderCnt   metric.Int64Counter
-		blockSize   metric.Int64Counter
+		blockSize   metric.Int64Histogram
 		execMsgCnt  metric.Int64Counter
 		execMsgDur  metric.Float64Histogram
+		execT1Dur   metric.Float64Histogram
 		recoveryReq metric.Int64Counter
-		fixedAttr   metric.MeasurementOption
+		fixedAttr   metric.MeasurementOption // partition & shard
 	}
 
 	RoundInfo struct {
@@ -200,10 +201,13 @@ func NewNode(ctx context.Context, txSystem txsystem.TransactionSystem, conf *Nod
 		tracer:                      tracer,
 	}
 	n.log = conf.observability.RoundLogger(n.currentRoundNumber)
-	n.proofIndexer = NewProofIndexer(conf.hashAlgorithm, conf.proofIndexConfig.store, conf.proofIndexConfig.historyLen, n.log)
+	n.proofIndexer = NewProofIndexer(conf.hashAlgorithm, conf.proofIndexConfig.store,
+		conf.proofIndexConfig.historyLen, observability.WithLogger(conf.observability, n.log))
 	n.resetProposal()
 	n.stopTxProcessor.Store(func() { /* init to NOP */ })
 	n.status.Store(initializing)
+
+	n.log.InfoContext(ctx, fmt.Sprintf("Node '%s' initializing, starting round #%d", peerConf.ID, txSystem.CommittedUC().GetRoundNumber()))
 
 	if err := n.initMetrics(conf.observability); err != nil {
 		return nil, fmt.Errorf("initialize metrics: %w", err)
@@ -240,9 +244,12 @@ func (n *Node) initMetrics(observe Observability) (err error) {
 	if err != nil {
 		return fmt.Errorf("creating counter for leader count: %w", err)
 	}
-	n.blockSize, err = m.Int64Counter("block.size", metric.WithDescription("Number of transactions in the proposal made by the node"), metric.WithUnit("{transaction}"))
+	n.blockSize, err = m.Int64Histogram("block.size",
+		metric.WithDescription("Number of transactions in the proposal made by the node"),
+		metric.WithUnit("{transaction}"),
+		metric.WithExplicitBucketBoundaries(0, 50, 100, 150, 200, 250, 300, 350, 400, 450, 500))
 	if err != nil {
-		return fmt.Errorf("creating counter for block size: %w", err)
+		return fmt.Errorf("creating histogram for block size: %w", err)
 	}
 
 	n.execTxCnt, err = m.Int64Counter("exec.tx.count", metric.WithDescription("Number of transactions processed by the node"), metric.WithUnit("{transaction}"))
@@ -264,10 +271,19 @@ func (n *Node) initMetrics(observe Observability) (err error) {
 	n.execMsgDur, err = m.Float64Histogram("exec.msg.time",
 		metric.WithDescription("How long it took to process AB network message"),
 		metric.WithUnit("s"),
-		metric.WithExplicitBucketBoundaries(100e-6, 200e-6, 400e-6, 800e-6, 0.0016, 0.01, 0.05),
+		metric.WithExplicitBucketBoundaries(100e-6, 200e-6, 400e-6, 800e-6, 0.0016, 0.01, 0.05, 0.1, 0.2, 0.4, 0.8),
 	)
 	if err != nil {
 		return fmt.Errorf("creating histogram for processed messages: %w", err)
+	}
+
+	n.execT1Dur, err = m.Float64Histogram("exec.t1.time",
+		metric.WithDescription("How long it took to process T1 timeout (build and send proposal)"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(0.005, 0.01, 0.02, 0.04, 0.08, 0.16, 0.32, 0.64, 1),
+	)
+	if err != nil {
+		return fmt.Errorf("creating histogram for processing T1 timeouts: %w", err)
 	}
 
 	n.recoveryReq, err = m.Int64Counter("recovery", metric.WithDescription("Number of times node has entered into recovery state and sent out state request"))
@@ -1040,10 +1056,10 @@ func (n *Node) revertState() {
 
 // finalizeBlock creates the block and adds it to the blockStore.
 func (n *Node) finalizeBlock(ctx context.Context, b *types.Block, uc *types.UnicityCertificate) error {
-	blockNumber := uc.GetRoundNumber()
-	_, span := n.tracer.Start(ctx, "Node.finalizeBlock", trace.WithAttributes(attribute.Int64("block.number", int64(blockNumber))))
+	ctx, span := n.tracer.Start(ctx, "Node.finalizeBlock", trace.WithAttributes(attribute.Int64("block.size", int64(len(b.Transactions)))))
 	defer span.End()
 
+	blockNumber := uc.GetRoundNumber()
 	roundNoInBytes := util.Uint64ToBytes(blockNumber)
 	isInitializing := n.status.Load() == initializing
 
@@ -1090,7 +1106,7 @@ func (n *Node) handleT1TimeoutEvent(ctx context.Context) {
 	defer span.End()
 
 	if !n.IsValidator() {
-		n.log.InfoContext(ctx, "T1 timeout: node is non-validator")
+		n.log.DebugContext(ctx, "T1 timeout: node is non-validator")
 		return
 	}
 
@@ -1106,6 +1122,8 @@ func (n *Node) handleT1TimeoutEvent(ctx context.Context) {
 		n.log.DebugContext(ctx, "Current node is not the leader.")
 		return
 	}
+
+	defer func(start time.Time) { n.execT1Dur.Record(ctx, time.Since(start).Seconds(), n.fixedAttr) }(time.Now())
 	n.log.DebugContext(ctx, "Current node is the leader.")
 	if err := n.sendBlockProposal(ctx); err != nil {
 		n.log.WarnContext(ctx, "Failed to send BlockProposal", logger.Error(err))
@@ -1454,7 +1472,7 @@ func (n *Node) sendBlockProposal(ctx context.Context) error {
 	if err := prop.Sign(n.configuration.hashAlgorithm, n.configuration.signer); err != nil {
 		return fmt.Errorf("block proposal sign failed, %w", err)
 	}
-	n.blockSize.Add(ctx, int64(len(prop.Transactions)), n.fixedAttr)
+	n.blockSize.Record(ctx, int64(len(prop.Transactions)), n.fixedAttr)
 	return n.network.Send(ctx, prop, n.FilterValidatorNodes(nodeID)...)
 }
 

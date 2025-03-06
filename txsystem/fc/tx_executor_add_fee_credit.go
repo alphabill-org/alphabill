@@ -84,7 +84,7 @@ func (f *FeeCreditModule) validateAddFC(tx *types.TransactionOrder, attr *fc.Add
 		return fmt.Errorf("transFC proof is not valid: %w", err)
 	}
 	// the owner proof satisfies the bill's owner predicate
-	if err = f.execPredicate(attr.FeeCreditOwnerPredicate, authProof.OwnerProof, tx.AuthProofSigBytes, exeCtx); err != nil {
+	if err = f.execPredicate(attr.FeeCreditOwnerPredicate, authProof.OwnerProof, tx, exeCtx.WithExArg(tx.AuthProofSigBytes)); err != nil {
 		return fmt.Errorf("executing fee credit predicate: %w", err)
 	}
 	return nil

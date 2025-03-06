@@ -436,7 +436,9 @@ func TestExecute_SwapOk(t *testing.T) {
 	dcBill, dcBillData := getBill(t, s, DustCollectorMoneySupplyID)
 	require.Equal(t, beforeCommitValue, dcBillData.Value)
 	// Make sure the DC bill logs are pruned
-	require.Equal(t, 1, len(dcBill.Logs()))
+	u, err := state.ToUnitV1(dcBill)
+	require.NoError(t, err)
+	require.Equal(t, 1, len(u.Logs()))
 }
 
 func TestExecute_LockAndUnlockOk(t *testing.T) {
@@ -505,6 +507,7 @@ func TestBillData_Value(t *testing.T) {
 
 func TestBillData_AddToHasher(t *testing.T) {
 	bd := &money.BillData{
+		Version: 1,
 		Value:   10,
 		Counter: 0,
 		Locked:  1,
@@ -936,7 +939,7 @@ func TestExecute_AddFeeCreditWithLocking_OK(t *testing.T) {
 	require.False(t, fcr.IsLocked())
 }
 
-func getBill(t *testing.T, s *state.State, billID types.UnitID) (*state.Unit, *money.BillData) {
+func getBill(t *testing.T, s *state.State, billID types.UnitID) (state.Unit, *money.BillData) {
 	t.Helper()
 	ib, err := s.GetUnit(billID, false)
 	require.NoError(t, err)
@@ -1110,7 +1113,9 @@ func createStateAndTxSystem(t *testing.T, pdrs []*types.PartitionDescriptionReco
 	require.NotNil(t, summary.Summary())
 	require.NotNil(t, summary.Root())
 	require.Len(t, summary.Root(), crypto.SHA256.Size())
-	require.True(t, s.IsCommitted())
+	c, err := s.IsCommitted()
+	require.NoError(t, err)
+	require.True(t, c)
 	// add fee credit record with empty predicate
 	fcrData := &fcsdk.FeeCreditRecord{
 		Balance:        100,

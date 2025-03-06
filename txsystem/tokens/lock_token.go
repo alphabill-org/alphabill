@@ -89,7 +89,7 @@ func (m *LockTokensModule) validateLockTokenTx(tx *types.TransactionOrder, attr 
 	}
 }
 
-func (m *LockTokensModule) validateFungibleLockToken(tx *types.TransactionOrder, attr *tokens.LockTokenAttributes, authProof *tokens.LockTokenAuthProof, u *state.Unit, exeCtx txtypes.ExecutionContext) error {
+func (m *LockTokensModule) validateFungibleLockToken(tx *types.TransactionOrder, attr *tokens.LockTokenAttributes, authProof *tokens.LockTokenAuthProof, u state.Unit, exeCtx txtypes.ExecutionContext) error {
 	d, ok := u.Data().(*tokens.FungibleTokenData)
 	if !ok {
 		return fmt.Errorf("unit %v is not fungible token data", tx.UnitID)
@@ -97,13 +97,13 @@ func (m *LockTokensModule) validateFungibleLockToken(tx *types.TransactionOrder,
 	if err := m.validateTokenLock(attr, d); err != nil {
 		return err
 	}
-	if err := m.execPredicate(d.Owner(), authProof.OwnerProof, tx.AuthProofSigBytes, exeCtx); err != nil {
+	if err := m.execPredicate(d.Owner(), authProof.OwnerProof, tx, exeCtx.WithExArg(tx.AuthProofSigBytes)); err != nil {
 		return fmt.Errorf("evaluating owner predicate: %w", err)
 	}
 	return nil
 }
 
-func (m *LockTokensModule) validateNonFungibleLockToken(tx *types.TransactionOrder, attr *tokens.LockTokenAttributes, authProof *tokens.LockTokenAuthProof, u *state.Unit, exeCtx txtypes.ExecutionContext) error {
+func (m *LockTokensModule) validateNonFungibleLockToken(tx *types.TransactionOrder, attr *tokens.LockTokenAttributes, authProof *tokens.LockTokenAuthProof, u state.Unit, exeCtx txtypes.ExecutionContext) error {
 	d, ok := u.Data().(*tokens.NonFungibleTokenData)
 	if !ok {
 		return fmt.Errorf("unit %v is not non-fungible token data", tx.UnitID)
@@ -111,7 +111,7 @@ func (m *LockTokensModule) validateNonFungibleLockToken(tx *types.TransactionOrd
 	if err := m.validateTokenLock(attr, d); err != nil {
 		return err
 	}
-	if err := m.execPredicate(d.Owner(), authProof.OwnerProof, tx.AuthProofSigBytes, exeCtx); err != nil {
+	if err := m.execPredicate(d.Owner(), authProof.OwnerProof, tx, exeCtx.WithExArg(tx.AuthProofSigBytes)); err != nil {
 		return fmt.Errorf("evaluating owner predicate: %w", err)
 	}
 	return nil

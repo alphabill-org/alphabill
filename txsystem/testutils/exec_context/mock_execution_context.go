@@ -1,6 +1,8 @@
 package exec_context
 
 import (
+	"errors"
+
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/tree/avl"
@@ -8,16 +10,16 @@ import (
 )
 
 type MockExecContext struct {
-	Tx            *types.TransactionOrder
-	Unit          *state.Unit
+	Unit          state.Unit
 	RootTrustBase types.RootTrustBase
 	RoundNumber   uint64
 	GasRemaining  uint64
 	mockErr       error
 	customData    []byte
+	exArgument    func() ([]byte, error)
 }
 
-func (m *MockExecContext) GetUnit(id types.UnitID, committed bool) (*state.Unit, error) {
+func (m *MockExecContext) GetUnit(id types.UnitID, committed bool) (state.Unit, error) {
 	if m.mockErr != nil {
 		return nil, m.mockErr
 	}
@@ -28,6 +30,8 @@ func (m *MockExecContext) GetUnit(id types.UnitID, committed bool) (*state.Unit,
 	return m.Unit, nil
 }
 
+func (m *MockExecContext) CommittedUC() *types.UnicityCertificate { return nil }
+
 func (m *MockExecContext) CurrentRound() uint64 { return m.RoundNumber }
 
 func (m *MockExecContext) TrustBase(epoch uint64) (types.RootTrustBase, error) {
@@ -37,11 +41,16 @@ func (m *MockExecContext) TrustBase(epoch uint64) (types.RootTrustBase, error) {
 	return m.RootTrustBase, nil
 }
 
-func (m *MockExecContext) TransactionOrder() (*types.TransactionOrder, error) {
-	if m.mockErr != nil {
-		return nil, m.mockErr
+func (m *MockExecContext) ExtraArgument() ([]byte, error) {
+	if m.exArgument == nil {
+		return nil, errors.New("extra argument callback not assigned")
 	}
-	return m.Tx, nil
+	return m.exArgument()
+}
+
+func (m *MockExecContext) WithExArg(f func() ([]byte, error)) txtypes.ExecutionContext {
+	m.exArgument = f
+	return m
 }
 
 func (m *MockExecContext) GetData() []byte {
@@ -60,7 +69,7 @@ func WithCurrentRound(round uint64) TestOption {
 	}
 }
 
-func WithUnit(unit *state.Unit) TestOption {
+func WithUnit(unit state.Unit) TestOption {
 	return func(m *MockExecContext) {
 		m.Unit = unit
 	}

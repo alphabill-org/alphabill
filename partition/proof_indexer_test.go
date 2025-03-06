@@ -11,12 +11,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alphabill-org/alphabill-go-base/util"
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill-go-base/util"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
-	testlogger "github.com/alphabill-org/alphabill/internal/testutils/logger"
+	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/alphabill-org/alphabill/keyvaluedb/boltdb"
 	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/state"
@@ -25,8 +25,7 @@ import (
 func TestNewProofIndexer_history_2(t *testing.T) {
 	proofDB, err := memorydb.New()
 	require.NoError(t, err)
-	logger := testlogger.New(t)
-	indexer := NewProofIndexer(crypto.SHA256, proofDB, 2, logger)
+	indexer := NewProofIndexer(crypto.SHA256, proofDB, 2, observability.Default(t))
 	require.Equal(t, proofDB, indexer.GetDB())
 
 	// start indexing loop
@@ -71,8 +70,7 @@ func TestNewProofIndexer_history_2(t *testing.T) {
 func TestNewProofIndexer_IndexBlock_EmptyInput(t *testing.T) {
 	proofDB, err := memorydb.New()
 	require.NoError(t, err)
-	logger := testlogger.New(t)
-	indexer := NewProofIndexer(crypto.SHA256, proofDB, 2, logger)
+	indexer := NewProofIndexer(crypto.SHA256, proofDB, 2, observability.Default(t))
 	require.Equal(t, proofDB, indexer.GetDB())
 	// start indexing loop
 	ctx := context.Background()
@@ -98,8 +96,7 @@ func TestNewProofIndexer_IndexBlock_EmptyInput(t *testing.T) {
 func TestNewProofIndexer_IndexBlock(t *testing.T) {
 	proofDB, err := memorydb.New()
 	require.NoError(t, err)
-	logger := testlogger.New(t)
-	indexer := NewProofIndexer(crypto.SHA256, proofDB, 2, logger)
+	indexer := NewProofIndexer(crypto.SHA256, proofDB, 2, observability.Default(t))
 	require.Equal(t, proofDB, indexer.GetDB())
 	// start indexing loop
 	ctx := context.Background()
@@ -153,8 +150,7 @@ func TestNewProofIndexer_IndexBlock(t *testing.T) {
 func TestNewProofIndexer_SimulateWriteError(t *testing.T) {
 	proofDB, err := memorydb.New()
 	require.NoError(t, err)
-	logger := testlogger.New(t)
-	indexer := NewProofIndexer(crypto.SHA256, proofDB, 2, logger)
+	indexer := NewProofIndexer(crypto.SHA256, proofDB, 2, observability.Default(t))
 	require.Equal(t, proofDB, indexer.GetDB())
 	// start indexing loop
 	ctx := context.Background()
@@ -169,8 +165,7 @@ func TestNewProofIndexer_RunLoop(t *testing.T) {
 	t.Run("run loop - no history clean-up", func(t *testing.T) {
 		proofDB, err := memorydb.New()
 		require.NoError(t, err)
-		logger := testlogger.New(t)
-		indexer := NewProofIndexer(crypto.SHA256, proofDB, 0, logger)
+		indexer := NewProofIndexer(crypto.SHA256, proofDB, 0, observability.Default(t))
 		// start indexing loop
 		ctx := context.Background()
 		nctx, cancel := context.WithCancel(ctx)
@@ -217,8 +212,7 @@ func TestNewProofIndexer_RunLoop(t *testing.T) {
 	t.Run("run loop - keep last 2 rounds", func(t *testing.T) {
 		proofDB, err := memorydb.New()
 		require.NoError(t, err)
-		logger := testlogger.New(t)
-		indexer := NewProofIndexer(crypto.SHA256, proofDB, 2, logger)
+		indexer := NewProofIndexer(crypto.SHA256, proofDB, 2, observability.Default(t))
 
 		// start indexing loop
 		ctx := context.Background()
@@ -276,8 +270,7 @@ func TestProofIndexer_BoltDBTx(t *testing.T) {
 	t.Cleanup(func() {
 		_ = proofDB.Close()
 	})
-	logger := testlogger.New(t)
-	indexer := NewProofIndexer(crypto.SHA256, proofDB, 2, logger)
+	indexer := NewProofIndexer(crypto.SHA256, proofDB, 2, observability.Default(t))
 
 	// simulate error when indexing a block
 	ctx := context.Background()
@@ -299,11 +292,11 @@ type mockStateStoreOK struct {
 	err error
 }
 
-func (m mockStateStoreOK) GetUnit(id types.UnitID, committed bool) (*state.Unit, error) {
+func (m mockStateStoreOK) GetUnit(id types.UnitID, committed bool) (state.Unit, error) {
 	if m.err != nil {
 		return nil, m.err
 	}
-	return &state.Unit{}, nil
+	return &state.UnitV1{}, nil
 }
 
 func (m mockStateStoreOK) CreateUnitStateProof(id types.UnitID, logIndex int) (*types.UnitStateProof, error) {

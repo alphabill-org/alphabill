@@ -45,6 +45,7 @@ type TxValidationContext struct {
 	PartitionID types.PartitionID
 	BlockNumber uint64
 	CustomData  []byte
+	exArgument  func() ([]byte, error)
 }
 
 type TxSystem struct {
@@ -114,14 +115,22 @@ func (m *TxSystem) State() txsystem.StateReader {
 }
 
 func (m *TxSystem) StateSize() (uint64, error) {
-	if !m.state.IsCommitted() {
+	committed, err := m.state.IsCommitted()
+	if err != nil {
+		return 0, fmt.Errorf("unable to check if state is committed: %w", err)
+	}
+	if !committed {
 		return 0, txsystem.ErrStateContainsUncommittedChanges
 	}
 	return m.state.Size()
 }
 
 func (m *TxSystem) StateSummary() (txsystem.StateSummary, error) {
-	if !m.state.IsCommitted() {
+	committed, err := m.state.IsCommitted()
+	if err != nil {
+		return nil, fmt.Errorf("unable to check if state is committed: %w", err)
+	}
+	if !committed {
 		return nil, txsystem.ErrStateContainsUncommittedChanges
 	}
 	return m.getState()
@@ -171,7 +180,10 @@ func (m *TxSystem) Execute(tx *types.TransactionOrder) (txr *types.TransactionRe
 		Version:          1,
 		TransactionOrder: txBytes,
 	}
-	savepointID := m.state.Savepoint()
+	savepointID, err := m.state.Savepoint()
+	if err != nil {
+		return nil, fmt.Errorf("savepoint creation failed: %w", err)
+	}
 	defer func() {
 		if err != nil {
 			// transaction execution failed. revert every change made by the transaction order
@@ -244,8 +256,12 @@ func (m *TxSystem) TypeID() types.PartitionTypeID {
 	return evm.PartitionTypeID
 }
 
-func (vc *TxValidationContext) GetUnit(id types.UnitID, committed bool) (*state.Unit, error) {
+func (vc *TxValidationContext) GetUnit(id types.UnitID, committed bool) (state.Unit, error) {
 	return vc.state.GetUnit(id, committed)
+}
+
+func (vc *TxValidationContext) CommittedUC() *types.UnicityCertificate {
+	return vc.state.CommittedUC()
 }
 
 func (vc *TxValidationContext) CurrentRound() uint64 { return vc.BlockNumber }
@@ -272,4 +288,16 @@ func (vc *TxValidationContext) GetData() []byte {
 
 func (vc *TxValidationContext) SetData(data []byte) {
 	vc.CustomData = data
+}
+
+func (vc *TxValidationContext) ExtraArgument() ([]byte, error) {
+	if vc.exArgument == nil {
+		return nil, errors.New("extra argument callback not assigned")
+	}
+	return vc.exArgument()
+}
+
+func (vc *TxValidationContext) WithExArg(f func() ([]byte, error)) txtypes.ExecutionContext {
+	vc.exArgument = f
+	return vc
 }

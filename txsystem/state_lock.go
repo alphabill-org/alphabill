@@ -32,11 +32,11 @@ func (p *StateUnlockProof) check(pr predicates.PredicateRunner, tx *types.Transa
 	}
 	switch p.Kind {
 	case StateUnlockExecute:
-		if err := pr(stateLock.ExecutionPredicate, p.Proof, tx.StateLockProofSigBytes, exeCtx); err != nil {
+		if err := pr(stateLock.ExecutionPredicate, p.Proof, tx, exeCtx.WithExArg(tx.StateLockProofSigBytes)); err != nil {
 			return fmt.Errorf("state lock's execution predicate failed: %w", err)
 		}
 	case StateUnlockRollback:
-		if err := pr(stateLock.RollbackPredicate, p.Proof, tx.StateLockProofSigBytes, exeCtx); err != nil {
+		if err := pr(stateLock.RollbackPredicate, p.Proof, tx, exeCtx.WithExArg(tx.StateLockProofSigBytes)); err != nil {
 			return fmt.Errorf("state lock's rollback predicate failed: %w", err)
 		}
 	default:
@@ -67,8 +67,12 @@ func (m *GenericTxSystem) handleUnlockUnitState(tx *types.TransactionOrder, exeC
 		}
 		return nil, fmt.Errorf("getting unit: %w", err)
 	}
+	unit, err := state.ToUnitV1(u)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert unit to version 1: %w", err)
+	}
 	// if unit is not locked, then this method is done - nothing to unlock
-	if !u.IsStateLocked() {
+	if !unit.IsStateLocked() {
 		return nil, nil
 	}
 	// unit has a state lock, any transaction with locked unit must first unlock
@@ -79,7 +83,7 @@ func (m *GenericTxSystem) handleUnlockUnitState(tx *types.TransactionOrder, exeC
 		return nil, fmt.Errorf("unlock proof error: %w", err)
 	}
 	txOnHold := &types.TransactionOrder{Version: 1}
-	if err = types.Cbor.Unmarshal(u.StateLockTx(), txOnHold); err != nil {
+	if err = types.Cbor.Unmarshal(unit.StateLockTx(), txOnHold); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal state lock transaction: %w", err)
 	}
 	// The following line assumes that the pending transaction is valid and has a Payload

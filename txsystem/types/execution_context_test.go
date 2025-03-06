@@ -14,9 +14,11 @@ import (
 type stateInfo struct {
 }
 
-func (s *stateInfo) GetUnit(id types.UnitID, committed bool) (*state.Unit, error) {
+func (s *stateInfo) GetUnit(id types.UnitID, committed bool) (state.Unit, error) {
 	return nil, fmt.Errorf("unit does not exist")
 }
+
+func (s *stateInfo) CommittedUC() *types.UnicityCertificate { return nil }
 
 func (s *stateInfo) CurrentRound() uint64 {
 	return 1
@@ -27,7 +29,7 @@ func Test_newExecutionContext(t *testing.T) {
 		_, verifier := testsig.CreateSignerAndVerifier(t)
 		tb := testtb.NewTrustBase(t, verifier)
 		info := &stateInfo{}
-		execCtx := NewExecutionContext(nil, info, NewMockFeeModule(), tb, 10)
+		execCtx := NewExecutionContext(info, NewMockFeeModule(), tb, 10)
 		require.NotNil(t, execCtx)
 		require.EqualValues(t, 1, execCtx.CurrentRound())
 		tb, err := execCtx.TrustBase(0)

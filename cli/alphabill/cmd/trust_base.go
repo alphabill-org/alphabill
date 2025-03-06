@@ -20,6 +20,7 @@ type (
 	trustBaseGenerateFlags struct {
 		*baseFlags
 
+		NetworkID       uint16
 		NodeInfoFiles   []string // paths to node info files
 		QuorumThreshold uint64   // optional custom quorum threshold (default len(nodes)*2/3 + 1)
 	}
@@ -52,6 +53,7 @@ func trustBaseGenerateCmd(baseFlags *baseFlags) *cobra.Command {
 		},
 	}
 
+	cmd.Flags().Uint16Var(&flags.NetworkID, "network-id", 0, "network identifier")
 	cmd.Flags().StringSliceVarP(&flags.NodeInfoFiles, "node-info", "n", []string{}, "path to node info files")
 	if err := cmd.MarkFlagRequired("node-info"); err != nil {
 		panic(err)
@@ -70,7 +72,8 @@ func trustBaseGenerate(flags *trustBaseGenerateFlags) error {
 		return fmt.Errorf("failed to read node info files: %w", err)
 	}
 
-	trustBase, err := types.NewTrustBaseGenesis(nodes, types.WithQuorumThreshold(flags.QuorumThreshold))
+	trustBase, err := types.NewTrustBaseGenesis(types.NetworkID(flags.NetworkID), nodes,
+		types.WithQuorumThreshold(flags.QuorumThreshold))
 	if err != nil {
 		return fmt.Errorf("failed to generate trust base: %w", err)
 	}

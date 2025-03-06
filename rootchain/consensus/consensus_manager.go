@@ -103,6 +103,7 @@ type (
 		qcVoters    metric.Int64Counter
 		susVotes    metric.Int64Counter
 		recoveryReq metric.Int64Counter
+		addBlockDur metric.Float64Histogram
 	}
 )
 
@@ -149,7 +150,7 @@ func NewConsensusManager(
 	if err != nil {
 		return nil, fmt.Errorf("failed to create T2 timeout generator: %w", err)
 	}
-	safetyModule, err := NewSafetyModule(nodeID.String(), signer, optional.Storage)
+	safetyModule, err := NewSafetyModule(trustBase.GetNetworkID(), nodeID.String(), signer, optional.Storage)
 	if err != nil {
 		return nil, err
 	}
@@ -228,6 +229,14 @@ func (x *ConsensusManager) initMetrics(observe Observability) (err error) {
 		metric.WithExplicitBucketBoundaries(100e-6, 200e-6, 400e-6, 800e-6, 0.0016, 0.01, 0.05, 0.1))
 	if err != nil {
 		return fmt.Errorf("creating histogram for processed messages: %w", err)
+	}
+
+	x.addBlockDur, err = m.Float64Histogram("add.block.time",
+		metric.WithDescription("How long it took to add block from proposal"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(0.001, 0.002, 0.004, 0.008, 0.016, 0.032, 0.064, 0.128))
+	if err != nil {
+		return fmt.Errorf("creating histogram for adding block: %w", err)
 	}
 
 	x.qcSize, err = m.Int64Counter("qc.vote.count", metric.WithDescription("Number of votes in the quorum certificate"))
@@ -696,7 +705,9 @@ func (x *ConsensusManager) onProposalMsg(ctx context.Context, proposal *abdrc.Pr
 	x.processQC(ctx, proposal.Block.Qc)
 	x.processTC(ctx, proposal.LastRoundTc)
 	// execute proposed payload
+	start := time.Now()
 	execStateId, err := x.blockStore.Add(proposal.Block, x.irReqVerifier)
+	x.addBlockDur.Record(ctx, time.Since(start).Seconds())
 	if err != nil {
 		// wait for timeout, if others make progress this node will need to recover
 		// cannot send vote, so just return and wait for local timeout or new proposal (and try to recover then)

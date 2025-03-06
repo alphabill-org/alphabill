@@ -82,7 +82,7 @@ func TestExecutedBlock_Extend(t *testing.T) {
 	var varNodes []*types.NodeInfo
 	for _, peer := range peers {
 		varNodes = append(varNodes, &types.NodeInfo{
-			NodeID:  peer.PeerConf.ID.String(),
+			NodeID: peer.PeerConf.ID.String(),
 			SigKey: peer.PeerConf.KeyPair.PublicKey,
 		})
 	}

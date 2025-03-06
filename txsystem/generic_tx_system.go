@@ -108,14 +108,22 @@ func (m *GenericTxSystem) IsFeelessMode() bool {
 }
 
 func (m *GenericTxSystem) StateSize() (uint64, error) {
-	if !m.state.IsCommitted() {
+	committed, err := m.state.IsCommitted()
+	if err != nil {
+		return 0, fmt.Errorf("unable to check state committed status: %w", err)
+	}
+	if !committed {
 		return 0, ErrStateContainsUncommittedChanges
 	}
 	return m.state.Size()
 }
 
 func (m *GenericTxSystem) StateSummary() (StateSummary, error) {
-	if !m.state.IsCommitted() {
+	committed, err := m.state.IsCommitted()
+	if err != nil {
+		return nil, fmt.Errorf("unable to check state committed status: %w", err)
+	}
+	if !committed {
 		return nil, ErrStateContainsUncommittedChanges
 	}
 	return m.getStateSummary()
@@ -152,7 +160,7 @@ func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (*types.Transactio
 	// First, check transaction credible and that there are enough fee credits on the FCR?
 	// buy gas according to the maximum tx fee allowed by client -
 	// if fee proof check fails, function will exit tx and tx will not be added to block
-	exeCtx := txtypes.NewExecutionContext(tx, m, m.fees, m.trustBase, tx.MaxFee())
+	exeCtx := txtypes.NewExecutionContext(m, m.fees, m.trustBase, tx.MaxFee())
 	// 2. If P.α != S.α ∨ fSH(P.ι) != S.σ ∨ S .n ≥ P.T 0 then return ⊥
 	// 3. If not P.MC .ι f = ⊥ = P.s f then return ⊥
 	if err := m.validateGenericTransaction(tx); err != nil {
@@ -195,7 +203,10 @@ func (m *GenericTxSystem) doExecute(tx *types.TransactionOrder, exeCtx *txtypes.
 		TransactionOrder: txBytes,
 		ServerMetadata:   &types.ServerMetadata{SuccessIndicator: types.TxStatusSuccessful},
 	}
-	savepointID := m.state.Savepoint()
+	savepointID, err := m.state.Savepoint()
+	if err != nil {
+		return nil, fmt.Errorf("savepoint error: %w", err)
+	}
 	defer func() {
 		// set the correct success indicator
 		if txExecErr != nil {
@@ -298,7 +309,10 @@ func (m *GenericTxSystem) executeFc(tx *types.TransactionOrder, exeCtx *txtypes.
 	}
 	// 8. b ← SNFees(S, P; &MS) - is at the moment done for all tx before this call
 	// 9. TakeSnapshot
-	savepointID := m.state.Savepoint()
+	savepointID, err := m.state.Savepoint()
+	if err != nil {
+		return nil, fmt.Errorf("savepoint error: %w", err)
+	}
 	// skip step 10 b ← Unlock(S, P; &MS) - nothing to unlock if state lock is disabled in step 4?
 	// skip 11 If S .N[P.ι].L != ⊥ - unlock fail, as currently no attempt is made to unlock
 	// proceed with the transaction execution
@@ -412,7 +426,7 @@ func (m *GenericTxSystem) TypeID() types.PartitionTypeID {
 	return m.pdr.PartitionTypeID
 }
 
-func (m *GenericTxSystem) GetUnit(id types.UnitID, committed bool) (*state.Unit, error) {
+func (m *GenericTxSystem) GetUnit(id types.UnitID, committed bool) (state.Unit, error) {
 	return m.state.GetUnit(id, committed)
 }
 

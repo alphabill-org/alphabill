@@ -80,7 +80,7 @@ func newTokensTxSystem(flags *shardNodeRunFlags, nodeConf *partition.NodeConf) (
 	}
 
 	// register all unit- and attribute types from token tx system
-	enc, err := encoder.New(tokenc.RegisterTxAttributeEncoders, tokenc.RegisterUnitDataEncoders)
+	enc, err := encoder.New(tokenc.RegisterTxAttributeEncoders, tokenc.RegisterUnitDataEncoders, tokenc.RegisterAuthProof)
 	if err != nil {
 		return nil, fmt.Errorf("creating encoders for WASM predicate engine: %w", err)
 	}

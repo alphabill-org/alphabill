@@ -479,7 +479,7 @@ func (s *State) createUnitTreeCert(unit *UnitV1, logIndex int) (*types.UnitTreeC
 	}
 	return &types.UnitTreeCert{
 		TransactionRecordHash: l.TxRecordHash,
-		UnitDataHash:          h,
+		UnitStateHash:         h,
 		Path:                  path,
 	}, nil
 }

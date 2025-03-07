@@ -167,7 +167,7 @@ func rootNodeRun(ctx context.Context, flags *rootNodeRunFlags) error {
 	}
 
 	orchestrationStorePath := flags.pathWithDefault("", orchestrationStoreFileName)
-	orchestration, err := partitions.NewOrchestration(orchestrationStorePath, log)
+	orchestration, err := partitions.NewOrchestration(trustBase.GetNetworkID(), orchestrationStorePath, log)
 	if err != nil {
 		return fmt.Errorf("creating orchestration: %w", err)
 	}

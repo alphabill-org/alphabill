@@ -86,6 +86,7 @@ type (
 		PrometheusRegisterer() prometheus.Registerer
 		Logger() *slog.Logger
 		RoundLogger(curRound func() uint64) *slog.Logger
+		Shutdown() error
 	}
 
 	// Node represents a member in the partition and implements an instance of a specific TransactionSystem. Partition
@@ -134,7 +135,7 @@ type (
 		execMsgDur  metric.Float64Histogram
 		execT1Dur   metric.Float64Histogram
 		recoveryReq metric.Int64Counter
-		fixedAttr   metric.MeasurementOption
+		fixedAttr   metric.MeasurementOption // partition & shard
 	}
 
 	RoundInfo struct {
@@ -212,7 +213,7 @@ func NewNode(
 		tracer:                      tracer,
 	}
 	n.log = observe.RoundLogger(n.currentRoundNumber)
-	n.proofIndexer = NewProofIndexer(conf.hashAlgorithm, conf.proofIndexConfig.store, conf.proofIndexConfig.historyLen, n.log)
+	n.proofIndexer = NewProofIndexer(conf.hashAlgorithm, conf.proofIndexConfig.store, conf.proofIndexConfig.historyLen, observability.WithLogger(observe, n.log))
 	n.resetProposal()
 	n.stopTxProcessor.Store(func() { /* init to NOP */ })
 	n.status.Store(initializing)
@@ -257,9 +258,9 @@ func (n *Node) initMetrics(observe Observability) (err error) {
 	n.blockSize, err = m.Int64Histogram("block.size",
 		metric.WithDescription("Number of transactions in the proposal made by the node"),
 		metric.WithUnit("{transaction}"),
-		metric.WithExplicitBucketBoundaries(1, 50, 100, 200, 300, 400, 500, 600, 700, 800, 900))
+		metric.WithExplicitBucketBoundaries(0, 50, 100, 150, 200, 250, 300, 350, 400, 450, 500))
 	if err != nil {
-		return fmt.Errorf("creating counter for block size: %w", err)
+		return fmt.Errorf("creating histogram for block size: %w", err)
 	}
 
 	n.execTxCnt, err = m.Int64Counter("exec.tx.count", metric.WithDescription("Number of transactions processed by the node"), metric.WithUnit("{transaction}"))
@@ -1052,10 +1053,10 @@ func (n *Node) revertState() {
 
 // finalizeBlock creates the block and adds it to the blockStore.
 func (n *Node) finalizeBlock(ctx context.Context, b *types.Block, uc *types.UnicityCertificate) error {
-	blockNumber := uc.GetRoundNumber()
-	_, span := n.tracer.Start(ctx, "Node.finalizeBlock", trace.WithAttributes(attribute.Int64("block.number", int64(blockNumber))))
+	ctx, span := n.tracer.Start(ctx, "Node.finalizeBlock", trace.WithAttributes(attribute.Int64("block.size", int64(len(b.Transactions)))))
 	defer span.End()
 
+	blockNumber := uc.GetRoundNumber()
 	roundNoInBytes := util.Uint64ToBytes(blockNumber)
 	isInitializing := n.status.Load() == initializing
 

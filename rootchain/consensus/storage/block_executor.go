@@ -145,7 +145,8 @@ func NewRootBlock(hash crypto.Hash, block *abdrc.CommittedBlock, orchestration O
 	irState := make(InputRecords, len(block.ShardInfo))
 	shardInfo := shardStates{}
 	for i, d := range block.ShardInfo {
-		shardConf, err := orchestration.ShardConfig(d.Partition, d.Shard, d.IR.RoundNumber)
+		// EpochStart uniquely identifies the shardConf that is valid in this root round
+		shardConf, err := orchestration.ShardConfig(d.Partition, d.Shard, d.EpochStart)
 		if err != nil {
 			return nil, fmt.Errorf("loading shard %s-%s config: %w", d.Partition, d.Shard, err)
 		}
@@ -167,7 +168,8 @@ func NewRootBlock(hash crypto.Hash, block *abdrc.CommittedBlock, orchestration O
 		si := &ShardInfo{
 			PartitionID:   d.Partition,
 			ShardID:       d.Shard,
-			T2Timeout:     shardConf.T2Timeout,
+			EpochStart:    d.EpochStart,
+			T2Timeout:     d.T2Timeout,
 			ShardConfHash: d.ShardConfHash,
 			RootHash:      d.RootHash,
 			PrevEpochStat: d.PrevEpochStat,
@@ -322,13 +324,23 @@ func (x *ExecutedBlock) GetParentRound() uint64 {
 	return 0
 }
 
+/*
+shardSetItem is helper type for serializing ShardSet - map with complex key
+is not handled properly by the CBOR library so we serialize it as array.
+*/
+type shardSetItem struct {
+	_         struct{} `cbor:",toarray"`
+	Partition types.PartitionID
+	Shard     []byte
+}
+
 func (ss ShardSet) MarshalCBOR() ([]byte, error) {
 	// map with complex key is not handled properly by the CBOR library so we serialize it as array
-	d := make([]types.PartitionShardID, len(ss))
+	d := make([]shardSetItem, len(ss))
 	idx := 0
 	for k := range ss {
-		d[idx].PartitionID = k.PartitionID
-		d[idx].ShardID = k.ShardID
+		d[idx].Partition = k.PartitionID
+		d[idx].Shard = []byte(k.ShardID)
 		idx++
 	}
 	buf := bytes.Buffer{}
@@ -339,13 +351,13 @@ func (ss ShardSet) MarshalCBOR() ([]byte, error) {
 }
 
 func (ss *ShardSet) UnmarshalCBOR(data []byte) error {
-	var d []types.PartitionShardID
+	var d []shardSetItem
 	if err := types.Cbor.Unmarshal(data, &d); err != nil {
 		return fmt.Errorf("decoding shard set data: %w", err)
 	}
 	ssn := make(ShardSet, len(d))
 	for _, itm := range d {
-		ssn[types.PartitionShardID{PartitionID: itm.PartitionID, ShardID: itm.ShardID}] = struct{}{}
+		ssn[types.PartitionShardID{PartitionID: itm.Partition, ShardID: string(itm.Shard)}] = struct{}{}
 	}
 	*ss = ssn
 	return nil

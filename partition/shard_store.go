@@ -34,8 +34,8 @@ func newShardStore(db keyvaluedb.KeyValueDB, log *slog.Logger) *shardStore {
 
 func (s *shardStore) StoreShardConf(shardConf *types.PartitionDescriptionRecord) error {
 	var prevShardConf *types.PartitionDescriptionRecord
-	if shardConf.ShardEpoch > 0 {
-		prevEpoch := shardConf.ShardEpoch-1
+	if shardConf.Epoch > 0 {
+		prevEpoch := shardConf.Epoch-1
 		var err error
 		prevShardConf, err = s.loadShardConf(prevEpoch)
 		if err != nil {
@@ -43,10 +43,10 @@ func (s *shardStore) StoreShardConf(shardConf *types.PartitionDescriptionRecord)
 		}
 	}
 	if err := shardConf.Verify(prevShardConf); err != nil {
-		return fmt.Errorf("failed to verify shard conf for epoch %d: %w", shardConf.ShardEpoch, err)
+		return fmt.Errorf("failed to verify shard conf for epoch %d: %w", shardConf.Epoch, err)
 	}
-	if err := s.db.Write(epochToKey(shardConf.ShardEpoch), shardConf); err != nil {
-		return fmt.Errorf("saving shard conf for epoch %d: %w", shardConf.ShardEpoch, err)
+	if err := s.db.Write(epochToKey(shardConf.Epoch), shardConf); err != nil {
+		return fmt.Errorf("saving shard conf for epoch %d: %w", shardConf.Epoch, err)
 	}
 	return nil
 }
@@ -74,7 +74,7 @@ func (s *shardStore) LoadEpoch(epoch uint64) error {
 		}
 		validators[nodeID] = verifier
 	}
-	s.epoch = shardConf.ShardEpoch
+	s.epoch = shardConf.Epoch
 	s.epochValidators = validators
 	return nil
 }

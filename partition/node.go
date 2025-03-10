@@ -94,6 +94,7 @@ type (
 		configuration     *NodeConf
 		transactionSystem txsystem.TransactionSystem
 		// First UC for this node. The node is guaranteed to have blocks starting at fuc+1.
+		// If node is started from genesis, then fuc remains nil (round == 0).
 		fuc *types.UnicityCertificate
 		// Latest UC this node has seen. Can be ahead of the committed UC during recovery.
 		luc atomic.Pointer[types.UnicityCertificate]
@@ -167,7 +168,7 @@ func NewNode(ctx context.Context, txSystem txsystem.TransactionSystem, conf *Nod
 	if err := shardStore.StoreShardConf(conf.shardConf); err != nil {
 		return nil, fmt.Errorf("failed to store shard configuration: %w", err)
 	}
-	if err := shardStore.LoadEpoch(conf.shardConf.ShardEpoch); err != nil {
+	if err := shardStore.LoadEpoch(conf.shardConf.Epoch); err != nil {
 		return nil, fmt.Errorf("failed to load epoch configuration: %w", err)
 	}
 
@@ -337,6 +338,7 @@ func (n *Node) initState(ctx context.Context) (err error) {
 	ctx, span := n.tracer.Start(ctx, "node.initState")
 	defer span.End()
 
+	// Genesis state has not been committed with an UC, so fuc/luc can be nil initially.
 	n.fuc = n.committedUC()
 	n.luc.Store(n.fuc)
 
@@ -948,8 +950,8 @@ func (n *Node) handleUnicityCertificate(ctx context.Context, uc *types.UnicityCe
 		return nil
 	}
 
-	isInitialUC := n.status.Load() == initializing
-	if isInitialUC {
+	wasInitializing := n.status.Load() == initializing
+	if wasInitializing {
 		// First UC received after an initial handshake with a root node -> initialization finished.
 		n.status.Store(normal)
 	}
@@ -957,7 +959,7 @@ func (n *Node) handleUnicityCertificate(ctx context.Context, uc *types.UnicityCe
 	if uc.IsDuplicate(prevLUC) {
 		// Just ignore duplicates.
 		n.log.DebugContext(ctx, fmt.Sprintf("duplicate UC (same root round %d)", uc.GetRootRoundNumber()))
-		if isInitialUC {
+		if wasInitializing {
 			// If this was the first UC received by node, we can start a new round.
 			// Otherwise the round is already in progress.
 			return n.startNewRound(ctx)
@@ -1662,9 +1664,9 @@ func (n *Node) IsValidator() bool {
 }
 
 func (n *Node) RegisterShardConf(shardConf *types.PartitionDescriptionRecord) error {
-	n.log.Info(fmt.Sprintf("Registering shard conf for epoch %d", shardConf.ShardEpoch))
+	n.log.Info(fmt.Sprintf("Registering shard conf for epoch %d", shardConf.Epoch))
 	if err := n.shardStore.StoreShardConf(shardConf); err != nil {
-		n.log.Error(fmt.Sprintf("Failed to register shard conf for epoch %d", shardConf.ShardEpoch), logger.Error(err))
+		n.log.Error(fmt.Sprintf("Failed to register shard conf for epoch %d", shardConf.Epoch), logger.Error(err))
 		return err
 	}
 	return nil

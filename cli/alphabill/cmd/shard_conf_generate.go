@@ -33,8 +33,8 @@ type (
 		PartitionID     uint32
 		PartitionTypeID uint32
 		ShardID         string
-		ShardEpoch      uint64
-		RootRound       uint64
+		Epoch           uint64
+		EpochStart      uint64
 		NodeInfoFiles   []string
 
 		MoneyInitialBillOwnerPredicate string
@@ -55,9 +55,9 @@ func shardConfGenerateCmd(baseFlags *baseFlags) *cobra.Command {
 	cmd.Flags().Uint32Var(&flags.PartitionTypeID, "partition-type-id", 0, "partition type identifier")
 	cmd.Flags().StringVar(&flags.ShardID, "shard-id", "0x80", "the shard id in hex format with 0x prefix")
 
-	cmd.Flags().Uint64Var(&flags.ShardEpoch, "shard-epoch", 0, "shard epoch activated by this configuration")
-	cmd.Flags().Uint64Var(&flags.RootRound, "root-round", 0, "root round after which this configuration is activated")
-	if err := cmd.MarkFlagRequired("root-round"); err != nil {
+	cmd.Flags().Uint64Var(&flags.Epoch, "epoch", 0, "epoch assigned to this configuration, must be one greater than the epoch of the previous configuration")
+	cmd.Flags().Uint64Var(&flags.EpochStart, "epoch-start", 0, "root round in which this configuration is activated")
+	if err := cmd.MarkFlagRequired("epoch-start"); err != nil {
 		panic(err)
 	}
 	cmd.Flags().StringSliceVarP(&flags.NodeInfoFiles, "node-info", "n", []string{}, "path to node info files")
@@ -97,8 +97,8 @@ func shardConfGenerate(flags *shardConfGenerateFlags) error {
 		PartitionID:     types.PartitionID(flags.PartitionID),
 		PartitionTypeID: types.PartitionTypeID(flags.PartitionTypeID),
 		ShardID:         shardID,
-		ShardEpoch:      flags.ShardEpoch,
-		RootRound:       flags.RootRound,
+		Epoch:           flags.Epoch,
+		EpochStart:      flags.EpochStart,
 		TypeIDLen:       8,
 		UnitIDLen:       256,
 		T2Timeout:       2500 * time.Millisecond,
@@ -110,7 +110,7 @@ func shardConfGenerate(flags *shardConfGenerateFlags) error {
 		return fmt.Errorf("invalid shard configuration: %w", err)
 	}
 
-	fileName := fmt.Sprintf("shard-conf-%d_%d.json", flags.PartitionID, flags.ShardEpoch)
+	fileName := fmt.Sprintf("shard-conf-%d_%d.json", flags.PartitionID, flags.Epoch)
 	outputFile := filepath.Join(flags.HomeDir, fileName)
 	if err = util.WriteJsonFile(outputFile, shardConf); err != nil {
 		return fmt.Errorf("failed to save '%s': %w", outputFile, err)

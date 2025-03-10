@@ -43,11 +43,11 @@ func (ss shardStates) nextBlock(parentIRs InputRecords, orchestration Orchestrat
 			if !ok {
 				return nil, fmt.Errorf("shard %s missing configuration", shardKey)
 			}
-			if parentIR.Technical.Epoch != shardConf.ShardEpoch {
+			if parentIR.Technical.Epoch != shardConf.Epoch {
 				return nil, fmt.Errorf("shard %s expected epoch %d, loaded configuration has epoch %d",
-					shardKey, parentIR.Technical.Epoch, shardConf.ShardEpoch)
+					shardKey, parentIR.Technical.Epoch, shardConf.Epoch)
 			}
-			if nextBlock[shardKey], err = prevSI.nextEpoch(shardConf.ShardEpoch, shardConf, hashAlg); err != nil {
+			if nextBlock[shardKey], err = prevSI.nextEpoch(shardConf.Epoch, shardConf, hashAlg); err != nil {
 				return nil, fmt.Errorf("creating ShardInfo %s - %s of the next epoch: %w",
 					prevSI.LastCR.Partition, prevSI.LastCR.Shard, err)
 			}
@@ -111,7 +111,7 @@ func (ss *shardStates) UnmarshalCBOR(data []byte) error {
 	}
 	ssn := make(shardStates, len(d.Data))
 	for _, itm := range d.Data {
-		ssn[types.PartitionShardID{PartitionID: itm.LastCR.Partition, ShardID: itm.LastCR.Shard.Key()}] = itm
+		ssn[types.PartitionShardID{PartitionID: itm.PartitionID, ShardID: itm.ShardID.Key()}] = itm
 	}
 	*ss = ssn
 	return nil
@@ -125,6 +125,7 @@ func NewShardInfo(shardConf *types.PartitionDescriptionRecord, hashAlg crypto.Ha
 	si := &ShardInfo{
 		PartitionID:   shardConf.PartitionID,
 		ShardID:       shardConf.ShardID,
+		EpochStart:    shardConf.EpochStart,
 		T2Timeout:     shardConf.T2Timeout,
 		ShardConfHash: shardConfHash,
 		RootHash:      nil,
@@ -150,7 +151,7 @@ type ShardInfo struct {
 	ShardID       types.ShardID
 	T2Timeout     time.Duration
 	ShardConfHash []byte
-
+	EpochStart    uint64   // Root round when the currently valid shard conf was activated
 	RootHash      []byte   // last certified root hash
 	// statistical record of the previous epoch. As we only need
 	// it for hashing we keep it in serialized representation
@@ -209,8 +210,8 @@ func (si *ShardInfo) IsValid() error {
 }
 
 func (si *ShardInfo) nextEpoch(shardEpoch uint64, shardConf *types.PartitionDescriptionRecord, hashAlg crypto.Hash) (*ShardInfo, error) {
-	if shardEpoch != shardConf.ShardEpoch {
-		return nil, fmt.Errorf("epochs must be consecutive, expected %d proposed next %d", shardEpoch, shardConf.ShardEpoch)
+	if shardEpoch != shardConf.Epoch {
+		return nil, fmt.Errorf("epochs must be consecutive, expected %d proposed next %d", shardEpoch, shardConf.Epoch)
 	}
 	shardConfHash, err := shardConf.Hash(hashAlg)
 	if err != nil {
@@ -219,6 +220,7 @@ func (si *ShardInfo) nextEpoch(shardEpoch uint64, shardConf *types.PartitionDesc
 	nextSI := &ShardInfo{
 		PartitionID:   shardConf.PartitionID,
 		ShardID:       shardConf.ShardID,
+		EpochStart:    shardConf.EpochStart,
 		T2Timeout:     shardConf.T2Timeout,
 		ShardConfHash: shardConfHash,
 		RootHash:      si.RootHash,
@@ -249,14 +251,14 @@ func (si *ShardInfo) nextRound(req *certification.BlockCertificationRequest, las
 	tr.Round = lastTR.Round + 1
 
 	nextShardInfo := si
-	// New shard epoch is activated for the next shard round, if current root round
-	// reaches the activation root round of the shard configuration.
+	// If current root round reaches the activation root round of a new shard conf,
+	// then the next shard round is verified with the new shard conf (epoch is increased in TR).
 	nextShardConf, err := orc.ShardConfig(si.PartitionID, si.ShardID, rootRound)
 	if err != nil {
 		return tr, fmt.Errorf("reading config of the epoch: %w", err)
 	}
 
-	tr.Epoch = nextShardConf.ShardEpoch
+	tr.Epoch = nextShardConf.Epoch
 	if lastTR.Epoch != tr.Epoch {
 		if nextShardInfo, err = si.nextEpoch(lastTR.Epoch+1, nextShardConf, hashAlg); err != nil {
 			return tr, fmt.Errorf("creating ShardInfo of the next epoch: %w", err)

@@ -85,7 +85,7 @@ function init_shard_nodes() {
                   --network-id 3 \
                   --partition-id $partitionTypeId \
                   --partition-type-id $partitionTypeId \
-                  --root-round 1 \
+                  --epoch-start 1 \
                   $nodeInfoFiles
 
   for i in $(seq 1 "$2")

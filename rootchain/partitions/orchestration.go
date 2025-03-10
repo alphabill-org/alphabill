@@ -19,7 +19,7 @@ var (
 
 type (
 	Orchestration struct {
-		networkID types.NetworkID // TODO: init somehow
+		networkID types.NetworkID
 		db        *bolt.DB
 		log       *slog.Logger
 	}
@@ -64,7 +64,7 @@ func (o *Orchestration) ShardConfig(partitionID types.PartitionID, shardID types
 		return nil
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to load shard conf for partition %q shard %s and root round %d: %w", partitionID, shardID.String(), rootRound, err)
+		return nil, fmt.Errorf("failed to load shard conf for partition %q shard %q and root round %d: %w", partitionID, shardID.String(), rootRound, err)
 	}
 	if shardConf.NetworkID != o.networkID {
 		return nil, fmt.Errorf("shard conf loaded from database has wrong netorkID %d, expected %d", shardConf.NetworkID, o.networkID)
@@ -192,14 +192,14 @@ func storeShardConf(tx *bolt.Tx, shardConf *types.PartitionDescriptionRecord) er
 		return err
 	}
 
-	if err = roundToShardConfBucket.Put(uint64ToKey(shardConf.RootRound), shardConfBytes); err != nil {
+	if err = roundToShardConfBucket.Put(uint64ToKey(shardConf.EpochStart), shardConfBytes); err != nil {
 		return fmt.Errorf("storing shard conf: %w", err)
 	}
 	return nil
 }
 
 func verifyShardConf(tx *bolt.Tx, shardConf *types.PartitionDescriptionRecord) error {
-	if shardConf.ShardEpoch == 0 {
+	if shardConf.Epoch == 0 {
 		return shardConf.IsValid()
 	}
 

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"time"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/network/protocol/certification"
@@ -28,9 +29,11 @@ type CommittedBlock struct {
 
 type ShardInfo struct {
 	_         struct{} `cbor:",toarray"`
-	Partition types.PartitionID
-	Shard     types.ShardID
-	RootHash  []byte // last certified root hash
+	Partition  types.PartitionID
+	Shard      types.ShardID
+	EpochStart uint64
+	T2Timeout  time.Duration
+	RootHash   []byte // last certified root hash
 
 	// statistical record of the previous epoch. As we only need
 	// it for hashing we keep it in serialized representation

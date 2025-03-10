@@ -75,11 +75,11 @@ func readBlocksFromDB(bDB keyvaluedb.KeyValueDB, orchestration Orchestration) (b
 			return nil, fmt.Errorf("read block %v from db: %w", itr.Key(), err)
 		}
 		for _, si := range b.ShardInfo {
-			rec, err := orchestration.ShardConfig(si.LastCR.Partition, si.LastCR.Shard, si.LastCR.Technical.Epoch)
+			shardConf, err := orchestration.ShardConfig(si.PartitionID, si.ShardID, si.EpochStart)
 			if err != nil {
 				return nil, fmt.Errorf("acquiring shard configuration: %w", err)
 			}
-			if err = si.resetTrustBase(rec); err != nil {
+			if err = si.resetTrustBase(shardConf); err != nil {
 				return nil, fmt.Errorf("init shard trustbase (%s - %s): %w", si.LastCR.Partition, si.LastCR.Shard, err)
 			}
 		}
@@ -445,6 +445,8 @@ func toRecoveryShardInfo(block *ExecutedBlock) ([]rcnet.ShardInfo, error) {
 	for _, v := range block.ShardInfo {
 		si[idx].Partition = v.LastCR.Partition
 		si[idx].Shard = v.LastCR.Shard
+		si[idx].EpochStart = v.EpochStart
+		si[idx].T2Timeout = v.T2Timeout
 		si[idx].RootHash = v.RootHash
 		si[idx].PrevEpochStat = v.PrevEpochStat
 		si[idx].Stat = v.Stat

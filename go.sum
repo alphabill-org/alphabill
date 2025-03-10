@@ -23,6 +23,8 @@ github.com/alphabill-org/alphabill-go-base v1.0.0-rc2.0.20250218094638-f3dc0887e
 github.com/alphabill-org/alphabill-go-base v1.0.0-rc2.0.20250218094638-f3dc0887e101/go.mod h1:EcYLxScEReeaxjpS1YG/LRrqTVdttCQsUsSvj4WI58Y=
 github.com/alphabill-org/alphabill-go-base v1.0.0-rc2.0.20250307084554-0ccb6fc755c7 h1:OdPEcXXwq5kFmnGdBB9Xa8g6z2WT1ToejoLnMh/tRFo=
 github.com/alphabill-org/alphabill-go-base v1.0.0-rc2.0.20250307084554-0ccb6fc755c7/go.mod h1:EcYLxScEReeaxjpS1YG/LRrqTVdttCQsUsSvj4WI58Y=
+github.com/alphabill-org/alphabill-go-base v1.0.0-rc2.0.20250310222756-0bec73b6689a h1:4mV874XacfarHEnFsfan3SpUqXZsG6tqXyKpu1F1OCY=
+github.com/alphabill-org/alphabill-go-base v1.0.0-rc2.0.20250310222756-0bec73b6689a/go.mod h1:EcYLxScEReeaxjpS1YG/LRrqTVdttCQsUsSvj4WI58Y=
 github.com/anmitsu/go-shlex v0.0.0-20161002113705-648efa622239/go.mod h1:2FmKhYUyUczH0OGQWaF5ceTx0UBShxjsH6f8oGKYe2c=
 github.com/benbjohnson/clock v1.1.0/go.mod h1:J11/hYXuz8f4ySSvYwY0FKfm+ezbsZBKZxNJlLklBHA=
 github.com/benbjohnson/clock v1.3.0/go.mod h1:J11/hYXuz8f4ySSvYwY0FKfm+ezbsZBKZxNJlLklBHA=

@@ -67,49 +67,42 @@ mkdir testab
 # get common functions
 source helper.sh
 
-moneySdrFlags=""
-
-# Generate token nodes genesis files.
-if [ "$token_nodes" -ne 0 ]; then
-  tokensPDR='{"networkId": 3, "partitionId": 2, "partitionTypeId": 2, "typeIdLength": 8, "unitIdLength": 256, "t2timeout": 2500000000, "feeCreditBill": {"unitId": "0x000000000000000000000000000000000000000000000000000000000000001201", "ownerPredicate":"0x830041025820f52022bb450407d92f13bf1c53128a676bcf304818e9f41a5ef4ebeae9c0d6b0"}}'
-  echo "$tokensPDR" >testab/tokens-pdr.json
-  moneySdrFlags+=" -c testab/tokens-pdr.json"
-  generate_partition_node_genesis "tokens" "$token_nodes" "--partition-description=$PWD/testab/tokens-pdr.json"
-fi
-# Generate EVM nodes genesis files.
-if [ "$evm_nodes" -ne 0 ]; then
-  evmPDR='{"networkId": 3, "partitionId": 3, "partitionTypeId": 3, "typeIdLength": 8, "unitIdLength": 256, "t2timeout": 2500000000, "feeCreditBill": {"unitId": "0x000000000000000000000000000000000000000000000000000000000000001301", "ownerPredicate": "0x830041025820f52022bb450407d92f13bf1c53128a676bcf304818e9f41a5ef4ebeae9c0d6b0"}}'
-  echo "$evmPDR" >testab/evm-pdr.json
-  moneySdrFlags+=" -c testab/evm-pdr.json"
-  generate_partition_node_genesis "evm" "$evm_nodes" "--partition-description=$PWD/testab/evm-pdr.json"
-fi
-# Generate money nodes genesis files.
 if [ "$money_nodes" -ne 0 ]; then
   moneyPDR='{"networkId": 3, "partitionId": 1, "partitionTypeId": 1, "typeIdLength": 8, "unitIdLength": 256, "t2timeout": 2500000000, "feeCreditBill": {"unitId": "0x000000000000000000000000000000000000000000000000000000000000001101", "ownerPredicate": "0x830041025820f52022bb450407d92f13bf1c53128a676bcf304818e9f41a5ef4ebeae9c0d6b0"}}'
   echo "$moneyPDR" >testab/money-pdr.json
-  moneySdrFlags+=" -c testab/money-pdr.json"
-  moneySdrFlags+=" --partition-description=$PWD/testab/money-pdr.json"
   customCliArgs=$moneySdrFlags
+
   if [ "$initial_bill_owner_predicate" != null ]; then
     customCliArgs+=" --initial-bill-owner-predicate $initial_bill_owner_predicate"
   fi
-  generate_partition_node_genesis "money" "$money_nodes" "$customCliArgs"
+  init_shard_nodes 1 "$money_nodes" # "$customCliArgs"
 fi
-# Generate orchestration nodes genesis files.
+
+if [ "$token_nodes" -ne 0 ]; then
+  tokensPDR='{"networkId": 3, "partitionId": 2, "partitionTypeId": 2, "typeIdLength": 8, "unitIdLength": 256, "t2timeout": 2500000000, "feeCreditBill": {"unitId": "0x000000000000000000000000000000000000000000000000000000000000001201", "ownerPredicate":"0x830041025820f52022bb450407d92f13bf1c53128a676bcf304818e9f41a5ef4ebeae9c0d6b0"}}'
+  echo "$tokensPDR" >testab/tokens-pdr.json
+  init_shard_nodes 2 "$token_nodes"
+fi
+
+if [ "$evm_nodes" -ne 0 ]; then
+  evmPDR='{"networkId": 3, "partitionId": 3, "partitionTypeId": 3, "typeIdLength": 8, "unitIdLength": 256, "t2timeout": 2500000000, "feeCreditBill": {"unitId": "0x000000000000000000000000000000000000000000000000000000000000001301", "ownerPredicate": "0x830041025820f52022bb450407d92f13bf1c53128a676bcf304818e9f41a5ef4ebeae9c0d6b0"}}'
+  echo "$evmPDR" >testab/evm-pdr.json
+  init_shard_nodes 3 "$evm_nodes"
+fi
+
 if [ "$orchestration_nodes" -ne 0 ]; then
   orchestrationPDR='{"networkId": 3, "partitionId": 4, "partitionTypeId": 4, "typeIdLength": 8, "unitIdLength": 256, "t2timeout": 2500000000}'
   echo "$orchestrationPDR" >testab/orchestration-pdr.json
-  generate_partition_node_genesis "orchestration" "$orchestration_nodes" "--partition-description=$PWD/testab/orchestration-pdr.json --owner-predicate 830041025820f52022bb450407d92f13bf1c53128a676bcf304818e9f41a5ef4ebeae9c0d6b0"
+  init_shard_nodes 4 "$orchestration_nodes" # --owner-predicate 830041025820f52022bb450407d92f13bf1c53128a676bcf304818e9f41a5ef4ebeae9c0d6b0"
 fi
-# Generate enterprise token partition genesis files
+
 if [ "$enterprise_token_nodes" -ne 0 ]; then
   enterpriseTokensPDR='{"networkId": 3, "partitionId": 5, "partitionTypeId": 2, "typeIdLength": 8, "unitIdLength": 256, "t2timeout": 2500000000}'
   echo "$enterpriseTokensPDR" >testab/tokens-pdr-sid-5.json
-  generate_partition_node_genesis "tokens-enterprise" "$enterprise_token_nodes" "--partition-description=$PWD/testab/tokens-pdr-sid-5.json --admin-owner-predicate $admin_owner_predicate"
+  init_shard_nodes 5 "$enterprise_token_nodes" # "--partition-description=$PWD/testab/tokens-pdr-sid-5.json --admin-owner-predicate $admin_owner_predicate"
 fi
 
-# generate root node genesis files
-generate_root_genesis $root_nodes
+init_root_nodes $root_nodes
 
 # generate log configuration for all nodes
-generate_log_configuration "testab/*/"
+# generate_log_configuration "testab/*/"

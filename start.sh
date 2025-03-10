@@ -17,10 +17,10 @@ usage() {
 while getopts "hrp:" o; do
   case "${o}" in
   r)
-    echo "starting root nodes..." && start_root_nodes
+    echo -n "starting root nodes..." && start_root_nodes
     ;;
   p)
-    echo "starting ${OPTARG} nodes..." && start_partition_nodes "${OPTARG}"
+    echo "starting ${OPTARG} nodes..." && start_shard_nodes "${OPTARG}"
     ;;
   h | *) # help.
     usage

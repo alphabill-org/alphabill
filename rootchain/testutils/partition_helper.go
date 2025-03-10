@@ -12,7 +12,6 @@ import (
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/network"
 	"github.com/alphabill-org/alphabill/network/protocol/certification"
-	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
@@ -31,41 +30,24 @@ func NewTestNode(t *testing.T) *TestNode {
 	return node
 }
 
-// TODO: weird return
-func CreatePartitionNodes(t *testing.T, ir *types.InputRecord, partitionID types.PartitionID, nrOfValidators int) (peers []*TestNode, nodes []*genesis.PartitionNode) {
+// TODO:
+func (n *TestNode) NodeInfo(t *testing.T) *types.NodeInfo {
+	sigKey, err := n.Verifier.MarshalPublicKey()
+	require.NoError(t, err)
+	return &types.NodeInfo{
+		NodeID: n.PeerConf.ID.String(),
+		SigKey: sigKey,
+		Stake:  1,
+	}
+}
+
+func CreateTestNodes(t *testing.T, nrOfValidators int) []*TestNode {
 	t.Helper()
-	pdr := types.PartitionDescriptionRecord{
-		Version:     1,
-		NetworkID:   5,
-		PartitionID: partitionID,
-		TypeIDLen:   8,
-		UnitIDLen:   256,
-		T2Timeout:   2500 * time.Millisecond,
-	}
+	var testNodes []*TestNode
 	for i := 0; i < nrOfValidators; i++ {
-		testNode := NewTestNode(t)
-		sigKey, err := testNode.Verifier.MarshalPublicKey()
-		require.NoError(t, err)
-
-		req := &certification.BlockCertificationRequest{
-			PartitionID: partitionID,
-			NodeID:      testNode.PeerConf.ID.String(),
-			InputRecord: ir,
-		}
-		err = req.Sign(testNode.Signer)
-		require.NoError(t, err)
-
-		nodes = append(nodes, &genesis.PartitionNode{
-			Version:                    1,
-			NodeID:                     testNode.PeerConf.ID.String(),
-			SigKey:                     sigKey,
-			BlockCertificationRequest:  req,
-			PartitionDescriptionRecord: pdr,
-		})
-
-		peers = append(peers, testNode)
+		testNodes = append(testNodes, NewTestNode(t))
 	}
-	return peers, nodes
+	return testNodes
 }
 
 func CreateBlockCertificationRequest(t *testing.T, ir *types.InputRecord, partitionID types.PartitionID, node *TestNode) *certification.BlockCertificationRequest {

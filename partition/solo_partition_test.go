@@ -5,6 +5,7 @@ import (
 	"context"
 	gocrypto "crypto"
 	"crypto/rand"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -15,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill-go-base/crypto"
+	"github.com/alphabill-org/alphabill-go-base/hash"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testnetwork "github.com/alphabill-org/alphabill/internal/testutils/network"
@@ -38,7 +40,7 @@ type AlwaysValidBlockProposalValidator struct{}
 type AlwaysValidTransactionValidator struct{}
 
 type SingleNodePartition struct {
-	nodeConf   *configuration
+	nodeConf   *NodeConf
 	store      keyvaluedb.KeyValueDB
 	partition  *Node
 	nodeDeps   *partitionStartupDependencies
@@ -162,7 +164,7 @@ func newSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, v
 		mockNet:    net,
 		eh:         &testevent.TestEventHandler{},
 		obs:        observability.WithLogger(obs, obs.Logger().With(logger.NodeID(peerConf.ID))),
-		nodeConf:   &configuration{},
+		nodeConf:   &NodeConf{},
 	}
 	return partition
 }
@@ -257,7 +259,7 @@ func (sn *SingleNodePartition) ReceiveCertResponse(t *testing.T, ir *types.Input
 
 	sn.mockNet.Receive(&certification.CertificationResponse{
 		Partition: sn.nodeConf.GetPartitionID(),
-		Shard:     sn.nodeConf.shardID,
+		Shard:     sn.nodeConf.shardConf.ShardID,
 		Technical: tr,
 		UC:        *uc,
 	})
@@ -269,7 +271,7 @@ SubmitUnicityCertificate wraps the UC into CertificationResponse and sends it to
 func (sn *SingleNodePartition) SubmitUnicityCertificate(t *testing.T, uc *types.UnicityCertificate) {
 	cr := &certification.CertificationResponse{
 		Partition: sn.nodeConf.GetPartitionID(),
-		Shard:     sn.nodeConf.shardID,
+		Shard:     sn.nodeConf.shardConf.ShardID,
 		UC:        *uc,
 	}
 	tr, err := rootgenesis.TechnicalRecord(uc.InputRecord, []string{sn.nodeDeps.peerConf.ID.String()})
@@ -295,7 +297,7 @@ func (sn *SingleNodePartition) WaitHandshake(t *testing.T) {
 	uc := sn.certs[sn.partition.PartitionID()]
 	cr := &certification.CertificationResponse{
 		Partition: sn.partition.PartitionID(),
-		Shard:     sn.partition.configuration.shardID,
+		Shard:     sn.partition.configuration.shardConf.ShardID,
 		UC:        *uc,
 	}
 	tr, err := rootgenesis.TechnicalRecord(uc.InputRecord, []string{sn.nodeDeps.peerConf.ID.String()})
@@ -574,4 +576,32 @@ func WaitNodeRequestReceived(t *testing.T, tp *SingleNodePartition, req string) 
 		ID:      reqs[len(reqs)-1].ID,
 		Message: reqs[len(reqs)-1].Message,
 	}
+}
+
+// TODO: needed for genesis?
+func technicalRecord(ir *types.InputRecord, nodes []string) (tr certification.TechnicalRecord, err error) {
+	if len(nodes) == 0 {
+		return tr, errors.New("node list is empty")
+	}
+
+	tr = certification.TechnicalRecord{
+		Round:  ir.RoundNumber + 1,
+		Epoch:  ir.Epoch,
+		Leader: nodes[0],
+		// precalculated hash of CBOR(certification.StatisticalRecord{})
+		StatHash: []uint8{0x24, 0xee, 0x26, 0xf4, 0xaa, 0x45, 0x48, 0x5f, 0x53, 0xaa, 0xb4, 0x77, 0x57, 0xd0, 0xb9, 0x71, 0x99, 0xa3, 0xd9, 0x5f, 0x50, 0xcb, 0x97, 0x9c, 0x38, 0x3b, 0x7e, 0x50, 0x24, 0xf9, 0x21, 0xff},
+	}
+
+	fees := map[string]uint64{}
+	for _, v := range nodes {
+		fees[v] = 0
+	}
+	h := hash.New(gocrypto.SHA256.New())
+	h.WriteRaw(types.RawCBOR{0xA0}) // empty map
+	h.Write(fees)
+	if tr.FeeHash, err = h.Sum(); err != nil {
+		return tr, fmt.Errorf("calculating fee hash: %w", err)
+	}
+
+	return tr, nil
 }

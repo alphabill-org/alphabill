@@ -31,12 +31,10 @@ import (
 	"github.com/alphabill-org/alphabill/network"
 	"github.com/alphabill-org/alphabill/network/protocol/abdrc"
 	"github.com/alphabill-org/alphabill/network/protocol/certification"
-	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/observability"
 	"github.com/alphabill-org/alphabill/rootchain/consensus/storage"
 	abdrctu "github.com/alphabill-org/alphabill/rootchain/consensus/testutils"
 	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
-	rootgenesis "github.com/alphabill-org/alphabill/rootchain/genesis"
 	"github.com/alphabill-org/alphabill/rootchain/testutils"
 )
 
@@ -65,7 +63,7 @@ func readResult(ch <-chan *certification.CertificationResponse, timeout time.Dur
 }
 
 func initConsensusManager(t *testing.T, net RootNet) (*ConsensusManager, *testutils.TestNode, []*testutils.TestNode, *genesis.RootGenesis) {
-	peers, nodes := testutils.CreatePartitionNodes(t, partitionInputRecord, partitionID, 3)
+	peers, nodes := testutils.CreateTestNodes(t, partitionInputRecord, partitionID, 3)
 	rootNode := testutils.NewTestNode(t)
 	id := rootNode.PeerConf.ID
 	rootGenesis, _, err := rootgenesis.NewRootGenesis(id.String(), rootNode.Signer, nodes)
@@ -488,7 +486,7 @@ func Test_ConsensusManager_onVoteMsg(t *testing.T) {
 	t.Parallel()
 
 	// partition data used/shared by tests
-	_, nodes := testutils.CreatePartitionNodes(t, partitionInputRecord, partitionID, 2)
+	_, nodes := testutils.CreateTestNodes(t, partitionInputRecord, partitionID, 2)
 
 	makeVoteMsg := func(t *testing.T, cms []*ConsensusManager, round uint64) *abdrc.VoteMsg {
 		t.Helper()
@@ -649,7 +647,7 @@ func Test_ConsensusManager_messages(t *testing.T) {
 	}
 
 	// partition data used/shared by tests
-	peers, nodes := testutils.CreatePartitionNodes(t, partitionInputRecord, partitionID, 2)
+	peers, nodes := testutils.CreateTestNodes(t, partitionInputRecord, partitionID, 2)
 
 	t.Run("IR change request from partition included in proposal", func(t *testing.T) {
 		cms, rootNet, rootG := createConsensusManagers(t, 1, nodes)
@@ -860,11 +858,11 @@ func Test_ConsensusManager_messages(t *testing.T) {
 func Test_ConsensusManager_sendCertificates(t *testing.T) {
 	t.Parallel()
 
-	_, nodes := testutils.CreatePartitionNodes(t, partitionInputRecord, partitionID, 2)
+	_, nodes := testutils.CreateTestNodes(t, partitionInputRecord, partitionID, 2)
 
 	// generate UCs for given systems (with random data in QC)
-	makeUCs := func(partitionIds ...types.PartitionID) map[partitionShard]*certification.CertificationResponse {
-		rUC := make(map[partitionShard]*certification.CertificationResponse)
+	makeUCs := func(partitionIds ...types.PartitionID) map[types.PartitionShardID]*certification.CertificationResponse {
+		rUC := make(map[types.PartitionShardID]*certification.CertificationResponse)
 		for _, id := range partitionIds {
 			cr := certification.CertificationResponse{
 				Partition: id,
@@ -878,20 +876,20 @@ func Test_ConsensusManager_sendCertificates(t *testing.T) {
 					},
 				},
 			}
-			rUC[partitionShard{partition: cr.Partition, shard: cr.Shard.Key()}] = &cr
+			rUC[types.PartitionShardID{PartitionID: cr.Partition, ShardID: cr.Shard.Key()}] = &cr
 		}
 		return rUC
 	}
 
 	// consumeUCs reads UCs from "cm"-s output and stores them into map it returns.
 	// it reads until "timeout" has passed.
-	consumeUCs := func(cm *ConsensusManager, timeout time.Duration) map[partitionShard]*certification.CertificationResponse {
+	consumeUCs := func(cm *ConsensusManager, timeout time.Duration) map[types.PartitionShardID]*certification.CertificationResponse {
 		to := time.After(timeout)
-		rUC := make(map[partitionShard]*certification.CertificationResponse)
+		rUC := make(map[types.PartitionShardID]*certification.CertificationResponse)
 		for {
 			select {
 			case uc := <-cm.CertificationResult():
-				rUC[partitionShard{partition: uc.Partition, shard: uc.Shard.Key()}] = uc
+				rUC[types.PartitionShardID{PartitionID: uc.Partition, ShardID: uc.Shard.Key()}] = uc
 			case <-to:
 				return rUC
 			}
@@ -945,7 +943,7 @@ func Test_ConsensusManager_sendCertificates(t *testing.T) {
 		go func() { require.ErrorIs(t, cms[0].sendCertificates(ctx), context.Canceled) }()
 
 		// exp - expected result in the end of test, we add/overwrite certs as we send them
-		exp := map[partitionShard]*certification.CertificationResponse{}
+		exp := map[types.PartitionShardID]*certification.CertificationResponse{}
 
 		ucs := makeUCs(1, 2)
 		for k, v := range ucs {
@@ -983,7 +981,7 @@ func Test_ConsensusManager_sendCertificates(t *testing.T) {
 		defer cancel()
 		go func() { require.ErrorIs(t, cms[0].sendCertificates(ctx), context.Canceled) }()
 		// exp - expected result in the end of test, we add/overwrite certs as we send them
-		exp := map[partitionShard]*certification.CertificationResponse{}
+		exp := map[types.PartitionShardID]*certification.CertificationResponse{}
 
 		ucs := makeUCs(1, 2)
 		for k, v := range ucs {
@@ -1190,7 +1188,7 @@ func Test_rootNetworkRunning(t *testing.T) {
 
 func TestConsensusManger_RestoreVote(t *testing.T) {
 	net := testnetwork.NewRootMockNetwork()
-	_, nodes := testutils.CreatePartitionNodes(t, partitionInputRecord, partitionID, 3)
+	_, nodes := testutils.CreateTestNodes(t, partitionInputRecord, partitionID, 3)
 	rootNode := testutils.NewTestNode(t)
 	id := rootNode.PeerConf.ID
 	rootGenesis, _, err := rootgenesis.NewRootGenesis(id.String(),

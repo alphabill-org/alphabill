@@ -35,7 +35,7 @@ func Test_loadAndValidateConfiguration_Nok(t *testing.T) {
 			args: args{
 				signer: nil,
 			},
-			wantErr: ErrSignerIsNil,
+			wantErr: ErrKeyConfIsNil,
 		},
 		{
 			name: "genesis is nil",
@@ -43,16 +43,7 @@ func Test_loadAndValidateConfiguration_Nok(t *testing.T) {
 				signer:  signer,
 				genesis: nil,
 			},
-			wantErr: ErrGenesisIsNil,
-		},
-		{
-			name: "transaction system is nil",
-			args: args{
-				signer:  signer,
-				genesis: &genesis.PartitionGenesis{},
-				txs:     nil,
-			},
-			wantErr: ErrTxSystemIsNil,
+			wantErr: ErrShardConfIsNil,
 		},
 	}
 	for _, tt := range tests {
@@ -82,7 +73,7 @@ func TestLoadConfigurationWithDefaultValues_Ok(t *testing.T) {
 	require.NotNil(t, conf.txValidator)
 	require.NotNil(t, conf.blockProposalValidator)
 	require.NotNil(t, conf.unicityCertificateValidator)
-	require.NotNil(t, conf.genesis)
+	require.NotNil(t, conf.shardConf)
 	require.NotNil(t, conf.hashAlgorithm)
 	require.Equal(t, DefaultT1Timeout, conf.t1Timeout)
 	require.Equal(t, DefaultReplicationMaxBlocks, conf.replicationConfig.maxFetchBlocks)

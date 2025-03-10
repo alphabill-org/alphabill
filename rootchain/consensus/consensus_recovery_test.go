@@ -745,6 +745,7 @@ func Test_recoverState(t *testing.T) {
 	})
 }
 
+// TODO: no need nodes?
 func createConsensusManagers(t *testing.T, count int, nodes []*genesis.PartitionNode) ([]*ConsensusManager, *mockNetwork, *genesis.RootGenesis) {
 	t.Helper()
 
@@ -753,16 +754,15 @@ func createConsensusManagers(t *testing.T, count int, nodes []*genesis.Partition
 	var rgr []*genesis.RootGenesis
 	for i := 0; i < count; i++ {
 		nodeID, signer, _, _ := generatePeerData(t)
-		rootG, _, err := rootgenesis.NewRootGenesis(nodeID.String(), signer, nodes, rootgenesis.WithTotalNodes(uint32(count)), rootgenesis.WithBlockRate(500), rootgenesis.WithConsensusTimeout(2500))
+		rootG, err := rootgenesis.NewRootGenesis(nodeID.String(), signer, rootgenesis.WithTotalNodes(uint32(count)), rootgenesis.WithBlockRate(500), rootgenesis.WithConsensusTimeout(2500))
 		require.NoError(t, err, "failed to create root genesis")
 		require.NotNil(t, rootG)
 		rgr = append(rgr, rootG)
 		signers[nodeID.String()] = signer
 	}
 
-	rootG, partG, err := rootgenesis.MergeRootGenesisFiles(rgr)
+	rootG, err := rootgenesis.MergeRootGenesisFiles(rgr)
 	require.NoError(t, err, "failed to merge root genesis records")
-	require.NotNil(t, partG)
 	require.NotNil(t, rootG)
 
 	trustBase, err := rootG.GenerateTrustBase()

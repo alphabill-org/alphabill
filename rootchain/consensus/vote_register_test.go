@@ -208,13 +208,13 @@ func TestVoteRegister_Tc(t *testing.T) {
 		"node2": {0, 1, 2, 3},
 		"node3": {0, 1, 2, 3},
 	}
-	qcRound1, err := drctypes.NewQuorumCertificate(NewDummyVoteInfo(1, []byte{0, 1, 1}), nil)
+	qcRound1, err := newQuorumCertificate(t, NewDummyVoteInfo(1, []byte{0, 1, 1}), nil)
 	require.NoError(t, err)
 	qcRound1.Signatures = qcSignatures
-	qcRound2, err := drctypes.NewQuorumCertificate(NewDummyVoteInfo(2, []byte{0, 1, 2}), nil)
+	qcRound2, err := newQuorumCertificate(t, NewDummyVoteInfo(2, []byte{0, 1, 2}), nil)
 	require.NoError(t, err)
 	qcRound2.Signatures = qcSignatures
-	qcRound3, err := drctypes.NewQuorumCertificate(NewDummyVoteInfo(3, []byte{0, 1, 3}), nil)
+	qcRound3, err := newQuorumCertificate(t, NewDummyVoteInfo(3, []byte{0, 1, 3}), nil)
 	require.NoError(t, err)
 	qcRound3.Signatures = qcSignatures
 
@@ -280,7 +280,7 @@ func TestVoteRegister_Reset(t *testing.T) {
 		"node2": {0, 1, 2, 3},
 		"node3": {0, 1, 2, 3},
 	}
-	qcRound1, err := drctypes.NewQuorumCertificate(NewDummyVoteInfo(1, []byte{0, 1, 1}), nil)
+	qcRound1, err := newQuorumCertificate(t, NewDummyVoteInfo(1, []byte{0, 1, 1}), nil)
 	require.NoError(t, err)
 	qcRound1.Signatures = qcSignatures
 	qc, err := register.InsertVote(NewDummyVote(t, "node1", 2, []byte{1, 2, 3}), quorumInfo)
@@ -299,4 +299,15 @@ func TestVoteRegister_Reset(t *testing.T) {
 	require.Empty(t, register.hashToSignatures)
 	require.Empty(t, register.authorToVote)
 	require.Nil(t, register.timeoutCert)
+}
+
+func newQuorumCertificate(t *testing.T, voteInfo *drctypes.RoundInfo, commitHash []byte) (*drctypes.QuorumCert, error) {
+	ph, err := voteInfo.Hash(gocrypto.SHA256)
+	require.NoError(t, err)
+	return &drctypes.QuorumCert{
+		VoteInfo:         voteInfo,
+		// TODO: no value for rootchainroundnumber?
+		LedgerCommitInfo: &types.UnicitySeal{Version: 1, PreviousHash: ph, Hash: commitHash},
+		Signatures:       map[string]hex.Bytes{},
+	}, nil
 }

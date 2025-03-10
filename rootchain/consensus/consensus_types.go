@@ -7,7 +7,12 @@ import (
 
 	"github.com/alphabill-org/alphabill/keyvaluedb"
 	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
-	"github.com/alphabill-org/alphabill/network/protocol/genesis"
+)
+
+const (
+	BlockRate     = 900
+	LocalTimeout  = 10000
+	HashAlgorithm = gocrypto.SHA256
 )
 
 type (
@@ -27,12 +32,11 @@ type (
 	Option func(c *Optional)
 )
 
-// NewConsensusParams extract common consensus parameters from genesis
-func NewConsensusParams(genesisRoot *genesis.GenesisRootRecord) *Parameters {
+func NewConsensusParams() *Parameters {
 	return &Parameters{
-		BlockRate:     time.Duration(genesisRoot.Consensus.BlockRateMs) * time.Millisecond,
-		LocalTimeout:  time.Duration(genesisRoot.Consensus.ConsensusTimeoutMs) * time.Millisecond,
-		HashAlgorithm: gocrypto.Hash(genesisRoot.Consensus.HashAlgorithm),
+		BlockRate:     time.Duration(BlockRate) * time.Millisecond,
+		LocalTimeout:  time.Duration(LocalTimeout) * time.Millisecond,
+		HashAlgorithm: HashAlgorithm,
 	}
 }
 

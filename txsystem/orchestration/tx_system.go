@@ -8,7 +8,9 @@ import (
 	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 )
 
-func NewTxSystem(pdr types.PartitionDescriptionRecord, shardID types.ShardID, observe txsystem.Observability, opts ...Option) (*txsystem.GenericTxSystem, error) {
+const PartitionType = "orchestration"
+
+func NewTxSystem(shardConf types.PartitionDescriptionRecord, observe txsystem.Observability, opts ...Option) (*txsystem.GenericTxSystem, error) {
 	options, err := defaultOptions(observe)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load default configuration: %w", err)
@@ -16,13 +18,12 @@ func NewTxSystem(pdr types.PartitionDescriptionRecord, shardID types.ShardID, ob
 	for _, option := range opts {
 		option(options)
 	}
-	module, err := NewModule(pdr, options)
+	module, err := NewModule(shardConf, options)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load module: %w", err)
 	}
 	return txsystem.NewGenericTxSystem(
-		pdr,
-		shardID,
+		shardConf,
 		options.trustBase,
 		[]txtypes.Module{module},
 		observe,

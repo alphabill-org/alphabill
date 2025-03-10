@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TODO: move parts to shardConf test
 func TestVerify(t *testing.T) {
 	invalidShardID := types.ShardID{}
 	require.NoError(t, invalidShardID.UnmarshalText([]byte("0x81")))

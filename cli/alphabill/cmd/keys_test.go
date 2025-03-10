@@ -12,7 +12,7 @@ import (
 
 func TestGenerateAndLoadKeys(t *testing.T) {
 	file := filepath.Join(t.TempDir(), "keys.json")
-	keys, err := GenerateKeys()
+	keys, err := generateKeys()
 	require.NoError(t, err)
 	err = keys.WriteTo(file)
 	require.NoError(t, err)

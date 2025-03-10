@@ -12,7 +12,6 @@ import (
 	"github.com/alphabill-org/alphabill/keyvaluedb/boltdb"
 	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/network/protocol/abdrc"
-	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
 	"github.com/alphabill-org/alphabill/rootchain/partitions"
 	testpartition "github.com/alphabill-org/alphabill/rootchain/partitions/testutils"
@@ -40,10 +39,10 @@ func (m *MockAlwaysOkBlockVerifier) VerifyIRChangeReq(_ uint64, irChReq *drctype
 	switch irChReq.CertReason {
 	case drctypes.Quorum:
 		// NB! there was at least one request, otherwise we would not be here
-		return &InputData{IR: irChReq.Requests[0].InputRecord, PDRHash: luc.UC.UnicityTreeCertificate.PDRHash}, nil
+		return &InputData{IR: irChReq.Requests[0].InputRecord, ShardConfHash: luc.UC.UnicityTreeCertificate.PDRHash}, nil
 	case drctypes.QuorumNotPossible:
 	case drctypes.T2Timeout:
-		return &InputData{Partition: irChReq.Partition, IR: luc.UC.InputRecord, PDRHash: luc.UC.UnicityTreeCertificate.PDRHash}, nil
+		return &InputData{Partition: irChReq.Partition, IR: luc.UC.InputRecord, ShardConfHash: luc.UC.UnicityTreeCertificate.PDRHash}, nil
 	}
 	return nil, fmt.Errorf("unknown certification reason %v", irChReq.CertReason)
 }
@@ -90,7 +89,7 @@ func fakeBlock(round uint64, qc *drctypes.QuorumCert) *ExecutedBlock {
 			Qc:      qc,
 		},
 		CurrentIR: make(InputRecords, 0),
-		Changed:   make(map[partitionShard]struct{}),
+		Changed:   make(map[types.PartitionShardID]struct{}),
 		HashAlgo:  gocrypto.SHA256,
 		RootHash:  make([]byte, 32),
 		Qc:        &drctypes.QuorumCert{},
@@ -275,6 +274,7 @@ func TestBlockStoreAdd(t *testing.T) {
 			Hash:    rBlock.RootHash,
 		},
 	}
+	fmt.Println("TODO: hash =", fmt.Sprintf("%x", rBlock.RootHash))
 	ucs, err = bStore.ProcessQc(qc)
 	require.NoError(t, err)
 	require.Empty(t, ucs)

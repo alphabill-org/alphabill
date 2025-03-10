@@ -34,6 +34,9 @@ var pdr1 = &types.PartitionDescriptionRecord{
 	PartitionID:     partitionID1,
 	PartitionTypeID: 1,
 	T2Timeout:       2500 * time.Millisecond,
+	PartitionParams: map[string]string{
+		"foo": "bar",
+	},
 }
 var inputRecord2 = &types.InputRecord{
 	Version:      1,
@@ -50,12 +53,15 @@ var pdr2 = &types.PartitionDescriptionRecord{
 	PartitionID:     partitionID2,
 	PartitionTypeID: 2,
 	T2Timeout:       2500 * time.Millisecond,
+	PartitionParams: map[string]string{
+		"bar": "foo",
+	},
 }
 
 var roundInfo = &drctypes.RoundInfo{
 	RoundNumber:     genesis.RootRound,
 	Timestamp:       genesis.Timestamp,
-	CurrentRootHash: hexToBytes("6439C3FBC4811C9B8139BE7E817A2C89623434AE60EAD6F177AA7F49B05C7A3A"),
+	CurrentRootHash: hexToBytes("F4BDE9DB98E487F13AA6B3725B97CC137E61981D8366627600F4E97D16083C7E"),
 }
 
 var pg = func() []*genesis.GenesisPartitionRecord {
@@ -364,7 +370,7 @@ func TestNewBlockTreeFromDb(t *testing.T) {
 	db, err := memorydb.New()
 	require.NoError(t, err)
 	orchestration := testpartition.NewOrchestration(t, &genesis.RootGenesis{Partitions: pg})
-	gBlock, err := NewGenesisBlock(gocrypto.SHA256, pg)
+	gBlock, err := newGenesisBlock(gocrypto.SHA256, pg)
 	require.NoError(t, err)
 	require.NoError(t, db.Write(blockKey(genesis.RootRound), gBlock))
 	// create a new block
@@ -378,7 +384,7 @@ func TestNewBlockTreeFromDb(t *testing.T) {
 			Qc:        gBlock.BlockData.Qc,
 		},
 		CurrentIR: gBlock.CurrentIR,
-		Changed:   make(map[partitionShard]struct{}),
+		Changed:   make(map[types.PartitionShardID]struct{}),
 		HashAlgo:  gocrypto.SHA256,
 		RootHash:  gBlock.BlockData.Qc.LedgerCommitInfo.Hash,
 	}
@@ -396,7 +402,7 @@ func TestNewBlockTreeFromDbChain3Blocks(t *testing.T) {
 	db, err := memorydb.New()
 	require.NoError(t, err)
 	orchestration := testpartition.NewOrchestration(t, &genesis.RootGenesis{Partitions: pg})
-	gBlock, err := NewGenesisBlock(gocrypto.SHA256, pg)
+	gBlock, err := newGenesisBlock(gocrypto.SHA256, pg)
 	require.NoError(t, err)
 	require.NoError(t, db.Write(blockKey(genesis.RootRound), gBlock))
 	// create blocks 2 and 3
@@ -427,7 +433,7 @@ func TestNewBlockTreeFromDbChain3Blocks(t *testing.T) {
 			Qc:        gBlock.BlockData.Qc,
 		},
 		CurrentIR: gBlock.CurrentIR,
-		Changed:   make(map[partitionShard]struct{}),
+		Changed:   make(map[types.PartitionShardID]struct{}),
 		HashAlgo:  gocrypto.SHA256,
 		RootHash:  gBlock.BlockData.Qc.LedgerCommitInfo.Hash,
 	}
@@ -441,7 +447,7 @@ func TestNewBlockTreeFromDbChain3Blocks(t *testing.T) {
 			Qc:        qcBlock2,
 		},
 		CurrentIR: gBlock.CurrentIR,
-		Changed:   make(map[partitionShard]struct{}),
+		Changed:   make(map[types.PartitionShardID]struct{}),
 		HashAlgo:  gocrypto.SHA256,
 		RootHash:  gBlock.BlockData.Qc.LedgerCommitInfo.Hash,
 	}
@@ -460,7 +466,7 @@ func TestNewBlockTreeFromDbChain3Blocks(t *testing.T) {
 func TestNewBlockTreeFromRecovery(t *testing.T) {
 	db, err := memorydb.New()
 	require.NoError(t, err)
-	gBlock, err := NewGenesisBlock(gocrypto.SHA256, pg)
+	gBlock, err := newGenesisBlock(gocrypto.SHA256, pg)
 	require.NoError(t, err)
 	require.NoError(t, db.Write(blockKey(genesis.RootRound), gBlock))
 	// create blocks 2 and 3
@@ -494,7 +500,7 @@ func TestNewBlockTreeFromRecovery(t *testing.T) {
 			Qc:        gBlock.BlockData.Qc,
 		},
 		CurrentIR: gBlock.CurrentIR,
-		Changed:   make(map[partitionShard]struct{}),
+		Changed:   make(map[types.PartitionShardID]struct{}),
 		HashAlgo:  gocrypto.SHA256,
 		RootHash:  gBlock.BlockData.Qc.LedgerCommitInfo.Hash,
 	}
@@ -510,7 +516,7 @@ func TestNewBlockTreeFromRecovery(t *testing.T) {
 			Qc:        qcBlock2,
 		},
 		CurrentIR: gBlock.CurrentIR,
-		Changed:   make(map[partitionShard]struct{}),
+		Changed:   make(map[types.PartitionShardID]struct{}),
 		HashAlgo:  gocrypto.SHA256,
 		RootHash:  gBlock.BlockData.Qc.LedgerCommitInfo.Hash,
 	}
@@ -587,9 +593,9 @@ func TestAddAndCommit(t *testing.T) {
 	// commit creates empty unicity tree. As we do not have any shard marked as
 	// having changes Commit doesn't return any certificates.
 	b.CurrentIR = append(b.CurrentIR, &InputData{
-		Partition: 1,
-		IR:        &types.InputRecord{},
-		PDRHash:   nil,
+		Partition:     1,
+		IR:            &types.InputRecord{},
+		ShardConfHash: nil,
 	})
 	b.RootHash = hexToBytes("955486064743538FB1EA182505025D1BEC57BB07D6FA06DE3F31322447055D1B")
 

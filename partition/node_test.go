@@ -227,7 +227,7 @@ func TestNode_InvalidCertificateResponse(t *testing.T) {
 	tp := runSingleValidatorNodePartition(t, &testtxsystem.CounterTxSystem{})
 	cr := &certification.CertificationResponse{
 		Partition: tp.nodeConf.GetPartitionID(),
-		Shard:     tp.nodeConf.shardID,
+		Shard:     tp.nodeConf.shardConf.ShardID,
 	}
 	tp.mockNet.Receive(cr)
 	ContainsError(t, tp, "invalid CertificationResponse: UnicityTreeCertificate is unassigned")
@@ -436,7 +436,7 @@ func TestNode_HandleUnicityCertificate_SwitchToNonValidator(t *testing.T) {
 
 	// Create VAR for epoch 1
 	// epoch 1 validators are [epoch0Node, thisNode, epoch1Node]
-	vaRec1 := createVARWithNewNode(t, newVARFromGenesis(tp.nodeConf.genesis))
+	vaRec1 := createVARWithNewNode(t, tp.nodeConf.shardConf)
 	require.NoError(t, tp.partition.RegisterValidatorAssignmentRecord(vaRec1))
 
 	ir2 := tp.GetCommittedUC(t).InputRecord.NewRepeatIR()
@@ -508,7 +508,7 @@ func TestBlockProposal_InvalidBlockProposal(t *testing.T) {
 	verifier, err := tp.rootSigner.Verifier()
 	require.NoError(t, err)
 	rootTrust := trustbase.NewTrustBase(t, verifier)
-	val, err := NewDefaultBlockProposalValidator(tp.nodeConf.genesis.PartitionDescription, rootTrust, gocrypto.SHA256)
+	val, err := NewDefaultBlockProposalValidator(tp.nodeConf.shardConf, rootTrust, gocrypto.SHA256)
 	require.NoError(t, err)
 	tp.partition.blockProposalValidator = val
 

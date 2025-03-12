@@ -627,10 +627,11 @@ func TestSerialize_OK(t *testing.T) {
 	require.NoError(t, s.Commit(uc))
 
 	buf := &bytes.Buffer{}
+	executedTransactions := map[string]uint64{"tx1": 1, "tx2": 2, "tx3": 3}
 	// Writes the pruned state
-	require.NoError(t, s.Serialize(buf, true))
+	require.NoError(t, s.Serialize(buf, true, executedTransactions))
 
-	recoveredState, err := NewRecoveredState(buf, unitDataConstructor, WithHashAlgorithm(crypto.SHA256))
+	recoveredState, header, err := NewRecoveredState(buf, unitDataConstructor, WithHashAlgorithm(crypto.SHA256))
 	require.NoError(t, err)
 
 	recoveredSummaryValue, recoveredSummaryHash, err := recoveredState.CalculateRoot()
@@ -641,6 +642,7 @@ func TestSerialize_OK(t *testing.T) {
 	require.Equal(t, summaryValue, recoveredSummaryValue)
 	require.Equal(t, summaryHash, recoveredSummaryHash)
 	require.Equal(t, uc, recoveredState.CommittedUC())
+	require.Equal(t, executedTransactions, header.ExecutedTransactions)
 }
 
 func TestSerialize_InvalidHeader(t *testing.T) {
@@ -648,45 +650,45 @@ func TestSerialize_InvalidHeader(t *testing.T) {
 
 	buf := &bytes.Buffer{}
 	// Writes the pruned state
-	require.NoError(t, s.Serialize(buf, true))
+	require.NoError(t, s.Serialize(buf, true, nil))
 
 	_, err := buf.ReadByte()
 	require.NoError(t, err)
 
-	_, err = NewRecoveredState(buf, unitDataConstructor, WithHashAlgorithm(crypto.SHA256))
+	_, _, err = NewRecoveredState(buf, unitDataConstructor, WithHashAlgorithm(crypto.SHA256))
 	require.ErrorContains(t, err, "unable to decode header")
 }
 
 func TestSerialize_InvalidNodeRecords(t *testing.T) {
 	s := NewEmptyState(WithHashAlgorithm(crypto.SHA256))
 
-	h := &header{
+	h := &Header{
 		NodeRecordCount:    1,
 		UnicityCertificate: nil,
 	}
 	buf := createSerializedState(t, s, h, 0)
 
-	_, err := NewRecoveredState(buf, unitDataConstructor, WithHashAlgorithm(crypto.SHA256))
+	_, _, err := NewRecoveredState(buf, unitDataConstructor, WithHashAlgorithm(crypto.SHA256))
 	require.ErrorContains(t, err, "unable to decode node record")
 }
 
 func TestSerialize_TooManyNodeRecords(t *testing.T) {
 	s, _, _ := prepareState(t)
 
-	h := &header{
+	h := &Header{
 		NodeRecordCount:    10,
 		UnicityCertificate: nil,
 	}
 	buf := createSerializedState(t, s, h, 0)
 
-	_, err := NewRecoveredState(buf, unitDataConstructor, WithHashAlgorithm(crypto.SHA256))
+	_, _, err := NewRecoveredState(buf, unitDataConstructor, WithHashAlgorithm(crypto.SHA256))
 	require.ErrorContains(t, err, "unexpected node record")
 }
 
 func TestSerialize_UnitDataConstructorError(t *testing.T) {
 	s, _, _ := prepareState(t)
 
-	h := &header{
+	h := &Header{
 		NodeRecordCount:    11,
 		UnicityCertificate: nil,
 	}
@@ -695,14 +697,14 @@ func TestSerialize_UnitDataConstructorError(t *testing.T) {
 	udc := func(_ types.UnitID) (types.UnitData, error) {
 		return nil, fmt.Errorf("something happened")
 	}
-	_, err := NewRecoveredState(buf, udc, WithHashAlgorithm(crypto.SHA256))
+	_, _, err := NewRecoveredState(buf, udc, WithHashAlgorithm(crypto.SHA256))
 	require.ErrorContains(t, err, "unable to construct unit data: something happened")
 }
 
 func TestSerialize_InvalidUnitDataConstructor(t *testing.T) {
 	s, _, _ := prepareState(t)
 
-	h := &header{
+	h := &Header{
 		NodeRecordCount:    11,
 		UnicityCertificate: nil,
 	}
@@ -711,33 +713,33 @@ func TestSerialize_InvalidUnitDataConstructor(t *testing.T) {
 	udc := func(_ types.UnitID) (types.UnitData, error) {
 		return struct{ *pruneUnitData }{}, nil
 	}
-	_, err := NewRecoveredState(buf, udc, WithHashAlgorithm(crypto.SHA256))
+	_, _, err := NewRecoveredState(buf, udc, WithHashAlgorithm(crypto.SHA256))
 	require.ErrorContains(t, err, "unable to decode unit data")
 }
 
 func TestSerialize_InvalidChecksum(t *testing.T) {
 	s, _, _ := prepareState(t)
 
-	h := &header{
+	h := &Header{
 		NodeRecordCount:    11,
 		UnicityCertificate: nil,
 	}
 	buf := createSerializedState(t, s, h, 1)
 
-	_, err := NewRecoveredState(buf, unitDataConstructor, WithHashAlgorithm(crypto.SHA256))
+	_, _, err := NewRecoveredState(buf, unitDataConstructor, WithHashAlgorithm(crypto.SHA256))
 	require.ErrorContains(t, err, "checksum mismatch")
 }
 
 func TestSerialize_InvalidUC(t *testing.T) {
 	s, _, _ := prepareState(t)
 
-	h := &header{
+	h := &Header{
 		NodeRecordCount:    11,
 		UnicityCertificate: createUC(t, s, 0, nil),
 	}
 	buf := createSerializedState(t, s, h, 0)
 
-	_, err := NewRecoveredState(buf, unitDataConstructor, WithHashAlgorithm(crypto.SHA256))
+	_, _, err := NewRecoveredState(buf, unitDataConstructor, WithHashAlgorithm(crypto.SHA256))
 	require.ErrorContains(t, err, "unable to commit recovered state")
 }
 
@@ -745,13 +747,13 @@ func TestSerialize_EmptyStateUncommitted(t *testing.T) {
 	s := NewEmptyState(WithHashAlgorithm(crypto.SHA256))
 
 	buf := &bytes.Buffer{}
-	require.NoError(t, s.Serialize(buf, true))
+	require.NoError(t, s.Serialize(buf, true, nil))
 
 	udc := func(_ types.UnitID) (types.UnitData, error) {
 		return &pruneUnitData{}, nil
 	}
 
-	state, err := NewRecoveredState(buf, udc, WithHashAlgorithm(crypto.SHA256))
+	state, _, err := NewRecoveredState(buf, udc, WithHashAlgorithm(crypto.SHA256))
 	require.NoError(t, err)
 	committed, err := state.IsCommitted()
 	require.NoError(t, err)
@@ -765,13 +767,13 @@ func TestSerialize_EmptyStateCommitted(t *testing.T) {
 	require.NoError(t, s.Commit(createUC(t, s, summaryValue, summaryHash)))
 
 	buf := &bytes.Buffer{}
-	require.NoError(t, s.Serialize(buf, true))
+	require.NoError(t, s.Serialize(buf, true, nil))
 
 	udc := func(_ types.UnitID) (types.UnitData, error) {
 		return &pruneUnitData{}, nil
 	}
 
-	state, err := NewRecoveredState(buf, udc, WithHashAlgorithm(crypto.SHA256))
+	state, _, err := NewRecoveredState(buf, udc, WithHashAlgorithm(crypto.SHA256))
 	require.NoError(t, err)
 	committed, err := state.IsCommitted()
 	require.NoError(t, err)
@@ -982,7 +984,7 @@ func unitDataConstructor(_ types.UnitID) (types.UnitData, error) {
 	return &pruneUnitData{}, nil
 }
 
-func createSerializedState(t *testing.T, s *State, h *header, checksum uint32) *bytes.Buffer {
+func createSerializedState(t *testing.T, s *State, h *Header, checksum uint32) *bytes.Buffer {
 	buf := &bytes.Buffer{}
 	crc32Writer := NewCRC32Writer(buf)
 	encoder, err := types.Cbor.GetEncoder(crc32Writer)

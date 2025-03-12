@@ -17,14 +17,15 @@ const DefaultGasPrice = 210000000
 
 type (
 	Options struct {
-		moneyPartitionID types.PartitionID
-		state            *state.State
-		hashAlgorithm    crypto.Hash
-		trustBase        types.RootTrustBase
-		blockGasLimit    uint64
-		gasUnitPrice     *big.Int
-		blockDB          keyvaluedb.KeyValueDB
-		execPredicate    predicates.PredicateExecutor
+		moneyPartitionID     types.PartitionID
+		state                *state.State
+		executedTransactions map[string]uint64
+		hashAlgorithm        crypto.Hash
+		trustBase            types.RootTrustBase
+		blockGasLimit        uint64
+		gasUnitPrice         *big.Int
+		blockDB              keyvaluedb.KeyValueDB
+		execPredicate        predicates.PredicateExecutor
 	}
 
 	Option func(*Options)
@@ -59,6 +60,12 @@ func WithBlockDB(blockDB keyvaluedb.KeyValueDB) Option {
 func WithState(s *state.State) Option {
 	return func(c *Options) {
 		c.state = s
+	}
+}
+
+func WithExecutedTransactions(executedTransactions map[string]uint64) Option {
+	return func(c *Options) {
+		c.executedTransactions = executedTransactions
 	}
 }
 

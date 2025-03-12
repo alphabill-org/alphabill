@@ -121,10 +121,10 @@ func TestNewTxSystem_RecoveredState(t *testing.T) {
 	// Commit and serialize the state
 	require.NoError(t, originalTxs.Commit(createUC(originalSummaryRound1, 1)))
 	buf := &bytes.Buffer{}
-	require.NoError(t, originalTxs.State().Serialize(buf, true))
+	require.NoError(t, originalTxs.State().Serialize(buf, true, nil))
 
 	// Create a recovered state and txSystem from the serialized state
-	recoveredState, err := state.NewRecoveredState(buf, func(ui types.UnitID) (types.UnitData, error) { return money.NewUnitData(ui, sdrs[0]) }, state.WithHashAlgorithm(crypto.SHA256))
+	recoveredState, _, err := state.NewRecoveredState(buf, func(ui types.UnitID) (types.UnitData, error) { return money.NewUnitData(ui, sdrs[0]) }, state.WithHashAlgorithm(crypto.SHA256))
 	require.NoError(t, err)
 	recoveredTxs, err := NewTxSystem(
 		*sdrs[0],
@@ -1190,7 +1190,7 @@ func createPDRs(t *testing.T) []*types.PartitionDescriptionRecord {
 	}}
 }
 
-func createUC(s txsystem.StateSummary, roundNumber uint64) *types.UnicityCertificate {
+func createUC(s *txsystem.StateSummary, roundNumber uint64) *types.UnicityCertificate {
 	return &types.UnicityCertificate{Version: 1, InputRecord: &types.InputRecord{
 		Version:      1,
 		RoundNumber:  roundNumber,

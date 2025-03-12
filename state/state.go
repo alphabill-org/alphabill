@@ -62,12 +62,12 @@ func NewEmptyState(opts ...Option) *State {
 	}
 }
 
-func NewRecoveredState(stateData io.Reader, udc UnitDataConstructor, opts ...Option) (*State, error) {
+func NewRecoveredState(stateData io.Reader, udc UnitDataConstructor, opts ...Option) (*State, *Header, error) {
 	if stateData == nil {
-		return nil, fmt.Errorf("reader is nil")
+		return nil, nil, fmt.Errorf("reader is nil")
 	}
 	if udc == nil {
-		return nil, fmt.Errorf("unit data constructor is nil")
+		return nil, nil, fmt.Errorf("unit data constructor is nil")
 	}
 
 	return readState(stateData, udc, opts...)
@@ -320,14 +320,17 @@ func (s *State) Size() (uint64, error) {
 
 // Serialize writes the current committed state to the given writer.
 // Not concurrency safe. Should clone the state before calling this.
-func (s *State) Serialize(writer io.Writer, committed bool) error {
+func (s *State) Serialize(writer io.Writer, committed bool, executedTransactions map[string]uint64) error {
 	crc32Writer := NewCRC32Writer(writer)
 	encoder, err := types.Cbor.GetEncoder(crc32Writer)
 	if err != nil {
 		return fmt.Errorf("unable to get encoder: %w", err)
 	}
 
-	header := &header{Version: 1}
+	header := &Header{
+		Version:              1,
+		ExecutedTransactions: executedTransactions,
+	}
 
 	var tree *tree
 	if committed {

@@ -1,6 +1,7 @@
 package txsystem
 
 import (
+	"crypto"
 	"errors"
 	"math"
 	"testing"
@@ -25,8 +26,8 @@ import (
 const mockTxType uint16 = 1
 const mockSplitTxType uint16 = 2
 const mockFeeTxType uint16 = 3
-const mockNetworkID types.NetworkID = 5
-const mockPartitionID types.PartitionID = 10
+const mockNetworkID types.NetworkID = 5     // same as txsystem/testutils/transaction#defaultNetworkID
+const mockPartitionID types.PartitionID = 1 // same as txsystem/testutils/transaction#defaultPartitionID
 
 type MockData struct {
 	_              struct{} `cbor:",toarray"`
@@ -554,6 +555,88 @@ func Test_GenericTxSystem_validateGenericTransaction(t *testing.T) {
 
 		txSys.currentRoundNumber = math.MaxUint64
 		require.ErrorIs(t, txSys.validateGenericTransaction(txo), ErrTransactionExpired)
+	})
+}
+
+func Test_GenericTxSystem_ExecutedTransactionsBuffer(t *testing.T) {
+	t.Run("same transaction cannot be executed twice", func(t *testing.T) {
+		txSystem := NewTestGenericTxSystem(t, nil)
+		txo := transaction.NewTransactionOrder(t)
+		_, err := txSystem.Execute(txo)
+		require.NoError(t, err)
+
+		// execute same tx again
+		_, err = txSystem.Execute(txo)
+		require.ErrorContains(t, err, "transaction already executed")
+	})
+	t.Run("executing multiple different transactions ok", func(t *testing.T) {
+		txSystem := NewTestGenericTxSystem(t, nil)
+
+		tx1 := transaction.NewTransactionOrder(t, transaction.WithClientMetadata(&types.ClientMetadata{Timeout: 1}))
+		tx1Hash, err := tx1.Hash(crypto.SHA256)
+		require.NoError(t, err)
+
+		tx2 := transaction.NewTransactionOrder(t, transaction.WithClientMetadata(&types.ClientMetadata{Timeout: 2}))
+		tx2Hash, err := tx2.Hash(crypto.SHA256)
+		require.NoError(t, err)
+
+		_, err = txSystem.Execute(tx1)
+		require.NoError(t, err)
+		_, err = txSystem.Execute(tx2)
+		require.NoError(t, err)
+
+		tx1Timeout, _ := txSystem.etBuffer.Get(string(tx1Hash))
+		tx2Timeout, _ := txSystem.etBuffer.Get(string(tx2Hash))
+		require.Equal(t, uint64(1), tx1Timeout)
+		require.Equal(t, uint64(2), tx2Timeout)
+	})
+	t.Run("expired transactions are deleted on EndBlock", func(t *testing.T) {
+		txSystem := NewTestGenericTxSystem(t, nil)
+		tx1 := transaction.NewTransactionOrder(t, transaction.WithClientMetadata(&types.ClientMetadata{
+			Timeout: 0,
+		}))
+		tx1Hash, err := tx1.Hash(crypto.SHA256)
+		require.NoError(t, err)
+
+		tx2 := transaction.NewTransactionOrder(t, transaction.WithClientMetadata(&types.ClientMetadata{
+			Timeout: 1,
+		}))
+		tx2Hash, err := tx2.Hash(crypto.SHA256)
+		require.NoError(t, err)
+
+		_, err = txSystem.Execute(tx1)
+		require.NoError(t, err)
+
+		_, err = txSystem.Execute(tx2)
+		require.NoError(t, err)
+
+		_, err = txSystem.EndBlock()
+		require.NoError(t, err)
+
+		timeout, f := txSystem.etBuffer.Get(string(tx1Hash))
+		require.False(t, f)
+		require.Zero(t, timeout)
+
+		timeout, f = txSystem.etBuffer.Get(string(tx2Hash))
+		require.True(t, f)
+		require.Equal(t, uint64(1), timeout)
+	})
+	t.Run("revert rolls back pending transactions", func(t *testing.T) {
+		txSystem := NewTestGenericTxSystem(t, nil)
+		tx := transaction.NewTransactionOrder(t, transaction.WithClientMetadata(&types.ClientMetadata{
+			Timeout: 10,
+		}))
+		txHash, err := tx.Hash(crypto.SHA256)
+		require.NoError(t, err)
+
+		_, err = txSystem.Execute(tx)
+		require.NoError(t, err)
+
+		txSystem.Revert()
+
+		timeout, f := txSystem.etBuffer.Get(string(txHash))
+		require.False(t, f)
+		require.Zero(t, timeout)
 	})
 }
 

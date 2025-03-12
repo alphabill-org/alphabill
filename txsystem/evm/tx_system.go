@@ -4,6 +4,7 @@ import (
 	"crypto"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"math"
 
@@ -124,7 +125,7 @@ func (m *TxSystem) StateSize() (uint64, error) {
 	return m.state.Size()
 }
 
-func (m *TxSystem) StateSummary() (txsystem.StateSummary, error) {
+func (m *TxSystem) StateSummary() (*txsystem.StateSummary, error) {
 	committed, err := m.state.IsCommitted()
 	if err != nil {
 		return nil, fmt.Errorf("unable to check if state is committed: %w", err)
@@ -135,12 +136,12 @@ func (m *TxSystem) StateSummary() (txsystem.StateSummary, error) {
 	return m.getState()
 }
 
-func (m *TxSystem) getState() (txsystem.StateSummary, error) {
+func (m *TxSystem) getState() (*txsystem.StateSummary, error) {
 	sv, hash, err := m.state.CalculateRoot()
 	if err != nil {
 		return nil, err
 	}
-	return txsystem.NewStateSummary(hash, util.Uint64ToBytes(sv)), nil
+	return txsystem.NewStateSummary(hash, util.Uint64ToBytes(sv), nil), nil
 }
 
 func (m *TxSystem) BeginBlock(roundNo uint64) error {
@@ -215,7 +216,7 @@ func (m *TxSystem) Execute(tx *types.TransactionOrder) (txr *types.TransactionRe
 	return txr, err
 }
 
-func (m *TxSystem) EndBlock() (txsystem.StateSummary, error) {
+func (m *TxSystem) EndBlock() (*txsystem.StateSummary, error) {
 	for _, function := range m.endBlockFunctions {
 		if err := function(m.currentRoundNumber); err != nil {
 			return nil, fmt.Errorf("end block function call failed: %w", err)
@@ -253,6 +254,10 @@ func (m *TxSystem) IsFeelessMode() bool {
 
 func (m *TxSystem) TypeID() types.PartitionTypeID {
 	return evm.PartitionTypeID
+}
+
+func (m *TxSystem) SerializeState(w io.Writer) error {
+	return nil
 }
 
 func (vc *TxValidationContext) GetUnit(id types.UnitID, committed bool) (state.Unit, error) {

@@ -38,6 +38,7 @@ type (
 		log                 *slog.Logger
 		pr                  predicates.PredicateRunner
 		unitIDValidator     func(types.UnitID) error
+		etBuffer            *ETBuffer // executed transactions buffer
 	}
 
 	Observability interface {
@@ -79,6 +80,7 @@ func NewGenericTxSystem(pdr types.PartitionDescriptionRecord, shardID types.Shar
 		handlers:            make(txtypes.TxExecutors),
 		pr:                  options.predicateRunner,
 		fees:                options.feeCredit,
+		etBuffer:            NewETBuffer(WithExecutedTxs(options.executedTransactions)),
 	}
 	txs.log = observe.RoundLogger(txs.CurrentRound)
 	txs.beginBlockFunctions = append(txs.beginBlockFunctions, txs.pruneState)
@@ -121,7 +123,7 @@ func (m *GenericTxSystem) StateSize() (uint64, error) {
 	return m.state.Size()
 }
 
-func (m *GenericTxSystem) StateSummary() (StateSummary, error) {
+func (m *GenericTxSystem) StateSummary() (*StateSummary, error) {
 	committed, err := m.state.IsCommitted()
 	if err != nil {
 		return nil, fmt.Errorf("unable to check state committed status: %w", err)
@@ -132,12 +134,16 @@ func (m *GenericTxSystem) StateSummary() (StateSummary, error) {
 	return m.getStateSummary()
 }
 
-func (m *GenericTxSystem) getStateSummary() (StateSummary, error) {
+func (m *GenericTxSystem) getStateSummary() (*StateSummary, error) {
 	sv, hash, err := m.state.CalculateRoot()
 	if err != nil {
 		return nil, err
 	}
-	return NewStateSummary(hash, util.Uint64ToBytes(sv)), nil
+	etHash, err := m.etBuffer.Hash()
+	if err != nil {
+		return nil, fmt.Errorf("failed to caluclate executed transactions hash: %w", err)
+	}
+	return NewStateSummary(hash, util.Uint64ToBytes(sv), etHash), nil
 }
 
 func (m *GenericTxSystem) BeginBlock(roundNo uint64) error {
@@ -160,7 +166,23 @@ func (m *GenericTxSystem) snFees(_ *types.TransactionOrder, execCxt txtypes.Exec
 	return execCxt.SpendGas(abfc.GeneralTxCostGasUnits)
 }
 
-func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (*types.TransactionRecord, error) {
+func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (tr *types.TransactionRecord, err error) {
+	// discard tx if it is a duplicate
+	txHash, err := tx.Hash(m.hashAlgorithm)
+	if err != nil {
+		return nil, fmt.Errorf("failed to hash transaction: %w", err)
+	}
+	txID := string(txHash)
+	_, f := m.etBuffer.Get(txID)
+	if f {
+		return nil, errors.New("transaction already executed")
+	}
+	defer func() {
+		if tr != nil {
+			m.etBuffer.Add(txID, tx.Timeout())
+		}
+	}()
+
 	// First, check transaction credible and that there are enough fee credits on the FCR?
 	// buy gas according to the maximum tx fee allowed by client -
 	// if fee proof check fails, function will exit tx and tx will not be added to block
@@ -178,7 +200,7 @@ func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (*types.Transactio
 	m.log.Debug(fmt.Sprintf("execute %d", tx.Type), logger.UnitID(tx.GetUnitID()), logger.Data(tx))
 	// execute fee credit transactions
 	if m.fees.IsFeeCreditTx(tx) {
-		tr, err := m.executeFc(tx, exeCtx)
+		tr, err = m.executeFc(tx, exeCtx)
 		if err != nil {
 			return nil, fmt.Errorf("execute fc error: %w", err)
 		}
@@ -189,7 +211,7 @@ func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (*types.Transactio
 		// not credible, means that no fees can be charged, so just exit with error tx will not be added to block
 		return nil, fmt.Errorf("error transaction not credible: %w", err)
 	}
-	tr, err := m.doExecute(tx, exeCtx)
+	tr, err = m.doExecute(tx, exeCtx)
 	if err != nil {
 		return nil, fmt.Errorf("execute error: %w", err)
 	}
@@ -423,7 +445,11 @@ func (m *GenericTxSystem) State() StateReader {
 	return m.state.Clone()
 }
 
-func (m *GenericTxSystem) EndBlock() (StateSummary, error) {
+func (m *GenericTxSystem) EndBlock() (*StateSummary, error) {
+	// remove expired transaction order data from ET (duplicate check buffer)
+	m.etBuffer.ClearExpired(m.currentRoundNumber)
+
+	// execute the transaction system specific completion steps
 	for _, function := range m.endBlockFunctions {
 		if err := function(m.currentRoundNumber); err != nil {
 			return nil, fmt.Errorf("end block function call failed: %w", err)
@@ -437,12 +463,14 @@ func (m *GenericTxSystem) Revert() {
 		return
 	}
 	m.state.Revert()
+	m.etBuffer.Revert()
 }
 
 func (m *GenericTxSystem) Commit(uc *types.UnicityCertificate) error {
 	err := m.state.Commit(uc)
 	if err == nil {
 		m.roundCommitted = true
+		m.etBuffer.Commit()
 	}
 	return err
 }
@@ -451,8 +479,8 @@ func (m *GenericTxSystem) CommittedUC() *types.UnicityCertificate {
 	return m.state.CommittedUC()
 }
 
-func (m *GenericTxSystem) SerializeState(writer io.Writer, committed bool) error {
-	return m.state.Serialize(writer, committed)
+func (m *GenericTxSystem) SerializeState(writer io.Writer) error {
+	return m.state.Serialize(writer, true, m.etBuffer.executedTransactions)
 }
 
 func (m *GenericTxSystem) CurrentRound() uint64 {

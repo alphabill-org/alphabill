@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"time"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
@@ -39,6 +40,7 @@ type (
 		GetTransactionRecordProof(ctx context.Context, hash []byte) (*types.TxRecordProof, error)
 		CurrentRoundInfo(ctx context.Context) (*partition.RoundInfo, error)
 		TransactionSystemState() txsystem.StateReader
+		SerializeState(w io.Writer) error
 		Validators() peer.IDSlice
 		RegisterValidatorAssignmentRecord(v *partitions.ValidatorAssignmentRecord) error
 		GetTrustBase(epochNumber uint64) (types.RootTrustBase, error)

@@ -368,6 +368,7 @@ func TestExecuteDefineNFT_UnitIDExists(t *testing.T) {
 	require.Equal(t, []types.UnitID{tx.UnitID, feeCreditID}, txr.TargetUnits())
 	require.True(t, txr.ServerMetadata.ActualFee > 0)
 
+	tx.ClientMetadata.Timeout += 1 // increment timeout to pass executed transactions buffer
 	txr, err = txs.Execute(tx)
 	require.NoError(t, err)
 	require.NotNil(t, txr)

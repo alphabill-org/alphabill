@@ -452,10 +452,7 @@ func (mn *MockNode) RegisterValidatorAssignmentRecord(v *partitions.ValidatorAss
 }
 
 func (mn *MockNode) SerializeState(writer io.Writer) error {
-	if mn.err != nil {
-		return mn.err
-	}
-	return nil
+	return mn.TransactionSystemState().Serialize(writer, true, nil)
 }
 
 func (mn *MockNode) GetTrustBase(epochNumber uint64) (types.RootTrustBase, error) {

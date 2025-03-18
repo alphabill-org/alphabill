@@ -42,3 +42,7 @@ func (f *NoFeeHandling) IsPermissionedMode() bool {
 func (f *NoFeeHandling) IsFeelessMode() bool {
 	return true
 }
+
+func (f *NoFeeHandling) FeeCreditRecordUnitType() uint32 {
+	return 0
+}

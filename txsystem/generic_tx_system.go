@@ -1,13 +1,16 @@
 package txsystem
 
 import (
+	"bytes"
 	"context"
 	"crypto"
 	"errors"
 	"fmt"
 	"io"
 	"log/slog"
+	"slices"
 
+	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/nop"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/util"
@@ -39,6 +42,7 @@ type (
 		pr                  predicates.PredicateRunner
 		unitIDValidator     func(types.UnitID) error
 		etBuffer            *ETBuffer // executed transactions buffer
+		fcrTypeID           uint32
 	}
 
 	Observability interface {
@@ -83,7 +87,7 @@ func NewGenericTxSystem(pdr types.PartitionDescriptionRecord, shardID types.Shar
 		etBuffer:            NewETBuffer(WithExecutedTxs(options.executedTransactions)),
 	}
 	txs.log = observe.RoundLogger(txs.CurrentRound)
-	txs.beginBlockFunctions = append(txs.beginBlockFunctions, txs.pruneState)
+	txs.beginBlockFunctions = append([]func(roundNo uint64) error{txs.pruneState, txs.rInit}, txs.beginBlockFunctions...)
 
 	for _, module := range modules {
 		if err := txs.handlers.Add(module.TxHandlers()); err != nil {
@@ -153,6 +157,69 @@ func (m *GenericTxSystem) BeginBlock(roundNo uint64) error {
 		if err := function(roundNo); err != nil {
 			return fmt.Errorf("begin block function call failed: %w", err)
 		}
+	}
+	return nil
+}
+
+// rInit generic round initialization procedure common for all transaction systems:
+//  1. Prune the state change history for all units that were targeted by transactions in the previous round (done in state pruner)
+//  2. Delete all unlocked fee credit records with zero remaining balance and expired lifetime
+//  3. Delete all expired units
+func (m *GenericTxSystem) rInit(roundNumber uint64) error {
+	var expiredFCRs []types.UnitID
+	var expiredUnits []types.UnitID
+	err := m.state.Traverse(state.NewInorderTraverser(func(unitID types.UnitID, unit state.Unit) error {
+		unitV1, err := state.ToUnitV1(unit)
+		if err != nil {
+			return fmt.Errorf("failed to extract unit v1: %w", err)
+		}
+		unitType, err := m.pdr.ExtractUnitType(unitID)
+		if err != nil {
+			return fmt.Errorf("failed to extract unit type: %w", err)
+		}
+		if unitType == m.fees.FeeCreditRecordUnitType() {
+			fcr, ok := unit.Data().(*fc.FeeCreditRecord)
+			if !ok {
+				// sanity check, should never happen
+				return fmt.Errorf("unit data type is not a fee credit record")
+			}
+			if fcr.Balance == 0 && fcr.Locked == 0 && fcr.MinLifetime < roundNumber {
+				expiredFCRs = append(expiredFCRs, unitID)
+			}
+		} else if unitV1.DeletionRound() > 0 && unitV1.DeletionRound() <= roundNumber {
+			expiredUnits = append(expiredUnits, unitID)
+		}
+		// TODO move state_pruner here?
+		return nil
+	}))
+	if err != nil {
+		return fmt.Errorf("failed to traverse the state tree: %w", err)
+	}
+	if err := m.deleteUnits(expiredFCRs); err != nil {
+		return fmt.Errorf("failed to delete fcr unit: %w", err)
+	}
+	if err := m.deleteUnits(expiredUnits); err != nil {
+		return fmt.Errorf("failed to delete ordinary unit: %w", err)
+	}
+	return nil
+}
+
+func (m *GenericTxSystem) deleteUnits(unitIDs []types.UnitID) error {
+	if len(unitIDs) == 0 {
+		return nil
+	}
+	// sort unit ids for deterministic delete
+	slices.SortFunc(unitIDs, func(a, b types.UnitID) int {
+		return bytes.Compare(a, b)
+	})
+
+	// delete all units in single action to avoid concurrency overhead
+	var actions []state.Action
+	for _, unitID := range unitIDs {
+		actions = append(actions, state.DeleteUnit(unitID))
+	}
+	if err := m.state.Apply(actions...); err != nil {
+		return fmt.Errorf("failed to delete units: %w", err)
 	}
 	return nil
 }

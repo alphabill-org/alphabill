@@ -29,7 +29,7 @@ Returns handle(s) to the new variable(s).
   - 1: flag - parse as array (0) or single struct (1)?
 */
 func cborParse(vec *vmContext, mod api.Module, stack []uint64) error {
-	data, err := vec.getBytesVariable(stack[0])
+	data, err := vec.getBytesVariable(api.DecodeU32(stack[0]))
 	if err != nil {
 		return fmt.Errorf("reading variable: %w", err)
 	}
@@ -64,7 +64,7 @@ func cborParse(vec *vmContext, mod api.Module, stack []uint64) error {
 Parse CBOR array to "raw chunks" ie all items will still be CBOR encoded.
 */
 func cborChunks(vec *vmContext, mod api.Module, stack []uint64) error {
-	data, err := vec.getBytesVariable(stack[0])
+	data, err := vec.getBytesVariable(api.DecodeU32(stack[0]))
 	if err != nil {
 		return fmt.Errorf("reading variable: %w", err)
 	}

@@ -30,7 +30,7 @@ func Test_txSignedByPKH(t *testing.T) {
 		obs := observability.Default(t)
 		vm := &vmContext{
 			curPrg: &evalContext{
-				vars:   map[uint64]any{},
+				vars:   map[uint32]any{},
 				varIdx: handle_max_reserved,
 			},
 			encoder: txsEnc,
@@ -63,7 +63,7 @@ func Test_txSignedByPKH(t *testing.T) {
 		vm.curPrg.vars[handle_current_args] = []byte("owner proof")
 
 		// handle refers to nonexisting var
-		stack := []uint64{handle_current_tx_order, vm.curPrg.varIdx, handle_current_args}
+		stack := []uint64{handle_current_tx_order, uint64(vm.curPrg.varIdx), handle_current_args}
 		txSignedByPKH(ctx, mod, stack)
 		require.EqualValues(t, 4, stack[0])
 

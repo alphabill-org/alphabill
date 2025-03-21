@@ -51,21 +51,21 @@ Returns:
 func txSignedByPKH(ctx context.Context, mod api.Module, stack []uint64) {
 	vec := extractVMContext(ctx)
 
-	txo, err := getVar[*types.TransactionOrder](vec.curPrg.vars, stack[0])
+	txo, err := getVar[*types.TransactionOrder](vec.curPrg.vars, api.DecodeU32(stack[0]))
 	if err != nil {
 		vec.log.DebugContext(ctx, "argument is not valid tx order handle", logger.Error(err))
 		stack[0] = 3
 		return
 	}
 
-	pkh, err := vec.getBytesVariable(stack[1])
+	pkh, err := vec.getBytesVariable(api.DecodeU32(stack[1]))
 	if err != nil || pkh == nil {
 		vec.log.DebugContext(ctx, "reading pkh", logger.Error(err))
 		stack[0] = 4
 		return
 	}
 
-	proof, err := vec.getBytesVariable(stack[2])
+	proof, err := vec.getBytesVariable(api.DecodeU32(stack[2]))
 	if err != nil || proof == nil {
 		vec.log.DebugContext(ctx, "extracting owner proof", logger.Error(err))
 		stack[0] = 5
@@ -88,11 +88,11 @@ func txSignedByPKH(ctx context.Context, mod api.Module, stack []uint64) {
 
 func verifyTxProof(vec *vmContext, mod api.Module, stack []uint64) error {
 	// args: handle of txProof, handle of txRec
-	txProof, err := getVar[*types.TxProof](vec.curPrg.vars, stack[0])
+	txProof, err := getVar[*types.TxProof](vec.curPrg.vars, api.DecodeU32(stack[0]))
 	if err != nil {
 		return fmt.Errorf("tx proof: %w", err)
 	}
-	txRec, err := getVar[*types.TransactionRecord](vec.curPrg.vars, stack[1])
+	txRec, err := getVar[*types.TransactionRecord](vec.curPrg.vars, api.DecodeU32(stack[1]))
 	if err != nil {
 		return fmt.Errorf("tx record: %w", err)
 	}
@@ -136,7 +136,7 @@ Arguments in "stack":
     must have in order to be counted;
 */
 func amountTransferred(vec *vmContext, mod api.Module, stack []uint64) error {
-	data, err := vec.getBytesVariable(stack[0])
+	data, err := vec.getBytesVariable(api.DecodeU32(stack[0]))
 	if err != nil {
 		return fmt.Errorf("reading input data: %w", err)
 	}
@@ -145,7 +145,7 @@ func amountTransferred(vec *vmContext, mod api.Module, stack []uint64) error {
 		return fmt.Errorf("decoding data as slice of tx proofs: %w", err)
 	}
 
-	pkh, err := vec.getBytesVariable(stack[1])
+	pkh, err := vec.getBytesVariable(api.DecodeU32(stack[1]))
 	if err != nil {
 		return fmt.Errorf("reading input PKH: %w", err)
 	}

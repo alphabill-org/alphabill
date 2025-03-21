@@ -38,7 +38,7 @@ Parameters (stack):
 Returns handle of the object.
 */
 func createObjH(vec *vmContext, mod api.Module, stack []uint64) error {
-	data, err := vec.getBytesVariable(stack[1])
+	data, err := vec.getBytesVariable(api.DecodeU32(stack[1]))
 	if err != nil {
 		return fmt.Errorf("reading variable: %w", err)
 	}
@@ -76,7 +76,7 @@ Arguments in stack:
   - 1: version of the data struct (in the SDK);
 */
 func expSerialize(vec *vmContext, mod api.Module, stack []uint64) error {
-	v, ok := vec.curPrg.vars[stack[0]]
+	v, ok := vec.curPrg.vars[api.DecodeU32(stack[0])]
 	if !ok {
 		return fmt.Errorf("no variable with handle %d", stack[0])
 	}
@@ -103,7 +103,7 @@ func addVar(vec *vmContext, mod api.Module, stack []uint64) error {
 }
 
 func expTxAttributes(vec *vmContext, mod api.Module, stack []uint64) error {
-	txo, err := getVar[*types.TransactionOrder](vec.curPrg.vars, stack[0])
+	txo, err := getVar[*types.TransactionOrder](vec.curPrg.vars, api.DecodeU32(stack[0]))
 	if err != nil {
 		return fmt.Errorf("reading tx order variable: %w", err)
 	}

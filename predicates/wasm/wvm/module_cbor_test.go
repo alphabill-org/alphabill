@@ -16,7 +16,7 @@ func Test_cborParse(t *testing.T) {
 	t.Run("unknown handle", func(t *testing.T) {
 		ctx := &vmContext{
 			curPrg: &evalContext{
-				vars: map[uint64]any{},
+				vars: map[uint32]any{},
 			},
 		}
 		err := cborParse(ctx, nil, []uint64{handle_predicate_conf})
@@ -27,7 +27,7 @@ func Test_cborParse(t *testing.T) {
 		// data must be []byte "compatible"
 		ctx := &vmContext{
 			curPrg: &evalContext{
-				vars: map[uint64]any{handle_predicate_conf: 42},
+				vars: map[uint32]any{handle_predicate_conf: 42},
 			},
 		}
 		err := cborParse(ctx, nil, []uint64{handle_predicate_conf})
@@ -37,7 +37,7 @@ func Test_cborParse(t *testing.T) {
 	t.Run("bytes but invalid CBOR", func(t *testing.T) {
 		ctx := &vmContext{
 			curPrg: &evalContext{
-				vars: map[uint64]any{handle_predicate_conf: []byte{}},
+				vars: map[uint32]any{handle_predicate_conf: []byte{}},
 			},
 		}
 		err := cborParse(ctx, nil, []uint64{handle_predicate_conf})
@@ -48,7 +48,7 @@ func Test_cborParse(t *testing.T) {
 		ctx := &vmContext{
 			curPrg: &evalContext{
 				// CBOR(830a63737472430102ff) == [10, "str", h'0102FF']
-				vars:   map[uint64]any{handle_predicate_conf: []byte{0x83, 0x0a, 0x63, 0x73, 0x74, 0x72, 0x43, 0x01, 0x02, 0xff}},
+				vars:   map[uint32]any{handle_predicate_conf: []byte{0x83, 0x0a, 0x63, 0x73, 0x74, 0x72, 0x43, 0x01, 0x02, 0xff}},
 				varIdx: handle_max_reserved,
 			},
 			memMngr: bumpallocator.New(0, maxMem(10000)),
@@ -68,7 +68,7 @@ func Test_cborParse(t *testing.T) {
 		stack := []uint64{handle_predicate_conf, 1}
 		require.NoError(t, cborParse(ctx, mod, stack))
 		// the parsed data was stored into new var
-		v := ctx.curPrg.vars[uint64(handle)]
+		v := ctx.curPrg.vars[handle]
 		require.Equal(t, []any{uint64(10), "str", []byte{1, 2, 255}}, v)
 	})
 
@@ -77,7 +77,7 @@ func Test_cborParse(t *testing.T) {
 		require.NoError(t, err)
 		ctx := &vmContext{
 			curPrg: &evalContext{
-				vars:   map[uint64]any{handle_predicate_conf: conf},
+				vars:   map[uint32]any{handle_predicate_conf: conf},
 				varIdx: handle_max_reserved,
 			},
 			memMngr: bumpallocator.New(0, maxMem(10000)),
@@ -99,9 +99,9 @@ func Test_cborParse(t *testing.T) {
 		stack := []uint64{handle_predicate_conf, 0}
 		require.NoError(t, cborParse(ctx, mod, stack))
 		// the parsed data was stored into two new var
-		v := ctx.curPrg.vars[uint64(handles[0])]
+		v := ctx.curPrg.vars[handles[0]]
 		require.Equal(t, uint64(1234567890), v)
-		v = ctx.curPrg.vars[uint64(handles[1])]
+		v = ctx.curPrg.vars[handles[1]]
 		require.Equal(t, []byte{1, 2, 3, 4, 5}, v)
 	})
 }
@@ -111,7 +111,7 @@ func Test_cborChunks(t *testing.T) {
 	require.NoError(t, err)
 	vm := &vmContext{
 		curPrg: &evalContext{
-			vars:   map[uint64]any{handle_current_args: cborData},
+			vars:   map[uint32]any{handle_current_args: cborData},
 			varIdx: handle_max_reserved,
 		},
 		factory: ABTypesFactory{},
@@ -140,13 +140,13 @@ func Test_cborChunks(t *testing.T) {
 
 	// the first handle is for cbor encoded uint64
 	var v any
-	buf, err := getVar[types.RawCBOR](vm.curPrg.vars, uint64(handles[0]))
+	buf, err := getVar[types.RawCBOR](vm.curPrg.vars, handles[0])
 	require.NoError(t, err)
 	require.NoError(t, types.Cbor.Unmarshal(buf, &v))
 	require.Equal(t, uint64(1234567890), v)
 
 	// the second handle is for cbor encoded byte slice
-	buf, err = getVar[types.RawCBOR](vm.curPrg.vars, uint64(handles[1]))
+	buf, err = getVar[types.RawCBOR](vm.curPrg.vars, handles[1])
 	require.NoError(t, err)
 	require.NoError(t, types.Cbor.Unmarshal(buf, &v))
 	require.Equal(t, []byte{1, 2, 3, 4, 5}, v)

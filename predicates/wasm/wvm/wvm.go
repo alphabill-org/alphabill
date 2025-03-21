@@ -64,8 +64,8 @@ type (
 	// "evaluation context" of current program
 	evalContext struct {
 		mod    api.Module // created from the WASM of the predicate
-		vars   map[uint64]any
-		varIdx uint64          // "handle generator" for vars
+		vars   map[uint32]any
+		varIdx uint32          // "handle generator" for vars
 		env    EvalEnvironment // callback to the tx system
 	}
 
@@ -103,7 +103,7 @@ func (ec *evalContext) addVar(obj any) uint32 {
 	return uint32(ec.varIdx)
 }
 
-func getVar[T any](vars map[uint64]any, handle uint64) (T, error) {
+func getVar[T any](vars map[uint32]any, handle uint32) (T, error) {
 	var e T
 	v, ok := vars[handle]
 	if !ok {
@@ -120,7 +120,7 @@ func getVar[T any](vars map[uint64]any, handle uint64) (T, error) {
 getBytesVariable returns "[]byte compatible" variable as []byte (the getVar
 generic implementation can only return exact type, not underlying type)
 */
-func (vmc *vmContext) getBytesVariable(handle uint64) ([]byte, error) {
+func (vmc *vmContext) getBytesVariable(handle uint32) ([]byte, error) {
 	v, ok := vmc.curPrg.vars[handle]
 	if !ok {
 		return nil, fmt.Errorf("variable with handle %d not found", handle)
@@ -201,7 +201,7 @@ func New(ctx context.Context, enc Encoder, engines predicates.PredicateExecutor,
 		runtime: rt,
 		ctx: &vmContext{
 			curPrg: &evalContext{
-				vars: map[uint64]any{},
+				vars: map[uint32]any{},
 			},
 			encoder: enc,
 			engines: engines,

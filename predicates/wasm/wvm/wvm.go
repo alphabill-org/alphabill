@@ -82,7 +82,7 @@ type (
 
 	// translates AB types to WASM consumable representation
 	Encoder interface {
-		Encode(obj any, ver uint32, getHandle func(obj any) uint64) ([]byte, error)
+		Encode(obj any, ver uint32, getHandle func(obj any) uint32) ([]byte, error)
 		TxAttributes(txo *types.TransactionOrder, ver uint32) ([]byte, error)
 		UnitData(unit state.Unit, ver uint32) ([]byte, error)
 		AuthProof(txo *types.TransactionOrder) ([]byte, error)
@@ -97,10 +97,10 @@ type (
 /*
 addVar adds the "obj" into list of variables in current context and returns it's handle
 */
-func (ec *evalContext) addVar(obj any) uint64 {
+func (ec *evalContext) addVar(obj any) uint32 {
 	ec.varIdx++
 	ec.vars[ec.varIdx] = obj
-	return ec.varIdx
+	return uint32(ec.varIdx)
 }
 
 func getVar[T any](vars map[uint64]any, handle uint64) (T, error) {
@@ -131,6 +131,8 @@ func (vmc *vmContext) getBytesVariable(handle uint64) ([]byte, error) {
 		return d, nil
 	case types.RawCBOR:
 		return d, nil
+	case nil:
+		return nil, nil
 	default:
 		return nil, fmt.Errorf("can't handle var of type %T", v)
 	}

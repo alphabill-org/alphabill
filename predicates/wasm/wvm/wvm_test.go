@@ -53,7 +53,7 @@ func TestReadHeapBase(t *testing.T) {
 	conf := wasm.PredicateParams{Entrypoint: "bearer_invariant"}
 	wvm, err := New(context.Background(), enc, nil, observability.Default(t))
 	require.NoError(t, err)
-	_, err = wvm.Exec(context.Background(), ticketsWasm, nil, conf, nil, env)
+	_, err = wvm.Exec(context.Background(), ticketsWasm, nil, conf, &types.TransactionOrder{}, env)
 	require.Error(t, err)
 	m, err := wvm.runtime.Instantiate(context.Background(), ticketsWasm)
 	require.NoError(t, err)

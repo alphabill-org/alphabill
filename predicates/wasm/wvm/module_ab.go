@@ -23,24 +23,30 @@ AB functions to verify objects etc
 func addAlphabillModule(ctx context.Context, rt wazero.Runtime, _ Observability) error {
 	_, err := rt.NewHostModuleBuilder("ab").
 		NewFunctionBuilder().WithGoModuleFunction(hostAPI(digestSHA256), []api.ValueType{api.ValueTypeI64}, []api.ValueType{api.ValueTypeI64}).Export("digest_sha256").
-		NewFunctionBuilder().WithGoModuleFunction(hostAPI(verifyTxProof), []api.ValueType{api.ValueTypeI64, api.ValueTypeI64}, []api.ValueType{api.ValueTypeI32}).Export("verify_tx_proof").
-		NewFunctionBuilder().WithGoModuleFunction(hostAPI(amountTransferred), []api.ValueType{api.ValueTypeI64, api.ValueTypeI64, api.ValueTypeI64}, []api.ValueType{api.ValueTypeI64}).Export("amount_transferred").
-		NewFunctionBuilder().WithGoModuleFunction(api.GoModuleFunc(txSignedByPKH), []api.ValueType{api.ValueTypeI64, api.ValueTypeI64}, []api.ValueType{api.ValueTypeI32}).Export("tx_signed_by_pkh").
+		NewFunctionBuilder().WithGoModuleFunction(hostAPI(verifyTxProof), []api.ValueType{api.ValueTypeI32, api.ValueTypeI32}, []api.ValueType{api.ValueTypeI32}).Export("verify_tx_proof").
+		NewFunctionBuilder().WithGoModuleFunction(hostAPI(amountTransferred), []api.ValueType{api.ValueTypeI32, api.ValueTypeI32, api.ValueTypeI64}, []api.ValueType{api.ValueTypeI64}).Export("amount_transferred").
+		NewFunctionBuilder().WithGoModuleFunction(api.GoModuleFunc(txSignedByPKH), []api.ValueType{api.ValueTypeI32, api.ValueTypeI32, api.ValueTypeI32}, []api.ValueType{api.ValueTypeI32}).Export("tx_signed_by_pkh").
 		Instantiate(ctx)
 	return err
 }
 
 /*
-txSignedByPKH attempts to verify transaction's OwnerProof (stack[0] is handle
-of the txOrder) against P2PKH predicate (address of the pkh is stack[1]).
+txSignedByPKH attempts to verify transaction's OwnerProof against
+P2PKH predicate.
+
+Arguments (stack):
+  - 0: handle of the tx order;
+  - 1: handle of the PKH
+  - 2: handle of the OwnerProof;
+
 Returns:
   - 0: true, ie the txOrder was signed by the PubKey hash;
-  - 1: false, ie the txOrder OwnerProof is valid argument for P2PKH but signed
-    by different key;
-  - 2: error, most likely the tx.OwnerProof is not valid argument for P2PKH ie
-    some other (bearer) predicate is used;
+  - 1: false, ie the OwnerProof and PKH appear to be valid arguments for a
+    P2PKH but the predicate evaluates to false;
+  - 2: error, most likely the OwnerProof or PKH is not valid argument for P2PKH;
   - 3: error, argument stack[0] is not valid tx handle;
-  - 4: error, failure to get owner proof;
+  - 4: error, failure to get PKH or it is nil;
+  - 5: error, failure to get owner proof or it is nil;
 */
 func txSignedByPKH(ctx context.Context, mod api.Module, stack []uint64) {
 	vec := extractVMContext(ctx)
@@ -51,12 +57,18 @@ func txSignedByPKH(ctx context.Context, mod api.Module, stack []uint64) {
 		stack[0] = 3
 		return
 	}
-	pkh := read(mod, stack[1])
 
-	proof, err := vec.encoder.AuthProof(txo)
-	if err != nil {
-		vec.log.DebugContext(ctx, "extracting owner proof", logger.Error(err))
+	pkh, err := vec.getBytesVariable(stack[1])
+	if err != nil || pkh == nil {
+		vec.log.DebugContext(ctx, "reading pkh", logger.Error(err))
 		stack[0] = 4
+		return
+	}
+
+	proof, err := vec.getBytesVariable(stack[2])
+	if err != nil || proof == nil {
+		vec.log.DebugContext(ctx, "extracting owner proof", logger.Error(err))
+		stack[0] = 5
 		return
 	}
 
@@ -119,7 +131,7 @@ Arguments in "stack":
 
   - [0] txProofs: handle to raw CBOR containing array of tx record proofs,
     produced by ie CLI wallet save proof flag;
-  - [1] receiver_pkh: address of PubKey hash to which the money has been transferred to;
+  - [1] receiver_pkh: handle of PubKey hash to which the money has been transferred to;
   - [2] ref_no: address (if given, ie not zero) of the reference number transfer(s)
     must have in order to be counted;
 */
@@ -133,7 +145,10 @@ func amountTransferred(vec *vmContext, mod api.Module, stack []uint64) error {
 		return fmt.Errorf("decoding data as slice of tx proofs: %w", err)
 	}
 
-	pkh := read(mod, stack[1])
+	pkh, err := vec.getBytesVariable(stack[1])
+	if err != nil {
+		return fmt.Errorf("reading input PKH: %w", err)
+	}
 
 	var refNo []byte
 	if addrRefNo := stack[2]; addrRefNo != 0 {

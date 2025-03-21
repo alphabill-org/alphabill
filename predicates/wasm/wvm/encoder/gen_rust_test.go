@@ -28,16 +28,16 @@ func Test_TXSystemEncoder_trigger(t *testing.T) {
 	t.Run("txRecord", func(t *testing.T) {
 		// ver 1 of the txRec just contains txo handle so no need to fill out all the fields...
 		// getHandle is called once, always return 1 as the handle
-		getHandle := func(obj any) uint64 { return 1 }
+		getHandle := func(obj any) uint32 { return 1 }
 		tx, err := (&types.TransactionOrder{Version: 1}).MarshalCBOR()
 		require.NoError(t, err)
 		buf, err := enc.Encode(&types.TransactionRecord{Version: 1, TransactionOrder: tx}, 1, getHandle)
 		require.NoError(t, err)
-		require.Equal(t, []byte{0x1, 0x2, 0x1, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0}, buf)
+		require.Equal(t, []byte{0x1, 0x3, 0x1, 0x0, 0x0, 0x0}, buf)
 	})
 
 	t.Run("txOrder", func(t *testing.T) {
-		getHandle := func(obj any) uint64 { t.Errorf("unexpected call of getHandle(%T)", obj); return 0 }
+		getHandle := func(obj any) uint32 { t.Errorf("unexpected call of getHandle(%T)", obj); return 0 }
 		// ver 1 of the txOrder
 		txo := &types.TransactionOrder{
 			Version: 1,
@@ -56,17 +56,21 @@ func Test_TXSystemEncoder_trigger(t *testing.T) {
 	})
 
 	t.Run("byte slice", func(t *testing.T) {
-		// byte slice is returned exactly as-is
 		buf, err := enc.Encode([]byte{0, 1, 127, 128, 255}, 1, nil)
 		require.NoError(t, err)
-		require.Equal(t, []byte{0, 1, 127, 128, 255}, buf)
+		require.Equal(t, []byte{type_id_bytes, 0x5, 0x0, 0x0, 0x0, 0, 1, 127, 128, 255}, buf)
 	})
 
 	t.Run("types.RawCBOR", func(t *testing.T) {
-		// types.RawCBOR is returned exactly as-is but as byte slice (ie type cast)
 		buf, err := enc.Encode(types.RawCBOR{0, 1, 127, 128, 255}, 1, nil)
 		require.NoError(t, err)
-		require.Equal(t, []byte{0, 1, 127, 128, 255}, buf)
+		require.Equal(t, []byte{type_id_bytes, 0x5, 0x0, 0x0, 0x0, 0, 1, 127, 128, 255}, buf)
+	})
+
+	t.Run("uint64", func(t *testing.T) {
+		buf, err := enc.Encode(uint64(0x0807060504030201), 0, nil)
+		require.NoError(t, err)
+		require.Equal(t, []byte{type_id_u64, 1, 2, 3, 4, 5, 6, 7, 8}, buf)
 	})
 }
 
@@ -83,8 +87,8 @@ func Test_generate_TXSTestsData(t *testing.T) {
 		the Skip here.
 	*/
 
-	var hid atomic.Uint64
-	getHandle := func(obj any) uint64 { return hid.Add(1) }
+	var hid atomic.Uint32
+	getHandle := func(obj any) uint32 { return hid.Add(1) }
 	// encoder is stateless, can be shared between tests
 	enc, err := New()
 	require.NoError(t, err)
@@ -145,8 +149,9 @@ func Test_generateDecoderTests(t *testing.T) {
 	t.Run("Decode Value", func(t *testing.T) {
 		// test decoding different types as Value enum defined in the Rust SDK
 		values := []encValue{
-			{value: uint32(101)},
-			{value: uint64(64)},
+			{value: uint16(0x0201)},
+			{value: uint32(0x04030201)},
+			{value: uint64(0x0807060504030201)},
 			{value: []byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10}},
 			{value: "this is string"},
 			{value: []any{uint32(32), uint64(64), "AB"}},
@@ -209,10 +214,10 @@ func Test_generateDecoderTests(t *testing.T) {
 func rustValue(t *testing.T, v any) string {
 	t.Helper()
 	switch tv := v.(type) {
-	case uint32:
-		return fmt.Sprintf("Value::U32(%d)", tv)
+	case uint32, uint16:
+		return fmt.Sprintf("Value::U32(%#x)", tv)
 	case uint64:
-		return fmt.Sprintf("Value::U64(%d)", tv)
+		return fmt.Sprintf("Value::U64(%#x)", tv)
 	case []byte:
 		return fmt.Sprintf("Value::Bytes(vec![%v])", bytesAsHex(t, tv))
 	case string:

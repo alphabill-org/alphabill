@@ -9,6 +9,7 @@ import (
 	"github.com/tetratelabs/wazero/api"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/predicates/wasm/wvm/bumpallocator"
 )
 
@@ -52,6 +53,7 @@ func Test_cborParse(t *testing.T) {
 				varIdx: handle_max_reserved,
 			},
 			memMngr: bumpallocator.New(0, maxMem(10000)),
+			log:     logger.New(t),
 		}
 		var handle uint32
 		mem := &mockMemory{
@@ -81,6 +83,7 @@ func Test_cborParse(t *testing.T) {
 				varIdx: handle_max_reserved,
 			},
 			memMngr: bumpallocator.New(0, maxMem(10000)),
+			log:     logger.New(t),
 		}
 		var handles [2]uint32
 		mem := &mockMemory{

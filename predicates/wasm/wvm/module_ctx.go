@@ -89,6 +89,7 @@ func expSerialize(vec *vmContext, mod api.Module, stack []uint64) error {
 	if err != nil {
 		return fmt.Errorf("writing variable into shared memory: %w", err)
 	}
+	vec.log.Debug(fmt.Sprintf("%x => %v @ %x", api.DecodeU32(stack[0]), data, addr))
 	stack[0] = addr
 	return nil
 }

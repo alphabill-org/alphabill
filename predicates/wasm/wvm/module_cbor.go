@@ -40,7 +40,7 @@ func cborParse(vec *vmContext, mod api.Module, stack []uint64) error {
 	}
 
 	// should we tread it as array or as struct (AB encodes structs as arrays too)
-	asArray := stack[1] == 0
+	asArray := api.DecodeU32(stack[1]) == 0
 	var buf []byte
 	if a, ok := items.([]any); ok && asArray {
 		buf = make([]byte, 0, 4*len(a))
@@ -56,6 +56,7 @@ func cborParse(vec *vmContext, mod api.Module, stack []uint64) error {
 	if err != nil {
 		return fmt.Errorf("allocating memory for result: %w", err)
 	}
+	vec.log.Debug(fmt.Sprintf("%x => %v @ %x", api.DecodeU32(stack[0]), buf, addr))
 	stack[0] = addr
 	return nil
 }

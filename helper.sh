@@ -47,51 +47,37 @@ function boot_node() {
 # $2 number of nodes to init
 # $3 custom CLI args
 function init_shard_nodes() {
-  local home=""
-  partitionTypeId=$1
-  case $partitionTypeId in
-    1)
-      home="testab/money"
-      ;;
-    2)
-      home="testab/tokens"
-      ;;
-    3)
-      home="testab/evm"
-      ;;
-    4)
-      home="testab/orchestration"
-      ;;
-    5)
-      home="testab/tokens-enterprise"
-      ;;
-    *)
-      echo "error: unknown partition type $1" >&2
-      return 1
-      ;;
-  esac
+  home=$1
+  partitionTypeId=$2
+  partitionId=$3
+  nodeCount=$4
 
   nodeInfoFiles=
-  echo "initializing $2 nodes for partition type $partitionTypeId"
-  for i in $(seq 1 "$2")
+  echo "initializing $4 nodes for partition $partitionId"
+  for i in $(seq 1 "$4")
   do
-    # "-g" flag generates keys
-    build/alphabill shard-node init --home "${home}$i" -g $3
+    build/alphabill shard-node init --home "${home}$i" --generate
     nodeInfoFiles+=" --node-info ${home}$i/node-info.json"
   done
 
   # Generate shard-conf once to testab
   build/alphabill shard-conf generate --home testab \
                   --network-id 3 \
-                  --partition-id $partitionTypeId \
+                  --partition-id $partitionId \
                   --partition-type-id $partitionTypeId \
-                  --epoch-start 1 \
+                  --epoch-start 10 \
                   $nodeInfoFiles
+}
 
-  for i in $(seq 1 "$2")
+function generate_shard_genesis_state() {
+  home=$1
+  partitionId=$2
+  nodeCount=$3
+
+  for i in $(seq 1 "$3")
   do
     # Copy shard-conf to node
-    cp testab/shard-conf-${partitionTypeId}_0.json ${home}$i/shard-conf.json
+    cp testab/shard-conf-${partitionId}_0.json ${home}$i/shard-conf.json
 
     # Generate genesis state from shard-conf
     build/alphabill shard-conf genesis --home ${home}${i}
@@ -227,12 +213,6 @@ function start_shard_nodes() {
         --log-format text \
         --log-level debug \
         >> ${home}/debug.log 2>&1 &
-
-    if [[ $i -eq 1 ]]; then
-      echo "sleeping"
-      sleep 5
-    fi
-
     ((i=i+1))
     ((p2pPort=p2pPort+1))
     ((rpcPort=rpcPort+1))

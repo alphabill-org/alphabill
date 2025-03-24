@@ -8,8 +8,7 @@ import (
 	"io"
 	"log/slog"
 
-	"go.opentelemetry.io/otel/metric"
-
+	"github.com/alphabill-org/alphabill-go-base/txsystem/nop"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/util"
 	"github.com/alphabill-org/alphabill/logger"
@@ -19,6 +18,7 @@ import (
 	abfc "github.com/alphabill-org/alphabill/txsystem/fc"
 	"github.com/alphabill-org/alphabill/txsystem/fc/unit"
 	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
+	"go.opentelemetry.io/otel/metric"
 )
 
 var _ TransactionSystem = (*GenericTxSystem)(nil)
@@ -178,11 +178,11 @@ func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (*types.Transactio
 	m.log.Debug(fmt.Sprintf("execute %d", tx.Type), logger.UnitID(tx.GetUnitID()), logger.Data(tx))
 	// execute fee credit transactions
 	if m.fees.IsFeeCreditTx(tx) {
-		sm, err := m.executeFc(tx, exeCtx)
+		tr, err := m.executeFc(tx, exeCtx)
 		if err != nil {
 			return nil, fmt.Errorf("execute fc error: %w", err)
 		}
-		return sm, nil
+		return tr, nil
 	}
 	// execute rest ordinary transactions
 	if err := m.fees.IsCredible(exeCtx, tx); err != nil {
@@ -306,12 +306,20 @@ func (m *GenericTxSystem) doExecute(tx *types.TransactionOrder, exeCtx *txtypes.
 }
 
 func (m *GenericTxSystem) executeFc(tx *types.TransactionOrder, exeCtx *txtypes.TxExecutionContext) (*types.TransactionRecord, error) {
-	// 4. If P.C , ⊥ then return ⊥ – discard P if it is conditional
+	// 4. If P.C != ⊥ then return ⊥ – discard P if it is conditional
 	if tx.StateLock != nil {
-		return nil, fmt.Errorf("error fc transaction contains state lock")
+		return nil, errors.New("error fc transaction contains state lock")
 	}
-	// will not check 5. S.N[P.ι].L != ⊥ and S .N[P.ι].L.Ppend.τ != nop then return ⊥,
-	// if we do no handle state locking and unlocking then lock state must be impossible state
+	// 5. S.N[P.ι].L != ⊥ and S.N[P.ι].L.Ppend.τ != nop then return ⊥,
+	// discard P if the target unit is in a lock state with a non-trivial pending transaction.
+	txOnHold, err := m.parseTxOnHold(tx.UnitID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse txOnHold: %w", err)
+	}
+	if txOnHold != nil && txOnHold.Type != nop.TransactionTypeNOP {
+		return nil, errors.New("target unit is locked with a non-trivial (non-NOP) transaction")
+	}
+
 	// 6. If S.N[P.ι] != ⊥ and not EvalPred(S.N[P.ι].φ; S, P, P.s; &MS) - will be done during VerifyPsi
 	// 7. If not VerifyPsi(S, P; &MS)
 	// perform transaction-system-specific validation and owner predicate check
@@ -323,30 +331,46 @@ func (m *GenericTxSystem) executeFc(tx *types.TransactionOrder, exeCtx *txtypes.
 		return nil, fmt.Errorf("failed to validate transaction: %w", err)
 	}
 	// 8. b ← SNFees(S, P; &MS) - is at the moment done for all tx before this call
+
+	// initialize metadata
+	txBytes, err := tx.MarshalCBOR()
+	if err != nil {
+		return nil, fmt.Errorf("marshalling transaction: %w", err)
+	}
+	tr := &types.TransactionRecord{
+		Version:          1,
+		TransactionOrder: txBytes,
+		ServerMetadata:   &types.ServerMetadata{SuccessIndicator: types.TxStatusSuccessful},
+	}
+
 	// 9. TakeSnapshot
 	savepointID, err := m.state.Savepoint()
 	if err != nil {
 		return nil, fmt.Errorf("savepoint error: %w", err)
 	}
-	// skip step 10 b ← Unlock(S, P; &MS) - nothing to unlock if state lock is disabled in step 4?
-	// skip 11 If S .N[P.ι].L != ⊥ - unlock fail, as currently no attempt is made to unlock
-	// proceed with the transaction execution
-	sm, err := m.handlers.ExecuteWithAttr(tx, attr, authProof, exeCtx)
+
+	// 10. b ← Unlock(S, P; &MS) – try to resolve the locked state (Sec. 4.6.6); b is ignored.
+	sm, err := m.handleTxOnHold(tx, txOnHold, exeCtx)
+	if err != nil {
+		// 11. If S.N[P.ι].L != ⊥ - if P could not resolve the locked state
+		// roll the state tree back to the snapshot of line 9 and discard P.
+		m.state.RollbackToSavepoint(savepointID)
+		return nil, fmt.Errorf("unit state unlock error: %w", err)
+	}
+	tr.ServerMetadata = appendServerMetadata(tr.ServerMetadata, sm)
+
+	// 12. MS.fa ← min{MS.fa, P.MC. fm} – adjust actual fees, if they exceed the allowed fees
+	// done in appendServerMetadata?
+
+	// 13. Execute(S, P; &MS ) – execute P (Sec. 4.6.8) - proceed with the transaction execution
+	sm, err = m.handlers.ExecuteWithAttr(tx, attr, authProof, exeCtx)
 	if err != nil {
 		m.state.RollbackToSavepoint(savepointID)
 		return nil, fmt.Errorf("execute error: %w", err)
 	}
-	txBytes, err := tx.MarshalCBOR()
-	if err != nil {
-		m.state.RollbackToSavepoint(savepointID)
-		return nil, fmt.Errorf("marshalling transaction: %w", err)
-	}
-	trx := &types.TransactionRecord{
-		Version:          1,
-		TransactionOrder: txBytes,
-		ServerMetadata:   sm,
-	}
-	trHash, err := trx.Hash(m.hashAlgorithm)
+	tr.ServerMetadata = appendServerMetadata(tr.ServerMetadata, sm)
+
+	trHash, err := tr.Hash(m.hashAlgorithm)
 	if err != nil {
 		m.state.RollbackToSavepoint(savepointID)
 		return nil, fmt.Errorf("hashing transaction record: %w", err)
@@ -364,15 +388,13 @@ func (m *GenericTxSystem) executeFc(tx *types.TransactionOrder, exeCtx *txtypes.
 	}
 	// transaction execution succeeded
 	m.state.ReleaseToSavepoint(savepointID)
-	return trx, nil
+	return tr, nil
 }
 
 /*
-validateGenericTransaction does the tx validation common to all tx systems.
+validateGenericTransaction verifies that the transaction is sent to the correct network/partition/shard and is not expired.
 
-See Yellowpaper chapter 4.6 "Valid Transaction Orders".
-The (final) step "ψτ(P,S) – type-specific validity condition holds" must be
-implemented by the tx handler.
+See Yellowpaper chapter 4.6 "Transaction Processing".
 */
 func (m *GenericTxSystem) validateGenericTransaction(tx *types.TransactionOrder) error {
 	// T.α = S.α – transaction is sent to this network

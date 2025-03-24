@@ -156,7 +156,7 @@ func TestGenericTxSystem_handleUnlockUnitState(t *testing.T) {
 			tt.WithUnitID(unitID),
 			tt.WithPartitionID(money.DefaultPartitionID),
 			tt.WithAttributes(&money.TransferAttributes{}),
-			tt.WithUnlockProof([]byte{255}),
+			tt.WithStateUnlock([]byte{255}),
 		)
 		execCtx := txtypes.NewExecutionContext(txSys, abfc.NewNoFeeCreditModule(), nil, 10)
 		sm, err := txSys.handleUnlockUnitState(tx, unitID, execCtx)
@@ -184,7 +184,7 @@ func TestGenericTxSystem_handleUnlockUnitState(t *testing.T) {
 			tt.WithUnitID(unitID),
 			tt.WithPartitionID(money.DefaultPartitionID),
 			tt.WithAttributes(&money.TransferAttributes{}),
-			tt.WithUnlockProof([]byte{byte(StateUnlockExecute), 1, 2, 3}),
+			tt.WithStateUnlock([]byte{byte(StateUnlockExecute), 1, 2, 3}),
 			tt.WithClientMetadata(&types.ClientMetadata{
 				Timeout:           txSys.currentRoundNumber + 1,
 				FeeCreditRecordID: fcrID,
@@ -212,7 +212,7 @@ func TestGenericTxSystem_handleUnlockUnitState(t *testing.T) {
 			tt.WithUnitID(unitID),
 			tt.WithPartitionID(money.DefaultPartitionID),
 			tt.WithAttributes(&money.TransferAttributes{}),
-			tt.WithUnlockProof([]byte{byte(StateUnlockRollback), 1, 2, 3}),
+			tt.WithStateUnlock([]byte{byte(StateUnlockRollback), 1, 2, 3}),
 		)
 		execCtx := txtypes.NewExecutionContext(txSys, abfc.NewNoFeeCreditModule(), nil, 10)
 		sm, err := txSys.handleUnlockUnitState(tx, unitID, execCtx)

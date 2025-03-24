@@ -12,7 +12,7 @@ import (
 	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 )
 
-func (m *Module) validateNopTx(tx *types.TransactionOrder, attr *nop.Attributes, _ *nop.AuthProof, _ txtypes.ExecutionContext) error {
+func (m *Module) validateNopTx(tx *types.TransactionOrder, attr *nop.Attributes, authProof *nop.AuthProof, exeCtx txtypes.ExecutionContext) error {
 	unitID := tx.GetUnitID()
 	unit, err := m.state.GetUnit(unitID, false)
 	if err != nil {
@@ -20,6 +20,9 @@ func (m *Module) validateNopTx(tx *types.TransactionOrder, attr *nop.Attributes,
 	}
 	if err := m.verifyCounter(unit.Data(), attr); err != nil {
 		return fmt.Errorf("nop transaction: %w", err)
+	}
+	if err := m.verifyOwner(unit.Data(), tx, authProof, exeCtx); err != nil {
+		return fmt.Errorf("nop transaction: verify owner: %w", err)
 	}
 	return nil
 }
@@ -36,7 +39,7 @@ func (m *Module) executeNopTx(tx *types.TransactionOrder, _ *nop.Attributes, _ *
 func (m *Module) verifyCounter(unitData types.UnitData, attr *nop.Attributes) error {
 	if unitData == nil {
 		if attr.Counter != nil {
-			return ErrInvalidCounter
+			return errors.New("the transaction counter must be nil for dummy unit data")
 		}
 		return nil
 	}
@@ -54,6 +57,19 @@ func (m *Module) verifyCounter(unitData types.UnitData, attr *nop.Attributes) er
 	}
 	if *attr.Counter != counter {
 		return ErrInvalidCounter
+	}
+	return nil
+}
+
+func (m *Module) verifyOwner(unitData types.UnitData, tx *types.TransactionOrder, authProof *nop.AuthProof, exeCtx txtypes.ExecutionContext) error {
+	if unitData == nil {
+		if authProof.OwnerProof != nil {
+			return errors.New("nop transaction targeting dummy unit cannot contain owner proof")
+		}
+		return nil
+	}
+	if err := m.execPredicate(unitData.Owner(), authProof.OwnerProof, tx, exeCtx.WithExArg(tx.AuthProofSigBytes)); err != nil {
+		return fmt.Errorf("evaluating owner predicate: %w", err)
 	}
 	return nil
 }

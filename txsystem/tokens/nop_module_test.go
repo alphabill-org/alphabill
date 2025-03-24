@@ -26,7 +26,7 @@ func TestModule_validateNopTx(t *testing.T) {
 
 	t.Run("ok with FT unit data", func(t *testing.T) {
 		unitID := tokensid.NewFungibleTokenTypeID(t)
-		module := newNopModule(t, verifier, withStateUnit(unitID, &tokens.FungibleTokenData{Counter: counter}))
+		module := newNopModule(t, verifier, withStateUnit(unitID, &tokens.FungibleTokenData{Counter: counter, OwnerPredicate: templates.AlwaysTrueBytes()}))
 		tx, attr, authProof := createNopTx(t, unitID, fcrID, &counter)
 		exeCtx := testctx.NewMockExecutionContext()
 		require.NoError(t, module.validateNopTx(tx, attr, authProof, exeCtx))
@@ -34,7 +34,7 @@ func TestModule_validateNopTx(t *testing.T) {
 
 	t.Run("ok with NFT unit data", func(t *testing.T) {
 		unitID := tokensid.NewNonFungibleTokenID(t)
-		module := newNopModule(t, verifier, withStateUnit(unitID, &tokens.NonFungibleTokenData{Counter: counter}))
+		module := newNopModule(t, verifier, withStateUnit(unitID, &tokens.NonFungibleTokenData{Counter: counter, OwnerPredicate: templates.AlwaysTrueBytes()}))
 		tx, attr, authProof := createNopTx(t, unitID, fcrID, &counter)
 		exeCtx := testctx.NewMockExecutionContext()
 		require.NoError(t, module.validateNopTx(tx, attr, authProof, exeCtx))
@@ -42,26 +42,26 @@ func TestModule_validateNopTx(t *testing.T) {
 
 	t.Run("ok with FCR unit data", func(t *testing.T) {
 		unitID := tokensid.NewFungibleTokenID(t)
-		module := newNopModule(t, verifier, withStateUnit(unitID, &fcsdk.FeeCreditRecord{Balance: 10, Counter: counter}))
+		module := newNopModule(t, verifier, withStateUnit(unitID, &fcsdk.FeeCreditRecord{Balance: 10, Counter: counter, OwnerPredicate: templates.AlwaysTrueBytes()}))
 		tx, attr, authProof := createNopTx(t, unitID, fcrID, &counter)
 		exeCtx := testctx.NewMockExecutionContext()
 		require.NoError(t, module.validateNopTx(tx, attr, authProof, exeCtx))
 	})
 
-	t.Run("ok with FT type unit data", func(t *testing.T) {
+	t.Run("ok cannot target FT type", func(t *testing.T) {
 		unitID := tokensid.NewFungibleTokenTypeID(t)
 		module := newNopModule(t, verifier, withStateUnit(unitID, &tokens.FungibleTokenTypeData{Name: "X"}))
 		tx, attr, authProof := createNopTx(t, unitID, fcrID, nil)
 		exeCtx := testctx.NewMockExecutionContext()
-		require.NoError(t, module.validateNopTx(tx, attr, authProof, exeCtx))
+		require.ErrorContains(t, module.validateNopTx(tx, attr, authProof, exeCtx), "nop transaction cannot target token types")
 	})
 
-	t.Run("ok with NFT type unit data", func(t *testing.T) {
+	t.Run("ok cannot target NFT type", func(t *testing.T) {
 		unitID := tokensid.NewNonFungibleTokenTypeID(t)
 		module := newNopModule(t, verifier, withStateUnit(unitID, &tokens.NonFungibleTokenTypeData{Name: "X"}))
 		tx, attr, authProof := createNopTx(t, unitID, fcrID, nil)
 		exeCtx := testctx.NewMockExecutionContext()
-		require.NoError(t, module.validateNopTx(tx, attr, authProof, exeCtx))
+		require.ErrorContains(t, module.validateNopTx(tx, attr, authProof, exeCtx), "nop transaction cannot target token types")
 	})
 
 	t.Run("ok with dummy unit data", func(t *testing.T) {
@@ -96,28 +96,12 @@ func TestModule_validateNopTx(t *testing.T) {
 		require.ErrorContains(t, module.validateNopTx(tx, attr, authProof, exeCtx), "the transaction counter is not equal to the unit counter for FCR")
 	})
 
-	t.Run("nok with invalid counter for FT type unit", func(t *testing.T) {
-		unitID := tokensid.NewFungibleTokenTypeID(t)
-		module := newNopModule(t, verifier, withStateUnit(unitID, &tokens.FungibleTokenTypeData{}))
-		tx, attr, authProof := createNopTx(t, unitID, fcrID, &counter)
-		exeCtx := testctx.NewMockExecutionContext()
-		require.ErrorContains(t, module.validateNopTx(tx, attr, authProof, exeCtx), "the transaction counter must be nil for FT type")
-	})
-
-	t.Run("nok with invalid counter for NFT type unit", func(t *testing.T) {
-		unitID := tokensid.NewNonFungibleTokenTypeID(t)
-		module := newNopModule(t, verifier, withStateUnit(unitID, &tokens.NonFungibleTokenTypeData{}))
-		tx, attr, authProof := createNopTx(t, unitID, fcrID, &counter)
-		exeCtx := testctx.NewMockExecutionContext()
-		require.ErrorContains(t, module.validateNopTx(tx, attr, authProof, exeCtx), "the transaction counter must be nil for NFT type")
-	})
-
 	t.Run("nok with invalid counter for dummy unit data", func(t *testing.T) {
 		unitID := tokensid.NewFungibleTokenID(t)
 		module := newNopModule(t, verifier, withDummyUnit(unitID))
 		tx, attr, authProof := createNopTx(t, unitID, fcrID, &counter)
 		exeCtx := testctx.NewMockExecutionContext()
-		require.ErrorContains(t, module.validateNopTx(tx, attr, authProof, exeCtx), "the transaction counter must be nil for dummy unit data")
+		require.ErrorContains(t, module.validateNopTx(tx, attr, authProof, exeCtx), "nop transaction targeting dummy unit cannot contain counter value")
 	})
 
 	t.Run("nok with nil counter for FT unit", func(t *testing.T) {
@@ -143,6 +127,44 @@ func TestModule_validateNopTx(t *testing.T) {
 		exeCtx := testctx.NewMockExecutionContext()
 		require.ErrorContains(t, module.validateNopTx(tx, attr, authProof, exeCtx), "the transaction counter is not equal to the unit counter for FCR")
 	})
+
+	t.Run("nok invalid owner for FT unit data", func(t *testing.T) {
+		unitID := tokensid.NewFungibleTokenTypeID(t)
+		module := newNopModule(t, verifier, withStateUnit(unitID, &tokens.FungibleTokenData{Counter: counter, OwnerPredicate: templates.AlwaysFalseBytes()}))
+		tx, attr, authProof := createNopTx(t, unitID, fcrID, &counter)
+		exeCtx := testctx.NewMockExecutionContext()
+		require.ErrorContains(t, module.validateNopTx(tx, attr, authProof, exeCtx), "evaluating owner predicate")
+	})
+
+	t.Run("nok invalid owner for NFT unit data", func(t *testing.T) {
+		unitID := tokensid.NewNonFungibleTokenID(t)
+		module := newNopModule(t, verifier, withStateUnit(unitID, &tokens.NonFungibleTokenData{Counter: counter, OwnerPredicate: templates.AlwaysFalseBytes()}))
+		tx, attr, authProof := createNopTx(t, unitID, fcrID, &counter)
+		exeCtx := testctx.NewMockExecutionContext()
+		require.ErrorContains(t, module.validateNopTx(tx, attr, authProof, exeCtx), "evaluating owner predicate")
+	})
+
+	t.Run("nok invalid owner for FCR unit data", func(t *testing.T) {
+		unitID := tokensid.NewFungibleTokenID(t)
+		module := newNopModule(t, verifier, withStateUnit(unitID, &fcsdk.FeeCreditRecord{Balance: 10, Counter: counter, OwnerPredicate: templates.AlwaysFalseBytes()}))
+		tx, attr, authProof := createNopTx(t, unitID, fcrID, &counter)
+		exeCtx := testctx.NewMockExecutionContext()
+		require.ErrorContains(t, module.validateNopTx(tx, attr, authProof, exeCtx), "evaluating owner predicate")
+	})
+
+	t.Run("nok with invalid owner for dummy unit data", func(t *testing.T) {
+		unitID := tokensid.NewFungibleTokenID(t)
+		module := newNopModule(t, verifier, withDummyUnit(unitID))
+		tx := createTx(unitID, fcrID, nop.TransactionTypeNOP)
+		attr := &nop.Attributes{}
+		require.NoError(t, tx.SetAttributes(attr))
+		authProof := &nop.AuthProof{OwnerProof: []byte{1}} // tx targeting dummy unit cannot contain owner proof
+		require.NoError(t, tx.SetAuthProof(authProof))
+
+		exeCtx := testctx.NewMockExecutionContext()
+		require.ErrorContains(t, module.validateNopTx(tx, attr, authProof, exeCtx), "nop transaction targeting dummy unit cannot contain owner proof")
+	})
+
 }
 
 func TestModule_executeNopTx(t *testing.T) {

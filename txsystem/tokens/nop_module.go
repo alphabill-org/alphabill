@@ -38,14 +38,51 @@ func (m *NopModule) TxHandlers() map[uint16]txtypes.TxExecutor {
 	}
 }
 
-func (m *NopModule) validateNopTx(tx *types.TransactionOrder, attr *nop.Attributes, _ *nop.AuthProof, _ txtypes.ExecutionContext) error {
+func (m *NopModule) validateNopTx(tx *types.TransactionOrder, attr *nop.Attributes, authProof *nop.AuthProof, exeCtx txtypes.ExecutionContext) error {
 	unitID := tx.GetUnitID()
 	unit, err := m.state.GetUnit(unitID, false)
 	if err != nil {
 		return fmt.Errorf("nop transaction: get unit error: %w", err)
 	}
-	if err := m.verifyCounter(unit.Data(), attr); err != nil {
-		return fmt.Errorf("nop transaction: %w", err)
+	unitData := unit.Data()
+	if unitData == nil {
+		if attr.Counter != nil {
+			return errors.New("nop transaction targeting dummy unit cannot contain counter value")
+		}
+		if authProof.OwnerProof != nil {
+			return errors.New("nop transaction targeting dummy unit cannot contain owner proof")
+		}
+		return nil
+	}
+
+	switch data := unitData.(type) {
+	case *tokens.FungibleTokenData:
+		if attr.Counter == nil || *attr.Counter != data.Counter {
+			return errors.New("the transaction counter is not equal to the unit counter for FT data")
+		}
+		if err := m.execPredicate(unitData.Owner(), authProof.OwnerProof, tx, exeCtx.WithExArg(tx.AuthProofSigBytes)); err != nil {
+			return fmt.Errorf("evaluating owner predicate: %w", err)
+		}
+	case *tokens.NonFungibleTokenData:
+		if attr.Counter == nil || *attr.Counter != data.Counter {
+			return errors.New("the transaction counter is not equal to the unit counter for NFT data")
+		}
+		if err := m.execPredicate(unitData.Owner(), authProof.OwnerProof, tx, exeCtx.WithExArg(tx.AuthProofSigBytes)); err != nil {
+			return fmt.Errorf("evaluating owner predicate: %w", err)
+		}
+	case *fc.FeeCreditRecord:
+		if attr.Counter == nil || *attr.Counter != data.Counter {
+			return errors.New("the transaction counter is not equal to the unit counter for FCR")
+		}
+		if err := m.execPredicate(unitData.Owner(), authProof.OwnerProof, tx, exeCtx.WithExArg(tx.AuthProofSigBytes)); err != nil {
+			return fmt.Errorf("evaluating owner predicate: %w", err)
+		}
+	case *tokens.FungibleTokenTypeData:
+		return errors.New("nop transaction cannot target token types")
+	case *tokens.NonFungibleTokenTypeData:
+		return errors.New("nop transaction cannot target token types")
+	default:
+		return errors.New("invalid unit data type")
 	}
 	return nil
 }
@@ -57,41 +94,6 @@ func (m *NopModule) executeNopTx(tx *types.TransactionOrder, _ *nop.Attributes, 
 		return nil, fmt.Errorf("nop transaction: failed to update state: %w", err)
 	}
 	return &types.ServerMetadata{TargetUnits: []types.UnitID{unitID}, SuccessIndicator: types.TxStatusSuccessful}, nil
-}
-
-func (m *NopModule) verifyCounter(unitData types.UnitData, attr *nop.Attributes) error {
-	if unitData == nil {
-		if attr.Counter != nil {
-			return errors.New("the transaction counter must be nil for dummy unit data")
-		}
-		return nil
-	}
-
-	switch data := unitData.(type) {
-	case *tokens.FungibleTokenData:
-		if attr.Counter == nil || *attr.Counter != data.Counter {
-			return errors.New("the transaction counter is not equal to the unit counter for FT data")
-		}
-	case *tokens.NonFungibleTokenData:
-		if attr.Counter == nil || *attr.Counter != data.Counter {
-			return errors.New("the transaction counter is not equal to the unit counter for NFT data")
-		}
-	case *fc.FeeCreditRecord:
-		if attr.Counter == nil || *attr.Counter != data.Counter {
-			return errors.New("the transaction counter is not equal to the unit counter for FCR")
-		}
-	case *tokens.FungibleTokenTypeData:
-		if attr.Counter != nil {
-			return errors.New("the transaction counter must be nil for FT type")
-		}
-	case *tokens.NonFungibleTokenTypeData:
-		if attr.Counter != nil {
-			return errors.New("the transaction counter must be nil for NFT type")
-		}
-	default:
-		return errors.New("invalid unit data type")
-	}
-	return nil
 }
 
 func (m *NopModule) incrementCounterFn() func(data types.UnitData) (types.UnitData, error) {

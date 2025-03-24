@@ -1,14 +1,12 @@
 package txsystem
 
 import (
-	"bytes"
 	"context"
 	"crypto"
 	"errors"
 	"fmt"
 	"io"
 	"log/slog"
-	"slices"
 
 	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/nop"
@@ -196,24 +194,20 @@ func (m *GenericTxSystem) rInit(roundNumber uint64) error {
 		return fmt.Errorf("failed to traverse the state tree: %w", err)
 	}
 	if err := m.deleteUnits(expiredFCRs); err != nil {
-		return fmt.Errorf("failed to delete fcr unit: %w", err)
+		return fmt.Errorf("failed to delete fcr units: %w", err)
 	}
 	if err := m.deleteUnits(expiredUnits); err != nil {
-		return fmt.Errorf("failed to delete ordinary unit: %w", err)
+		return fmt.Errorf("failed to delete ordinary units: %w", err)
 	}
 	return nil
 }
 
+// deleteUnits deletes provided units, the unitIDs must be sorted lexicographically
 func (m *GenericTxSystem) deleteUnits(unitIDs []types.UnitID) error {
 	if len(unitIDs) == 0 {
 		return nil
 	}
-	// sort unit ids for deterministic delete
-	slices.SortFunc(unitIDs, func(a, b types.UnitID) int {
-		return bytes.Compare(a, b)
-	})
-
-	// delete all units in single action to avoid concurrency overhead
+	// delete all units in a single batch to minimise concurrency overhead
 	var actions []state.Action
 	for _, unitID := range unitIDs {
 		actions = append(actions, state.DeleteUnit(unitID))

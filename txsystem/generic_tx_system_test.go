@@ -2,6 +2,7 @@ package txsystem
 
 import (
 	"crypto"
+	"crypto/rand"
 	"errors"
 	"math"
 	"testing"
@@ -12,11 +13,13 @@ import (
 	fcsdk "github.com/alphabill-org/alphabill-go-base/txsystem/fc"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/nop"
 	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill-go-base/util"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	testtb "github.com/alphabill-org/alphabill/internal/testutils/trustbase"
 	"github.com/alphabill-org/alphabill/state"
+	"github.com/alphabill-org/alphabill/tree/avl"
 	"github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
 	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 	"github.com/fxamacker/cbor/v2"
@@ -489,7 +492,7 @@ func Test_GenericTxSystem_Execute_FeeTransactions(t *testing.T) {
 	})
 }
 
-func createTxSystemWithFees(t *testing.T) *GenericTxSystem {
+func createTxSystemWithFees(t *testing.T, options ...txSystemTestOption) *GenericTxSystem {
 	_, verifier := testsig.CreateSignerAndVerifier(t)
 	trustBase := testtb.NewTrustBase(t, verifier)
 	pdr := types.PartitionDescriptionRecord{
@@ -501,10 +504,13 @@ func createTxSystemWithFees(t *testing.T) *GenericTxSystem {
 		T2Timeout:   2500 * time.Millisecond,
 	}
 	obs := observability.Default(t)
-	feeModule := newMockFeeModule()
+	feeModule := newMockFeeModule(16)
 	m := NewMockTxModule(nil)
 	txSys, err := NewGenericTxSystem(pdr, types.ShardID{}, trustBase, []txtypes.Module{m}, obs, WithFeeCredits(feeModule))
 	require.NoError(t, err)
+	for _, opt := range options {
+		require.NoError(t, opt(txSys))
+	}
 	return txSys
 }
 
@@ -640,6 +646,76 @@ func Test_GenericTxSystem_ExecutedTransactionsBuffer(t *testing.T) {
 	})
 }
 
+func Test_GenericTxSystem_RInit(t *testing.T) {
+	t.Run("rInit deletes expired units", func(t *testing.T) {
+		txSys := createTxSystemWithFees(t)
+		fcrUnitType := uint32(16)
+		ordinaryUnitType := uint32(1)
+		deletionRound := uint64(10)
+		fcrID1, err := txSys.pdr.ComposeUnitID(types.ShardID{}, fcrUnitType, random)
+		require.NoError(t, err)
+		fcrID2, err := txSys.pdr.ComposeUnitID(types.ShardID{}, fcrUnitType, random)
+		require.NoError(t, err)
+		unitID3, err := txSys.pdr.ComposeUnitID(types.ShardID{}, ordinaryUnitType, random)
+		require.NoError(t, err)
+		unitID4, err := txSys.pdr.ComposeUnitID(types.ShardID{}, ordinaryUnitType, random)
+		require.NoError(t, err)
+
+		require.NoError(t, txSys.state.Apply(state.AddUnit(fcrID1, fcsdk.NewFeeCreditRecord(0, nil, deletionRound-1))))
+		require.NoError(t, txSys.state.Apply(state.AddUnit(fcrID2, fcsdk.NewFeeCreditRecord(0, nil, deletionRound))))
+		require.NoError(t, txSys.state.Apply(state.AddUnit(unitID3, &MockData{})))
+		require.NoError(t, txSys.state.Apply(state.AddUnit(unitID4, &MockData{})))
+		require.NoError(t, txSys.state.Apply(state.MarkForDeletion(unitID3, deletionRound)))
+
+		// apply changes (rInit works on the committed state)
+		commitState(t, txSys)
+
+		// execute rInit procedure
+		require.NoError(t, txSys.rInit(deletionRound))
+
+		// verify fcr 1 was deleted
+		u, err := txSys.state.GetUnit(fcrID1, false)
+		require.ErrorIs(t, err, avl.ErrNotFound)
+		require.Nil(t, u)
+
+		// verify fcr 2 was not deleted
+		u, err = txSys.state.GetUnit(fcrID2, false)
+		require.NoError(t, err)
+		require.NotNil(t, u)
+
+		// verify ordinary unit 3 was deleted
+		u, err = txSys.state.GetUnit(unitID3, false)
+		require.ErrorIs(t, err, avl.ErrNotFound)
+		require.Nil(t, u)
+
+		// verify ordinary unit 4 was not deleted
+		u, err = txSys.state.GetUnit(unitID4, false)
+		require.NoError(t, err)
+		require.NotNil(t, u)
+	})
+}
+
+func random(buf []byte) error {
+	_, err := rand.Read(buf)
+	return err
+}
+
+func commitState(t *testing.T, txSys *GenericTxSystem) {
+	sum, rootHash, err := txSys.state.CalculateRoot()
+	require.NoError(t, err)
+	require.NotNil(t, rootHash)
+	uc := &types.UnicityCertificate{
+		Version: 1,
+		InputRecord: &types.InputRecord{
+			Version:      1,
+			RoundNumber:  9,
+			Hash:         rootHash,
+			SummaryValue: util.Uint64ToBytes(sum),
+		},
+	}
+	require.NoError(t, txSys.state.Commit(uc))
+}
+
 type MockTxAttributes struct {
 	_     struct{} `cbor:",toarray"`
 	Value uint64
@@ -736,6 +812,13 @@ func withCurrentRound(round uint64) txSystemTestOption {
 	}
 }
 
+func withFeeModule(module txtypes.FeeCreditModule) txSystemTestOption {
+	return func(m *GenericTxSystem) error {
+		m.fees = module
+		return nil
+	}
+}
+
 func NewTestGenericTxSystem(t *testing.T, modules []txtypes.Module, opts ...txSystemTestOption) *GenericTxSystem {
 	txSys := defaultTestConfiguration(t, modules)
 	// apply test overrides
@@ -762,7 +845,9 @@ func defaultTestConfiguration(t *testing.T, modules []txtypes.Module) *GenericTx
 
 var _ txtypes.Module = (*mockFeeModule)(nil)
 
-type mockFeeModule struct{}
+type mockFeeModule struct {
+	feeCreditRecordUnitType uint32
+}
 
 type mockFeeTxAttributes struct {
 	_     struct{} `cbor:",toarray"`
@@ -774,8 +859,8 @@ type mockFeeTxAuthProof struct {
 	OwnerProof []byte
 }
 
-func newMockFeeModule() *mockFeeModule {
-	return &mockFeeModule{}
+func newMockFeeModule(fcrUnitType uint32) *mockFeeModule {
+	return &mockFeeModule{feeCreditRecordUnitType: fcrUnitType}
 }
 
 func (f *mockFeeModule) CalculateCost(_ uint64) uint64 {
@@ -806,6 +891,10 @@ func (f *mockFeeModule) IsPermissionedMode() bool {
 
 func (f *mockFeeModule) IsFeelessMode() bool {
 	return true
+}
+
+func (f *mockFeeModule) FeeCreditRecordUnitType() uint32 {
+	return f.feeCreditRecordUnitType
 }
 
 func (f *mockFeeModule) validateFeeTx(tx *types.TransactionOrder, _ *mockFeeTxAttributes, _ *mockFeeTxAuthProof, _ txtypes.ExecutionContext) (err error) {

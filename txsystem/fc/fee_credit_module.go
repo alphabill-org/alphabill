@@ -132,3 +132,7 @@ func (f *FeeCreditModule) IsPermissionedMode() bool {
 func (f *FeeCreditModule) IsFeelessMode() bool {
 	return false
 }
+
+func (f *FeeCreditModule) FeeCreditRecordUnitType() uint32 {
+	return f.feeCreditRecordUnitType
+}

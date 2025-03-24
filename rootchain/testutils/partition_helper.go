@@ -2,7 +2,6 @@ package testutils
 
 import (
 	"testing"
-	"time"
 
 	"github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
@@ -30,7 +29,6 @@ func NewTestNode(t *testing.T) *TestNode {
 	return node
 }
 
-// TODO:
 func (n *TestNode) NodeInfo(t *testing.T) *types.NodeInfo {
 	sigKey, err := n.Verifier.MarshalPublicKey()
 	require.NoError(t, err)
@@ -41,13 +39,16 @@ func (n *TestNode) NodeInfo(t *testing.T) *types.NodeInfo {
 	}
 }
 
-func CreateTestNodes(t *testing.T, nrOfValidators int) []*TestNode {
+func CreateTestNodes(t *testing.T, nrOfValidators int) ([]*TestNode, []*types.NodeInfo) {
 	t.Helper()
 	var testNodes []*TestNode
+	var nodeInfos []*types.NodeInfo
 	for i := 0; i < nrOfValidators; i++ {
-		testNodes = append(testNodes, NewTestNode(t))
+		tn := NewTestNode(t)
+		testNodes = append(testNodes, tn)
+		nodeInfos = append(nodeInfos, tn.NodeInfo(t))
 	}
-	return testNodes
+	return testNodes, nodeInfos
 }
 
 func CreateBlockCertificationRequest(t *testing.T, ir *types.InputRecord, partitionID types.PartitionID, node *TestNode) *certification.BlockCertificationRequest {
@@ -61,13 +62,6 @@ func CreateBlockCertificationRequest(t *testing.T, ir *types.InputRecord, partit
 	return r1
 }
 
-func MockValidatorNetReceives(t *testing.T, net *testnetwork.MockNet, id peer.ID, msgType string, msg any) {
-	t.Helper()
-	net.Receive(msg)
-	// wait for message to be consumed
-	require.Eventually(t, func() bool { return len(net.MessageCh) == 0 }, 1*time.Second, 10*time.Millisecond)
-}
-
 func MockAwaitMessage[T any](t *testing.T, net *testnetwork.MockNet, msgType string) T {
 	t.Helper()
 	var msg any
@@ -78,7 +72,7 @@ func MockAwaitMessage[T any](t *testing.T, net *testnetwork.MockNet, msgType str
 			return true
 		}
 		return false
-	}, test.WaitDuration, test.WaitTick)
+	}, test.WaitDuration*3, test.WaitShortTick)
 	// cleat the queue
 	net.ResetSentMessages(msgType)
 	return msg.(T)

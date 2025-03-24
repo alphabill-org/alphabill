@@ -443,8 +443,8 @@ func toRecoveryShardInfo(block *ExecutedBlock) ([]rcnet.ShardInfo, error) {
 	si := make([]rcnet.ShardInfo, len(block.ShardInfo))
 	idx := 0
 	for _, v := range block.ShardInfo {
-		si[idx].Partition = v.LastCR.Partition
-		si[idx].Shard = v.LastCR.Shard
+		si[idx].Partition = v.PartitionID
+		si[idx].Shard = v.ShardID
 		si[idx].EpochStart = v.EpochStart
 		si[idx].T2Timeout = v.T2Timeout
 		si[idx].RootHash = v.RootHash
@@ -452,14 +452,16 @@ func toRecoveryShardInfo(block *ExecutedBlock) ([]rcnet.ShardInfo, error) {
 		si[idx].Stat = v.Stat
 		si[idx].PrevEpochFees = v.PrevEpochFees
 		si[idx].Fees = maps.Clone(v.Fees)
-		si[idx].UC = v.LastCR.UC
-		si[idx].TR = v.LastCR.Technical
-		if ir := block.CurrentIR.Find(v.LastCR.Partition, v.LastCR.Shard); ir != nil {
+		if v.LastCR != nil {
+			si[idx].UC = &v.LastCR.UC
+			si[idx].TR = &v.LastCR.Technical
+		}
+		if ir := block.CurrentIR.Find(v.PartitionID, v.ShardID); ir != nil {
 			si[idx].IR = ir.IR
 			si[idx].IRTR = ir.Technical
 			si[idx].ShardConfHash = ir.ShardConfHash
 		} else {
-			return nil, fmt.Errorf("no InputData for shard %s-%s", v.LastCR.Partition, v.LastCR.Shard)
+			return nil, fmt.Errorf("no InputData for shard %s-%s", v.PartitionID, v.ShardID)
 		}
 		idx++
 	}

@@ -1,15 +1,11 @@
 package rootchain
 
 import (
-	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"testing"
 	"time"
 
-	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
-	testsig "github.com/alphabill-org/alphabill-go-base/testutils/sig"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testnetwork "github.com/alphabill-org/alphabill/internal/testutils/network"
@@ -250,10 +246,10 @@ func TestRootValidatorTest_SimulateNetCommunication(t *testing.T) {
 		Timestamp:    rg.Partitions[0].Certificate.UnicitySeal.Timestamp,
 	}
 	req := testutils.CreateBlockCertificationRequest(t, newIR, partitionID, partitionNodes[0])
-	testutils.MockValidatorNetReceives(t, mockNet, partitionNodes[0].PeerConf.ID, network.ProtocolBlockCertification, req)
+	mockNet.WaitReceive(t, req)
 	// send second
 	req = testutils.CreateBlockCertificationRequest(t, newIR, partitionID, partitionNodes[1])
-	testutils.MockValidatorNetReceives(t, mockNet, partitionNodes[1].PeerConf.ID, network.ProtocolBlockCertification, req)
+	mockNet.WaitReceive(t, req)
 	// since consensus is simple majority, then consensus is now achieved and message should be forwarded
 	mcm := rootValidator.consensusManager.(*MockConsensusManager)
 	require.Eventually(t, func() bool { return len(mcm.certReqCh) == 1 }, 1*time.Second, 10*time.Millisecond)
@@ -280,7 +276,7 @@ func TestRootValidatorTest_SimulateNetCommunicationNoQuorum(t *testing.T) {
 		Timestamp:    rg.Partitions[0].Certificate.UnicitySeal.Timestamp,
 	}
 	req1 := testutils.CreateBlockCertificationRequest(t, newIR1, partitionID, partitionNodes[0])
-	testutils.MockValidatorNetReceives(t, mockNet, partitionNodes[0].PeerConf.ID, network.ProtocolBlockCertification, req1)
+	mockNet.WaitReceive(t, req1)
 	newIR2 := &types.InputRecord{
 		Version:      1,
 		PreviousHash: rg.Partitions[0].Validators[0].BlockCertificationRequest.InputRecord.Hash,
@@ -291,7 +287,7 @@ func TestRootValidatorTest_SimulateNetCommunicationNoQuorum(t *testing.T) {
 		Timestamp:    rg.Partitions[0].Certificate.UnicitySeal.Timestamp,
 	}
 	req2 := testutils.CreateBlockCertificationRequest(t, newIR2, partitionID, partitionNodes[1])
-	testutils.MockValidatorNetReceives(t, mockNet, partitionNodes[1].PeerConf.ID, network.ProtocolBlockCertification, req2)
+	mockNet.WaitReceive(t, req2)
 	newIR3 := &types.InputRecord{
 		Version:      1,
 		PreviousHash: rg.Partitions[0].Validators[0].BlockCertificationRequest.InputRecord.Hash,
@@ -302,7 +298,7 @@ func TestRootValidatorTest_SimulateNetCommunicationNoQuorum(t *testing.T) {
 		Timestamp:    rg.Partitions[0].Certificate.UnicitySeal.Timestamp,
 	}
 	req3 := testutils.CreateBlockCertificationRequest(t, newIR3, partitionID, partitionNodes[2])
-	testutils.MockValidatorNetReceives(t, mockNet, partitionNodes[2].PeerConf.ID, network.ProtocolBlockCertification, req3)
+	mockNet.WaitReceive(t, req3)
 	// no consensus can be achieved all reported different hashes
 	mcm := rootValidator.consensusManager.(*MockConsensusManager)
 	require.Eventually(t, func() bool { return len(mcm.certReqCh) == 1 }, 1*time.Second, 10*time.Millisecond)
@@ -324,7 +320,7 @@ func TestRootValidatorTest_SimulateNetCommunicationHandshake(t *testing.T) {
 		ShardID:     types.ShardID{},
 		NodeID:      partitionNodes[1].PeerConf.ID.String(),
 	}
-	testutils.MockValidatorNetReceives(t, mockNet, partitionNodes[0].PeerConf.ID, network.ProtocolHandshake, h)
+	mockNet.WaitReceive(t, h)
 	// make sure certificate is sent in return
 	testutils.MockAwaitMessage[*certification.CertificationResponse](t, mockNet, network.ProtocolUnicityCertificates)
 	// make sure that the node is subscribed
@@ -340,7 +336,7 @@ func TestRootValidatorTest_SimulateNetCommunicationHandshake(t *testing.T) {
 		RoundNumber:  2,
 	}
 	req := testutils.CreateBlockCertificationRequest(t, newIR, partitionID, partitionNodes[0])
-	testutils.MockValidatorNetReceives(t, mockNet, partitionNodes[0].PeerConf.ID, network.ProtocolBlockCertification, req)
+	mockNet.WaitReceive(t, req)
 	subscribed = rootValidator.subscription.Get(partitionID)
 	require.Contains(t, subscribed, partitionNodes[0].PeerConf.ID.String())
 
@@ -389,7 +385,7 @@ func TestRootValidatorTest_SimulateNetCommunicationInvalidReqRoundNumber(t *test
 		RoundNumber:  1,
 	}
 	req := testutils.CreateBlockCertificationRequest(t, newIR, partitionID, partitionNodes[0])
-	testutils.MockValidatorNetReceives(t, mockNet, partitionNodes[0].PeerConf.ID, network.ProtocolBlockCertification, req)
+	mockNet.WaitReceive(t, req)
 	// expect repeat UC to be sent
 	repeatCert := testutils.MockAwaitMessage[*certification.CertificationResponse](t, mockNet, network.ProtocolUnicityCertificates)
 	require.Equal(t, rg.Partitions[0].Certificate, &repeatCert.UC)
@@ -418,7 +414,7 @@ func TestRootValidatorTest_SimulateNetCommunicationInvalidHash(t *testing.T) {
 		RoundNumber:  2,
 	}
 	req := testutils.CreateBlockCertificationRequest(t, newIR, partitionID, partitionNodes[0])
-	testutils.MockValidatorNetReceives(t, mockNet, partitionNodes[0].PeerConf.ID, network.ProtocolBlockCertification, req)
+	mockNet.WaitReceive(t, req)
 	// expect repeat UC to be sent
 	repeatCert := testutils.MockAwaitMessage[*certification.CertificationResponse](t, mockNet, network.ProtocolUnicityCertificates)
 	require.Equal(t, rg.Partitions[0].Certificate, &repeatCert.UC)
@@ -535,10 +531,10 @@ func TestRootValidator_ExitWhenPendingCertRequestAndCMClosed(t *testing.T) {
 		RoundNumber:  2,
 	}
 	req := testutils.CreateBlockCertificationRequest(t, newIR, partitionID, partitionNodes[0])
-	testutils.MockValidatorNetReceives(t, mockNet, partitionNodes[0].PeerConf.ID, network.ProtocolBlockCertification, req)
+	mockNet.WaitReceive(t, req)
 	// send second
 	req = testutils.CreateBlockCertificationRequest(t, newIR, partitionID, partitionNodes[1])
-	testutils.MockValidatorNetReceives(t, mockNet, partitionNodes[1].PeerConf.ID, network.ProtocolBlockCertification, req)
+	mockNet.WaitReceive(t, req)
 	// consensus is achieved and request will sent to CM, but CM is not running
 	// node should still exit normally even if CM loop is not running and reading the channel
 }

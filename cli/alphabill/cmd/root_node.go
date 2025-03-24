@@ -44,7 +44,7 @@ type (
 		trustBaseFlags
 		p2pFlags
 
-		RootStorePath    string   // path to Bolt storage file
+		RootStoreFile    string   // path to Bolt storage file
 		MaxRequests      uint     // validator partition certification request channel capacity
 		RPCServerAddress string   // address on which http server is exposed with metrics endpoint
 	}
@@ -94,7 +94,7 @@ func rootNodeRunCmd(baseFlags *baseFlags) *cobra.Command {
 	cmd.Flags().UintVar(&flags.MaxRequests, "max-requests", 1000, "request buffer capacity")
 	cmd.Flags().StringVar(&flags.RPCServerAddress, "rpc-server-address", "",
 		`Specifies the TCP address for the RPC server to listen on, in the form "host:port". RPC server isn't initialised if address is empty.`)
-	cmd.Flags().StringVar(&flags.RootStorePath, "root-db", "",
+	cmd.Flags().StringVar(&flags.RootStoreFile, "root-db", "",
 		fmt.Sprintf("path to the root database (default: %s)", filepath.Join("$AB_HOME", rootStoreFileName)))
 
 	return cmd
@@ -134,7 +134,7 @@ func rootNodeRun(ctx context.Context, flags *rootNodeRunFlags) error {
 		return fmt.Errorf("partition network initialization failed: %w", err)
 	}
 
-	rootStore, err := flags.initStore(flags.RootStorePath, rootStoreFileName)
+	rootStore, err := flags.initStore(flags.RootStoreFile, rootStoreFileName)
 	if err != nil {
 		return err
 	}

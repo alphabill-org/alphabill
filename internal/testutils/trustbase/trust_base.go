@@ -30,18 +30,17 @@ func NewTrustBase(t *testing.T, verifiers ...abcrypto.Verifier) types.RootTrustB
 			Stake:  1,
 		})
 	}
-	tb, err := types.NewTrustBaseGenesis(nodes, []byte{1})
+	tb, err := types.NewTrustBaseGenesis(5, nodes)
 	require.NoError(t, err)
 	return tb
 }
 
-// TODO: lose this one
 func NewTrustBaseFromVerifiers(t *testing.T, verifiers map[string]abcrypto.Verifier) types.RootTrustBase {
 	var nodes []*types.NodeInfo
 	for nodeID, v := range verifiers {
 		nodes = append(nodes, NewNodeInfoFromVerifier(t, nodeID, v))
 	}
-	tb, err := types.NewTrustBaseGenesis(nodes, []byte{1})
+	tb, err := types.NewTrustBaseGenesis(5, nodes)
 	require.NoError(t, err)
 	return tb
 }
@@ -66,6 +65,10 @@ func (a AlwaysValidTrustBase) VerifyQuorumSignatures(data []byte, signatures map
 
 func (a AlwaysValidTrustBase) VerifySignature(data []byte, sig []byte, nodeID string) (uint64, error) {
 	return 1, nil
+}
+
+func (a AlwaysValidTrustBase) GetNetworkID() types.NetworkID {
+	return types.NetworkLocal
 }
 
 func (a AlwaysValidTrustBase) GetQuorumThreshold() uint64 {

@@ -50,8 +50,8 @@ type ShardInfo struct {
 	Fees map[string]uint64 // per validator summary fees of the current epoch
 
 	// last CertificationResponse
-	UC types.UnicityCertificate
-	TR certification.TechnicalRecord
+	UC *types.UnicityCertificate
+	TR *certification.TechnicalRecord
 
 	// input data of the block
 	IR            *types.InputRecord

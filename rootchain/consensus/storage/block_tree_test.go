@@ -5,132 +5,17 @@ import (
 	"encoding/hex"
 	"fmt"
 	"testing"
-	"time"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
-	basehex "github.com/alphabill-org/alphabill-go-base/types/hex"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
-	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
 	testpartition "github.com/alphabill-org/alphabill/rootchain/partitions/testutils"
 	"github.com/stretchr/testify/require"
 )
 
 var randomHash = test.RandomBytes(32)
-
-var inputRecord1 = &types.InputRecord{
-	Version:      1,
-	PreviousHash: []byte{1, 1, 1},
-	Hash:         []byte{2, 2, 2},
-	BlockHash:    []byte{3, 3, 3},
-	SummaryValue: []byte{4, 4, 4},
-	RoundNumber:  1,
-	Timestamp:    202411131,
-}
-var pdr1 = &types.PartitionDescriptionRecord{
-	Version:         1,
-	NetworkID:       5,
-	PartitionID:     partitionID1,
-	PartitionTypeID: 1,
-	T2Timeout:       2500 * time.Millisecond,
-	PartitionParams: map[string]string{
-		"foo": "bar",
-	},
-}
-var inputRecord2 = &types.InputRecord{
-	Version:      1,
-	PreviousHash: []byte{1, 1, 1},
-	Hash:         []byte{5, 5, 5},
-	BlockHash:    []byte{3, 3, 3},
-	SummaryValue: []byte{4, 4, 4},
-	RoundNumber:  1,
-	Timestamp:    202411132,
-}
-var pdr2 = &types.PartitionDescriptionRecord{
-	Version:         1,
-	NetworkID:       5,
-	PartitionID:     partitionID2,
-	PartitionTypeID: 2,
-	T2Timeout:       2500 * time.Millisecond,
-	PartitionParams: map[string]string{
-		"bar": "foo",
-	},
-}
-
-var roundInfo = &drctypes.RoundInfo{
-	RoundNumber:     genesis.RootRound,
-	Timestamp:       genesis.Timestamp,
-	CurrentRootHash: hexToBytes("F4BDE9DB98E487F13AA6B3725B97CC137E61981D8366627600F4E97D16083C7E"),
-}
-
-var pg = func() []*genesis.GenesisPartitionRecord {
-	pdr1Hash, _ := pdr1.Hash(gocrypto.SHA256)
-	pdr2Hash, _ := pdr2.Hash(gocrypto.SHA256)
-	r1hash, _ := roundInfo.Hash(gocrypto.SHA256)
-	return []*genesis.GenesisPartitionRecord{
-		{
-			Version: 1,
-			Certificate: &types.UnicityCertificate{
-				Version:     1,
-				InputRecord: inputRecord1,
-				TRHash:      []uint8{0x76, 0xdc, 0xe1, 0x7b, 0x29, 0xcb, 0xa7, 0x61, 0xf8, 0x9e, 0x3f, 0xd6, 0xc3, 0x50, 0x4d, 0x81, 0x83, 0x92, 0x3, 0xf9, 0x5b, 0x29, 0xd4, 0xbb, 0x64, 0x58, 0x67, 0x3e, 0xdb, 0x39, 0xb6, 0xb0},
-				UnicityTreeCertificate: &types.UnicityTreeCertificate{
-					Version:   1,
-					Partition: pdr1.PartitionID,
-					PDRHash:   pdr1Hash,
-				},
-				UnicitySeal: &types.UnicitySeal{
-					Version:              1,
-					RootChainRoundNumber: roundInfo.RoundNumber,
-					Hash:                 roundInfo.CurrentRootHash,
-					Timestamp:            roundInfo.Timestamp,
-					PreviousHash:         r1hash,
-					Signatures:           map[string]basehex.Bytes{},
-				},
-			},
-			PartitionDescription: pdr1,
-			Validators: []*genesis.PartitionNode{
-				{
-					Version:                    1,
-					NodeID:                     "1111",
-					SigKey:                     []byte{0x3, 0x24, 0x8b, 0x61, 0x68, 0x51, 0xac, 0x6e, 0x43, 0x7e, 0xc2, 0x4e, 0xcc, 0x21, 0x9e, 0x5b, 0x42, 0x43, 0xdf, 0xa5, 0xdb, 0xdb, 0x8, 0xce, 0xa6, 0x48, 0x3a, 0xc9, 0xe0, 0xdc, 0x6b, 0x55, 0xcd},
-					PartitionDescriptionRecord: types.PartitionDescriptionRecord{Version: 1},
-				},
-			},
-		},
-		{
-			Version: 1,
-			Certificate: &types.UnicityCertificate{
-				Version:     1,
-				InputRecord: inputRecord2,
-				TRHash:      []uint8{0x18, 0x28, 0x40, 0xfc, 0x9, 0x13, 0x83, 0xa, 0x92, 0x82, 0xc7, 0xd3, 0x50, 0x33, 0xac, 0x41, 0x2, 0x1b, 0x1e, 0x39, 0x6c, 0xd7, 0x30, 0xaa, 0x73, 0x8d, 0xa7, 0xaf, 0x7b, 0x3c, 0xbe, 0x18},
-				UnicityTreeCertificate: &types.UnicityTreeCertificate{
-					Version:   1,
-					Partition: pdr2.PartitionID,
-					PDRHash:   pdr2Hash,
-				},
-				UnicitySeal: &types.UnicitySeal{
-					Version:              1,
-					RootChainRoundNumber: roundInfo.RoundNumber,
-					Hash:                 roundInfo.CurrentRootHash,
-					Timestamp:            roundInfo.Timestamp,
-					PreviousHash:         r1hash,
-					Signatures:           map[string]basehex.Bytes{},
-				},
-			},
-			PartitionDescription: pdr2,
-			Validators: []*genesis.PartitionNode{
-				{
-					Version:                    1,
-					NodeID:                     "2222",
-					SigKey:                     []byte{0x3, 0x24, 0x8b, 0x61, 0x68, 0x51, 0xac, 0x6e, 0x43, 0x7e, 0xc2, 0x4e, 0xcc, 0x21, 0x9e, 0x5b, 0x42, 0x43, 0xdf, 0xa5, 0xdb, 0xdb, 0x8, 0xce, 0xa6, 0x48, 0x3a, 0xc9, 0xe0, 0xdc, 0x6b, 0x55, 0xcd},
-					PartitionDescriptionRecord: types.PartitionDescriptionRecord{Version: 1},
-				},
-			},
-		},
-	}
-}()
 
 func mockExecutedBlock(round, qcRound, qcParentRound uint64) *ExecutedBlock {
 	return &ExecutedBlock{
@@ -218,10 +103,11 @@ func createTestBlockTree(t *testing.T) *BlockTree {
 
 func initFromGenesis(t *testing.T) *BlockTree {
 	t.Helper()
-	orchestration := testpartition.NewOrchestration(t, &genesis.RootGenesis{Partitions: pg})
 	db, err := memorydb.New()
 	require.NoError(t, err)
-	require.NoError(t, storeGenesisInit(gocrypto.SHA256, pg, db))
+
+	require.NoError(t, storeGenesisInit(db, 5, gocrypto.SHA256))
+	orchestration := testpartition.NewOrchestration(t, logger.New(t))
 	btree, err := NewBlockTree(db, orchestration)
 	require.NoError(t, err)
 	return btree
@@ -356,7 +242,7 @@ func TestNewBlockTree(t *testing.T) {
 	b, err := bTree.FindBlock(1)
 	require.NoError(t, err)
 	require.Equal(t, uint64(1), b.BlockData.Round)
-	require.Equal(t, pg[0].Certificate.UnicitySeal.Hash, b.RootHash)
+	require.Nil(t, b.RootHash)
 	require.Equal(t, bTree.Root(), b)
 	_, err = bTree.FindBlock(2)
 	require.Error(t, err)
@@ -369,26 +255,28 @@ func TestNewBlockTree(t *testing.T) {
 func TestNewBlockTreeFromDb(t *testing.T) {
 	db, err := memorydb.New()
 	require.NoError(t, err)
-	orchestration := testpartition.NewOrchestration(t, &genesis.RootGenesis{Partitions: pg})
-	gBlock, err := newGenesisBlock(gocrypto.SHA256, pg)
+	orchestration := testpartition.NewOrchestration(t, logger.New(t))
+
+	gBlock, err := NewGenesisBlock(orchestration.NetworkID(), gocrypto.SHA256)
 	require.NoError(t, err)
-	require.NoError(t, db.Write(blockKey(genesis.RootRound), gBlock))
+	require.NoError(t, db.Write(blockKey(drctypes.GenesisRootRound), gBlock))
+
 	// create a new block
 	block2 := &ExecutedBlock{
 		BlockData: &drctypes.BlockData{
 			Author:    "test",
-			Round:     genesis.RootRound + 1,
+			Round:     drctypes.GenesisRootRound + 1,
 			Epoch:     0,
 			Timestamp: types.NewTimestamp(),
 			Payload:   &drctypes.Payload{},
-			Qc:        gBlock.BlockData.Qc,
+			Qc:        gBlock.Qc,
 		},
 		CurrentIR: gBlock.CurrentIR,
 		Changed:   make(map[types.PartitionShardID]struct{}),
 		HashAlgo:  gocrypto.SHA256,
-		RootHash:  gBlock.BlockData.Qc.LedgerCommitInfo.Hash,
+		RootHash:  gBlock.RootHash,
 	}
-	require.NoError(t, db.Write(blockKey(block2.BlockData.Round), block2))
+	require.NoError(t, db.Write(blockKey(block2.GetRound()), block2))
 	bTree, err := NewBlockTree(db, orchestration)
 	require.NoError(t, err)
 	require.NotNil(t, bTree)
@@ -401,10 +289,10 @@ func TestNewBlockTreeFromDb(t *testing.T) {
 func TestNewBlockTreeFromDbChain3Blocks(t *testing.T) {
 	db, err := memorydb.New()
 	require.NoError(t, err)
-	orchestration := testpartition.NewOrchestration(t, &genesis.RootGenesis{Partitions: pg})
-	gBlock, err := newGenesisBlock(gocrypto.SHA256, pg)
+	orchestration := testpartition.NewOrchestration(t, logger.New(t))
+	gBlock, err := NewGenesisBlock(orchestration.NetworkID(), gocrypto.SHA256)
 	require.NoError(t, err)
-	require.NoError(t, db.Write(blockKey(genesis.RootRound), gBlock))
+	require.NoError(t, db.Write(blockKey(drctypes.GenesisRootRound), gBlock))
 	// create blocks 2 and 3
 	voteInfoB2 := &drctypes.RoundInfo{
 		RoundNumber:       2,
@@ -426,21 +314,21 @@ func TestNewBlockTreeFromDbChain3Blocks(t *testing.T) {
 	block2 := &ExecutedBlock{
 		BlockData: &drctypes.BlockData{
 			Author:    "test",
-			Round:     genesis.RootRound + 1,
+			Round:     drctypes.GenesisRootRound + 1,
 			Epoch:     0,
 			Timestamp: types.NewTimestamp(),
 			Payload:   &drctypes.Payload{},
-			Qc:        gBlock.BlockData.Qc,
+			Qc:        gBlock.Qc,
 		},
 		CurrentIR: gBlock.CurrentIR,
 		Changed:   make(map[types.PartitionShardID]struct{}),
 		HashAlgo:  gocrypto.SHA256,
-		RootHash:  gBlock.BlockData.Qc.LedgerCommitInfo.Hash,
+		RootHash:  gBlock.RootHash,
 	}
 	block3 := &ExecutedBlock{
 		BlockData: &drctypes.BlockData{
 			Author:    "test",
-			Round:     genesis.RootRound + 2,
+			Round:     drctypes.GenesisRootRound + 2,
 			Epoch:     0,
 			Timestamp: types.NewTimestamp() + 1000,
 			Payload:   &drctypes.Payload{},
@@ -449,7 +337,7 @@ func TestNewBlockTreeFromDbChain3Blocks(t *testing.T) {
 		CurrentIR: gBlock.CurrentIR,
 		Changed:   make(map[types.PartitionShardID]struct{}),
 		HashAlgo:  gocrypto.SHA256,
-		RootHash:  gBlock.BlockData.Qc.LedgerCommitInfo.Hash,
+		RootHash:  gBlock.RootHash,
 	}
 	require.NoError(t, db.Write(blockKey(block2.BlockData.Round), block2))
 	require.NoError(t, db.Write(blockKey(block3.BlockData.Round), block3))
@@ -466,9 +354,9 @@ func TestNewBlockTreeFromDbChain3Blocks(t *testing.T) {
 func TestNewBlockTreeFromRecovery(t *testing.T) {
 	db, err := memorydb.New()
 	require.NoError(t, err)
-	gBlock, err := newGenesisBlock(gocrypto.SHA256, pg)
+	gBlock, err := NewGenesisBlock(5, gocrypto.SHA256)
 	require.NoError(t, err)
-	require.NoError(t, db.Write(blockKey(genesis.RootRound), gBlock))
+	require.NoError(t, db.Write(blockKey(drctypes.GenesisRootRound), gBlock))
 	// create blocks 2 and 3
 	voteInfoB2 := &drctypes.RoundInfo{
 		RoundNumber:       2,
@@ -493,23 +381,23 @@ func TestNewBlockTreeFromRecovery(t *testing.T) {
 	block2 := &ExecutedBlock{
 		BlockData: &drctypes.BlockData{
 			Author:    "test",
-			Round:     genesis.RootRound + 1,
+			Round:     drctypes.GenesisRootRound + 1,
 			Epoch:     0,
 			Timestamp: types.NewTimestamp(),
 			Payload:   &drctypes.Payload{},
-			Qc:        gBlock.BlockData.Qc,
+			Qc:        gBlock.Qc,
 		},
 		CurrentIR: gBlock.CurrentIR,
 		Changed:   make(map[types.PartitionShardID]struct{}),
 		HashAlgo:  gocrypto.SHA256,
-		RootHash:  gBlock.BlockData.Qc.LedgerCommitInfo.Hash,
+		RootHash:  gBlock.RootHash,
 	}
 	require.NoError(t, bTree.Add(block2))
 	require.NoError(t, bTree.InsertQc(block2.BlockData.Qc))
 	block3 := &ExecutedBlock{
 		BlockData: &drctypes.BlockData{
 			Author:    "test",
-			Round:     genesis.RootRound + 2,
+			Round:     drctypes.GenesisRootRound + 2,
 			Epoch:     0,
 			Timestamp: types.NewTimestamp() + 1000,
 			Payload:   &drctypes.Payload{},
@@ -518,7 +406,7 @@ func TestNewBlockTreeFromRecovery(t *testing.T) {
 		CurrentIR: gBlock.CurrentIR,
 		Changed:   make(map[types.PartitionShardID]struct{}),
 		HashAlgo:  gocrypto.SHA256,
-		RootHash:  gBlock.BlockData.Qc.LedgerCommitInfo.Hash,
+		RootHash:  gBlock.RootHash,
 	}
 	require.NoError(t, bTree.Add(block3))
 	require.NoError(t, bTree.InsertQc(block3.BlockData.Qc))
@@ -532,28 +420,28 @@ func TestAddErrorCases(t *testing.T) {
 	bTree := initFromGenesis(t)
 	//root := bTree.Root()
 	// try to add genesis block again
-	nextBlock := mockExecutedBlock(genesis.RootRound, genesis.RootRound, 0)
+	nextBlock := mockExecutedBlock(drctypes.GenesisRootRound, drctypes.GenesisRootRound, 0)
 	require.ErrorContains(t, bTree.Add(nextBlock), "error block for round 1 already exists")
 	// unknown parent round i.e. skip a block
-	nextBlock = mockExecutedBlock(genesis.RootRound+2, genesis.RootRound+1, genesis.RootRound)
+	nextBlock = mockExecutedBlock(drctypes.GenesisRootRound+2, drctypes.GenesisRootRound+1, drctypes.GenesisRootRound)
 	require.ErrorContains(t, bTree.Add(nextBlock), "error cannot add block for round 3, parent block 2 not found")
 	// try to remove root block
-	require.ErrorContains(t, bTree.RemoveLeaf(genesis.RootRound), "error root cannot be removed")
+	require.ErrorContains(t, bTree.RemoveLeaf(drctypes.GenesisRootRound), "error root cannot be removed")
 }
 
 func TestAddAndCommit(t *testing.T) {
 	bTree := initFromGenesis(t)
 	// append next
-	nextBlock := mockExecutedBlock(genesis.RootRound+1, genesis.RootRound, 0)
+	nextBlock := mockExecutedBlock(drctypes.GenesisRootRound+1, drctypes.GenesisRootRound, 0)
 	require.NoError(t, bTree.Add(nextBlock))
 	// and another
-	nextBlock = mockExecutedBlock(genesis.RootRound+2, genesis.RootRound+1, genesis.RootRound)
+	nextBlock = mockExecutedBlock(drctypes.GenesisRootRound+2, drctypes.GenesisRootRound+1, drctypes.GenesisRootRound)
 	require.NoError(t, bTree.Add(nextBlock))
 	root := bTree.Root()
-	require.Equal(t, root.BlockData.Round, genesis.RootRound)
+	require.Equal(t, root.BlockData.Round, drctypes.GenesisRootRound)
 	require.Len(t, bTree.GetAllUncommittedNodes(), 2)
 	// find path to root
-	blocks := bTree.findPathToRoot(genesis.RootRound + 2)
+	blocks := bTree.findPathToRoot(drctypes.GenesisRootRound + 2)
 	require.Len(t, blocks, 2)
 	require.Equal(t, uint64(3), blocks[0].BlockData.Round)
 	require.Equal(t, uint64(2), blocks[1].BlockData.Round)
@@ -561,13 +449,13 @@ func TestAddAndCommit(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, pruned, 2)
 	// find path to root
-	blocks = bTree.findPathToRoot(genesis.RootRound + 1)
+	blocks = bTree.findPathToRoot(drctypes.GenesisRootRound + 1)
 	require.Len(t, blocks, 1)
 	// find path to root
-	blocks = bTree.findPathToRoot(genesis.RootRound)
+	blocks = bTree.findPathToRoot(drctypes.GenesisRootRound)
 	require.Len(t, blocks, 0)
 	require.Len(t, bTree.GetAllUncommittedNodes(), 2)
-	require.NoError(t, bTree.RemoveLeaf(genesis.RootRound+2))
+	require.NoError(t, bTree.RemoveLeaf(drctypes.GenesisRootRound+2))
 	require.Len(t, bTree.roundToNode, 2)
 	pruned, err = bTree.findBlocksToPrune(2)
 	require.NoError(t, err)
@@ -575,10 +463,10 @@ func TestAddAndCommit(t *testing.T) {
 	// current root will be pruned
 	require.Equal(t, root.BlockData.Round, pruned[0])
 	// add again link qc round is ok, so this is fine
-	nextBlock = mockExecutedBlock(genesis.RootRound+3, genesis.RootRound+1, genesis.RootRound)
+	nextBlock = mockExecutedBlock(drctypes.GenesisRootRound+3, drctypes.GenesisRootRound+1, drctypes.GenesisRootRound)
 	require.NoError(t, bTree.Add(nextBlock))
 	// make second consecutive round and commit QC for round 4
-	nextBlock = mockExecutedBlock(genesis.RootRound+4, genesis.RootRound+3, genesis.RootRound)
+	nextBlock = mockExecutedBlock(drctypes.GenesisRootRound+4, drctypes.GenesisRootRound+3, drctypes.GenesisRootRound)
 	require.NoError(t, bTree.Add(nextBlock))
 	// commit block for round 4 which will also commit round 2 (indirectly)
 	// test find block
@@ -586,9 +474,9 @@ func TestAddAndCommit(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, uint64(2), b.BlockData.Round)
 	// test find block
-	b, err = bTree.FindBlock(genesis.RootRound + 3)
+	b, err = bTree.FindBlock(drctypes.GenesisRootRound + 3)
 	require.NoError(t, err)
-	require.Equal(t, genesis.RootRound+3, b.BlockData.Round)
+	require.Equal(t, drctypes.GenesisRootRound+3, b.BlockData.Round)
 	// set block input data (mock blocks do not have it assigned) as without it
 	// commit creates empty unicity tree. As we do not have any shard marked as
 	// having changes Commit doesn't return any certificates.

@@ -306,7 +306,6 @@ func newQuorumCertificate(t *testing.T, voteInfo *drctypes.RoundInfo, commitHash
 	require.NoError(t, err)
 	return &drctypes.QuorumCert{
 		VoteInfo:         voteInfo,
-		// TODO: no value for rootchainroundnumber?
 		LedgerCommitInfo: &types.UnicitySeal{Version: 1, PreviousHash: ph, Hash: commitHash},
 		Signatures:       map[string]hex.Bytes{},
 	}, nil

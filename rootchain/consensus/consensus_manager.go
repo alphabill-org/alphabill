@@ -53,6 +53,7 @@ type (
 	}
 
 	Orchestration interface {
+		NetworkID() types.NetworkID
 		ShardConfig(partitionID types.PartitionID, shardID types.ShardID, rootRound uint64) (*types.PartitionDescriptionRecord, error)
 		ShardConfigs(rootRound uint64) (map[types.PartitionShardID]*types.PartitionDescriptionRecord, error)
 	}
@@ -130,7 +131,7 @@ func NewConsensusManager(
 		return nil, fmt.Errorf("loading optional configuration: %w", err)
 	}
 
-	cParams := NewConsensusParams()
+	cParams := optional.Params
 	pm, err := NewPacemaker(cParams.BlockRate/2, cParams.LocalTimeout, observe)
 	if err != nil {
 		return nil, fmt.Errorf("creating Pacemaker: %w", err)
@@ -142,11 +143,11 @@ func NewConsensusManager(
 	if err != nil {
 		return nil, fmt.Errorf("consensus block storage init failed: %w", err)
 	}
-	reqVerifier, err := NewIRChangeReqVerifier(cParams, orchestration, bStore)
+	reqVerifier, err := NewIRChangeReqVerifier(cParams, bStore)
 	if err != nil {
 		return nil, fmt.Errorf("block verifier construct error: %w", err)
 	}
-	t2TimeoutGen, err := NewLucBasedT2TimeoutGenerator(cParams, orchestration, bStore)
+	t2TimeoutGen, err := NewLucBasedT2TimeoutGenerator(cParams, bStore)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create T2 timeout generator: %w", err)
 	}
@@ -960,7 +961,7 @@ func (x *ConsensusManager) onStateResponse(ctx context.Context, rsp *abdrc.State
 		return fmt.Errorf("recovery, new block store init failed: %w", err)
 	}
 	// create new verifier
-	reqVerifier, err := NewIRChangeReqVerifier(x.params, x.orchestration, blockStore)
+	reqVerifier, err := NewIRChangeReqVerifier(x.params, blockStore)
 	if err != nil {
 		return fmt.Errorf("verifier construction failed: %w", err)
 	}
@@ -982,7 +983,7 @@ func (x *ConsensusManager) onStateResponse(ctx context.Context, rsp *abdrc.State
 			return fmt.Errorf("failed to add recovery block %d: %w", i, err)
 		}
 	}
-	t2TimeoutGen, err := NewLucBasedT2TimeoutGenerator(x.params, x.orchestration, blockStore)
+	t2TimeoutGen, err := NewLucBasedT2TimeoutGenerator(x.params, blockStore)
 	if err != nil {
 		return fmt.Errorf("recovery T2 timeout generator init failed: %w", err)
 	}

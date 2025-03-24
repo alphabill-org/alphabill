@@ -26,66 +26,44 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestRootValidator_StorageInitNoDBPath(t *testing.T) {
-	db, err := initRootStore("")
-	require.Nil(t, db)
-	require.ErrorContains(t, err, "persistent storage path not set")
-}
-
-func TestRootValidator_DefaultDBPath(t *testing.T) {
-	homeDir := t.TempDir()
-	conf := &rootNodeRunFlags{
-		Base: &baseFlags{
-			HomeDir: homeDir,
-			CfgFile: filepath.Join(homeDir, defaultConfigFile),
-			observe: observability.Default(t),
-		},
-		RootStorePath: "",
-	}
-	// if not set it will return a default path
-	require.Contains(t, conf.getStorageDir(), filepath.Join(conf.Base.HomeDir, "rootchain"))
-}
-
 func TestRootValidator_OK(t *testing.T) {
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	observe := observability.Default(t)
 	obsF := observe.Factory()
 
 	// init money node
-	moneyHome := createPDRFile(t, defaultMoneyPDR)
+	moneyHome := writeShardConf(t, defaultMoneyShardConf)
 	cmd := New(obsF)
-	args := "node init -g --home " + moneyHome
-	cmd.baseCmd.SetArgs(strings.Split(args, " "))
+	cmd.baseCmd.SetArgs([]string{
+		"shard-node", "init", "--gen-keys", "--home", moneyHome,
+	})
 	require.NoError(t, cmd.Execute(context.Background()))
 
 	// init root node 1
 	rootHome1 := t.TempDir()
 	cmd = New(obsF)
-	args = "node init -g --home " + rootHome1
-	cmd.baseCmd.SetArgs(strings.Split(args, " "))
+	cmd.baseCmd.SetArgs([]string{
+		"root-node", "init", "--gen-keys", "--home", rootHome1,
+	})
 	require.NoError(t, cmd.Execute(context.Background()))
 
 	// init root node 2
 	rootHome2 := t.TempDir()
 	cmd = New(obsF)
-	args = "node init -g --home " + rootHome2
-	cmd.baseCmd.SetArgs(strings.Split(args, " "))
+	cmd.baseCmd.SetArgs([]string{
+		"root-node", "init", "--gen-keys", "--home", rootHome2,
+	})
 	require.NoError(t, cmd.Execute(context.Background()))
 
 	// generate trust base
 	cmd = New(obsF)
-	args = "trust-base generate --home " + rootHome1 +
-		" --node-info-file=" + filepath.Join(rootHome1, nodeInfoFileName) +
-	        " --node-info-file=" + filepath.Join(rootHome2, nodeInfoFileName)
-	cmd.baseCmd.SetArgs(strings.Split(args, " "))
+	cmd.baseCmd.SetArgs([]string{
+		"trust-base", "generate",
+		"--home", rootHome1,
+		"--node-info", filepath.Join(rootHome1, nodeInfoFileName),
+	        "--node-info", filepath.Join(rootHome2, nodeInfoFileName),
+	})
 	require.NoError(t, cmd.Execute(context.Background()))
-
-	// sign trust base
-	// TODO: TB signatures are currently not verified, should?
-	// cmd = New(obsF)
-	// args = "trust-base sign --home " + rootHome1
-	// cmd.baseCmd.SetArgs(strings.Split(args, " "))
-	// require.NoError(t, cmd.Execute(context.Background()))
 
 	// start the root node and expect no errors
 	testtime.MustRunInTime(t, 5*time.Second, func() {
@@ -97,8 +75,11 @@ func TestRootValidator_OK(t *testing.T) {
 		go func() {
 			defer appStoppedWg.Done()
 			cmd = New(obsF)
-			args = "root --home " + rootHome1 + " --address " + address
-			cmd.baseCmd.SetArgs(strings.Split(args, " "))
+			cmd.baseCmd.SetArgs([]string{
+				"root-node", "run",
+				"--home", rootHome1,
+				"--address", address,
+			})
 			require.ErrorIs(t, cmd.Execute(ctx), context.Canceled)
 		}()
 
@@ -114,15 +95,15 @@ func generateSingleNodeSetup(t *testing.T) (string, string) {
 	rootHomeDir := t.TempDir()
 	logF := observability.NewFactory(t)
 	// init money node
-	moneyHomeDir := createPDRFile(t, defaultMoneyPDR)
+	moneyHomeDir := writeShardConf(t, defaultMoneyShardConf)
 	cmd := New(logF)
-	args := "node init -g --home " + moneyHomeDir
+	args := "shard-node init -g --home " + moneyHomeDir
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	require.NoError(t, cmd.Execute(context.Background()))
 
 	// init root node
 	cmd = New(logF)
-	args = "node init -g --home " + rootHomeDir
+	args = "root-node init -g --home " + rootHomeDir
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	err := cmd.Execute(context.Background())
 	require.NoError(t, err)
@@ -169,37 +150,19 @@ func Test_rootNodeConfig_getBootStrapNodes(t *testing.T) {
 	})
 }
 
-//TODO: re-enable
-// func Test_rootNodeConfig_defaultPath(t *testing.T) {
-// 	t.Run("default keyfile path", func(t *testing.T) {
-// 		cfg := &rootNodeConfig{
-// 			Base: &baseConfiguration{HomeDir: alphabillHomeDir()},
-// 		}
-// 		require.Equal(t, filepath.Join(alphabillHomeDir(), defaultRootChainDir, defaultKeysFileName), cfg.getKeyFilePath())
-// 	})
-// 	t.Run("default genesis path", func(t *testing.T) {
-// 		cfg := &rootNodeConfig{
-// 			Base: &baseConfiguration{HomeDir: alphabillHomeDir()},
-// 		}
-// 		require.Equal(t, filepath.Join(alphabillHomeDir(), defaultRootChainDir, rootGenesisFileName), cfg.getGenesisFilePath())
-// 	})
-// }
-
 func TestRootValidator_CannotBeStartedInvalidKeyFile(t *testing.T) {
-	homeDir := t.TempDir()
-	rootDir, _ := generateSingleNodeSetup(t)
-	cmd := New(observability.NewFactory(t))
-	trustBase := filepath.Join(rootDir, trustBaseFileName)
-	// generate random key file
-	randomKeys := filepath.Join(homeDir, "RandomKey", keyConfFileName)
-	_, err := LoadKeys(randomKeys, true, true)
-	require.NoError(t, err)
+	rootHome, moneyHome := generateSingleNodeSetup(t)
+	wrongKeyConfFile := filepath.Join(moneyHome, keyConfFileName)
 
-	args := "root --home " + homeDir + " --trust-base-file " + trustBase + " -k " + randomKeys
-	cmd.baseCmd.SetArgs(strings.Split(args, " "))
+	cmd := New(observability.NewFactory(t))
+	cmd.baseCmd.SetArgs([]string{
+		"root-node", "run",
+		"--home", rootHome,
+		"--key-conf", wrongKeyConfFile,
+	})
 	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*100)
 	defer cancel()
-	require.ErrorContains(t, cmd.Execute(ctx), "root node key not found in genesis: node id/encode key not found in genesis")
+	require.ErrorContains(t, cmd.Execute(ctx), "root node key not found in trust base: node id/encode key not found in genesis")
 }
 
 func TestRootValidator_CannotBeStartedInvalidDBDir(t *testing.T) {

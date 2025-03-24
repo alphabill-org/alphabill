@@ -52,6 +52,10 @@ func NewOrchestration(networkID types.NetworkID, dbFile string, log *slog.Logger
 	}, nil
 }
 
+func (o *Orchestration) NetworkID() types.NetworkID {
+	return o.networkID
+}
+
 // ShardConfig returns ShardConf for the given root round.
 func (o *Orchestration) ShardConfig(partitionID types.PartitionID, shardID types.ShardID, rootRound uint64) (*types.PartitionDescriptionRecord, error) {
 	var shardConf *types.PartitionDescriptionRecord

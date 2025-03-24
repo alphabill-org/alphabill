@@ -66,18 +66,18 @@ func TestIrReqBuffer_Add(t *testing.T) {
 		CertReason: drctypes.Quorum,
 		Requests:   []*certification.BlockCertificationRequest{req1},
 	}
-	timeouts := make([]types.PartitionID, 0, 2)
+	timeouts := make([]*types.UnicityCertificate, 0, 2)
 	isPending := func(id types.PartitionID, _ types.ShardID) *types.InputRecord {
 		return nil
 	}
 	// no requests, generate payload
 	payload := reqBuffer.GeneratePayload(3, timeouts, isPending)
 	require.Empty(t, payload.Requests)
-	require.False(t, reqBuffer.IsChangeInBuffer(partitionID1))
+	require.False(t, reqBuffer.IsChangeInBuffer(partitionID1, types.ShardID{}))
 	// add request
 	require.NoError(t, reqBuffer.Add(3, IrChReqMsg, ver))
 	// sysID1 change is in buffer
-	require.True(t, reqBuffer.IsChangeInBuffer(partitionID1))
+	require.True(t, reqBuffer.IsChangeInBuffer(partitionID1, types.ShardID{}))
 	// try to add the same again, considered duplicate no error
 	require.NoError(t, reqBuffer.Add(3, IrChReqMsg, ver))
 	// change reason and try to add, must be rejected as equivocating, we already have a valid request
@@ -100,14 +100,15 @@ func TestIrReqBuffer_Add(t *testing.T) {
 	// generate payload again, but now it is empty
 	payloadNowEmpty := reqBuffer.GeneratePayload(4, timeouts, isPending)
 	require.Empty(t, payloadNowEmpty.Requests)
-	require.False(t, reqBuffer.IsChangeInBuffer(partitionID1))
+	require.False(t, reqBuffer.IsChangeInBuffer(partitionID1, types.ShardID{}))
 	// finally verify that we got the original message back
 	require.Equal(t, IrChReqMsg, payload.Requests[0])
 }
 
 func TestIrReqBuffer_TimeoutReq(t *testing.T) {
 	reqBuffer := NewIrReqBuffer(logger.New(t))
-	timeouts := []types.PartitionID{partitionID1, partitionID2}
+	timeouts := []*types.UnicityCertificate{emptyUC(partitionID1), emptyUC(partitionID2)}
+	
 	isPending := func(id types.PartitionID, _ types.ShardID) *types.InputRecord {
 		return nil
 	}
@@ -136,7 +137,7 @@ func TestIrReqBuffer_TimeoutAndNewReq(t *testing.T) {
 		CertReason: drctypes.Quorum,
 		Requests:   []*certification.BlockCertificationRequest{req1},
 	}
-	timeouts := []types.PartitionID{partitionID1}
+	timeouts := []*types.UnicityCertificate{emptyUC(partitionID1)}
 	isPending := func(id types.PartitionID, _ types.ShardID) *types.InputRecord {
 		return nil
 	}
@@ -161,11 +162,24 @@ func TestIrReqBuffer_TimeoutAndReqButAChangeIsPending(t *testing.T) {
 		CertReason: drctypes.Quorum,
 		Requests:   []*certification.BlockCertificationRequest{req1},
 	}
-	timeouts := []types.PartitionID{partitionID1}
+
+
+	timeouts := []*types.UnicityCertificate{emptyUC(partitionID1)}
 	isPending := func(id types.PartitionID, _ types.ShardID) *types.InputRecord {
 		return &types.InputRecord{Version: 1}
 	}
 	require.NoError(t, reqBuffer.Add(3, IrChReqMsg, ver))
 	payload := reqBuffer.GeneratePayload(3, timeouts, isPending)
 	require.Len(t, payload.Requests, 0)
+}
+
+func emptyUC(partitionID types.PartitionID) *types.UnicityCertificate {
+	return &types.UnicityCertificate{
+		UnicityTreeCertificate: &types.UnicityTreeCertificate{
+			Partition: partitionID,
+		},
+		ShardTreeCertificate: types.ShardTreeCertificate{
+			Shard: types.ShardID{},
+		},
+	}
 }

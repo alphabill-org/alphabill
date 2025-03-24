@@ -31,8 +31,8 @@ func (ss shardStates) nextBlock(parentIRs InputRecords, orchestration Orchestrat
 	for shardKey, prevSI := range ss {
 		parentIR := parentIRs.Find(prevSI.PartitionID, prevSI.ShardID)
 
-		// There should be a parent IR, unless it's a newly activated shard at round 0
-		if parentIR == nil && parentIR.Technical.Round > 0 {
+		// There should be a parent IR, unless it's a newly activated shard without an UC
+		if parentIR == nil && prevSI.LastCR != nil {
 			return nil, fmt.Errorf("no previous round data for shard %s - %s", prevSI.LastCR.Partition, prevSI.LastCR.Shard)
 		}
 
@@ -43,11 +43,7 @@ func (ss shardStates) nextBlock(parentIRs InputRecords, orchestration Orchestrat
 			if !ok {
 				return nil, fmt.Errorf("shard %s missing configuration", shardKey)
 			}
-			if parentIR.Technical.Epoch != shardConf.Epoch {
-				return nil, fmt.Errorf("shard %s expected epoch %d, loaded configuration has epoch %d",
-					shardKey, parentIR.Technical.Epoch, shardConf.Epoch)
-			}
-			if nextBlock[shardKey], err = prevSI.nextEpoch(shardConf.Epoch, shardConf, hashAlg); err != nil {
+			if nextBlock[shardKey], err = prevSI.nextEpoch(parentIR.Technical.Epoch, shardConf, hashAlg); err != nil {
 				return nil, fmt.Errorf("creating ShardInfo %s - %s of the next epoch: %w",
 					prevSI.LastCR.Partition, prevSI.LastCR.Shard, err)
 			}
@@ -317,8 +313,8 @@ func (si *ShardInfo) ValidRequest(req *certification.BlockCertificationRequest) 
 		return fmt.Errorf("invalid certification request: %w", err)
 	}
 
-	if req.PartitionID != si.LastCR.Partition || !req.ShardID.Equal(si.LastCR.Shard) {
-		return fmt.Errorf("request of shard %s-%s but ShardInfo of %s-%s", req.PartitionID, req.ShardID, si.LastCR.Partition, si.LastCR.Shard)
+	if req.PartitionID != si.PartitionID || !req.ShardID.Equal(si.ShardID) {
+		return fmt.Errorf("request of shard %s-%s but ShardInfo of %s-%s", req.PartitionID, req.ShardID, si.PartitionID, si.ShardID)
 	}
 
 	if req.IRRound() != si.LastCR.Technical.Round {

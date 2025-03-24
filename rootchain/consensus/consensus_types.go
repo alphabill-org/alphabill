@@ -27,6 +27,7 @@ type (
 	// Optional are common optional parameters for consensus managers
 	Optional struct {
 		Storage keyvaluedb.KeyValueDB
+		Params  *Parameters
 	}
 
 	Option func(c *Optional)
@@ -46,6 +47,12 @@ func WithStorage(db keyvaluedb.KeyValueDB) Option {
 	}
 }
 
+func WithConsensusParams(params Parameters) Option {
+	return func(c *Optional) {
+		c.Params = &params
+	}
+}
+
 func LoadConf(opts []Option) (*Optional, error) {
 	conf := &Optional{}
 	for _, opt := range opts {
@@ -53,6 +60,10 @@ func LoadConf(opts []Option) (*Optional, error) {
 			continue
 		}
 		opt(conf)
+	}
+
+	if conf.Params == nil {
+		conf.Params = NewConsensusParams()
 	}
 
 	if conf.Storage == nil {

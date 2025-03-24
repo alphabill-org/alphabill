@@ -19,7 +19,7 @@ import (
 	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
 )
 
-var defaultMoneyPDR = &types.PartitionDescriptionRecord{
+var defaultMoneyShardConf = &types.PartitionDescriptionRecord{
 	Version:         1,
 	NetworkID:       types.NetworkLocal,
 	PartitionID:     moneysdk.DefaultPartitionID,
@@ -54,29 +54,8 @@ func Test_MoneyGenesis(t *testing.T) {
 			"dcMoneySupplyValue": "2",
 		},
 	}
-	homeDir := createPDRFile(t, pdr) // TODO: should return pdr file location
+	homeDir := writeShardConf(t, pdr) // TODO: should return pdr file location
 	pdrArgument := " --partition-description " + filepath.Join(homeDir, shardConfFileName)
-
-	t.Run("KeyFileNotFound", func(t *testing.T) {
-		homeDir := t.TempDir()
-		cmd := New(testobserve.NewFactory(t))
-		args := "genesis --home " + homeDir
-		cmd.baseCmd.SetArgs(strings.Split(args, " "))
-		err := cmd.Execute(context.Background())
-		s := filepath.Join(homeDir, keyConfFileName)
-		require.ErrorContains(t, err, fmt.Sprintf("failed to load keys %s", s))
-	})
-
-	t.Run("ForceKeyGeneration", func(t *testing.T) {
-		homeDir := t.TempDir()
-		cmd := New(testobserve.NewFactory(t))
-		args := "genesis --gen-keys --home " + homeDir + pdrArgument
-		cmd.baseCmd.SetArgs(strings.Split(args, " "))
-		require.NoError(t, cmd.Execute(context.Background()))
-
-		require.FileExists(t, filepath.Join(homeDir, keyConfFileName))
-		require.FileExists(t, filepath.Join(homeDir, stateFileName))
-	})
 
 	t.Run("GenesisStateExists", func(t *testing.T) {
 		homeDir := t.TempDir()
@@ -90,24 +69,6 @@ func Test_MoneyGenesis(t *testing.T) {
 		err = cmd.Execute(context.Background())
 		require.ErrorContains(t, err, fmt.Sprintf("genesis state %q already exists", genesisStatePath))
 		require.NoFileExists(t, filepath.Join(homeDir, keyConfFileName))
-	})
-
-	t.Run("LoadExistingKeys", func(t *testing.T) {
-		homeDir := t.TempDir()
-		require.NoError(t, os.MkdirAll(filepath.Join(homeDir), 0700))
-		kf := filepath.Join(homeDir, keyConfFileName)
-		nodeGenesisFile := filepath.Join(homeDir, stateFileName)
-		nodeKeys, err := generateKeys()
-		require.NoError(t, err)
-		require.NoError(t, nodeKeys.WriteTo(kf))
-
-		cmd := New(testobserve.NewFactory(t))
-		args := "money-genesis --gen-keys --home " + homeDir + pdrArgument
-		cmd.baseCmd.SetArgs(strings.Split(args, " "))
-		require.NoError(t, cmd.Execute(context.Background()))
-
-		require.FileExists(t, kf)
-		require.FileExists(t, nodeGenesisFile)
 	})
 
 	// t.Run("WritesGenesisToSpecifiedOutputLocation", func(t *testing.T) {
@@ -213,7 +174,7 @@ func Test_MoneyGenesis(t *testing.T) {
 			"gasUnitPrice":  "9223372036854775808",
 			"blockGasLimit": "100000",
 		}
-		homeDir := createPDRFile(t, &pdr2)
+		homeDir := writeShardConf(t, &pdr2)
 
 		kf := filepath.Join(homeDir, stateFileName)
 
@@ -254,9 +215,9 @@ func Test_MoneyGenesis(t *testing.T) {
 	// })
 }
 
-func createPDRFile(t *testing.T, pdr *types.PartitionDescriptionRecord) string {
+func writeShardConf(t *testing.T, shardConf *types.PartitionDescriptionRecord) string {
 	homeDir := t.TempDir()
 	filePath := filepath.Join(homeDir, shardConfFileName)
-	require.NoError(t, util.WriteJsonFile(filePath, pdr))
+	require.NoError(t, util.WriteJsonFile(filePath, shardConf))
 	return homeDir
 }

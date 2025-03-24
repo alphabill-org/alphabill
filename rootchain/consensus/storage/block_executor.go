@@ -67,7 +67,7 @@ func (data InputRecords) Find(partitionID types.PartitionID, shardID types.Shard
 /*
 unicityTree builds the unicity tree based on the InputData slice.
 */
-func (data InputRecords) unicityTree(algo crypto.Hash) (*types.UnicityTree, error) {
+func (data InputRecords) UnicityTree(algo crypto.Hash) (*types.UnicityTree, error) {
 	// TODO: supports just single shard partitions, ie each element in the data slice is the sole shard of the partition!
 	utData := make([]*types.UnicityTreeData, 0, len(data))
 	for _, d := range data {
@@ -176,12 +176,14 @@ func NewRootBlock(hash crypto.Hash, block *abdrc.CommittedBlock, orchestration O
 			Stat:          d.Stat,
 			PrevEpochFees: d.PrevEpochFees,
 			Fees:          d.Fees,
-			LastCR: &certification.CertificationResponse{
+		}
+		if d.UC != nil {
+			si.LastCR = &certification.CertificationResponse{
 				Partition: d.Partition,
 				Shard:     d.Shard,
-				Technical: d.TR,
-				UC:        d.UC,
-			},
+				Technical: *d.TR,
+				UC:        *d.UC,
+			}
 		}
 		if err := si.resetTrustBase(shardConf); err != nil {
 			return nil, fmt.Errorf("initializing shard trustbase: %w", err)
@@ -189,7 +191,7 @@ func NewRootBlock(hash crypto.Hash, block *abdrc.CommittedBlock, orchestration O
 		shardInfo[types.PartitionShardID{PartitionID: d.Partition, ShardID: d.Shard.Key()}] = si
 	}
 
-	ut, err := irState.unicityTree(hash)
+	ut, err := irState.UnicityTree(hash)
 	if err != nil {
 		return nil, err
 	}
@@ -222,9 +224,9 @@ func (x *ExecutedBlock) Extend(hash crypto.Hash, newBlock *rctypes.BlockData, ve
 		if irState.Find(si.PartitionID, si.ShardID) != nil {
 			continue
 		}
-		ir, err := newShardInputData(si, x.HashAlgo)
+		ir, err := NewShardInputData(si, x.HashAlgo)
 		if err != nil {
-			return nil, fmt.Errorf("creating input record for new shard %s", psID)
+			return nil, fmt.Errorf("creating input record for new shard %s: %w", psID.String(), err)
 		}
 		irState = append(irState, ir)
 		changes[psID] = struct{}{}
@@ -255,7 +257,7 @@ func (x *ExecutedBlock) Extend(hash crypto.Hash, newBlock *rctypes.BlockData, ve
 		changes[types.PartitionShardID{PartitionID: irChReq.Partition, ShardID: irChReq.Shard.Key()}] = struct{}{}
 	}
 
-	ut, err := irState.unicityTree(hash)
+	ut, err := irState.UnicityTree(hash)
 	if err != nil {
 		return nil, fmt.Errorf("creating UnicityTree: %w", err)
 	}
@@ -363,7 +365,7 @@ func (ss *ShardSet) UnmarshalCBOR(data []byte) error {
 	return nil
 }
 
-func newShardInputData(si *ShardInfo, hashAlgo crypto.Hash) (*InputData, error) {
+func NewShardInputData(si *ShardInfo, hashAlgo crypto.Hash) (*InputData, error) {
 	ir := &types.InputRecord{
 		Version:         1,
 		RoundNumber:     0,
@@ -378,7 +380,7 @@ func newShardInputData(si *ShardInfo, hashAlgo crypto.Hash) (*InputData, error) 
 
 	tr, err := newShardTechnicalRecord(si.nodeIDs)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create technical record for shard %d-%s: %w", si.LastCR.Partition, si.LastCR.Shard, err)
+		return nil, fmt.Errorf("failed to create technical record for shard %d-%s: %w", si.PartitionID, si.ShardID, err)
 	}
 
 	return &InputData{

@@ -22,29 +22,23 @@ type (
 	IRChangeReqVerifier struct {
 		params        *Parameters
 		state         State
-		orchestration Orchestration
 	}
 
 	PartitionTimeoutGenerator struct {
 		blockRate     time.Duration
 		state         State
-		orchestration Orchestration
 	}
 )
 
-func NewIRChangeReqVerifier(c *Parameters, orchestration Orchestration, sMonitor State) (*IRChangeReqVerifier, error) {
+func NewIRChangeReqVerifier(c *Parameters, sMonitor State) (*IRChangeReqVerifier, error) {
 	if sMonitor == nil {
 		return nil, errors.New("state monitor is nil")
-	}
-	if orchestration == nil {
-		return nil, errors.New("orchestration is nil")
 	}
 	if c == nil {
 		return nil, errors.New("consensus params is nil")
 	}
 	return &IRChangeReqVerifier{
 		params:        c,
-		orchestration: orchestration,
 		state:         sMonitor,
 	}, nil
 }
@@ -90,19 +84,15 @@ func (x *IRChangeReqVerifier) VerifyIRChangeReq(rootRound uint64, irChReq *drcty
 	}, nil
 }
 
-func NewLucBasedT2TimeoutGenerator(c *Parameters, orchestration Orchestration, sMonitor State) (*PartitionTimeoutGenerator, error) {
+func NewLucBasedT2TimeoutGenerator(c *Parameters, sMonitor State) (*PartitionTimeoutGenerator, error) {
 	if sMonitor == nil {
 		return nil, errors.New("state monitor is nil")
-	}
-	if orchestration == nil {
-		return nil, errors.New("orchestration is nil")
 	}
 	if c == nil {
 		return nil, errors.New("consensus params is nil")
 	}
 	return &PartitionTimeoutGenerator{
 		blockRate:     c.BlockRate,
-		orchestration: orchestration,
 		state:         sMonitor,
 	}, nil
 }

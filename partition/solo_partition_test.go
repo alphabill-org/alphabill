@@ -23,16 +23,13 @@ import (
 	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
 	testevent "github.com/alphabill-org/alphabill/internal/testutils/partition/event"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
-	"github.com/alphabill-org/alphabill/keyvaluedb"
+	"github.com/alphabill-org/alphabill/internal/testutils/trustbase"
 	"github.com/alphabill-org/alphabill/logger"
 	"github.com/alphabill-org/alphabill/network"
 	"github.com/alphabill-org/alphabill/network/protocol/blockproposal"
 	"github.com/alphabill-org/alphabill/network/protocol/certification"
-	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/observability"
 	"github.com/alphabill-org/alphabill/partition/event"
-	rootgenesis "github.com/alphabill-org/alphabill/rootchain/genesis"
-	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
 )
 
@@ -41,25 +38,19 @@ type AlwaysValidTransactionValidator struct{}
 
 type SingleNodePartition struct {
 	nodeConf   *NodeConf
-	store      keyvaluedb.KeyValueDB
-	partition  *Node
-	nodeDeps   *partitionStartupDependencies
-	rootRound  uint64
-	certs      map[types.PartitionID]*types.UnicityCertificate
+	node       *Node
+
 	rootNodeID string
+	rootRound  uint64
 	rootSigner crypto.Signer
+	certs      map[types.PartitionID]*types.UnicityCertificate
+
 	mockNet    *testnetwork.MockNet
 	eh         *testevent.TestEventHandler
 	obs        Observability
 }
 
 type partitionStartupDependencies struct {
-	peerConf    *network.PeerConfiguration
-	txSystem    txsystem.TransactionSystem
-	nodeSigner  crypto.Signer
-	genesis     *genesis.PartitionGenesis
-	trustBase   types.RootTrustBase
-	network     ValidatorNetwork
 	nodeOptions []NodeOption
 }
 
@@ -72,109 +63,84 @@ func (t *AlwaysValidBlockProposalValidator) Validate(*blockproposal.BlockProposa
 }
 
 func newSingleValidatorNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, nodeOptions ...NodeOption) *SingleNodePartition {
-	return newSingleNodePartition(t, txSystem, true, nodeOptions...)
+	return newSingleNodeShard(t, txSystem, true, nodeOptions...)
 }
 
 func newSingleNonValidatorNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, nodeOptions ...NodeOption) *SingleNodePartition {
-	return newSingleNodePartition(t, txSystem, false, nodeOptions...)
+	return newSingleNodeShard(t, txSystem, false, nodeOptions...)
 }
 
-func newSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, validator bool, nodeOptions ...NodeOption) *SingleNodePartition {
-	peerConf := createPeerConfiguration(t)
-	pdr := types.PartitionDescriptionRecord{Version: 1, NetworkID: 5, PartitionID: 0x01010101, TypeIDLen: 8, UnitIDLen: 256, T2Timeout: 2500 * time.Millisecond}
-	// node genesis
-	signer, _ := testsig.CreateSignerAndVerifier(t)
-	nodeGenesis, err := NewNodeGenesis(
-		// Should actually create the genesis state before the
-		// txSystem and start the txSystem with it. Works like
-		// this if the txSystem has empty state as well.
-		state.NewEmptyState(),
-		pdr,
-		WithPeerID(peerConf.ID),
-		WithSigner(signer),
-	)
+func newSingleNodeShard(t *testing.T, txSystem txsystem.TransactionSystem, validator bool, nodeOptions ...NodeOption) *SingleNodePartition {
+	// the only running node
+	keyConf, nodeInfo := createKeyConf(t)
+	nodeID, err := keyConf.NodeID()
 	require.NoError(t, err)
 
-	// root genesis
-	rootSigner, _ := testsig.CreateSignerAndVerifier(t)
-	_, rootAuthVerifier := testsig.CreateSignerAndVerifier(t)
-	rootAuthKey, err := rootAuthVerifier.MarshalPublicKey()
-	require.NoError(t, err)
+	// the fake validator, so that network 'send' requests don't fail
+	_, fakeNodeInfo := createKeyConf(t)
 
-	rootNodeID, err := network.NodeIDFromPublicKeyBytes(rootAuthKey)
-	require.NoError(t, err)
-	rootGenesis, partitionGenesis, err := rootgenesis.NewRootGenesis(rootNodeID.String(), rootSigner, []*genesis.PartitionNode{nodeGenesis})
-	require.NoError(t, err)
+	shardConf := &types.PartitionDescriptionRecord{
+		Version: 1,
+		NetworkID: 5,
+		PartitionID: 0x01010101,
+		ShardID: types.ShardID{},
+		PartitionTypeID: 999, // TODO: cannot generate state, shardConf
+		TypeIDLen: 8,
+		UnitIDLen: 256,
+		T2Timeout: 2500 * time.Millisecond,
+		Epoch: 0,
+		EpochStart: 1,
+		Validators: []*types.NodeInfo{fakeNodeInfo},
+	}
 
-	trustBase, err := rootGenesis.GenerateTrustBase()
-	require.NoError(t, err)
+	if validator {
+		shardConf.Validators = append(shardConf.Validators, nodeInfo)
+	}
 
-	require.NoError(t, txSystem.Commit(partitionGenesis[0].Certificate))
+	// trust base
+	rootSigner, rootVerifier := testsig.CreateSignerAndVerifier(t)
+	trustBase := trustbase.NewTrustBase(t, rootVerifier)
 
 	// root state
 	var certs = make(map[types.PartitionID]*types.UnicityCertificate)
-	for _, partition := range rootGenesis.Partitions {
-		certs[partition.GetPartitionDescriptionRecord().GetPartitionID()] = partition.Certificate
-	}
-
 	net := testnetwork.NewMockNetwork(t)
 
-	// Create a fake validator, so that network 'send' requests don't fail
-	_, fakeValidatorPubKey, err := p2pcrypto.GenerateSecp256k1Key(rand.Reader)
-	require.NoError(t, err)
-	fakeValidatorID, err := peer.IDFromPublicKey(fakeValidatorPubKey)
-	require.NoError(t, err)
-
-	fakeValidatorPubKeyRaw, err := fakeValidatorPubKey.Raw()
-	require.NoError(t, err)
-	partitionGenesis[0].PartitionValidators = []*types.NodeInfo{
-		&types.NodeInfo{
-			NodeID: fakeValidatorID.String(),
-			SigKey: fakeValidatorPubKeyRaw,
-			Stake:  1,
-		},
-	}
-	if validator {
-		partitionGenesis[0].PartitionValidators = append(partitionGenesis[0].PartitionValidators,
-			&types.NodeInfo{
-				NodeID: peerConf.ID.String(),
-				SigKey: peerConf.KeyPair.PublicKey,
-				Stake:  1,
-			})
-	}
-
-	// allows restarting the node
-	deps := &partitionStartupDependencies{
-		peerConf:    peerConf,
-		txSystem:    txSystem,
-		nodeSigner:  signer,
-		genesis:     partitionGenesis[0],
-		trustBase:   trustBase,
-		network:     net,
-		nodeOptions: nodeOptions,
-	}
-
 	obs := testobserve.Default(t)
+	obs2 := observability.WithLogger(obs, obs.Logger().With(logger.NodeID(nodeID)))
+
+	eh := &testevent.TestEventHandler{}
+	nodeOptions = append([]NodeOption{
+		WithT1Timeout(100 * time.Minute),
+		WithTxValidator(&AlwaysValidTransactionValidator{}),
+		WithEventHandler(eh.HandleEvent, 100),
+		WithBlockProposalValidator(&AlwaysValidBlockProposalValidator{}),
+	}, nodeOptions...)
+
+	nodeConf, err := NewNodeConf(keyConf, shardConf, trustBase, obs2, nodeOptions...)
+	require.NoError(t, err)
+
+	node, err := NewNode(context.Background(), txSystem, nodeConf)
+	require.NoError(t, err, "failed to init partition node")
+
 	partition := &SingleNodePartition{
-		nodeDeps:   deps,
-		rootRound:  rootGenesis.GetRoundNumber(),
+		node:       node,
+		nodeConf:   nodeConf, // TODO: part of Node already
+		rootRound:  1,
 		certs:      certs,
 		rootSigner: rootSigner,
-		rootNodeID: rootNodeID.String(),
-		mockNet:    net,
-		eh:         &testevent.TestEventHandler{},
-		obs:        observability.WithLogger(obs, obs.Logger().With(logger.NodeID(peerConf.ID))),
-		nodeConf:   &NodeConf{},
+		rootNodeID: trustBase.GetRootNodes()[0].NodeID,
+		mockNet:    net, // TODO: part of NodeConf already?
+		eh:         eh, // TODO: could get from NodeConf?
+		obs:        obs2, // TODO: part of nodeConf
 	}
+
 	return partition
 }
 
-func StartSingleNodePartition(ctx context.Context, t *testing.T, p *SingleNodePartition) chan struct{} {
-	// partition node
-	require.NoError(t, p.newNode(), "failed to init partition node")
+func startSingleNodeShard(ctx context.Context, t *testing.T, s *SingleNodePartition) chan struct{} {
 	done := make(chan struct{})
 	go func() {
-		require.ErrorIs(t, p.partition.Run(ctx), context.Canceled)
+		require.ErrorIs(t, s.node.Run(ctx), context.Canceled)
 		close(done)
 	}()
 	return done
@@ -191,8 +157,8 @@ func runSingleNonValidatorNodePartition(t *testing.T, txSystem txsystem.Transact
 func runSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, validator bool, nodeOptions ...NodeOption) *SingleNodePartition {
 	ctx, cancel := context.WithCancel(context.Background())
 
-	partition := newSingleNodePartition(t, txSystem, validator, nodeOptions...)
-	done := StartSingleNodePartition(ctx, t, partition)
+	partition := newSingleNodeShard(t, txSystem, validator, nodeOptions...)
+	done := startSingleNodeShard(ctx, t, partition)
 	t.Cleanup(func() {
 		cancel()
 		select {
@@ -204,30 +170,8 @@ func runSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, v
 	return partition
 }
 
-func (sn *SingleNodePartition) newNode() error {
-	n, err := NewNode(
-		context.Background(),
-		sn.nodeDeps.peerConf,
-		sn.nodeDeps.nodeSigner,
-		sn.nodeDeps.txSystem,
-		sn.nodeDeps.genesis,
-		sn.nodeDeps.trustBase,
-		sn.nodeDeps.network,
-		sn.obs,
-		append([]NodeOption{
-			WithT1Timeout(100 * time.Minute),
-			WithTxValidator(&AlwaysValidTransactionValidator{}),
-			WithEventHandler(sn.eh.HandleEvent, 100),
-			WithBlockProposalValidator(&AlwaysValidBlockProposalValidator{}),
-		}, sn.nodeDeps.nodeOptions...)...,
-	)
-	if err != nil {
-		return err
-	}
-	sn.partition = n
-	sn.nodeConf = n.configuration
-	sn.store = n.blockStore
-	return nil
+func (sn *SingleNodePartition) nodeID() string {
+	return sn.node.peer.ID().String()
 }
 
 func (sn *SingleNodePartition) SubmitTx(tx *types.TransactionOrder) error {
@@ -236,7 +180,7 @@ func (sn *SingleNodePartition) SubmitTx(tx *types.TransactionOrder) error {
 }
 
 func (sn *SingleNodePartition) SubmitTxFromRPC(tx *types.TransactionOrder) error {
-	_, err := sn.partition.SubmitTx(context.Background(), tx)
+	_, err := sn.node.SubmitTx(context.Background(), tx)
 	return err
 }
 
@@ -274,7 +218,7 @@ func (sn *SingleNodePartition) SubmitUnicityCertificate(t *testing.T, uc *types.
 		Shard:     sn.nodeConf.shardConf.ShardID,
 		UC:        *uc,
 	}
-	tr, err := rootgenesis.TechnicalRecord(uc.InputRecord, []string{sn.nodeDeps.peerConf.ID.String()})
+	tr, err := technicalRecord(uc.InputRecord, []string{sn.node.peer.ID().String()})
 	if err != nil {
 		t.Fatalf("creating TechnicalRecord: %v", err)
 	}
@@ -294,13 +238,13 @@ func (sn *SingleNodePartition) WaitHandshake(t *testing.T) {
 	test.TryTilCountIs(t, RequestReceived(sn, network.ProtocolHandshake), 5, test.WaitShortTick)
 	sn.mockNet.ResetSentMessages(network.ProtocolHandshake)
 	// root responds with genesis
-	uc := sn.certs[sn.partition.PartitionID()]
+	uc := sn.certs[sn.node.PartitionID()]
 	cr := &certification.CertificationResponse{
-		Partition: sn.partition.PartitionID(),
-		Shard:     sn.partition.configuration.shardConf.ShardID,
+		Partition: sn.node.PartitionID(),
+		Shard:     sn.node.configuration.shardConf.ShardID,
 		UC:        *uc,
 	}
-	tr, err := rootgenesis.TechnicalRecord(uc.InputRecord, []string{sn.nodeDeps.peerConf.ID.String()})
+	tr, err := technicalRecord(uc.InputRecord, []string{sn.nodeID()})
 	if err != nil {
 		t.Fatalf("creating TechnicalRecord: %v", err)
 	}
@@ -308,7 +252,7 @@ func (sn *SingleNodePartition) WaitHandshake(t *testing.T) {
 	if err := cr.IsValid(); err != nil {
 		t.Errorf("invalid CertRsp: %v", err)
 	}
-	if err := sn.partition.handleMessage(context.Background(), cr); err != nil {
+	if err := sn.node.handleMessage(context.Background(), cr); err != nil {
 		t.Errorf("sending handshake response to the node: %v", err)
 	}
 }
@@ -318,7 +262,7 @@ func (sn *SingleNodePartition) SubmitBlockProposal(prop *blockproposal.BlockProp
 }
 
 func (sn *SingleNodePartition) CreateUnicityCertificate(ir *types.InputRecord, roundNumber uint64) (*types.UnicityCertificate, *certification.TechnicalRecord, error) {
-	tr, err := rootgenesis.TechnicalRecord(ir, []string{sn.nodeDeps.peerConf.ID.String()})
+	tr, err := technicalRecord(ir, []string{sn.nodeID()})
 	if err != nil {
 		return nil, nil, fmt.Errorf("creating TechnicalRecord: %w", err)
 	}
@@ -327,12 +271,12 @@ func (sn *SingleNodePartition) CreateUnicityCertificate(ir *types.InputRecord, r
 		return nil, nil, fmt.Errorf("calculating TechnicalRecord hash: %w", err)
 	}
 
-	pdr := sn.nodeDeps.genesis.PartitionDescription
-	pdrHash, err := pdr.Hash(gocrypto.SHA256)
+	shardConf := sn.nodeConf.shardConf
+	shardConfHash, err := shardConf.Hash(gocrypto.SHA256)
 	if err != nil {
 		return nil, nil, fmt.Errorf("calculating PDR hash: %w", err)
 	}
-	sTree, err := types.CreateShardTree(pdr.Shards, []types.ShardTreeInput{{Shard: types.ShardID{}, IR: ir, TRHash: trHash}}, gocrypto.SHA256)
+	sTree, err := types.CreateShardTree(nil, []types.ShardTreeInput{{Shard: types.ShardID{}, IR: ir, TRHash: trHash}}, gocrypto.SHA256)
 	if err != nil {
 		return nil, nil, fmt.Errorf("creating shard tree: %w", err)
 	}
@@ -342,9 +286,9 @@ func (sn *SingleNodePartition) CreateUnicityCertificate(ir *types.InputRecord, r
 	}
 
 	data := []*types.UnicityTreeData{{
-		Partition:     pdr.PartitionID,
+		Partition:     shardConf.PartitionID,
 		ShardTreeRoot: sTree.RootHash(),
-		PDRHash:       pdrHash,
+		PDRHash:       shardConfHash,
 	}}
 	ut, err := types.NewUnicityTree(gocrypto.SHA256, data)
 	if err != nil {
@@ -355,7 +299,7 @@ func (sn *SingleNodePartition) CreateUnicityCertificate(ir *types.InputRecord, r
 	if err != nil {
 		return nil, nil, err
 	}
-	cert, err := ut.Certificate(pdr.PartitionID)
+	cert, err := ut.Certificate(shardConf.PartitionID)
 	if err != nil {
 		return nil, nil, fmt.Errorf("creating UnicityTreeCertificate: %w", err)
 	}
@@ -371,7 +315,7 @@ func (sn *SingleNodePartition) CreateUnicityCertificate(ir *types.InputRecord, r
 }
 
 func (sn *SingleNodePartition) CreateUnicityCertificateTR(ir *types.InputRecord, rootRoundNumber uint64, epoch uint64) (*types.UnicityCertificate, certification.TechnicalRecord, error) {
-	tr, err := rootgenesis.TechnicalRecord(ir, []string{sn.nodeDeps.peerConf.ID.String()})
+	tr, err := technicalRecord(ir, []string{sn.nodeID()})
 	tr.Epoch = epoch
 	if err != nil {
 		return nil, tr, fmt.Errorf("creating TechnicalRecord: %w", err)
@@ -381,12 +325,14 @@ func (sn *SingleNodePartition) CreateUnicityCertificateTR(ir *types.InputRecord,
 		return nil, tr, fmt.Errorf("calculating TechnicalRecord hash: %w", err)
 	}
 
-	pdr := sn.nodeDeps.genesis.PartitionDescription
-	pdrHash, err := pdr.Hash(gocrypto.SHA256)
+	shardConf := sn.nodeConf.shardConf
+	shardConfHash, err := shardConf.Hash(gocrypto.SHA256)
 	if err != nil {
 		return nil, tr, fmt.Errorf("calculating PDR hash: %w", err)
 	}
-	sTree, err := types.CreateShardTree(pdr.Shards, []types.ShardTreeInput{{Shard: types.ShardID{}, IR: ir, TRHash: trHash}}, gocrypto.SHA256)
+	sTree, err := types.CreateShardTree(
+		nil, // TODO: should be nil or []types.ShardID{shardConf.ShardID}?
+		[]types.ShardTreeInput{{Shard: types.ShardID{}, IR: ir, TRHash: trHash}}, gocrypto.SHA256)
 	if err != nil {
 		return nil, tr, fmt.Errorf("creating shard tree: %w", err)
 	}
@@ -396,9 +342,9 @@ func (sn *SingleNodePartition) CreateUnicityCertificateTR(ir *types.InputRecord,
 	}
 
 	data := []*types.UnicityTreeData{{
-		Partition:     pdr.PartitionID,
+		Partition:     shardConf.PartitionID,
 		ShardTreeRoot: sTree.RootHash(),
-		PDRHash:       pdrHash,
+		PDRHash:       shardConfHash,
 	}}
 	ut, err := types.NewUnicityTree(gocrypto.SHA256, data)
 	if err != nil {
@@ -409,7 +355,7 @@ func (sn *SingleNodePartition) CreateUnicityCertificateTR(ir *types.InputRecord,
 	if err != nil {
 		return nil, tr, err
 	}
-	cert, err := ut.Certificate(pdr.PartitionID)
+	cert, err := ut.Certificate(shardConf.PartitionID)
 	if err != nil {
 		return nil, tr, fmt.Errorf("creating UnicityTreeCertificate: %w", err)
 	}
@@ -435,13 +381,13 @@ func (sn *SingleNodePartition) createUnicitySeal(roundNumber uint64, rootHash []
 }
 
 func (sn *SingleNodePartition) GetCommittedUC(t *testing.T) *types.UnicityCertificate {
-	uc := sn.nodeDeps.txSystem.CommittedUC()
+	uc := sn.node.committedUC()
 	require.NotNil(t, uc)
 	return uc
 }
 
 func (sn *SingleNodePartition) GetLatestBlock(t *testing.T) *types.Block {
-	dbIt := sn.store.Last()
+	dbIt := sn.node.blockStore.Last()
 	defer func() {
 		if err := dbIt.Close(); err != nil {
 			t.Errorf("Unexpected DB iterator error: %v", err)
@@ -465,7 +411,7 @@ func (sn *SingleNodePartition) IssueBlockUC(t *testing.T) *types.UnicityCertific
 	ver, err := sn.nodeConf.signer.Verifier()
 	require.NoError(t, err)
 	require.NoError(t, req.IsValid(ver))
-	rootRound := sn.partition.luc.Load().GetRootRoundNumber()
+	rootRound := sn.node.luc.Load().GetRootRoundNumber()
 	uc, _, err := sn.CreateUnicityCertificate(req.InputRecord, rootRound+1)
 	require.NoError(t, err)
 	// update state
@@ -477,7 +423,7 @@ func (sn *SingleNodePartition) IssueBlockUC(t *testing.T) *types.UnicityCertific
 func (sn *SingleNodePartition) SubmitT1Timeout(t *testing.T) {
 	sn.eh.Reset()
 	sn.mockNet.ResetSentMessages(network.ProtocolBlockCertification)
-	sn.partition.handleT1TimeoutEvent(context.Background())
+	sn.node.handleT1TimeoutEvent(context.Background())
 	require.Eventually(t, func() bool {
 		return len(sn.mockNet.SentMessages(network.ProtocolBlockCertification)) == 1
 	}, test.WaitDuration, test.WaitTick, "block certification request not found")
@@ -486,27 +432,40 @@ func (sn *SingleNodePartition) SubmitT1Timeout(t *testing.T) {
 func (sn *SingleNodePartition) SubmitMonitorTimeout(t *testing.T) {
 	t.Helper()
 	sn.eh.Reset()
-	sn.partition.handleMonitoring(context.Background(), time.Now().Add(-3*sn.nodeConf.GetT2Timeout()), time.Now())
+	sn.node.handleMonitoring(context.Background(), time.Now().Add(-3*sn.nodeConf.GetT2Timeout()), time.Now())
 }
 
-func createPeerConfiguration(t *testing.T) *network.PeerConfiguration {
-	privKey, pubKey, err := p2pcrypto.GenerateSecp256k1Key(rand.Reader)
+// TODO: moved to testutils
+func createKeyConf(t *testing.T) (*KeyConf, *types.NodeInfo) {
+	privKey, _, err := p2pcrypto.GenerateSecp256k1Key(rand.Reader)
+	require.NoError(t, err)
+
+	nodeID, err := peer.IDFromPrivateKey(privKey)
 	require.NoError(t, err)
 
 	privKeyBytes, err := privKey.Raw()
 	require.NoError(t, err)
 
-	pubKeyBytes, err := pubKey.Raw()
+	key := Key{
+		Algorithm: KeyAlgorithmSecp256k1,
+		PrivateKey: privKeyBytes,
+	}
+	keyConf := &KeyConf{
+		SigKey: key,
+		AuthKey: key,
+	}
+	signer, err := keyConf.Signer()
+	require.NoError(t, err)
+	sigVerifier, err := signer.Verifier()
+	require.NoError(t, err)
+	sigKey, err := sigVerifier.MarshalPublicKey()
 	require.NoError(t, err)
 
-	peerConf, err := network.NewPeerConfiguration(
-		"/ip4/127.0.0.1/tcp/0",
-		nil,
-		&network.PeerKeyPair{PublicKey: pubKeyBytes, PrivateKey: privKeyBytes},
-		nil,
-	)
-	require.NoError(t, err)
-	return peerConf
+	return keyConf, &types.NodeInfo{
+		NodeID: nodeID.String(),
+		SigKey: sigKey,
+		Stake:  1,
+	}
 }
 
 func NextBlockReceived(t *testing.T, tp *SingleNodePartition, committedUC *types.UnicityCertificate) func() bool {
@@ -514,7 +473,7 @@ func NextBlockReceived(t *testing.T, tp *SingleNodePartition, committedUC *types
 	return func() bool {
 		// Empty blocks are not persisted, assume new block is received if new last UC round is bigger than block UC round
 		// NB! it could also be that repeat UC is received
-		return tp.partition.luc.Load().GetRoundNumber() > committedUC.GetRoundNumber()
+		return tp.node.luc.Load().GetRoundNumber() > committedUC.GetRoundNumber()
 	}
 }
 

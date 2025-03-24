@@ -26,23 +26,13 @@ type (
 	}
 
 	Orchestration interface {
+		NetworkID() types.NetworkID
 		ShardConfig(partition types.PartitionID, shard types.ShardID, rootRound uint64) (*types.PartitionDescriptionRecord, error)
 		ShardConfigs(rootRound uint64) (map[types.PartitionShardID]*types.PartitionDescriptionRecord, error)
 	}
 )
 
-func storeGenesisInit(hashAlgo crypto.Hash, db keyvaluedb.KeyValueDB) error {
-	genesisBlock, err := newGenesisBlock(hashAlgo)
-	if err != nil {
-		return fmt.Errorf("creating genesis block: %w", err)
-	}
-	if err := db.Write(blockKey(genesisBlock.GetRound()), genesisBlock); err != nil {
-		return fmt.Errorf("persist genesis block: %w", err)
-	}
-	return nil
-}
-
-func New(hash crypto.Hash, db keyvaluedb.KeyValueDB, orchestration Orchestration, log *slog.Logger) (block *BlockStore, err error) {
+func New(hashAlgo crypto.Hash, db keyvaluedb.KeyValueDB, orchestration Orchestration, log *slog.Logger) (block *BlockStore, err error) {
 	if db == nil {
 		return nil, errors.New("storage is nil")
 	}
@@ -52,7 +42,7 @@ func New(hash crypto.Hash, db keyvaluedb.KeyValueDB, orchestration Orchestration
 		return nil, fmt.Errorf("failed to read block store: %w", err)
 	}
 	if empty {
-		if err = storeGenesisInit(hash, db); err != nil {
+		if err = storeGenesisInit(db, orchestration.NetworkID(), hashAlgo); err != nil {
 			return nil, fmt.Errorf("initializing block store: %w", err)
 		}
 	}
@@ -62,7 +52,7 @@ func New(hash crypto.Hash, db keyvaluedb.KeyValueDB, orchestration Orchestration
 		return nil, fmt.Errorf("initializing block tree: %w", err)
 	}
 	return &BlockStore{
-		hash:          hash,
+		hash:          hashAlgo,
 		blockTree:     blTree,
 		storage:       db,
 		orchestration: orchestration,
@@ -216,7 +206,9 @@ func (x *BlockStore) GetCertificates() []*types.UnicityCertificate {
 	committedBlock := x.blockTree.Root()
 	ucs := make([]*types.UnicityCertificate, 0, len(committedBlock.ShardInfo))
 	for _, v := range committedBlock.ShardInfo {
-		ucs = append(ucs, &v.LastCR.UC)
+		if v.LastCR != nil {
+			ucs = append(ucs, &v.LastCR.UC)
+		}
 	}
 	return ucs
 }
@@ -254,7 +246,7 @@ func (x *BlockStore) ReadLastVote() (any, error) {
 	return ReadVote(x.storage)
 }
 
-func newGenesisBlock(hashAlgo crypto.Hash) (*ExecutedBlock, error) {
+func NewGenesisBlock(networkID types.NetworkID, hashAlgo crypto.Hash) (*ExecutedBlock, error) {
 	genesisBlock := &rctypes.BlockData{
 		Version:   1,
 		Author:    "genesis",
@@ -285,7 +277,7 @@ func newGenesisBlock(hashAlgo crypto.Hash) (*ExecutedBlock, error) {
 		VoteInfo: commitRoundInfo,
 		LedgerCommitInfo: &types.UnicitySeal{
 			Version:              1,
-			NetworkID:            0, // Not used for LedgerCommitInfo
+			NetworkID:            networkID,
 			// Usually the round that gets committed is different from
 			// the round that commits, but for genesis block they are the same.
 			RootChainRoundNumber: commitRoundInfo.RoundNumber,
@@ -310,4 +302,15 @@ func newGenesisBlock(hashAlgo crypto.Hash) (*ExecutedBlock, error) {
 		CommitQc:  commitQc,
 		RootHash:  commitQc.LedgerCommitInfo.Hash,
 	}, nil
+}
+
+func storeGenesisInit(db keyvaluedb.KeyValueDB, networkID types.NetworkID, hashAlgo crypto.Hash) error {
+	genesisBlock, err := NewGenesisBlock(networkID, hashAlgo)
+	if err != nil {
+		return fmt.Errorf("creating genesis block: %w", err)
+	}
+	if err := db.Write(blockKey(genesisBlock.GetRound()), genesisBlock); err != nil {
+		return fmt.Errorf("persist genesis block: %w", err)
+	}
+	return nil
 }

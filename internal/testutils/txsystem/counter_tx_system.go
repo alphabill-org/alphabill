@@ -41,22 +41,9 @@ type CounterTxSystem struct {
 	mu sync.Mutex
 }
 
-type Summary struct {
-	root    []byte
-	summary []byte
-}
-
 type ErrorState struct {
 	txsystem.StateReader
 	Err error
-}
-
-func (s *Summary) Root() []byte {
-	return s.root
-}
-
-func (s *Summary) Summary() []byte {
-	return s.summary
 }
 
 func (m *CounterTxSystem) State() txsystem.StateReader {
@@ -73,7 +60,7 @@ func (m *CounterTxSystem) StateSize() (uint64, error) {
 	return 0, nil
 }
 
-func (m *CounterTxSystem) StateSummary() (txsystem.StateSummary, error) {
+func (m *CounterTxSystem) StateSummary() (*txsystem.StateSummary, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -84,9 +71,7 @@ func (m *CounterTxSystem) StateSummary() (txsystem.StateSummary, error) {
 	if m.EndBlockChangesState {
 		c += m.EndBlockCount
 	}
-	return &Summary{
-		root: m.stateCountToHash(c), summary: util.Uint64ToBytes(m.SummaryValue),
-	}, nil
+	return txsystem.NewStateSummary(m.stateCountToHash(c), util.Uint64ToBytes(m.SummaryValue), nil), nil
 }
 
 func (m *CounterTxSystem) BeginBlock(nr uint64) error {
@@ -110,7 +95,7 @@ func (m *CounterTxSystem) Revert() {
 	m.uncommitted = false
 }
 
-func (m *CounterTxSystem) EndBlock() (txsystem.StateSummary, error) {
+func (m *CounterTxSystem) EndBlock() (*txsystem.StateSummary, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -120,9 +105,7 @@ func (m *CounterTxSystem) EndBlock() (txsystem.StateSummary, error) {
 		m.uncommitted = true
 		state += m.EndBlockCount + m.EndBlockCountDelta
 	}
-	return &Summary{
-		root: m.stateCountToHash(state), summary: util.Uint64ToBytes(m.SummaryValue),
-	}, nil
+	return txsystem.NewStateSummary(m.stateCountToHash(state), util.Uint64ToBytes(m.SummaryValue), nil), nil
 }
 
 func (m *CounterTxSystem) Commit(uc *types.UnicityCertificate) error {
@@ -144,8 +127,8 @@ func (m *CounterTxSystem) CommittedUC() *types.UnicityCertificate {
 	return m.committedUC
 }
 
-func (m *CounterTxSystem) SerializeState(writer io.Writer, committed bool) error {
-	return nil
+func (m *CounterTxSystem) SerializeState(w io.Writer) error {
+	return m.State().Serialize(w, true, nil)
 }
 
 func (m *CounterTxSystem) Execute(tx *types.TransactionOrder) (*types.TransactionRecord, error) {
@@ -192,6 +175,6 @@ func (m *CounterTxSystem) stateCountToHash(stateCount uint64) []byte {
 	return root
 }
 
-func (m *ErrorState) Serialize(writer io.Writer, committed bool) error {
+func (m *ErrorState) Serialize(writer io.Writer, committed bool, executedTransactions map[string]uint64) error {
 	return m.Err
 }

@@ -87,5 +87,6 @@ func NewTxSystem(pdr basetypes.PartitionDescriptionRecord, shardID basetypes.Sha
 		txsystem.WithFeeCredits(feeCreditModule),
 		txsystem.WithHashAlgorithm(options.hashAlgorithm),
 		txsystem.WithState(options.state),
+		txsystem.WithExecutedTransactions(options.executedTransactions),
 	)
 }

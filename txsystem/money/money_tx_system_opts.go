@@ -15,6 +15,7 @@ import (
 type (
 	Options struct {
 		state                       *state.State
+		executedTransactions        map[string]uint64
 		hashAlgorithm               crypto.Hash
 		trustBase                   types.RootTrustBase
 		partitionDescriptionRecords []*types.PartitionDescriptionRecord
@@ -43,6 +44,12 @@ func defaultOptions(observe txsystem.Observability) (*Options, error) {
 func WithState(s *state.State) Option {
 	return func(g *Options) {
 		g.state = s
+	}
+}
+
+func WithExecutedTransactions(executedTransactions map[string]uint64) Option {
+	return func(g *Options) {
+		g.executedTransactions = executedTransactions
 	}
 }
 

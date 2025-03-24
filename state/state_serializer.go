@@ -12,12 +12,13 @@ import (
 const CBORChecksumLength = 5
 
 type (
-	header struct {
+	Header struct {
 		_       struct{} `cbor:",toarray"`
 		Version types.ABVersion
 		// new version of UC implies new version of the header struct
-		UnicityCertificate *types.UnicityCertificate
-		NodeRecordCount    uint64
+		UnicityCertificate   *types.UnicityCertificate
+		NodeRecordCount      uint64
+		ExecutedTransactions map[string]uint64
 	}
 
 	nodeRecord struct {

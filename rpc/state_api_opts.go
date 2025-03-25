@@ -36,12 +36,12 @@ func WithOwnerIndex(ownerIndex partition.IndexReader) StateAPIOption {
 	}
 }
 
-func WithGetUnitsByOwnerIDRateLimit(rateLimit uint64) StateAPIOption {
+func WithGetUnitsByOwnerIDRateLimit(rateLimit int) StateAPIOption {
 	return func(c *StateAPIOptions) {
 		if rateLimit == 0 {
 			c.getUnitsByOwnerIDLimiter = rate.NewLimiter(rate.Inf, 0)
 		} else {
-			c.getUnitsByOwnerIDLimiter = rate.NewLimiter(rate.Limit(rateLimit), int(rateLimit))
+			c.getUnitsByOwnerIDLimiter = rate.NewLimiter(rate.Limit(rateLimit), rateLimit)
 		}
 	}
 }

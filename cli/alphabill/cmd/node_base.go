@@ -53,7 +53,7 @@ type startNodeConfiguration struct {
 	LedgerReplicationTimeoutMs      uint64
 	BlockSubscriptionTimeoutMs      uint64
 	BootStrapAddresses              []string // boot strap addresses (libp2p multiaddress format)
-	GetUnitsByOwnerIDRateLimit      uint64
+	GetUnitsByOwnerIDRateLimit      int
 }
 
 func run(
@@ -64,7 +64,7 @@ func run(
 	withGetUnits bool,
 	pdr *types.PartitionDescriptionRecord,
 	obs Observability,
-	getUnitsByOwnerIDRateLimit uint64,
+	getUnitsByOwnerIDRateLimit int,
 ) error {
 	log := obs.Logger()
 	name := partitionTypeIDToName(node.PartitionTypeID())
@@ -256,7 +256,7 @@ func addCommonNodeConfigurationFlags(nodeCmd *cobra.Command, config *startNodeCo
 	nodeCmd.Flags().Uint32Var(&config.LedgerReplicationMaxTx, "ledger-replication-max-transactions", 10000, "maximum number of transactions to return in a single replication response")
 	nodeCmd.Flags().Uint64Var(&config.LedgerReplicationTimeoutMs, "ledger-replication-timeout", 1500, "time since last received replication response when to trigger another request (in ms)")
 	nodeCmd.Flags().Uint64Var(&config.BlockSubscriptionTimeoutMs, "block-subscription-timeout", 3000, "time since last received block when when to trigger recovery (in ms) for non-validating nodes")
-	nodeCmd.Flags().Uint64Var(&config.GetUnitsByOwnerIDRateLimit, "get-units-by-owner-id-rate-limit", 100, "number state_GetUnitsByOwnerID requests allowed in a second")
+	nodeCmd.Flags().IntVar(&config.GetUnitsByOwnerIDRateLimit, "get-units-by-owner-id-rate-limit", 100, "number state_GetUnitsByOwnerID requests allowed in a second")
 }
 
 func addRPCServerConfigurationFlags(cmd *cobra.Command, c *rpc.ServerConfiguration) {

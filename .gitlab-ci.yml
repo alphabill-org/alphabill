@@ -3,7 +3,7 @@ stages:
   - build
   - analyze
 
-image: $CI_REGISTRY/alphabill/gitlab-ci-image:test-gosec-v2.22.2
+image: $CI_REGISTRY/alphabill/gitlab-ci-image:upgrade-gosec
 
 include:
   - project: "$CI_PROJECT_NAMESPACE/gitlab-ci-image"
@@ -80,7 +80,7 @@ sonarqube-check:
 
 gosec:
   stage: analyze
-  image: ${CI_REGISTRY}/alphabill/gitlab-ci-image:test-gosec-v2.22.2
+  image: ${CI_REGISTRY}/alphabill/gitlab-ci-image:upgrade-gosec
   script:
     - gosec -fmt=sonarqube -out gosec_report.json -no-fail ./...
   artifacts:

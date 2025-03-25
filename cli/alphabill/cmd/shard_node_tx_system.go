@@ -33,11 +33,11 @@ func createTxSystem(flags *shardNodeRunFlags, nodeConf *partition.NodeConf) (txs
 	case moneysdk.PartitionTypeID:
 		return newMoneyTxSystem(flags, nodeConf)
 	case tokenssdk.PartitionTypeID:
-		return newMoneyTxSystem(flags, nodeConf)
+		return newTokensTxSystem(flags, nodeConf)
 	case evmsdk.PartitionTypeID:
-		return newMoneyTxSystem(flags, nodeConf)
+		return newEvmTxSystem(flags, nodeConf)
 	case orchestrationsdk.PartitionTypeID:
-		return newMoneyTxSystem(flags, nodeConf)
+		return newOrchestrationTxSystem(flags, nodeConf)
 	default:
 		return nil, fmt.Errorf("unsupported partition type %d", nodeConf.ShardConf().PartitionTypeID)
 	}

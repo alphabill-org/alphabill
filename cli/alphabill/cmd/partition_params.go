@@ -15,7 +15,7 @@ const (
 	moneyDCMoneySupplyValue        = "dcMoneySupplyValue"
 
 	tokensAdminOwnerPredicate = "adminOwnerPredicate"
-	tokensFeelessMode         ="feeless-mode"
+	tokensFeelessMode         = "feeless-mode"
 
 	evmBlockGasLimit = "blockGasLimit"
 	evmGasUnitPrice  = "gasUnitPrice"

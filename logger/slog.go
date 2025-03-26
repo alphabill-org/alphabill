@@ -31,8 +31,6 @@ const (
 )
 
 func New(cfg *LogConfiguration) (*slog.Logger, error) {
-	cfg.bridgeOldCfg()
-
 	out, err := filenameToWriter(cfg.OutputPath)
 	if err != nil {
 		return nil, fmt.Errorf("creating writer for log output: %w", err)
@@ -56,11 +54,6 @@ type LogConfiguration struct {
 	// when Format==console this func will be used to determine
 	// whether to use color codes in log output
 	ConsoleSupportsColor func(io.Writer) bool
-
-	// old cfg fields, will be removed eventually
-
-	ConsoleFormat *bool `yaml:"consoleFormat"` // -> Format
-	ShowNodeID    *bool `yaml:"showNodeID"`    // -> PeerIDFormat
 }
 
 func (cfg *LogConfiguration) Handler(out io.Writer) (slog.Handler, error) {
@@ -164,26 +157,6 @@ func (cfg *LogConfiguration) initDefaults() {
 	if cfg.Format == fmtWALLET {
 		noGoId := false
 		cfg.ShowGoroutineID = &noGoId
-	}
-}
-
-/*
-bridgeOldCfg assigns values to "new style" cfg fields based on "old style" fields.
-This is needed only until old logger/config has been refactored out
-*/
-func (cfg *LogConfiguration) bridgeOldCfg() {
-	if cfg.Format == "" {
-		if cfg.ConsoleFormat != nil && *cfg.ConsoleFormat {
-			cfg.Format = fmtCONSOLE
-		} else {
-			cfg.Format = fmtECS
-		}
-	}
-
-	if cfg.PeerIDFormat == "" && cfg.ShowNodeID != nil {
-		if !*cfg.ShowNodeID {
-			cfg.PeerIDFormat = "none"
-		}
 	}
 }
 

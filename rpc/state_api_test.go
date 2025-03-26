@@ -107,7 +107,7 @@ func TestGetUnitsByOwnerID(t *testing.T) {
 		ownerID := []byte{1}
 		ownerIndex.ownerUnits[string(ownerID)] = []types.UnitID{[]byte{0}, []byte{1}}
 
-		unitIds, err := api.GetUnitsByOwnerID(ownerID)
+		unitIds, err := api.GetUnitsByOwnerID(context.Background(), ownerID)
 		require.NoError(t, err)
 		require.Len(t, unitIds, 2)
 		require.EqualValues(t, []byte{0}, unitIds[0])
@@ -117,7 +117,7 @@ func TestGetUnitsByOwnerID(t *testing.T) {
 		ownerID := []byte{1}
 		ownerIndex.err = errors.New("some error")
 
-		unitIds, err := api.GetUnitsByOwnerID(ownerID)
+		unitIds, err := api.GetUnitsByOwnerID(context.Background(), ownerID)
 		require.ErrorContains(t, err, "some error")
 		require.Nil(t, unitIds)
 	})

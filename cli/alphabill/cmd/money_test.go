@@ -261,6 +261,7 @@ func defaultMoneyNodeConfiguration() *moneyNodeConfiguration {
 			LedgerReplicationTimeoutMs:      1500,
 			BlockSubscriptionTimeoutMs:      3000,
 			WithOwnerIndex:                  true,
+			GetUnitsByOwnerIDRateLimit:      100,
 		},
 		rpcServer: &rpc.ServerConfiguration{
 			Address:                "",

@@ -6,6 +6,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/libp2p/go-libp2p/core/peer"
+	"golang.org/x/time/rate"
+
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	"github.com/alphabill-org/alphabill/partition"
@@ -13,7 +16,6 @@ import (
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/tree/avl"
 	"github.com/alphabill-org/alphabill/txsystem"
-	"github.com/libp2p/go-libp2p/core/peer"
 )
 
 type (
@@ -23,6 +25,8 @@ type (
 
 		pdr          *types.PartitionDescriptionRecord
 		withGetUnits bool
+
+		getUnitsByOwnerIDLimiter *rate.Limiter
 
 		updMetrics    func(ctx context.Context, method string, start time.Time, apiErr error)
 		updTxReceived func(ctx context.Context, txType uint16, apiErr error)
@@ -67,12 +71,13 @@ func NewStateAPI(node partitionNode, obs Observability, opts ...StateAPIOption) 
 		opt(options)
 	}
 	return &StateAPI{
-		node:          node,
-		ownerIndex:    options.ownerIndex,
-		pdr:           options.pdr,
-		withGetUnits:  options.withGetUnits,
-		updMetrics:    metricsUpdater(m, node, log),
-		updTxReceived: metricsUpdaterTxReceived(m, node, log),
+		node:                     node,
+		ownerIndex:               options.ownerIndex,
+		pdr:                      options.pdr,
+		withGetUnits:             options.withGetUnits,
+		updMetrics:               metricsUpdater(m, node, log),
+		updTxReceived:            metricsUpdaterTxReceived(m, node, log),
+		getUnitsByOwnerIDLimiter: options.getUnitsByOwnerIDLimiter,
 	}
 }
 
@@ -119,10 +124,13 @@ func (s *StateAPI) GetUnit(unitID types.UnitID, includeStateProof bool) (_ *Unit
 }
 
 // GetUnitsByOwnerID returns list of unit identifiers that belong to the given owner.
-func (s *StateAPI) GetUnitsByOwnerID(ownerID hex.Bytes) (_ []types.UnitID, retErr error) {
+func (s *StateAPI) GetUnitsByOwnerID(ctx context.Context, ownerID hex.Bytes) (_ []types.UnitID, retErr error) {
 	defer func(start time.Time) { s.updMetrics(context.Background(), "getUnitsByOwnerID", start, retErr) }(time.Now())
 	if s.ownerIndex == nil {
 		return nil, errors.New("owner indexer is disabled")
+	}
+	if err := s.getUnitsByOwnerIDLimiter.Wait(ctx); err != nil {
+		return nil, fmt.Errorf("failed ot wait for limiter: %w", err)
 	}
 	unitIds, err := s.ownerIndex.GetOwnerUnits(ownerID)
 	if err != nil {

@@ -94,6 +94,8 @@ func (enc *TVEnc) Encode(item any) {
 		enc.WriteBytes(it)
 	case hex.Bytes:
 		enc.WriteBytes(it)
+	case types.RawCBOR:
+		enc.WriteBytes(it)
 	case types.UnitID:
 		enc.WriteBytes(it)
 	case string:

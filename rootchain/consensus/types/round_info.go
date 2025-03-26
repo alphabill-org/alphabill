@@ -13,7 +13,6 @@ import (
 var (
 	errRoundNumberUnassigned   = errors.New("round number is not assigned")
 	errParentRoundUnassigned   = errors.New("parent round number is not assigned")
-	errRootHashUnassigned      = errors.New("root hash is not assigned")
 	errRoundCreationTimeNotSet = errors.New("round creation time is not set")
 )
 
@@ -56,9 +55,6 @@ func (x *RoundInfo) IsValid() error {
 	}
 	if x.RoundNumber <= x.ParentRoundNumber {
 		return fmt.Errorf("invalid round number %d - must be greater than parent round %d", x.RoundNumber, x.ParentRoundNumber)
-	}
-	if len(x.CurrentRootHash) < 1 {
-		return errRootHashUnassigned
 	}
 	if x.Timestamp == 0 {
 		return errRoundCreationTimeNotSet

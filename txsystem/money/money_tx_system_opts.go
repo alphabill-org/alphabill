@@ -17,7 +17,6 @@ type (
 		state                       *state.State
 		hashAlgorithm               crypto.Hash
 		trustBase                   types.RootTrustBase
-		partitionDescriptionRecords []*types.PartitionDescriptionRecord
 		exec                        predicates.PredicateExecutor
 	}
 
@@ -55,12 +54,6 @@ func WithTrustBase(trust types.RootTrustBase) Option {
 func WithHashAlgorithm(hashAlgorithm crypto.Hash) Option {
 	return func(g *Options) {
 		g.hashAlgorithm = hashAlgorithm
-	}
-}
-
-func WithPartitionDescriptionRecords(records []*types.PartitionDescriptionRecord) Option {
-	return func(g *Options) {
-		g.partitionDescriptionRecords = records
 	}
 }
 

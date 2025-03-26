@@ -194,9 +194,9 @@ func (p *ProofIndexer) create(ctx context.Context, block *types.Block, roundNumb
 				}
 				key := bytes.Join([][]byte{unitID, txoHash}, nil)
 				history.UnitProofIndexKeys = append(history.UnitProofIndexKeys, key)
-				if err = dbTx.Write(key, &types.UnitDataAndProof{
-					UnitData: &types.StateUnitData{Data: res},
-					Proof:    usp,
+				if err = dbTx.Write(key, &types.UnitStateWithProof{
+					State: &types.UnitState{Data: res},
+					Proof: usp,
 				}); err != nil {
 					return fmt.Errorf("unit proof write failed: %w", err)
 				}
@@ -293,9 +293,9 @@ func ReadTransactionIndex(db keyvaluedb.KeyValueDB, txOrderHash []byte) (*TxInde
 	return index, nil
 }
 
-func ReadUnitProofIndex(db keyvaluedb.KeyValueDB, unitID []byte, txOrderHash []byte) (*types.UnitDataAndProof, error) {
+func ReadUnitProofIndex(db keyvaluedb.KeyValueDB, unitID []byte, txOrderHash []byte) (*types.UnitStateWithProof, error) {
 	key := bytes.Join([][]byte{unitID, txOrderHash}, nil)
-	index := &types.UnitDataAndProof{}
+	index := &types.UnitStateWithProof{}
 	f, err := db.Read(key, index)
 	if err != nil {
 		return nil, fmt.Errorf("tx index query failed: %w", err)

@@ -70,7 +70,6 @@ func NewRecoveredState(stateData io.Reader, udc UnitDataConstructor, opts ...Opt
 	if udc == nil {
 		return nil, fmt.Errorf("unit data constructor is nil")
 	}
-
 	return readState(stateData, udc, opts...)
 }
 
@@ -480,7 +479,7 @@ func (s *State) createUnitTreeCert(unit *UnitV1, logIndex int) (*types.UnitTreeC
 	}
 	return &types.UnitTreeCert{
 		TransactionRecordHash: l.TxRecordHash,
-		UnitDataHash:          h,
+		UnitStateHash:         h,
 		Path:                  path,
 	}, nil
 }
@@ -582,13 +581,10 @@ func (s *State) releaseToSavepoint(id int) {
 	s.savepoints = s.savepoints[0:id]
 }
 
+// TODO: a better name perhaps, committed state and committed tree are different things, this checks if tree is committed/clean
 func (s *State) isCommitted() (bool, error) {
 	if len(s.savepoints) == 1 && s.savepoints[0].IsClean() {
-		cl, err := isRootClean(s.savepoints[0])
-		if err != nil {
-			return false, err
-		}
-		return cl && s.committedTreeUC != nil, nil
+		return isRootClean(s.savepoints[0])
 	}
 	return false, nil
 }

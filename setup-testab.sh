@@ -7,7 +7,6 @@ orchestration_nodes=3
 root_nodes=3
 enterprise_token_nodes=0
 reset_db_only=false
-initial_bill_owner_predicate=null
 admin_owner_predicate=830041025820f34a250bf4f2d3a432a43381cecc4ab071224d9ceccb6277b5779b937f59055f
 # exit on error
 set -e
@@ -67,49 +66,46 @@ mkdir testab
 # get common functions
 source helper.sh
 
-moneySdrFlags=""
-
-# Generate token nodes genesis files.
-if [ "$token_nodes" -ne 0 ]; then
-  tokensPDR='{"networkId": 3, "partitionId": 2, "partitionTypeId": 2, "typeIdLength": 8, "unitIdLength": 256, "t2timeout": 2500000000, "feeCreditBill": {"unitId": "0x000000000000000000000000000000000000000000000000000000000000001201", "ownerPredicate":"0x830041025820f52022bb450407d92f13bf1c53128a676bcf304818e9f41a5ef4ebeae9c0d6b0"}}'
-  echo "$tokensPDR" >testab/tokens-pdr.json
-  moneySdrFlags+=" -c testab/tokens-pdr.json"
-  generate_partition_node_genesis "tokens" "$token_nodes" "--partition-description=$PWD/testab/tokens-pdr.json"
-fi
-# Generate EVM nodes genesis files.
-if [ "$evm_nodes" -ne 0 ]; then
-  evmPDR='{"networkId": 3, "partitionId": 3, "partitionTypeId": 3, "typeIdLength": 8, "unitIdLength": 256, "t2timeout": 2500000000, "feeCreditBill": {"unitId": "0x000000000000000000000000000000000000000000000000000000000000001301", "ownerPredicate": "0x830041025820f52022bb450407d92f13bf1c53128a676bcf304818e9f41a5ef4ebeae9c0d6b0"}}'
-  echo "$evmPDR" >testab/evm-pdr.json
-  moneySdrFlags+=" -c testab/evm-pdr.json"
-  generate_partition_node_genesis "evm" "$evm_nodes" "--partition-description=$PWD/testab/evm-pdr.json"
-fi
-# Generate money nodes genesis files.
 if [ "$money_nodes" -ne 0 ]; then
-  moneyPDR='{"networkId": 3, "partitionId": 1, "partitionTypeId": 1, "typeIdLength": 8, "unitIdLength": 256, "t2timeout": 2500000000, "feeCreditBill": {"unitId": "0x000000000000000000000000000000000000000000000000000000000000001101", "ownerPredicate": "0x830041025820f52022bb450407d92f13bf1c53128a676bcf304818e9f41a5ef4ebeae9c0d6b0"}}'
-  echo "$moneyPDR" >testab/money-pdr.json
-  moneySdrFlags+=" -c testab/money-pdr.json"
-  moneySdrFlags+=" --partition-description=$PWD/testab/money-pdr.json"
-  customCliArgs=$moneySdrFlags
-  if [ "$initial_bill_owner_predicate" != null ]; then
-    customCliArgs+=" --initial-bill-owner-predicate $initial_bill_owner_predicate"
+  init_shard_nodes testab/money 1 1 "$money_nodes"
+
+  if [ ! -z "${initial_bill_owner_predicate}" ]; then
+    if ! sed -i 's@"initialBillOwnerPredicate": ".*"@"initialBillOwnerPredicate": "'$initial_bill_owner_predicate'"@g' testab/shard-conf-1_0.json; then
+      echo "Failed to set initial bill owner predicate"
+    fi
   fi
-  generate_partition_node_genesis "money" "$money_nodes" "$customCliArgs"
-fi
-# Generate orchestration nodes genesis files.
-if [ "$orchestration_nodes" -ne 0 ]; then
-  orchestrationPDR='{"networkId": 3, "partitionId": 4, "partitionTypeId": 4, "typeIdLength": 8, "unitIdLength": 256, "t2timeout": 2500000000}'
-  echo "$orchestrationPDR" >testab/orchestration-pdr.json
-  generate_partition_node_genesis "orchestration" "$orchestration_nodes" "--partition-description=$PWD/testab/orchestration-pdr.json --owner-predicate 830041025820f52022bb450407d92f13bf1c53128a676bcf304818e9f41a5ef4ebeae9c0d6b0"
-fi
-# Generate enterprise token partition genesis files
-if [ "$enterprise_token_nodes" -ne 0 ]; then
-  enterpriseTokensPDR='{"networkId": 3, "partitionId": 5, "partitionTypeId": 2, "typeIdLength": 8, "unitIdLength": 256, "t2timeout": 2500000000}'
-  echo "$enterpriseTokensPDR" >testab/tokens-pdr-sid-5.json
-  generate_partition_node_genesis "tokens-enterprise" "$enterprise_token_nodes" "--partition-description=$PWD/testab/tokens-pdr-sid-5.json --admin-owner-predicate $admin_owner_predicate"
+
+  generate_shard_genesis_state testab/money 1 "$money_nodes"
 fi
 
-# generate root node genesis files
-generate_root_genesis $root_nodes
+if [ "$token_nodes" -ne 0 ]; then
+  init_shard_nodes testab/tokens 2 2 "$token_nodes"
+  generate_shard_genesis_state testab/tokens 2 "$token_nodes"
+fi
+
+if [ "$evm_nodes" -ne 0 ]; then
+  init_shard_nodes testab/evm 3 3 "$evm_nodes"
+  generate_shard_genesis_state testab/evm 3 "$evm_nodes"
+fi
+
+if [ "$orchestration_nodes" -ne 0 ]; then
+  init_shard_nodes testab/orchestration 4 4 "$orchestration_nodes"
+  generate_shard_genesis_state testab/orchestration 4 "$orchestration_nodes"
+fi
+
+if [ "$enterprise_token_nodes" -ne 0 ]; then
+  init_shard_nodes testab/tokens-enterprise 2 5 "$enterprise_token_nodes"
+
+  if [ ! -z "${admin_owner_predicate}" ]; then
+    if ! sed -i 's@"adminOwnerPredicate": ".*"@"adminOwnerPredicate": "'$admin_owner_predicate'"@g' testab/shard-conf-5_0.json; then
+      echo "Failed to set admin owner predicate"
+    fi
+  fi
+
+  generate_shard_genesis_state testab/tokens-enterprise 5 "$enterprise_token_nodes"
+fi
+
+init_root_nodes $root_nodes
 
 # generate log configuration for all nodes
 generate_log_configuration "testab/*/"

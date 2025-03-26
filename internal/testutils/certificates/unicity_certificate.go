@@ -20,7 +20,7 @@ func CreateUnicityCertificate(
 	trHash []byte,
 ) *types.UnicityCertificate {
 	t.Helper()
-	sTree, err := types.CreateShardTree(pdr.Shards, []types.ShardTreeInput{{Shard: types.ShardID{}, IR: ir, TRHash: trHash}}, gocrypto.SHA256)
+	sTree, err := types.CreateShardTree(types.ShardingScheme{}, []types.ShardTreeInput{{Shard: types.ShardID{}, IR: ir, TRHash: trHash}}, gocrypto.SHA256)
 	if err != nil {
 		t.Errorf("creating shard tree: %v", err)
 		return nil

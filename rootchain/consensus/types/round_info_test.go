@@ -84,15 +84,6 @@ func TestRoundInfo_IsValid(t *testing.T) {
 		require.EqualError(t, ri.IsValid(), `invalid round number 21 - must be greater than parent round 22`)
 	})
 
-	t.Run("root hash is empty", func(t *testing.T) {
-		ri := validRI
-		ri.CurrentRootHash = nil
-		require.ErrorIs(t, ri.IsValid(), errRootHashUnassigned)
-
-		ri.CurrentRootHash = []byte{}
-		require.ErrorIs(t, ri.IsValid(), errRootHashUnassigned)
-	})
-
 	t.Run("timestamp unassigned", func(t *testing.T) {
 		ri := validRI
 		ri.Timestamp = 0

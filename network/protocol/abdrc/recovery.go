@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"time"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/network/protocol/certification"
@@ -28,9 +29,11 @@ type CommittedBlock struct {
 
 type ShardInfo struct {
 	_         struct{} `cbor:",toarray"`
-	Partition types.PartitionID
-	Shard     types.ShardID
-	RootHash  []byte // last certified root hash
+	Partition  types.PartitionID
+	Shard      types.ShardID
+	EpochStart uint64
+	T2Timeout  time.Duration
+	RootHash   []byte // last certified root hash
 
 	// statistical record of the previous epoch. As we only need
 	// it for hashing we keep it in serialized representation
@@ -47,13 +50,13 @@ type ShardInfo struct {
 	Fees map[string]uint64 // per validator summary fees of the current epoch
 
 	// last CertificationResponse
-	UC types.UnicityCertificate
-	TR certification.TechnicalRecord
+	UC *types.UnicityCertificate
+	TR *certification.TechnicalRecord
 
 	// input data of the block
-	IR      *types.InputRecord
-	IRTR    certification.TechnicalRecord
-	PDRHash []byte // Partition Description Record Hash
+	IR            *types.InputRecord
+	IRTR          certification.TechnicalRecord
+	ShardConfHash []byte
 }
 
 type StateMsg struct {
@@ -167,11 +170,11 @@ func (si *ShardInfo) IsValid() error {
 	if err := si.IR.IsValid(); err != nil {
 		return fmt.Errorf("invalid input record: %w", err)
 	}
-	if len(si.PDRHash) == 0 {
-		return errors.New("system description hash not set")
+	if len(si.ShardConfHash) == 0 {
+		return errors.New("shard conf hash not set")
 	}
 
-	if err := si.UC.IsValid(si.Partition, si.PDRHash); err != nil {
+	if err := si.UC.IsValid(si.Partition, si.ShardConfHash); err != nil {
 		return fmt.Errorf("invalid UC: %w", err)
 	}
 	if err := si.TR.IsValid(); err != nil {

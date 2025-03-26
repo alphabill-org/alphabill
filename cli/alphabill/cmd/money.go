@@ -73,7 +73,7 @@ func runMoneyNode(ctx context.Context, cfg *moneyNodeConfiguration) error {
 	if stateFilePath == "" {
 		stateFilePath = filepath.Join(cfg.Base.HomeDir, moneyPartitionDir, moneyGenesisStateFileName)
 	}
-	state, err := loadStateFile(stateFilePath, func(ui types.UnitID) (types.UnitData, error) {
+	state, header, err := loadStateFile(stateFilePath, func(ui types.UnitID) (types.UnitData, error) {
 		return moneysdk.NewUnitData(ui, pg.PartitionDescription)
 	})
 	if err != nil {
@@ -127,6 +127,7 @@ func runMoneyNode(ctx context.Context, cfg *moneyNodeConfiguration) error {
 		money.WithPartitionDescriptionRecords(params.Partitions),
 		money.WithTrustBase(trustBase),
 		money.WithState(state),
+		money.WithExecutedTransactions(header.ExecutedTransactions),
 	)
 	if err != nil {
 		return fmt.Errorf("creating money transaction system: %w", err)

@@ -11,6 +11,14 @@ import (
 	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 )
 
+func (m *FungibleTokensModule) splitFTTargetUnits(tx *types.TransactionOrder, _ *tokens.SplitFungibleTokenAttributes, _ *tokens.SplitFungibleTokenAuthProof, _ txtypes.ExecutionContext) ([]types.UnitID, error) {
+	newTokenID, err := m.pdr.ComposeUnitID(types.ShardID{}, tokens.FungibleTokenUnitType, tokens.PrndSh(tx))
+	if err != nil {
+		return nil, err
+	}
+	return []types.UnitID{tx.UnitID, newTokenID}, nil
+}
+
 func (m *FungibleTokensModule) executeSplitFT(tx *types.TransactionOrder, attr *tokens.SplitFungibleTokenAttributes, _ *tokens.SplitFungibleTokenAuthProof, exeCtx txtypes.ExecutionContext) (*types.ServerMetadata, error) {
 	unitID := tx.GetUnitID()
 	u, err := m.state.GetUnit(unitID, false)

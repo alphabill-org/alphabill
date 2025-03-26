@@ -15,13 +15,14 @@ import (
 
 type (
 	Options struct {
-		moneyPartitionID    types.PartitionID
-		hashAlgorithm       gocrypto.Hash
-		trustBase           types.RootTrustBase
-		state               *state.State
-		exec                predicates.PredicateExecutor
-		adminOwnerPredicate []byte
-		feelessMode         bool
+		moneyPartitionID     types.PartitionID
+		hashAlgorithm        gocrypto.Hash
+		trustBase            types.RootTrustBase
+		state                *state.State
+		executedTransactions map[string]uint64
+		exec                 predicates.PredicateExecutor
+		adminOwnerPredicate  []byte
+		feelessMode          bool
 	}
 
 	Option func(*Options)
@@ -47,6 +48,12 @@ func defaultOptions(observe txsystem.Observability) (*Options, error) {
 func WithState(s *state.State) Option {
 	return func(c *Options) {
 		c.state = s
+	}
+}
+
+func WithExecutedTransactions(executedTransactions map[string]uint64) Option {
+	return func(c *Options) {
+		c.executedTransactions = executedTransactions
 	}
 }
 

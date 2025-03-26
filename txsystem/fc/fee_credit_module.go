@@ -24,8 +24,6 @@ const (
 var _ txtypes.FeeCreditModule = (*FeeCreditModule)(nil)
 
 var (
-	ErrNetworkIDMissing        = errors.New("network identifier is missing")
-	ErrPartitionIDMissing      = errors.New("partition identifier is missing")
 	ErrMoneyPartitionIDMissing = errors.New("money transaction partition identifier is missing")
 	ErrStateIsNil              = errors.New("state is nil")
 	ErrTrustBaseIsNil          = errors.New("trust base is nil")
@@ -133,4 +131,8 @@ func (f *FeeCreditModule) IsPermissionedMode() bool {
 
 func (f *FeeCreditModule) IsFeelessMode() bool {
 	return false
+}
+
+func (f *FeeCreditModule) FeeCreditRecordUnitType() uint32 {
+	return f.feeCreditRecordUnitType
 }

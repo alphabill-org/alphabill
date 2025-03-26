@@ -76,11 +76,8 @@ function generate_shard_genesis_state() {
 
   for i in $(seq 1 "$3")
   do
-    # Copy shard-conf to node
-    cp testab/shard-conf-${partitionId}_0.json ${home}$i/shard-conf.json
-
     # Generate genesis state from shard-conf
-    build/alphabill shard-conf genesis --home ${home}${i}
+    build/alphabill shard-conf genesis --home ${home}${i} --shard-conf testab/shard-conf-${partitionId}_0.json
   done
 }
 
@@ -164,31 +161,37 @@ function start_root_nodes() {
 # $1 partition type i.e. one of [money/tokens/evm/orchestration/tokens-enterprise]
 function start_shard_nodes() {
   local homePrefix=""
+  local partitionId=""
   local p2pPort=0
   local rpcPort=0
   case $1 in
     money)
       homePrefix="testab/money"
+      partitionId=1
       p2pPort=26666
       rpcPort=26866
       ;;
     tokens)
       homePrefix="testab/tokens"
+      partitionId=2
       p2pPort=28666
       rpcPort=28866
       ;;
     evm)
       homePrefix="testab/evm"
+      partitionId=3
       p2pPort=29666
       rpcPort=29866
       ;;
     orchestration)
       homePrefix="testab/orchestration"
+      partitionId=4
       p2pPort=30666
       rpcPort=30866
       ;;
     tokens-enterprise)
       homePrefix="testab/tokens-enterprise"
+      partitionId=5
       p2pPort=31666
       rpcPort=31866
       ;;
@@ -207,9 +210,11 @@ function start_shard_nodes() {
     build/alphabill shard-node run \
         --home $home \
         --trust-base testab/trust-base.json \
+        --shard-conf testab/shard-conf-${partitionId}_0.json \
         --address "/ip4/127.0.0.1/tcp/$p2pPort" \
         --bootnodes $bootNode \
         --rpc-server-address "localhost:$rpcPort" \
+        --with-get-units true \
         --log-format text \
         --log-level debug \
         >> ${home}/debug.log 2>&1 &

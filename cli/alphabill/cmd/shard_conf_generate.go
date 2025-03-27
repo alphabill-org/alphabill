@@ -38,6 +38,8 @@ type (
 		NodeInfoFiles   []string
 
 		MoneyInitialBillOwnerPredicate string
+		TokensAdminOwnerPredicate      string
+		TokensFeelessMode              bool
 	}
 )
 
@@ -66,6 +68,9 @@ func shardConfGenerateCmd(baseFlags *baseFlags) *cobra.Command {
 	}
 	cmd.Flags().StringVar(&flags.MoneyInitialBillOwnerPredicate, "initial-bill-owner-predicate", "",
 		"initial bill owner predicate (money partition only)")
+	cmd.Flags().StringVar(&flags.TokensAdminOwnerPredicate, "admin-owner-predicate", "",
+		"admin owner predicate (tokens partition only)")
+	cmd.Flags().BoolVar(&flags.TokensFeelessMode, "feeless-mode", true, "enable/disable feeless mode (tokens partition only)")
 
 	return cmd
 }
@@ -137,8 +142,8 @@ func defaultPartitionParams(partitionTypeID types.PartitionTypeID, flags *shardC
 	case orchestrationsdk.PartitionTypeID:
 		partitionParams[orchestrationOwnerPredicate] = alwaysTruePredicate
 	case tokenssdk.PartitionTypeID:
-		partitionParams[tokensAdminOwnerPredicate] = ""
-		partitionParams[tokensFeelessMode]         = "false"
+		partitionParams[tokensAdminOwnerPredicate] = flags.TokensAdminOwnerPredicate
+		partitionParams[tokensFeelessMode]         = strconv.FormatBool(flags.TokensFeelessMode)
 	}
 
 	return partitionParams

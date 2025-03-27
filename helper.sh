@@ -141,12 +141,14 @@ function start_root_nodes() {
       exit
     fi
 
-    # uplaod all shard confs
-    for shardConf in testab/shard-conf-*
-    do
-      curl -X PUT -H "Content-Type: application/json" -d @${shardConf} \
-           http://localhost:${rpcPort}/api/v1/configurations
-    done
+    if ls testab/shard-conf-* >/dev/null 2>&1; then
+      # uplaod all shard confs
+      for shardConf in testab/shard-conf-*
+      do
+        curl -X PUT -H "Content-Type: application/json" -d @${shardConf} \
+             http://localhost:${rpcPort}/api/v1/configurations
+      done
+    fi
 
     ((p2pPort=p2pPort+1))
     ((rpcPort=rpcPort+1))

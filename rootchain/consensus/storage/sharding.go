@@ -251,7 +251,7 @@ func (si *ShardInfo) nextRound(req *certification.BlockCertificationRequest, las
 	// then the next shard round is verified with the new shard conf (epoch is increased in TR).
 	nextShardConf, err := orc.ShardConfig(si.PartitionID, si.ShardID, rootRound)
 	if err != nil {
-		return tr, fmt.Errorf("reading config of the epoch: %w", err)
+		return tr, fmt.Errorf("failed to get shard conf for next round: %w", err)
 	}
 
 	tr.Epoch = nextShardConf.Epoch

@@ -3,19 +3,16 @@ package partitions
 import (
 	"encoding/binary"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log/slog"
+	"math"
 	"time"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
 	bolt "go.etcd.io/bbolt"
 )
 
-var (
-	rootBucketName             = []byte("root")
-	roundToShardConfBucketName = []byte("round-to-shard-conf")
-)
+var rootBucketName = []byte("root")
 
 type (
 	Orchestration struct {
@@ -68,7 +65,10 @@ func (o *Orchestration) ShardConfig(partitionID types.PartitionID, shardID types
 		return nil
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to load shard conf for partition %q shard %q and root round %d: %w", partitionID, shardID.String(), rootRound, err)
+		return nil, fmt.Errorf("failed to load shard conf for shard %s_%s: %w", partitionID, shardID.String(), err)
+	}
+	if shardConf == nil {
+		return nil, fmt.Errorf("shard conf missing for shard %s_%s", partitionID, shardID.String())
 	}
 	if shardConf.NetworkID != o.networkID {
 		return nil, fmt.Errorf("shard conf loaded from database has wrong netorkID %d, expected %d", shardConf.NetworkID, o.networkID)
@@ -95,10 +95,9 @@ func (o *Orchestration) ShardConfigs(rootRound uint64) (map[types.PartitionShard
 			// check all shards
 			partitionBucket.ForEachBucket(func(shardID []byte) error {
 				shardBucket := partitionBucket.Bucket(shardID)
-				roundToShardConfBucket := shardBucket.Bucket(roundToShardConfBucketName)
 
 				// check if there is an active shard conf for the given root round
-				c := roundToShardConfBucket.Cursor()
+				c := shardBucket.Cursor()
 				for k, v := c.Last(); k != nil; k, v = c.Prev() {
 					epochStartRound := keyToUint64(k)
 					if epochStartRound > rootRound {
@@ -144,7 +143,7 @@ func (o *Orchestration) AddShardConfig(shardConf *types.PartitionDescriptionReco
 	if shardConf.NetworkID != o.networkID {
 		return fmt.Errorf("invalid networkID %d, expected %d", shardConf.NetworkID, o.networkID)
 	}
-	err := o.db.Update(func(tx *bolt.Tx) error {
+	return o.db.Update(func(tx *bolt.Tx) error {
 		if err := verifyShardConf(tx, shardConf); err != nil {
 			return fmt.Errorf("verify shard conf: %w", err)
 		}
@@ -153,10 +152,6 @@ func (o *Orchestration) AddShardConfig(shardConf *types.PartitionDescriptionReco
 		}
 		return nil
 	})
-	if err != nil {
-		return fmt.Errorf("tx failed: %w", err)
-	}
-	return nil
 }
 
 func (o *Orchestration) Close() error {
@@ -164,11 +159,12 @@ func (o *Orchestration) Close() error {
 }
 
 func getShardConf(tx *bolt.Tx, partitionID types.PartitionID, shardID types.ShardID, rootRound uint64) (*types.PartitionDescriptionRecord, error) {
-	roundToShardConfBucket, err := shardBuckets(tx, partitionID, shardID)
-	if err != nil {
-		return nil, err
+	shardBucket := getShardBucket(tx, partitionID, shardID)
+	if shardBucket == nil {
+		return nil, nil
 	}
-	c := roundToShardConfBucket.Cursor()
+
+	c := shardBucket.Cursor()
 	for k, v := c.Last(); k != nil; k, v = c.Prev() {
 		epochStartRound := keyToUint64(k)
 		if epochStartRound > rootRound {
@@ -182,7 +178,7 @@ func getShardConf(tx *bolt.Tx, partitionID types.PartitionID, shardID types.Shar
 		return shardConf, nil
 	}
 
-	return nil, fmt.Errorf("shard conf missing for root round %d", rootRound)
+	return nil, nil
 }
 
 func storeShardConf(tx *bolt.Tx, shardConf *types.PartitionDescriptionRecord) error {
@@ -207,9 +203,12 @@ func verifyShardConf(tx *bolt.Tx, shardConf *types.PartitionDescriptionRecord) e
 		return shardConf.IsValid()
 	}
 
-	lastShardConf, err := getLastShardConf(tx, shardConf.PartitionID, shardConf.ShardID)
+	lastShardConf, err := getShardConf(tx, shardConf.PartitionID, shardConf.ShardID, math.MaxUint64)
 	if err != nil {
-		return fmt.Errorf("last shard conf not found: %w", err)
+		return fmt.Errorf("failed to get previous shard conf: %w", err)
+	}
+	if lastShardConf == nil {
+		return fmt.Errorf("previous shard conf not found")
 	}
 	if err = shardConf.Verify(lastShardConf); err != nil {
 		return fmt.Errorf("shard conf does not extend previous shard conf: %w", err)
@@ -217,30 +216,10 @@ func verifyShardConf(tx *bolt.Tx, shardConf *types.PartitionDescriptionRecord) e
 	return err
 }
 
-// getLastShardConf returns the last ShardConf stored in the db for the given partition shard
-func getLastShardConf(tx *bolt.Tx, partitionID types.PartitionID, shardID types.ShardID) (*types.PartitionDescriptionRecord, error) {
-	roundToShardConfBucket, err := shardBuckets(tx, partitionID, shardID)
-	if err != nil {
-		return nil, fmt.Errorf("last shard conf not found: %w", err)
-	}
-	c := roundToShardConfBucket.Cursor()
-	_, lastShardConfBytes := c.Last()
-	if lastShardConfBytes == nil {
-		return nil, errors.New("last shard conf not found (db is empty?)")
-	}
-
-	var shardConf *types.PartitionDescriptionRecord
-	if err := json.Unmarshal(lastShardConfBytes, &shardConf); err != nil {
-		return nil, fmt.Errorf("failed to parse last shard conf: %w", err)
-	}
-	return shardConf, nil
-}
-
 // schema:
 // root bucket (root bucket)
 //   multiple partition buckets (partition id to partition bucket)
 //     multiple shard buckets (shard id to shard bucket)
-//       root round to shard conf bucket
 func createShardBuckets(tx *bolt.Tx, partitionID types.PartitionID, shardID types.ShardID) (*bolt.Bucket, error) {
 	rootBucket := tx.Bucket(rootBucketName)
 	if rootBucket == nil {
@@ -254,33 +233,19 @@ func createShardBuckets(tx *bolt.Tx, partitionID types.PartitionID, shardID type
 	if err != nil {
 		return nil, fmt.Errorf("creating shard 0x%x bucket: %w", shardID.Bytes(), err)
 	}
-	roundToShardConfBucket, err := shardBucket.CreateBucketIfNotExists(roundToShardConfBucketName)
-	if err != nil {
-		return nil, fmt.Errorf("creating %q bucket: %w", roundToShardConfBucketName, err)
-	}
-
-	return roundToShardConfBucket, nil
+	return shardBucket, nil
 }
 
-func shardBuckets(tx *bolt.Tx, partitionID types.PartitionID, shardID types.ShardID) (*bolt.Bucket, error) {
+func getShardBucket(tx *bolt.Tx, partitionID types.PartitionID, shardID types.ShardID) *bolt.Bucket {
 	rootBucket := tx.Bucket(rootBucketName)
 	if rootBucket == nil {
-		return nil, fmt.Errorf("bucket %q does not exist", rootBucketName)
+		return nil
 	}
 	partitionBucket := rootBucket.Bucket(partitionID.Bytes())
 	if partitionBucket == nil {
-		return nil, fmt.Errorf("partition 0x%x does not exist", partitionID.Bytes())
+		return nil
 	}
-	shardBucket := partitionBucket.Bucket(shardID.Bytes())
-	if shardBucket == nil {
-		return nil, fmt.Errorf("partition shard 0x%x does not exist", shardID.Bytes())
-	}
-	// TODO: perhaps this intermediary bucket not needed?
-	roundToShardConfBucket := shardBucket.Bucket(roundToShardConfBucketName)
-	if roundToShardConfBucket == nil {
-		return nil, fmt.Errorf("bucket %q does not exist", roundToShardConfBucketName)
-	}
-	return roundToShardConfBucket, nil
+	return partitionBucket.Bucket(shardID.Bytes())
 }
 
 func uint64ToKey(n uint64) []byte {

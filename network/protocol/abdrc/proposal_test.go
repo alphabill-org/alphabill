@@ -193,7 +193,7 @@ func TestProposalMsg_Verify(t *testing.T) {
 	validProposal := func(t *testing.T) *ProposalMsg {
 		t.Helper()
 		voteInfo := testutils.NewDummyRootRoundInfo(9)
-		lastRoundQc, err := newQuorumCertificate(t, voteInfo)
+		lastRoundQc, err := newQuorumCertificate(t, voteInfo, nil)
 		require.NoError(t, err)
 		addQCSignature(t, lastRoundQc, "1", s1)
 		addQCSignature(t, lastRoundQc, "2", s2)

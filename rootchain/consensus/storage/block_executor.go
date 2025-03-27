@@ -148,7 +148,7 @@ func NewRootBlock(hash crypto.Hash, block *abdrc.CommittedBlock, orchestration O
 		// EpochStart uniquely identifies the shardConf that is valid in this root round
 		shardConf, err := orchestration.ShardConfig(d.Partition, d.Shard, d.EpochStart)
 		if err != nil {
-			return nil, fmt.Errorf("loading shard %s-%s config: %w", d.Partition, d.Shard, err)
+			return nil, fmt.Errorf("failed to load shard conf: %w", err)
 		}
 		shardConfHash, err := shardConf.Hash(crypto.SHA256)
 		if err != nil {

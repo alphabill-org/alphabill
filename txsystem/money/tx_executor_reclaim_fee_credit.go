@@ -34,7 +34,6 @@ func (m *Module) executeReclaimFCTx(tx *types.TransactionOrder, attr *fc.Reclaim
 		}
 		newBillData.Value += v
 		newBillData.Counter += 1
-		newBillData.Locked = 0
 		return newBillData, nil
 	}
 	updateAction := state.UpdateUnitData(unitID, updateFunc)
@@ -91,6 +90,8 @@ func (m *Module) validateReclaimFCTx(tx *types.TransactionOrder, attr *fc.Reclai
 		return ErrReclaimFCInvalidTargetUnit
 	}
 	if bd.Counter != closeFCAttr.TargetUnitCounter {
+		fmt.Printf("BD.Counter=%d\n", bd.Counter)
+		fmt.Printf("CloseFC.Counter=%d\n", closeFCAttr.TargetUnitCounter)
 		return ErrReclaimFCInvalidTargetUnitCounter
 	}
 	feeLimit, ok := util.SafeAdd(tx.MaxFee(), closeFcProof.ActualFee())

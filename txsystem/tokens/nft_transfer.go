@@ -2,7 +2,6 @@ package tokens
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 
 	"github.com/alphabill-org/alphabill-go-base/txsystem/tokens"
@@ -44,9 +43,6 @@ func (n *NonFungibleTokensModule) validateTransferNFT(tx *types.TransactionOrder
 	data, ok := u.Data().(*tokens.NonFungibleTokenData)
 	if !ok {
 		return fmt.Errorf("validate nft transfer: unit %v is not a non-fungible token type", unitID)
-	}
-	if data.Locked != 0 {
-		return errors.New("token is locked")
 	}
 	if data.Counter != attr.Counter {
 		return fmt.Errorf("invalid counter: expected %d, got %d", data.Counter, attr.Counter)

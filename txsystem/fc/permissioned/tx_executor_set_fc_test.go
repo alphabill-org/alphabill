@@ -196,7 +196,6 @@ func TestExecuteSetFC(t *testing.T) {
 	require.EqualValues(t, 1e8, fcr.Balance)
 	require.EqualValues(t, 0, fcr.Counter)
 	require.EqualValues(t, 10, fcr.MinLifetime)
-	require.EqualValues(t, 0, fcr.Locked)
 	require.EqualValues(t, fcrOwnerPredicate, fcr.OwnerPredicate)
 }
 

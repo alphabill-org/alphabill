@@ -101,6 +101,10 @@ func (u *UnitV1) DeletionRound() uint64 {
 	return u.deletionRound
 }
 
+func (u *UnitV1) IsExpired(currentRoundNumber uint64) bool {
+	return u.deletionRound > 0 && u.deletionRound <= currentRoundNumber
+}
+
 func MarshalUnitData(u types.UnitData) ([]byte, error) {
 	return types.Cbor.Marshal(u)
 }

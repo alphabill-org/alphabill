@@ -181,10 +181,10 @@ func (m *GenericTxSystem) rInit(roundNumber uint64) error {
 				// sanity check, should never happen
 				return fmt.Errorf("unit data type is not a fee credit record")
 			}
-			if fcr.Balance == 0 && fcr.Locked == 0 && fcr.MinLifetime < roundNumber {
+			if fcr.IsExpired(roundNumber) {
 				expiredFCRs = append(expiredFCRs, unitID)
 			}
-		} else if unitV1.DeletionRound() > 0 && unitV1.DeletionRound() <= roundNumber {
+		} else if unitV1.IsExpired(roundNumber) {
 			expiredUnits = append(expiredUnits, unitID)
 		}
 		// TODO move state_pruner here?

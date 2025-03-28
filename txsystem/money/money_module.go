@@ -54,8 +54,6 @@ func (m *Module) TxHandlers() map[uint16]txtypes.TxExecutor {
 		money.TransactionTypeSplit:    txtypes.NewTxHandler[money.SplitAttributes, money.SplitAuthProof](m.validateSplitTx, m.executeSplitTx, txtypes.WithTargetUnitsFn(m.splitTxTargetUnits)),
 		money.TransactionTypeTransDC:  txtypes.NewTxHandler[money.TransferDCAttributes, money.TransferDCAuthProof](m.validateTransferDCTx, m.executeTransferDCTx),
 		money.TransactionTypeSwapDC:   txtypes.NewTxHandler[money.SwapDCAttributes, money.SwapDCAuthProof](m.validateSwapTx, m.executeSwapTx),
-		money.TransactionTypeLock:     txtypes.NewTxHandler[money.LockAttributes, money.LockAuthProof](m.validateLockTx, m.executeLockTx),
-		money.TransactionTypeUnlock:   txtypes.NewTxHandler[money.UnlockAttributes, money.UnlockAuthProof](m.validateUnlockTx, m.executeUnlockTx),
 
 		// fee credit related transaction handlers (credit transfers and reclaims only!)
 		fcsdk.TransactionTypeTransferFeeCredit: txtypes.NewTxHandler[fcsdk.TransferFeeCreditAttributes, fcsdk.TransferFeeCreditAuthProof](m.validateTransferFCTx, m.executeTransferFCTx),

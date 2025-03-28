@@ -31,7 +31,6 @@ func udeNonFungibleTokenData(data types.UnitData, ver uint32) ([]byte, error) {
 		buf.EncodeTagged(4, value.Data)
 	}
 	buf.EncodeTagged(5, value.Counter)
-	buf.EncodeTagged(6, value.Locked)
 	return buf.Bytes()
 }
 
@@ -64,7 +63,6 @@ func udeFungibleTokenData(data types.UnitData, ver uint32) ([]byte, error) {
 	buf.EncodeTagged(1, value.TypeID)
 	buf.EncodeTagged(2, value.Value)
 	buf.EncodeTagged(3, value.Counter)
-	buf.EncodeTagged(4, value.Locked)
-	buf.EncodeTagged(5, value.MinLifetime)
+	buf.EncodeTagged(4, value.MinLifetime)
 	return buf.Bytes()
 }

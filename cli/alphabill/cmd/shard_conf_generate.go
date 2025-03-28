@@ -70,7 +70,7 @@ func shardConfGenerateCmd(baseFlags *baseFlags) *cobra.Command {
 		"initial bill owner predicate (money partition only)")
 	cmd.Flags().StringVar(&flags.TokensAdminOwnerPredicate, "admin-owner-predicate", "",
 		"admin owner predicate (tokens partition only)")
-	cmd.Flags().BoolVar(&flags.TokensFeelessMode, "feeless-mode", true, "enable/disable feeless mode (tokens partition only)")
+	cmd.Flags().BoolVar(&flags.TokensFeelessMode, "feeless-mode", false, "enable/disable feeless mode (tokens partition only)")
 
 	return cmd
 }

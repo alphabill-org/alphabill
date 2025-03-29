@@ -98,8 +98,8 @@ func (x *QuorumCert) Verify(tb types.RootTrustBase) error {
 		return fmt.Errorf("invalid commit info: %w", err)
 	}*/
 
-	if x.GetCommitRound() == GenesisRootRound {
-		// QC that commits the genesis block does not have signatures
+	if x.GetRound() == GenesisRootRound {
+		// Skip signature verification for genesis round QC - it is hard-coded and not signed
 		return nil
 	}
 

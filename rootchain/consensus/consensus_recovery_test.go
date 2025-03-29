@@ -862,7 +862,10 @@ func newTestGenesisBlock(t *testing.T, shardConf *types.PartitionDescriptionReco
 		Round:     drctypes.GenesisRootRound,
 		Epoch:     drctypes.GenesisRootEpoch,
 		Timestamp: types.GenesisTime,
-		Payload:   nil, // no IR change requests
+		Payload:   &drctypes.Payload{
+			// no shards -> no IR change requests
+			Requests: make([]*drctypes.IRChangeReq, 0),
+		},
 		Qc:        nil, // no parent QC
 	}
 

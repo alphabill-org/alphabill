@@ -253,8 +253,11 @@ func NewGenesisBlock(networkID types.NetworkID, hashAlgo crypto.Hash) (*Executed
 		Round:     rctypes.GenesisRootRound,
 		Epoch:     rctypes.GenesisRootEpoch,
 		Timestamp: types.GenesisTime,
-		Payload:   nil, // no shards -> no IR change requests
-		Qc:        nil, // no parent block -> no parent QC
+		Payload:   &rctypes.Payload{
+			// no shards -> no IR change requests
+			Requests: make([]*rctypes.IRChangeReq, 0),
+		},
+		Qc: nil, // no parent block -> no parent QC
 	}
 
 	// Info about the round that commits the genesis block.

@@ -502,7 +502,71 @@ func TestPartitionTimeoutFromRootValidator(t *testing.T) {
 	mockNet.WaitReceive(t, lastProposalMsg)
 }
 
-func TestGetState(t *testing.T) {
+func TestGetState_WithoutShards(t *testing.T) {
+	mockNet := testnetwork.NewRootMockNetwork()
+	rootNode := testutils.NewTestNode(t)
+	trustBase := trustbase.NewTrustBaseFromVerifiers(t, map[string]abcrypto.Verifier{
+		rootNode.PeerConf.ID.String(): rootNode.Verifier,
+	})
+	observe := testobservability.Default(t)
+	orchestration := testpartition.NewOrchestration(t, observe.Logger())
+
+	cm, err := NewConsensusManager(
+		rootNode.PeerConf.ID,
+		trustBase,
+		orchestration,
+		mockNet,
+		rootNode.Signer,
+		observe,
+	)
+	require.NoError(t, err)
+
+	ctx, ctxCancel := context.WithCancel(context.Background())
+	defer ctxCancel()
+	go func() { require.ErrorIs(t, cm.Run(ctx), context.Canceled) }()
+
+	// request state
+	getStateMsg := &abdrc.StateRequestMsg{
+		NodeId: rootNode.PeerConf.ID.String(),
+	}
+	mockNet.WaitReceive(t, getStateMsg)
+	stateMsg := testutils.MockAwaitMessage[*abdrc.StateMsg](t, mockNet, network.ProtocolRootStateResp)
+
+	// only genesis block present 
+	require.Equal(t, 0, len(stateMsg.BlockData))
+	require.Len(t, stateMsg.CommittedHead.ShardInfo, 0)
+	// the hard-coded round 1 is the CommittedHead
+	require.Equal(t, uint64(1), stateMsg.CommittedHead.Block.Round)
+	require.Equal(t, uint64(1), stateMsg.CommittedHead.CommitQc.GetRound())
+	require.Equal(t, uint64(1), stateMsg.CommittedHead.Qc.GetRound())
+	// the verification of hard-coded CommittedHead should succeed despite having no signatures
+	require.Len(t, stateMsg.CommittedHead.CommitQc.Signatures, 0)
+	require.NoError(t, stateMsg.Verify(gocrypto.SHA256, trustBase))
+
+	// advance to round 2
+	lastProposalMsg := testutils.MockAwaitMessage[*abdrc.ProposalMsg](t, mockNet, network.ProtocolRootProposal)
+	mockNet.WaitReceive(t, lastProposalMsg)
+	voteMsg := testutils.MockAwaitMessage[*abdrc.VoteMsg](t, mockNet, network.ProtocolRootVote)
+	mockNet.WaitReceive(t, voteMsg)
+	lastProposalMsg = testutils.MockAwaitMessage[*abdrc.ProposalMsg](t, mockNet, network.ProtocolRootProposal)
+
+	// request state
+	mockNet.WaitReceive(t, getStateMsg)
+	stateMsg = testutils.MockAwaitMessage[*abdrc.StateMsg](t, mockNet, network.ProtocolRootStateResp)
+
+	// a new block present now, still no shards
+	require.Len(t, stateMsg.BlockData, 1)
+	require.Equal(t, uint64(2), stateMsg.BlockData[0].Round)
+	// the hard-coded round 1 is still the CommittedHead
+	require.Equal(t, uint64(1), stateMsg.CommittedHead.Block.Round)
+	require.Equal(t, uint64(1), stateMsg.CommittedHead.Qc.GetRound())
+	// but a new commitQc was produced with signatures
+	require.Equal(t, uint64(2), stateMsg.CommittedHead.CommitQc.GetRound())
+	require.Len(t, stateMsg.CommittedHead.CommitQc.Signatures, 1)
+	require.NoError(t, stateMsg.Verify(gocrypto.SHA256, trustBase))
+}
+
+func TestGetState_WithShards(t *testing.T) {
 	mockNet := testnetwork.NewRootMockNetwork()
 	cm, _, shardNodes := initConsensusManager(t, mockNet)
 

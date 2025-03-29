@@ -168,8 +168,8 @@ func TestStateMsg_Verify(t *testing.T) {
 					PrevEpochFees: []byte{0xF, 0xE, 0xE, 5},
 					RootHash:      test.RandomBytes(32),
 					Fees:          map[string]uint64{"A": 0},
-					UC:            *uc,
-					TR: certification.TechnicalRecord{
+					UC:            uc,
+					TR: &certification.TechnicalRecord{
 						Round:    5,
 						Epoch:    1,
 						Leader:   "A",
@@ -315,9 +315,9 @@ func TestRecoveryBlock_IsValid(t *testing.T) {
 				PrevEpochFees: []byte{0xF, 0xE, 0xE, 5},
 				RootHash:      test.RandomBytes(32),
 				Fees:          map[string]uint64{"A": 10},
-				UC:            *uc,
+				UC:            uc,
 				IR:            headIR,
-				TR: certification.TechnicalRecord{
+				TR: &certification.TechnicalRecord{
 					Round:    5,
 					Epoch:    1,
 					Leader:   "A",

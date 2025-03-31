@@ -81,7 +81,7 @@ func NewStateAPI(node partitionNode, obs Observability, opts ...StateAPIOption) 
 			{"getBlock", 1},
 			{"getTrustBase", 1},
 		},
-		obs,
+		log,
 	)
 
 	return &StateAPI{

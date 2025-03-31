@@ -24,7 +24,7 @@ type (
 )
 
 // NewRequestLimiter returns a new RequestLimiter. Requests are limited based of input cost. Overall limit is "highest cost * rateLimit".
-func NewRequestLimiter(rateLimit int, tokenCosts []RequestTokenCost, obs Observability) *RequestLimiter {
+func NewRequestLimiter(rateLimit int, tokenCosts []RequestTokenCost, log *slog.Logger) *RequestLimiter {
 	var rateLimiter *rate.Limiter
 	requestsTokenCost := make(map[string]int)
 	if rateLimit == 0 {
@@ -45,7 +45,7 @@ func NewRequestLimiter(rateLimit int, tokenCosts []RequestTokenCost, obs Observa
 		rateLimit:         rateLimit,
 		rateLimiter:       rateLimiter,
 		requestsTokenCost: requestsTokenCost,
-		log:               obs.Logger(),
+		log:               log,
 	}
 }
 

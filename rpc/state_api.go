@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/libp2p/go-libp2p/core/peer"
-	"golang.org/x/time/rate"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/types/hex"
@@ -26,7 +25,7 @@ type (
 		pdr          *types.PartitionDescriptionRecord
 		withGetUnits bool
 
-		getUnitsByOwnerIDLimiter *rate.Limiter
+		requestLimiter *RequestLimiter
 
 		updMetrics    func(ctx context.Context, method string, start time.Time, apiErr error)
 		updTxReceived func(ctx context.Context, txType uint16, apiErr error)
@@ -70,26 +69,47 @@ func NewStateAPI(node partitionNode, obs Observability, opts ...StateAPIOption) 
 	for _, opt := range opts {
 		opt(options)
 	}
+
+	requestLimiter := NewRequestLimiter(
+		options.rateLimit,
+		[]RequestTokenCost{
+			{"getRoundInfo", 1},
+			{"getUnit", 20},
+			{"getUnitsByOwnerID", 100},
+			{"getUnits", 100},
+			{"sendTransaction", 1},
+			{"getBlock", 1},
+			{"getTrustBase", 1},
+		},
+		obs,
+	)
+
 	return &StateAPI{
-		node:                     node,
-		ownerIndex:               options.ownerIndex,
-		pdr:                      options.pdr,
-		withGetUnits:             options.withGetUnits,
-		updMetrics:               metricsUpdater(m, node, log),
-		updTxReceived:            metricsUpdaterTxReceived(m, node, log),
-		getUnitsByOwnerIDLimiter: options.getUnitsByOwnerIDLimiter,
+		node:           node,
+		ownerIndex:     options.ownerIndex,
+		pdr:            options.pdr,
+		withGetUnits:   options.withGetUnits,
+		updMetrics:     metricsUpdater(m, node, log),
+		updTxReceived:  metricsUpdaterTxReceived(m, node, log),
+		requestLimiter: requestLimiter,
 	}
 }
 
 // GetRoundInfo returns the current round number and epoch as seen by the node.
 func (s *StateAPI) GetRoundInfo(ctx context.Context) (_ *partition.RoundInfo, retErr error) {
 	defer func(start time.Time) { s.updMetrics(ctx, "getRoundInfo", start, retErr) }(time.Now())
+	if err := s.requestLimiter.CheckRequestAllowed("getRoundInfo"); err != nil {
+		return nil, fmt.Errorf("request not allowed: %w", err)
+	}
 	return s.node.CurrentRoundInfo(ctx)
 }
 
 // GetUnit returns unit data and optionally the state proof for the given unitID.
 func (s *StateAPI) GetUnit(unitID types.UnitID, includeStateProof bool) (_ *Unit[any], retErr error) {
 	defer func(start time.Time) { s.updMetrics(context.Background(), "getUnit", start, retErr) }(time.Now())
+	if err := s.requestLimiter.CheckRequestAllowed("getUnit"); err != nil {
+		return nil, fmt.Errorf("request not allowed: %w", err)
+	}
 
 	st := s.node.TransactionSystemState()
 	unit, err := st.GetUnit(unitID, true)
@@ -124,14 +144,15 @@ func (s *StateAPI) GetUnit(unitID types.UnitID, includeStateProof bool) (_ *Unit
 }
 
 // GetUnitsByOwnerID returns list of unit identifiers that belong to the given owner.
-func (s *StateAPI) GetUnitsByOwnerID(ctx context.Context, ownerID hex.Bytes) (_ []types.UnitID, retErr error) {
+func (s *StateAPI) GetUnitsByOwnerID(ownerID hex.Bytes) (_ []types.UnitID, retErr error) {
 	defer func(start time.Time) { s.updMetrics(context.Background(), "getUnitsByOwnerID", start, retErr) }(time.Now())
 	if s.ownerIndex == nil {
 		return nil, errors.New("owner indexer is disabled")
 	}
-	if err := s.getUnitsByOwnerIDLimiter.Wait(ctx); err != nil {
-		return nil, fmt.Errorf("failed ot wait for limiter: %w", err)
+	if err := s.requestLimiter.CheckRequestAllowed("getUnitsByOwnerID"); err != nil {
+		return nil, fmt.Errorf("request not allowed: %w", err)
 	}
+
 	unitIds, err := s.ownerIndex.GetOwnerUnits(ownerID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load owner units: %w", err)
@@ -145,6 +166,9 @@ func (s *StateAPI) GetUnits(unitTypeID *uint32) (_ []types.UnitID, retErr error)
 	if !s.withGetUnits {
 		return nil, errors.New("state_getUnits is disabled")
 	}
+	if err := s.requestLimiter.CheckRequestAllowed("getUnits"); err != nil {
+		return nil, fmt.Errorf("request not allowed: %w", err)
+	}
 	units, err := s.node.TransactionSystemState().GetUnits(unitTypeID, s.pdr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get units: %w", err)
@@ -155,7 +179,9 @@ func (s *StateAPI) GetUnits(unitTypeID *uint32) (_ []types.UnitID, retErr error)
 // SendTransaction broadcasts the given transaction to the network, returns the submitted transaction hash.
 func (s *StateAPI) SendTransaction(ctx context.Context, txBytes hex.Bytes) (_ hex.Bytes, retErr error) {
 	defer func(start time.Time) { s.updMetrics(ctx, "sendTransaction", start, retErr) }(time.Now())
-
+	if err := s.requestLimiter.CheckRequestAllowed("sendTransaction"); err != nil {
+		return nil, fmt.Errorf("request not allowed: %w", err)
+	}
 	var tx *types.TransactionOrder
 	if err := types.Cbor.Unmarshal(txBytes, &tx); err != nil {
 		s.updTxReceived(ctx, 0, err)
@@ -173,6 +199,9 @@ func (s *StateAPI) SendTransaction(ctx context.Context, txBytes hex.Bytes) (_ he
 // GetTransactionProof returns transaction record and proof for the given transaction hash.
 func (s *StateAPI) GetTransactionProof(ctx context.Context, txHash hex.Bytes) (_ *TransactionRecordAndProof, retErr error) {
 	defer func(start time.Time) { s.updMetrics(ctx, "getTransactionProof", start, retErr) }(time.Now())
+	if err := s.requestLimiter.CheckRequestAllowed("getTransactionProof"); err != nil {
+		return nil, fmt.Errorf("request not allowed: %w", err)
+	}
 	txRecordProof, err := s.node.GetTransactionRecordProof(ctx, txHash)
 	if err != nil {
 		if errors.Is(err, partition.ErrIndexNotFound) || errors.Is(err, types.ErrBlockIsNil) {
@@ -192,6 +221,9 @@ func (s *StateAPI) GetTransactionProof(ctx context.Context, txHash hex.Bytes) (_
 // GetBlock returns block for the given block number.
 func (s *StateAPI) GetBlock(ctx context.Context, blockNumber hex.Uint64) (_ hex.Bytes, retErr error) {
 	defer func(start time.Time) { s.updMetrics(ctx, "getBlock", start, retErr) }(time.Now())
+	if err := s.requestLimiter.CheckRequestAllowed("getBlock"); err != nil {
+		return nil, fmt.Errorf("request not allowed: %w", err)
+	}
 	block, err := s.node.GetBlock(ctx, uint64(blockNumber))
 	if err != nil {
 		return nil, fmt.Errorf("failed to load block: %w", err)
@@ -209,6 +241,9 @@ func (s *StateAPI) GetBlock(ctx context.Context, blockNumber hex.Uint64) (_ hex.
 // GetTrustBase returns trust base for the given epoch.
 func (s *StateAPI) GetTrustBase(epochNumber hex.Uint64) (_ types.RootTrustBase, retErr error) {
 	defer func(start time.Time) { s.updMetrics(context.Background(), "getTrustBase", start, retErr) }(time.Now())
+	if err := s.requestLimiter.CheckRequestAllowed("getTrustBase"); err != nil {
+		return nil, fmt.Errorf("request not allowed: %w", err)
+	}
 	trustBase, err := s.node.GetTrustBase(uint64(epochNumber))
 	if err != nil {
 		return nil, fmt.Errorf("failed to load trust base: %w", err)

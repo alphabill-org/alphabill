@@ -1,18 +1,16 @@
 package rpc
 
 import (
-	"golang.org/x/time/rate"
-
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/partition"
 )
 
 type (
 	StateAPIOptions struct {
-		withGetUnits             bool
-		pdr                      *types.PartitionDescriptionRecord
-		ownerIndex               partition.IndexReader
-		getUnitsByOwnerIDLimiter *rate.Limiter
+		withGetUnits bool
+		pdr          *types.PartitionDescriptionRecord
+		ownerIndex   partition.IndexReader
+		rateLimit    int
 	}
 
 	StateAPIOption func(*StateAPIOptions)
@@ -36,21 +34,17 @@ func WithOwnerIndex(ownerIndex partition.IndexReader) StateAPIOption {
 	}
 }
 
-func WithGetUnitsByOwnerIDRateLimit(rateLimit int) StateAPIOption {
+func WithRateLimit(rateLimit int) StateAPIOption {
 	return func(c *StateAPIOptions) {
-		if rateLimit == 0 {
-			c.getUnitsByOwnerIDLimiter = rate.NewLimiter(rate.Inf, 0)
-		} else {
-			c.getUnitsByOwnerIDLimiter = rate.NewLimiter(rate.Limit(rateLimit), rateLimit)
-		}
+		c.rateLimit = rateLimit
 	}
 }
 
 func defaultStateAPIOptions() *StateAPIOptions {
 	return &StateAPIOptions{
-		withGetUnits:             false,
-		pdr:                      nil,
-		ownerIndex:               nil,
-		getUnitsByOwnerIDLimiter: rate.NewLimiter(rate.Inf, 0),
+		withGetUnits: false,
+		pdr:          nil,
+		ownerIndex:   nil,
+		rateLimit:    0,
 	}
 }

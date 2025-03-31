@@ -86,7 +86,7 @@ func Test_time_lock(t *testing.T) {
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.NoError(t, err)
 		checkSpentGas(t, 285, curGas-env.GasRemaining)
-		require.EqualValues(t, 0x101, res)
+		require.EqualValues(t, 0xff01, res)
 	})
 
 	t.Run("not the owner", func(t *testing.T) {
@@ -111,16 +111,16 @@ func Test_time_lock(t *testing.T) {
 		res, err := wvm.Exec(context.Background(), timeLockWasm, ownerProof, predConf, &tx, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.NoError(t, err)
-		checkSpentGas(t, 1335, curGas-env.GasRemaining)
-		require.EqualValues(t, 0x801, res)
+		checkSpentGas(t, 1331, curGas-env.GasRemaining)
+		require.EqualValues(t, 0x101, res)
 
 		// invalid proof (nil)
 		start, curGas = time.Now(), env.GasRemaining
 		res, err = wvm.Exec(context.Background(), timeLockWasm, nil, predConf, &tx, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.NoError(t, err)
-		checkSpentGas(t, 335, curGas-env.GasRemaining)
-		require.EqualValues(t, 0x901, res)
+		checkSpentGas(t, 331, curGas-env.GasRemaining)
+		require.EqualValues(t, 0x701, res)
 	})
 
 	t.Run("success", func(t *testing.T) {
@@ -138,7 +138,39 @@ func Test_time_lock(t *testing.T) {
 		res, err := wvm.Exec(context.Background(), timeLockWasm, ownerProof, predConf, &txNFTTransfer, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.NoError(t, err)
-		checkSpentGas(t, 1335, curGas-env.GasRemaining)
+		checkSpentGas(t, 1331, curGas-env.GasRemaining)
 		require.EqualValues(t, 0, res)
+	})
+
+	t.Run("invalid config", func(t *testing.T) {
+		env := &mockTxContext{
+			committedUC: func() *types.UnicityCertificate {
+				return &types.UnicityCertificate{
+					UnicitySeal: &types.UnicitySeal{Timestamp: lockedUntilDate},
+				}
+			},
+			GasRemaining: 30000,
+		}
+
+		// date is not uint (unix timestamp)
+		cfgCBOR, err := types.Cbor.Marshal([]any{"2025-04-01 12:00:00", ownerPKH})
+		require.NoError(t, err)
+		predConf := wasm.PredicateParams{Entrypoint: "time_lock", Args: cfgCBOR}
+		start, curGas := time.Now(), env.GasRemaining
+		res, err := wvm.Exec(context.Background(), timeLockWasm, ownerProof, predConf, &txNFTTransfer, env)
+		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
+		require.NoError(t, err)
+		checkSpentGas(t, 1194, curGas-env.GasRemaining)
+		require.EqualValues(t, 0xc01, res)
+
+		// missing owner PKH
+		cfgCBOR, err = types.Cbor.Marshal([]any{lockedUntilDate})
+		require.NoError(t, err)
+		predConf = wasm.PredicateParams{Entrypoint: "time_lock", Args: cfgCBOR}
+		start, curGas = time.Now(), env.GasRemaining
+		_, err = wvm.Exec(context.Background(), timeLockWasm, ownerProof, predConf, &txNFTTransfer, env)
+		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
+		require.ErrorContains(t, err, `calling time_lock returned error: wasm error: unreachable`)
+		checkSpentGas(t, 351, curGas-env.GasRemaining)
 	})
 }

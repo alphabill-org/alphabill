@@ -45,8 +45,10 @@ Returns:
     P2PKH but the predicate evaluates to false;
   - 2: error, most likely the OwnerProof or PKH is not valid argument for P2PKH;
   - 3: error, argument stack[0] is not valid tx handle;
-  - 4: error, failure to get PKH or it is nil;
-  - 5: error, failure to get owner proof or it is nil;
+  - 4: error, failure to get PKH;
+  - 5: error, failure to get owner proof;
+  - 6: error, PKH is nil;
+  - 7: error, owner proof is nil;
 */
 func txSignedByPKH(ctx context.Context, mod api.Module, stack []uint64) {
 	vec := extractVMContext(ctx)
@@ -59,23 +61,30 @@ func txSignedByPKH(ctx context.Context, mod api.Module, stack []uint64) {
 	}
 
 	pkh, err := vec.getBytesVariable(api.DecodeU32(stack[1]))
-	if err != nil || pkh == nil {
+	if err != nil {
 		vec.log.DebugContext(ctx, "reading pkh", logger.Error(err))
 		stack[0] = 4
 		return
 	}
+	if pkh == nil {
+		stack[0] = 6
+		return
+	}
 
 	proof, err := vec.getBytesVariable(api.DecodeU32(stack[2]))
-	if err != nil || proof == nil {
+	if err != nil {
 		vec.log.DebugContext(ctx, "extracting owner proof", logger.Error(err))
 		stack[0] = 5
+		return
+	}
+	if proof == nil {
+		stack[0] = 7
 		return
 	}
 
 	predicate := templates.NewP2pkh256BytesFromKeyHash(pkh)
 	env := txoEvalCtx{EvalEnvironment: vec.curPrg.env, exArgument: txo.AuthProofSigBytes}
-	ok, err := vec.engines(ctx, predicate, proof, txo, env)
-	switch {
+	switch ok, err := vec.engines(ctx, predicate, proof, txo, env); {
 	case err != nil:
 		vec.log.DebugContext(ctx, "failed to verify OwnerProof against p2pkh", logger.Error(err))
 		stack[0] = 2

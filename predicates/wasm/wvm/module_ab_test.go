@@ -52,9 +52,17 @@ func Test_txSignedByPKH(t *testing.T) {
 		// handle_current_args so it must exist but could be nil?
 		ctx, vm, mod := buildContext(t)
 		vm.curPrg.vars[handle_current_tx_order] = &txo
-		stack := []uint64{handle_current_tx_order, uint64(vm.curPrg.addVar(pkh)), handle_current_args}
+		handle_pkh := uint64(vm.curPrg.addVar(pkh))
+
+		// proof handle (handle_current_args) has no value registered
+		stack := []uint64{handle_current_tx_order, handle_pkh, handle_current_args}
 		txSignedByPKH(ctx, mod, stack)
 		require.EqualValues(t, 5, stack[0])
+
+		// handle refers to nil
+		stack = []uint64{handle_current_tx_order, handle_pkh, uint64(vm.curPrg.addVar(nil))}
+		txSignedByPKH(ctx, mod, stack)
+		require.EqualValues(t, 7, stack[0])
 	})
 
 	t.Run("invalid PKH handle", func(t *testing.T) {
@@ -70,7 +78,7 @@ func Test_txSignedByPKH(t *testing.T) {
 		// handle refers to nil
 		stack = []uint64{handle_current_tx_order, uint64(vm.curPrg.addVar(nil)), handle_current_args}
 		txSignedByPKH(ctx, mod, stack)
-		require.EqualValues(t, 4, stack[0])
+		require.EqualValues(t, 6, stack[0])
 	})
 
 	t.Run("invalid txo handle", func(t *testing.T) {

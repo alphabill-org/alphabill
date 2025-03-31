@@ -95,7 +95,7 @@ func Test_multisig(t *testing.T) {
 		res, err := wvm.Exec(context.Background(), multisigWasm, ownerProofs, predConf, &txNFTTransfer, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.NoError(t, err)
-		checkSpentGas(t, 1509, curGas-env.GasRemaining)
+		checkSpentGas(t, 1518, curGas-env.GasRemaining)
 		assert.EqualValues(t, 0x01, res)
 
 		// last signature is missing
@@ -105,7 +105,7 @@ func Test_multisig(t *testing.T) {
 		res, err = wvm.Exec(context.Background(), multisigWasm, ownerProofs, predConf, &txNFTTransfer, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.NoError(t, err)
-		checkSpentGas(t, 2588, curGas-env.GasRemaining)
+		checkSpentGas(t, 2606, curGas-env.GasRemaining)
 		assert.EqualValues(t, 0x01, res)
 
 		// last signature is invalid - basically the same as previous but will take more gas
@@ -117,11 +117,21 @@ func Test_multisig(t *testing.T) {
 		res, err = wvm.Exec(context.Background(), multisigWasm, ownerProofs, predConf, &txNFTTransfer, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.NoError(t, err)
-		checkSpentGas(t, 3588, curGas-env.GasRemaining)
-		require.EqualValues(t, 0x01, res)
+		checkSpentGas(t, 3593, curGas-env.GasRemaining)
+		assert.EqualValues(t, 0x101, res, "false because P2PKH evaluated to false")
+
+		// invalid proof - not even valid data structure, causes P2PKH error
+		ownerProofs, err = types.Cbor.Marshal([][]byte{make([]byte, len(ownerProofA)), ownerProofB, ownerProofC})
+		require.NoError(t, err)
+		start, curGas = time.Now(), env.GasRemaining
+		res, err = wvm.Exec(context.Background(), multisigWasm, ownerProofs, predConf, &txNFTTransfer, env)
+		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
+		require.NoError(t, err)
+		checkSpentGas(t, 1417, curGas-env.GasRemaining)
+		assert.EqualValues(t, 0x0201, res, "false because P2PKH returned error")
 	})
 
-	t.Run("enough signatures, 2 of 3", func(t *testing.T) {
+	t.Run("require 2 of 3 signatures", func(t *testing.T) {
 		wvm, env := engine(t)
 
 		// require 2 out of 3
@@ -136,7 +146,7 @@ func Test_multisig(t *testing.T) {
 		res, err := wvm.Exec(context.Background(), multisigWasm, ownerProofs, predConf, &txNFTTransfer, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.NoError(t, err)
-		checkSpentGas(t, 2603, curGas-env.GasRemaining)
+		checkSpentGas(t, 2654, curGas-env.GasRemaining)
 		assert.EqualValues(t, 0, res)
 
 		// invalid signature for B, repeating A proof
@@ -146,11 +156,12 @@ func Test_multisig(t *testing.T) {
 		res, err = wvm.Exec(context.Background(), multisigWasm, ownerProofs, predConf, &txNFTTransfer, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.NoError(t, err)
-		checkSpentGas(t, 3603, curGas-env.GasRemaining)
-		require.EqualValues(t, 0, res)
+		checkSpentGas(t, 2505, curGas-env.GasRemaining)
+		require.EqualValues(t, 0x101, res)
 	})
 
-	t.Run("invalid threshold", func(t *testing.T) {
+	t.Run("invalid conf, threshold", func(t *testing.T) {
+		// ie user made mistake when creating the predicate and provided invalid threshold configuration
 		wvm, env := engine(t)
 
 		ownerProofs, err := types.Cbor.Marshal([][]byte{ownerProofA, ownerProofB})
@@ -164,10 +175,11 @@ func Test_multisig(t *testing.T) {
 		res, err := wvm.Exec(context.Background(), multisigWasm, ownerProofs, predConf, &txNFTTransfer, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.NoError(t, err)
-		checkSpentGas(t, 2535, curGas-env.GasRemaining)
-		assert.EqualValues(t, 0x0101, res)
+		checkSpentGas(t, 2553, curGas-env.GasRemaining)
+		assert.EqualValues(t, 0xff01, res, "predicate evaluates to false because the threshold > valid_signatures")
 
-		// require zero signatures - first valid signature will cause overflow and thus 255 signatures would be required
+		// require zero signatures - if there is no invalid/missing signatures it evaluates to true
+		// IOW returns true when either everyone signs or no one signs!
 		cfgCBOR, err = types.Cbor.Marshal([]any{0, pkhA, pkhB})
 		require.NoError(t, err)
 		predConf = wasm.PredicateParams{Entrypoint: "multi_sig", Args: cfgCBOR}
@@ -175,8 +187,8 @@ func Test_multisig(t *testing.T) {
 		res, err = wvm.Exec(context.Background(), multisigWasm, ownerProofs, predConf, &txNFTTransfer, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.NoError(t, err)
-		checkSpentGas(t, 2535, curGas-env.GasRemaining)
-		assert.EqualValues(t, 0x0101, res)
+		checkSpentGas(t, 2553, curGas-env.GasRemaining)
+		assert.EqualValues(t, 0, res)
 
 		// require 257 signatures - will overflow byte and one signature is required, will
 		// evaluate to true! Note that 256 would be zero as byte so will act as previous test
@@ -187,7 +199,7 @@ func Test_multisig(t *testing.T) {
 		res, err = wvm.Exec(context.Background(), multisigWasm, ownerProofs, predConf, &txNFTTransfer, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.NoError(t, err)
-		checkSpentGas(t, 1434, curGas-env.GasRemaining)
+		checkSpentGas(t, 2553, curGas-env.GasRemaining)
 		assert.EqualValues(t, 0, res)
 
 		// not a number
@@ -198,17 +210,17 @@ func Test_multisig(t *testing.T) {
 		res, err = wvm.Exec(context.Background(), multisigWasm, ownerProofs, predConf, &txNFTTransfer, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.NoError(t, err)
-		checkSpentGas(t, 889, curGas-env.GasRemaining)
+		checkSpentGas(t, 877, curGas-env.GasRemaining)
 		require.EqualValues(t, 0x0C, res)
 	})
 
-	t.Run("invalid conf, no pkh", func(t *testing.T) {
-		// same as no proofs!?
+	t.Run("invalid conf, pkh", func(t *testing.T) {
 		wvm, env := engine(t)
 
-		ownerProofs, err := types.Cbor.Marshal([][]byte{ownerProofA, nil})
+		ownerProofs, err := types.Cbor.Marshal([][]byte{ownerProofA, ownerProofB})
 		require.NoError(t, err)
 
+		// no PKHs at all in the config
 		cfgCBOR, err := types.Cbor.Marshal([]any{1})
 		require.NoError(t, err)
 		predConf := wasm.PredicateParams{Entrypoint: "multi_sig", Args: cfgCBOR}
@@ -217,8 +229,19 @@ func Test_multisig(t *testing.T) {
 		res, err := wvm.Exec(context.Background(), multisigWasm, ownerProofs, predConf, &txNFTTransfer, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.NoError(t, err)
-		checkSpentGas(t, 331, curGas-env.GasRemaining)
-		require.EqualValues(t, 0x1C, res)
+		checkSpentGas(t, 320, curGas-env.GasRemaining)
+		require.EqualValues(t, 0x1C, res, "number of proofs does not equal to number of PKH-s")
+
+		// nil PKH
+		cfgCBOR, err = types.Cbor.Marshal([]any{1, nil, nil})
+		require.NoError(t, err)
+		predConf = wasm.PredicateParams{Entrypoint: "multi_sig", Args: cfgCBOR}
+		start, curGas = time.Now(), env.GasRemaining
+		res, err = wvm.Exec(context.Background(), multisigWasm, ownerProofs, predConf, &txNFTTransfer, env)
+		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
+		require.NoError(t, err)
+		checkSpentGas(t, 417, curGas-env.GasRemaining)
+		require.EqualValues(t, 0x601, res, "false because of invalid PKH handle")
 	})
 
 	t.Run("proof count not equal to pkh count", func(t *testing.T) {
@@ -238,8 +261,8 @@ func Test_multisig(t *testing.T) {
 		res, err := wvm.Exec(context.Background(), multisigWasm, ownerProofs, predConf, &txNFTTransfer, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.NoError(t, err)
-		checkSpentGas(t, 331, curGas-env.GasRemaining)
-		require.EqualValues(t, 0x1C, res)
+		checkSpentGas(t, 320, curGas-env.GasRemaining)
+		assert.EqualValues(t, 0x1C, res)
 
 		// provide 4 proofs while conf has only 3 pkh-s
 		ownerProofs, err = types.Cbor.Marshal([][]byte{ownerProofA, ownerProofB, ownerProofC, nil})
@@ -249,7 +272,7 @@ func Test_multisig(t *testing.T) {
 		res, err = wvm.Exec(context.Background(), multisigWasm, ownerProofs, predConf, &txNFTTransfer, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.NoError(t, err)
-		checkSpentGas(t, 331, curGas-env.GasRemaining)
+		checkSpentGas(t, 320, curGas-env.GasRemaining)
 		require.EqualValues(t, 0x1C, res)
 	})
 
@@ -267,7 +290,7 @@ func Test_multisig(t *testing.T) {
 		res, err := wvm.Exec(context.Background(), multisigWasm, ownerProofs, predConf, &txNFTTransfer, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.NoError(t, err)
-		checkSpentGas(t, 3592, curGas-env.GasRemaining)
+		checkSpentGas(t, 3641, curGas-env.GasRemaining)
 		require.EqualValues(t, 0, res)
 	})
 }

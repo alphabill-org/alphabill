@@ -1,6 +1,6 @@
 module github.com/alphabill-org/alphabill
 
-go 1.23
+go 1.24
 
 require (
 	github.com/ainvaltin/httpsrv v0.3.1

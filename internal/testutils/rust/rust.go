@@ -37,7 +37,11 @@ func TestFile(t *testing.T, filename, src string) *os.File {
 	if err != nil {
 		t.Fatal("opening Rust SDK root directory:", err)
 	}
-	t.Cleanup(func() { root.Close() })
+	t.Cleanup(func() {
+		if err := root.Close(); err != nil {
+			t.Log("closing root dir of Rust SDK: ", err)
+		}
+	})
 
 	fOut, err := root.Create(filename)
 	if err != nil {

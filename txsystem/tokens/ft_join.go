@@ -24,7 +24,6 @@ func (m *FungibleTokensModule) executeJoinFT(tx *types.TransactionOrder, _ *toke
 					return nil, fmt.Errorf("unit %v does not contain fungible token data", unitID)
 				}
 				tokenData.Value = sum
-				tokenData.Locked = 0
 				tokenData.Counter += 1
 				return tokenData, nil
 			},

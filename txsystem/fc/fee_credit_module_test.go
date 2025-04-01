@@ -50,13 +50,9 @@ func TestFC_Validation(t *testing.T) {
 		fc, err := NewFeeCreditModule(targetPDR, partitionID, s, trustBase, observe)
 		require.NoError(t, err)
 		fcExecutors := fc.TxHandlers()
-		require.Len(t, fcExecutors, 4)
+		require.Len(t, fcExecutors, 2)
 		require.Contains(t, fcExecutors, fcsdk.TransactionTypeAddFeeCredit)
 		require.Contains(t, fcExecutors, fcsdk.TransactionTypeCloseFeeCredit)
-		require.Contains(t, fcExecutors, fcsdk.TransactionTypeLockFeeCredit)
-		require.Contains(t, fcExecutors, fcsdk.TransactionTypeUnlockFeeCredit)
-		require.NotContains(t, fcExecutors, fcsdk.TransactionTypeTransferFeeCredit)
-		require.NotContains(t, fcExecutors, fcsdk.TransactionTypeReclaimFeeCredit)
 	})
 
 }

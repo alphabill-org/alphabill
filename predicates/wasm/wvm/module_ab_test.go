@@ -340,7 +340,7 @@ func Test_transferredSum(t *testing.T) {
 	t.Run("valid input but not transfer tx", func(t *testing.T) {
 		// all money tx types other than TransactionTypeSplit and TransactionTypeTransfer should
 		// be ignored ie cause no error but return zero as sum
-		txTypes := []uint16{money.TransactionTypeLock, money.TransactionTypeSwapDC, money.TransactionTypeTransDC, money.TransactionTypeUnlock}
+		txTypes := []uint16{money.TransactionTypeSwapDC, money.TransactionTypeTransDC}
 		tx := &types.TransactionOrder{Version: 1}
 		txRec := &types.TransactionRecord{
 			Version:          1,

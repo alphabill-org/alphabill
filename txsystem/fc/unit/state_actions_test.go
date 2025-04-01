@@ -106,8 +106,7 @@ func TestDecrCredit_OK(t *testing.T) {
 	unitFCR := unit.Data().(*fc.FeeCreditRecord)
 	require.EqualValues(t, 90, unitFCR.Balance)
 
-	// and minLifetime, counter and locked values are not changed
+	// and minLifetime and counter values are not changed
 	require.Equal(t, fcr.MinLifetime, unitFCR.MinLifetime)
 	require.Equal(t, fcr.Counter, unitFCR.Counter)
-	require.Equal(t, fcr.Locked, unitFCR.Locked)
 }

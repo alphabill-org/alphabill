@@ -53,10 +53,6 @@ func NewTxSystem(pdr basetypes.PartitionDescriptionRecord, shardID basetypes.Sha
 	if err != nil {
 		return nil, fmt.Errorf("failed to load fungible tokens module: %w", err)
 	}
-	lockTokens, err := NewLockTokensModule(pdr, options)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load lock tokens module: %w", err)
-	}
 	nopModule := NewNopModule(pdr, options)
 
 	var feeCreditModule txtypes.FeeCreditModule
@@ -82,7 +78,7 @@ func NewTxSystem(pdr basetypes.PartitionDescriptionRecord, shardID basetypes.Sha
 		pdr,
 		shardID,
 		options.trustBase,
-		[]txtypes.Module{nft, fungible, lockTokens, nopModule},
+		[]txtypes.Module{nft, fungible, nopModule},
 		observe,
 		txsystem.WithFeeCredits(feeCreditModule),
 		txsystem.WithHashAlgorithm(options.hashAlgorithm),

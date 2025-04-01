@@ -128,7 +128,6 @@ func TestModule_executeNopTx(t *testing.T) {
 		require.True(t, ok)
 		require.EqualValues(t, 2, bill.Counter)
 		require.EqualValues(t, 10, bill.Value)
-		require.EqualValues(t, 0, bill.Locked)
 		require.Nil(t, bill.OwnerPredicate)
 	})
 	t.Run("fcr unit ok - counter is incremented", func(t *testing.T) {
@@ -151,7 +150,6 @@ func TestModule_executeNopTx(t *testing.T) {
 		require.True(t, ok)
 		require.EqualValues(t, 2, fcr.Counter)
 		require.EqualValues(t, 10, fcr.Balance)
-		require.EqualValues(t, 0, fcr.Locked)
 		require.Nil(t, fcr.OwnerPredicate)
 	})
 	t.Run("dummy unit ok - nothing is changed", func(t *testing.T) {

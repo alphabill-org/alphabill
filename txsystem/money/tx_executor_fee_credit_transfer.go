@@ -66,9 +66,6 @@ func (m *Module) validateTransferFCTx(tx *types.TransactionOrder, attr *fc.Trans
 	if len(attr.TargetRecordID) == 0 {
 		return ErrTargetRecordIDEmpty
 	}
-	if billData.IsLocked() {
-		return ErrBillLocked
-	}
 	if attr.Amount > billData.Value {
 		return ErrInvalidFCValue
 	}

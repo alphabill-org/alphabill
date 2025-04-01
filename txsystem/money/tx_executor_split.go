@@ -84,9 +84,6 @@ func validateSplit(data types.UnitData, attr *money.SplitAttributes) error {
 	if !ok {
 		return errors.New("invalid data type, unit is not of BillData type")
 	}
-	if bd.IsLocked() {
-		return ErrBillLocked
-	}
 	if bd.Counter != attr.Counter {
 		return ErrInvalidCounter
 	}

@@ -54,13 +54,6 @@ func TestModule_validateSplitTx(t *testing.T) {
 		exeCtx := testctx.NewMockExecutionContext()
 		require.EqualError(t, module.validateSplitTx(tx, attr, authProof, exeCtx), "split error: invalid data type, unit is not of BillData type")
 	})
-	t.Run("err - bill locked", func(t *testing.T) {
-		unitID := moneyid.NewBillID(t)
-		tx, attr, _ := createSplit(t, unitID, fcrID, []*money.TargetUnit{{Amount: 50, OwnerPredicate: templates.AlwaysTrueBytes()}}, counter)
-		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, &money.BillData{Locked: 1, Value: billValue, Counter: counter, OwnerPredicate: templates.AlwaysTrueBytes()}))
-		exeCtx := testctx.NewMockExecutionContext()
-		require.EqualError(t, module.validateSplitTx(tx, attr, authProof, exeCtx), "split error: bill is locked")
-	})
 	t.Run("err - invalid counter", func(t *testing.T) {
 		unitID := moneyid.NewBillID(t)
 		tx, attr, _ := createSplit(t, unitID, fcrID, []*money.TargetUnit{{Amount: 20, OwnerPredicate: templates.AlwaysTrueBytes()}}, counter+1)
@@ -178,7 +171,6 @@ func TestModule_executeSplitTx(t *testing.T) {
 		require.EqualValues(t, bill.Owner(), targetUnit.OwnerPredicate)
 		// newly created bill, so counter is 0
 		require.EqualValues(t, bill.Counter, 0)
-		require.EqualValues(t, bill.Locked, 0)
 		sum += bill.Value
 	}
 	require.EqualValues(t, sm.TargetUnits, targets)
@@ -191,5 +183,4 @@ func TestModule_executeSplitTx(t *testing.T) {
 	require.EqualValues(t, bill.Owner(), templates.AlwaysTrueBytes())
 	// newly created bill, so counter is 0
 	require.EqualValues(t, bill.Counter, counter+1)
-	require.EqualValues(t, bill.Locked, 0)
 }

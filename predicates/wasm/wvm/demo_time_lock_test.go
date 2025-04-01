@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
-	"github.com/alphabill-org/alphabill-go-base/hash"
 	"github.com/alphabill-org/alphabill-go-base/predicates/wasm"
 	tokenid "github.com/alphabill-org/alphabill-go-base/testutils/tokens"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/tokens"
@@ -38,7 +37,6 @@ func Test_time_lock(t *testing.T) {
 	// tx system unit/attribute encoder
 	txsEnc := encoder.TXSystemEncoder{}
 	require.NoError(t, tokenenc.RegisterTxAttributeEncoders(txsEnc.RegisterAttrEncoder))
-	require.NoError(t, tokenenc.RegisterAuthProof(txsEnc.RegisterAuthProof))
 	// checking P2PKH template is delegated to template engine
 	tmpPred, err := templates.New(obs)
 	require.NoError(t, err)
@@ -49,16 +47,11 @@ func Test_time_lock(t *testing.T) {
 	require.NoError(t, err)
 
 	// owner of the time locked unit
-	signerOwner, err := abcrypto.NewInMemorySecp256K1Signer()
-	require.NoError(t, err)
-	verifierOwner, err := signerOwner.Verifier()
-	require.NoError(t, err)
-	pubKeyOwner, err := verifierOwner.MarshalPublicKey()
-	require.NoError(t, err)
+	signerOwner, ownerPKH := signerAndPKH(t)
 
 	// configuration of the predicate
 	const lockedUntilDate uint64 = 1709683200
-	cfgCBOR, err := types.Cbor.Marshal([]any{lockedUntilDate, hash.Sum256(pubKeyOwner)})
+	cfgCBOR, err := types.Cbor.Marshal([]any{lockedUntilDate, ownerPKH})
 	require.NoError(t, err)
 	predConf := wasm.PredicateParams{Entrypoint: "time_lock", Args: cfgCBOR}
 
@@ -72,10 +65,11 @@ func Test_time_lock(t *testing.T) {
 		},
 	}
 	// the transfer has to be signed as if the bearer predicate is P2PKH
+	// note however that we do not set the AuthProof of the transaction - thats because the
+	// predicate is meant to be used as Bearer Predicate and when tx system evaluates it the
+	// OwnerProof is extracted by the tx system and sent as predicate argument. So in the tests
+	// too we send the proof as wvm.Exec argument and do not bother to update the tx order...
 	ownerProof := testsig.NewAuthProofSignature(t, &txNFTTransfer, signerOwner)
-	require.NoError(t, txNFTTransfer.SetAuthProof(&tokens.TransferNonFungibleTokenAuthProof{
-		OwnerProof: ownerProof,
-	}))
 
 	t.Run("transfer before unlock date", func(t *testing.T) {
 		env := &mockTxContext{
@@ -91,8 +85,8 @@ func Test_time_lock(t *testing.T) {
 		res, err := wvm.Exec(context.Background(), timeLockWasm, ownerProof, predConf, &txNFTTransfer, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.NoError(t, err)
-		checkSpentGas(t, 2315, curGas-env.GasRemaining)
-		require.EqualValues(t, 0x101, res)
+		checkSpentGas(t, 285, curGas-env.GasRemaining)
+		require.EqualValues(t, 0xff01, res)
 	})
 
 	t.Run("not the owner", func(t *testing.T) {
@@ -112,27 +106,21 @@ func Test_time_lock(t *testing.T) {
 		tx := txNFTTransfer
 		// correct P2PKH proof but not by the owner
 		ownerProof := testsig.NewAuthProofSignature(t, &txNFTTransfer, signer)
-		require.NoError(t, tx.SetAuthProof(&tokens.TransferNonFungibleTokenAuthProof{
-			OwnerProof: ownerProof,
-		}))
 
 		start, curGas := time.Now(), env.GasRemaining
 		res, err := wvm.Exec(context.Background(), timeLockWasm, ownerProof, predConf, &tx, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.NoError(t, err)
-		checkSpentGas(t, 5954, curGas-env.GasRemaining)
-		require.EqualValues(t, 0x801, res)
+		checkSpentGas(t, 1331, curGas-env.GasRemaining)
+		require.EqualValues(t, 0x101, res)
 
-		// invalid proof
-		require.NoError(t, tx.SetAuthProof(&tokens.TransferNonFungibleTokenAuthProof{
-			OwnerProof: nil,
-		}))
+		// invalid proof (nil)
 		start, curGas = time.Now(), env.GasRemaining
-		res, err = wvm.Exec(context.Background(), timeLockWasm, ownerProof, predConf, &tx, env)
+		res, err = wvm.Exec(context.Background(), timeLockWasm, nil, predConf, &tx, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.NoError(t, err)
-		checkSpentGas(t, 5954, curGas-env.GasRemaining)
-		require.EqualValues(t, 0x901, res)
+		checkSpentGas(t, 331, curGas-env.GasRemaining)
+		require.EqualValues(t, 0x701, res)
 	})
 
 	t.Run("success", func(t *testing.T) {
@@ -150,7 +138,39 @@ func Test_time_lock(t *testing.T) {
 		res, err := wvm.Exec(context.Background(), timeLockWasm, ownerProof, predConf, &txNFTTransfer, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.NoError(t, err)
-		checkSpentGas(t, 5954, curGas-env.GasRemaining)
+		checkSpentGas(t, 1331, curGas-env.GasRemaining)
 		require.EqualValues(t, 0, res)
+	})
+
+	t.Run("invalid config", func(t *testing.T) {
+		env := &mockTxContext{
+			committedUC: func() *types.UnicityCertificate {
+				return &types.UnicityCertificate{
+					UnicitySeal: &types.UnicitySeal{Timestamp: lockedUntilDate},
+				}
+			},
+			GasRemaining: 30000,
+		}
+
+		// date is not uint (unix timestamp)
+		cfgCBOR, err := types.Cbor.Marshal([]any{"2025-04-01 12:00:00", ownerPKH})
+		require.NoError(t, err)
+		predConf := wasm.PredicateParams{Entrypoint: "time_lock", Args: cfgCBOR}
+		start, curGas := time.Now(), env.GasRemaining
+		res, err := wvm.Exec(context.Background(), timeLockWasm, ownerProof, predConf, &txNFTTransfer, env)
+		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
+		require.NoError(t, err)
+		checkSpentGas(t, 1194, curGas-env.GasRemaining)
+		require.EqualValues(t, 0xc01, res)
+
+		// missing owner PKH
+		cfgCBOR, err = types.Cbor.Marshal([]any{lockedUntilDate})
+		require.NoError(t, err)
+		predConf = wasm.PredicateParams{Entrypoint: "time_lock", Args: cfgCBOR}
+		start, curGas = time.Now(), env.GasRemaining
+		_, err = wvm.Exec(context.Background(), timeLockWasm, ownerProof, predConf, &txNFTTransfer, env)
+		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
+		require.ErrorContains(t, err, `calling time_lock returned error: wasm error: unreachable`)
+		checkSpentGas(t, 351, curGas-env.GasRemaining)
 	})
 }

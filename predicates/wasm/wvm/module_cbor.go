@@ -2,13 +2,13 @@ package wvm
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
 
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/api"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill/predicates/wasm/wvm/encoder"
 )
 
 /*
@@ -16,19 +16,20 @@ CBOR support APIs
 */
 func addCBORModule(ctx context.Context, rt wazero.Runtime, _ Observability) error {
 	_, err := rt.NewHostModuleBuilder("cbor").
-		NewFunctionBuilder().WithGoModuleFunction(hostAPI(cborParse), []api.ValueType{api.ValueTypeI64}, []api.ValueType{api.ValueTypeI64}).Export("parse").
-		// not used by the demo anymore so do we want to have such API?
-		//NewFunctionBuilder().WithGoModuleFunction(hostAPI(cbor_parse_array_raw), []api.ValueType{api.ValueTypeI64}, []api.ValueType{api.ValueTypeI64}).Export("cbor_parse_array").
+		NewFunctionBuilder().WithGoModuleFunction(hostAPI(cborParse), []api.ValueType{api.ValueTypeI32, api.ValueTypeI32}, []api.ValueType{api.ValueTypeI64}).Export("parse").
+		NewFunctionBuilder().WithGoModuleFunction(hostAPI(cborChunks), []api.ValueType{api.ValueTypeI32}, []api.ValueType{api.ValueTypeI64}).Export("chunks").
 		Instantiate(ctx)
 	return err
 }
 
 /*
-encodes plain old data types only!
-- 0: handle of var
+cborParse decodes referenced var as CBOR and stores the result into new (host) variable(s).
+Returns handle(s) to the new variable(s).
+  - 0: handle of the var to parse
+  - 1: flag - parse as array (0) or single struct (1)?
 */
 func cborParse(vec *vmContext, mod api.Module, stack []uint64) error {
-	data, err := vec.getBytesVariable(stack[0])
+	data, err := vec.getBytesVariable(api.DecodeU32(stack[0]))
 	if err != nil {
 		return fmt.Errorf("reading variable: %w", err)
 	}
@@ -38,46 +39,47 @@ func cborParse(vec *vmContext, mod api.Module, stack []uint64) error {
 		return fmt.Errorf("decoding as CBOR: %w", err)
 	}
 
-	var enc encoder.TVEnc
-	enc.Encode(items)
-	buf, err := enc.Bytes()
-	if err != nil {
-		return fmt.Errorf("encoding data to type-value: %w", err)
+	// should we tread it as array or as struct (AB encodes structs as arrays too)
+	asArray := api.DecodeU32(stack[1]) == 0
+	var buf []byte
+	if a, ok := items.([]any); ok && asArray {
+		buf = make([]byte, 0, 4*len(a))
+		for _, v := range a {
+			buf = binary.NativeEndian.AppendUint32(buf, vec.curPrg.addVar(v))
+		}
+	} else {
+		buf = make([]byte, 4)
+		binary.NativeEndian.PutUint32(buf, vec.curPrg.addVar(items))
 	}
 
 	addr, err := vec.writeToMemory(mod, buf)
 	if err != nil {
 		return fmt.Errorf("allocating memory for result: %w", err)
 	}
+	vec.log.Debug(fmt.Sprintf("%x => %v @ %x", api.DecodeU32(stack[0]), buf, addr))
 	stack[0] = addr
 	return nil
 }
 
 /*
-cborParseArrayRaw, given handle of an raw CBOR buffer (stack[0]) parses it as
-array of raw CBOR items. Returns list of (item) handles.
+Parse CBOR array to "raw chunks" ie all items will still be CBOR encoded.
 */
-func cborParseArrayRaw(vec *vmContext, mod api.Module, stack []uint64) error {
-	data, err := vec.getBytesVariable(stack[0])
+func cborChunks(vec *vmContext, mod api.Module, stack []uint64) error {
+	data, err := vec.getBytesVariable(api.DecodeU32(stack[0]))
 	if err != nil {
 		return fmt.Errorf("reading variable: %w", err)
 	}
 
 	var items []types.RawCBOR
 	if err := types.Cbor.Unmarshal(data, &items); err != nil {
-		return fmt.Errorf("decoding arguments as array of CBOR: %w", err)
+		return fmt.Errorf("decoding as CBOR: %w", err)
 	}
 
-	// add items as new vars and return array of uint64 handles
-	var enc encoder.TVEnc
-	enc.WriteUInt32(uint32(len(items)))
+	buf := make([]byte, 0, 4*len(items))
 	for _, v := range items {
-		enc.WriteUInt64(vec.curPrg.addVar(v))
+		buf = binary.NativeEndian.AppendUint32(buf, vec.curPrg.addVar(v))
 	}
-	buf, err := enc.Bytes()
-	if err != nil {
-		return fmt.Errorf("encoding result: %w", err)
-	}
+
 	addr, err := vec.writeToMemory(mod, buf)
 	if err != nil {
 		return fmt.Errorf("allocating memory for result: %w", err)

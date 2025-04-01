@@ -21,18 +21,17 @@ import (
 	"github.com/alphabill-org/alphabill/predicates/wasm/wvm/bumpallocator"
 	"github.com/alphabill-org/alphabill/predicates/wasm/wvm/encoder"
 	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
-	tokenenc "github.com/alphabill-org/alphabill/txsystem/tokens/encoder"
 )
 
 func Test_txSignedByPKH(t *testing.T) {
 	buildContext := func(t *testing.T) (context.Context, *vmContext, *mockApiMod) {
 		txsEnc := encoder.TXSystemEncoder{}
-		require.NoError(t, tokenenc.RegisterAuthProof(txsEnc.RegisterAuthProof))
 
 		obs := observability.Default(t)
 		vm := &vmContext{
 			curPrg: &evalContext{
-				vars: map[uint64]any{},
+				vars:   map[uint32]any{},
+				varIdx: handle_max_reserved,
 			},
 			encoder: txsEnc,
 			memMngr: bumpallocator.New(0, maxMem(10000)),
@@ -45,76 +44,83 @@ func Test_txSignedByPKH(t *testing.T) {
 		return context.WithValue(context.Background(), runtimeContextKey, vm), vm, mod
 	}
 
+	pkh := []byte{41, 66, 80, 41, 66, 80, 41, 66, 80}
+	txo := types.TransactionOrder{Version: 1, Payload: types.Payload{PartitionID: tokens.DefaultPartitionID, Type: tokens.TransactionTypeTransferNFT}}
+
+	t.Run("invalid proof handle", func(t *testing.T) {
+		// the proof is sent by tx system and is set by the WASM engine as
+		// handle_current_args so it must exist but could be nil?
+		ctx, vm, mod := buildContext(t)
+		vm.curPrg.vars[handle_current_tx_order] = &txo
+		handle_pkh := uint64(vm.curPrg.addVar(pkh))
+
+		// proof handle (handle_current_args) has no value registered
+		stack := []uint64{handle_current_tx_order, handle_pkh, handle_current_args}
+		txSignedByPKH(ctx, mod, stack)
+		require.EqualValues(t, 5, stack[0])
+
+		// handle refers to nil
+		stack = []uint64{handle_current_tx_order, handle_pkh, uint64(vm.curPrg.addVar(nil))}
+		txSignedByPKH(ctx, mod, stack)
+		require.EqualValues(t, 7, stack[0])
+	})
+
+	t.Run("invalid PKH handle", func(t *testing.T) {
+		ctx, vm, mod := buildContext(t)
+		vm.curPrg.vars[handle_current_tx_order] = &txo
+		vm.curPrg.vars[handle_current_args] = []byte("owner proof")
+
+		// handle refers to nonexisting var
+		stack := []uint64{handle_current_tx_order, uint64(vm.curPrg.varIdx), handle_current_args}
+		txSignedByPKH(ctx, mod, stack)
+		require.EqualValues(t, 4, stack[0])
+
+		// handle refers to nil
+		stack = []uint64{handle_current_tx_order, uint64(vm.curPrg.addVar(nil)), handle_current_args}
+		txSignedByPKH(ctx, mod, stack)
+		require.EqualValues(t, 6, stack[0])
+	})
+
 	t.Run("invalid txo handle", func(t *testing.T) {
 		ctx, _, mod := buildContext(t)
-		stack := []uint64{handle_current_tx_order, 0}
+		stack := []uint64{handle_current_tx_order, 0, handle_current_args}
 		txSignedByPKH(ctx, mod, stack)
 		require.EqualValues(t, 3, stack[0])
 	})
 
 	t.Run("evaluating p2pkh returns error", func(t *testing.T) {
-		pkh := []byte{41, 66, 80}
-		pkhAddr := newPointerSize(3320, uint32(len(pkh)))
 		expErr := errors.New("predicate eval failure")
-
 		ctx, vm, mod := buildContext(t)
-		mod.memory = func() api.Memory {
-			return &mockMemory{
-				read: func(offset, byteCount uint32) ([]byte, bool) { return pkh, true },
-			}
-		}
-		txo := &types.TransactionOrder{Version: 1, Payload: types.Payload{PartitionID: tokens.DefaultPartitionID, Type: tokens.TransactionTypeTransferNFT}}
-		require.NoError(t, txo.SetAuthProof(&tokens.TransferNonFungibleTokenAuthProof{}))
-		vm.curPrg.vars[handle_current_tx_order] = txo
+		vm.curPrg.vars[handle_current_tx_order] = &txo
+		vm.curPrg.vars[handle_current_args] = []byte("owner proof")
 		predicateExecuted := false
 		vm.engines = func(context.Context, types.PredicateBytes, []byte, *types.TransactionOrder, predicates.TxContext) (bool, error) {
 			predicateExecuted = true
 			return true, expErr
 		}
-		stack := []uint64{handle_current_tx_order, pkhAddr}
+		stack := []uint64{handle_current_tx_order, uint64(vm.curPrg.addVar(pkh)), handle_current_args}
 		txSignedByPKH(ctx, mod, stack)
 		require.EqualValues(t, 2, stack[0])
 		require.True(t, predicateExecuted, "call predicate engine")
 	})
 
 	t.Run("evaluating p2pkh returns false", func(t *testing.T) {
-		pkh := []byte{41, 66, 80}
-		pkhAddr := newPointerSize(3320, uint32(len(pkh)))
-
 		ctx, vm, mod := buildContext(t)
-		mod.memory = func() api.Memory {
-			return &mockMemory{
-				read: func(offset, byteCount uint32) ([]byte, bool) { return pkh, true },
-			}
-		}
-		txo := &types.TransactionOrder{Version: 1, Payload: types.Payload{PartitionID: tokens.DefaultPartitionID, Type: tokens.TransactionTypeTransferNFT}}
-		require.NoError(t, txo.SetAuthProof(&tokens.TransferNonFungibleTokenAuthProof{}))
-		vm.curPrg.vars[handle_current_tx_order] = txo
+		vm.curPrg.vars[handle_current_tx_order] = &txo
+		vm.curPrg.vars[handle_current_args] = []byte("owner proof")
 		predicateExecuted := false
 		vm.engines = func(context.Context, types.PredicateBytes, []byte, *types.TransactionOrder, predicates.TxContext) (bool, error) {
 			predicateExecuted = true
 			return false, nil
 		}
-		stack := []uint64{handle_current_tx_order, pkhAddr}
+		stack := []uint64{handle_current_tx_order, uint64(vm.curPrg.addVar(pkh)), handle_current_args}
 		txSignedByPKH(ctx, mod, stack)
 		require.EqualValues(t, 1, stack[0])
 		require.True(t, predicateExecuted, "call predicate engine")
 	})
 
 	t.Run("evaluating p2pkh returns true", func(t *testing.T) {
-		pkh := []byte{41, 66, 80}
-		pkhAddr := newPointerSize(3320, uint32(len(pkh)))
-
 		ctx, vm, mod := buildContext(t)
-		mod.memory = func() api.Memory {
-			return &mockMemory{
-				read: func(offset, byteCount uint32) ([]byte, bool) {
-					require.EqualValues(t, 3320, offset)
-					require.EqualValues(t, len(pkh), byteCount)
-					return pkh, true
-				},
-			}
-		}
 		txOrder := &types.TransactionOrder{
 			Version: 1,
 			Payload: types.Payload{
@@ -123,12 +129,12 @@ func Test_txSignedByPKH(t *testing.T) {
 			},
 		}
 		ownerProof := []byte{9, 8, 0}
-		require.NoError(t, txOrder.SetAuthProof(&tokens.TransferNonFungibleTokenAuthProof{OwnerProof: ownerProof}))
 
 		authProofSigBytes, err := txOrder.AuthProofSigBytes()
 		require.NoError(t, err)
 
 		vm.curPrg.vars[handle_current_tx_order] = txOrder
+		vm.curPrg.vars[handle_current_args] = ownerProof
 		predicateExecuted := false
 		vm.engines = func(ctx context.Context, predicate types.PredicateBytes, args []byte, txo *types.TransactionOrder, env predicates.TxContext) (bool, error) {
 			predicateExecuted = true
@@ -146,7 +152,7 @@ func Test_txSignedByPKH(t *testing.T) {
 			return true, nil
 		}
 
-		stack := []uint64{handle_current_tx_order, pkhAddr}
+		stack := []uint64{handle_current_tx_order, uint64(vm.curPrg.addVar(pkh)), handle_current_args}
 		txSignedByPKH(ctx, mod, stack)
 		require.EqualValues(t, 0, stack[0])
 		require.True(t, predicateExecuted, "call predicate engine")

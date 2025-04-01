@@ -105,6 +105,16 @@ some parameters are already "hardcoded":
 - the `otlptracehttp` exporter is created with "insecure client transport"
   (`OTEL_EXPORTER_OTLP_INSECURE`);
 
+# Generate tests for Rust SDK
+
+If the `AB_RUST_SDK_ROOT` environment variable is set (not empty) and points to
+existing directory some tests will generate tests for the Rust predicate SDK.
+
+To generate tests for the Rust predicate SDK run
+```sh
+AB_RUST_SDK_ROOT="/path/to/alphabill-rust-predicates-sdk" go test ./...
+```
+
 # Set up autocompletion
 
 To use autocompletion (supported with `bash`, `fish`, `powershell` and `zsh`), run the following commands after

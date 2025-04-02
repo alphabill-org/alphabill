@@ -39,7 +39,6 @@ func (m *Module) executeSwapTx(tx *types.TransactionOrder, _ *money.SwapDCAttrib
 			}
 			bd.Value += swapAmount
 			bd.Counter += 1
-			bd.Locked = 0
 			return bd, nil
 		})
 	if err := m.state.Apply(updateDCMoneySupplyFn, updateTargetUnitFn); err != nil {

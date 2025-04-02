@@ -32,7 +32,6 @@ func IncrCredit(id types.UnitID, value uint64, minLifetime uint64) state.Action 
 			return nil, errors.New("failed to increment balance: overflow")
 		}
 		fcr.Balance = balance
-		fcr.Locked = 0 // FCR is automatically unlocked on AddFC
 		fcr.Counter += 1
 		fcr.MinLifetime = max(fcr.MinLifetime, minLifetime)
 		return fcr, nil

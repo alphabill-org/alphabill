@@ -233,7 +233,6 @@ func TestModule_executeNopTx(t *testing.T) {
 		require.True(t, ok)
 		require.EqualValues(t, 2, fcr.Counter)
 		require.EqualValues(t, 10, fcr.Balance)
-		require.EqualValues(t, 0, fcr.Locked)
 	})
 
 	t.Run("FT type unit ok - nothing is changed", func(t *testing.T) {

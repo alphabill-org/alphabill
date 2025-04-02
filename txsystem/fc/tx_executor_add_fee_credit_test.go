@@ -463,7 +463,6 @@ func TestAddFC_ExecuteAddFC_CreateNewFCR(t *testing.T) {
 	require.EqualValues(t, 49, fcr.Balance)     // transferFC.amount (50) - transferFC.fee (0) - addFC.fee (1)
 	require.EqualValues(t, 0, fcr.Counter)      // new unit counter starts from 0
 	require.EqualValues(t, 10, fcr.MinLifetime) // transferFC.latestAdditionTime
-	require.EqualValues(t, 0, fcr.Locked)       // new unit is created in unlocked status
 
 }
 
@@ -485,7 +484,7 @@ func TestAddFC_ExecuteAddFC_UpdateExistingFCR(t *testing.T) {
 	attr := testfc.NewAddFCAttr(t, signer, testfc.WithTransferFCProof(transTxRecordProof))
 	authProof := &fc.AddFeeCreditAuthProof{OwnerProof: templates.EmptyArgument()}
 	tx := testfc.NewAddFC(t, signer, attr, testtransaction.WithAuthProof(authProof))
-	existingFCR := &fc.FeeCreditRecord{Balance: 10, Counter: 4, Locked: 1, OwnerPredicate: attr.FeeCreditOwnerPredicate}
+	existingFCR := &fc.FeeCreditRecord{Balance: 10, Counter: 4, OwnerPredicate: attr.FeeCreditOwnerPredicate}
 	feeCreditModule := newTestFeeModule(t, &targetPDR, trustBase, withStateUnit(tx.UnitID, existingFCR))
 
 	exeCtx := testctx.NewMockExecutionContext(testctx.WithCurrentRound(10))
@@ -501,7 +500,6 @@ func TestAddFC_ExecuteAddFC_UpdateExistingFCR(t *testing.T) {
 	require.EqualValues(t, 58, fcr.Balance)     // existing (10) + transferFC.amount (50) - transferFC.fee (1) - addFC.fee (1)
 	require.EqualValues(t, 5, fcr.Counter)      // counter is incremented
 	require.EqualValues(t, 10, fcr.MinLifetime) // transferFC.latestAdditionTime
-	require.EqualValues(t, 0, fcr.Locked)       // unit is automatically unlocked
 	require.EqualValues(t, existingFCR.OwnerPredicate, fcr.OwnerPredicate)
 }
 

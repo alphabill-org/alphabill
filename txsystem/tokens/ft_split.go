@@ -63,9 +63,6 @@ func (m *FungibleTokensModule) validateSplitFT(tx *types.TransactionOrder, attr 
 	if err != nil {
 		return err
 	}
-	if tokenData.Locked != 0 {
-		return errors.New("token is locked")
-	}
 	if attr.TargetValue == 0 {
 		return errors.New("when splitting a token the value assigned to the new token must be greater than zero")
 	}

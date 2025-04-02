@@ -87,7 +87,6 @@ func TestValidateCloseFC(t *testing.T) {
 		}
 		fcr := &fc.FeeCreditRecord{
 			Balance: 10,
-			Locked:  0,
 		}
 		require.NoError(t, ValidateCloseFC(attr, fcr))
 	})
@@ -98,7 +97,6 @@ func TestValidateCloseFC(t *testing.T) {
 		}
 		fcr := &fc.FeeCreditRecord{
 			Balance: 11,
-			Locked:  0,
 		}
 		require.EqualError(t, ValidateCloseFC(attr, fcr), "invalid amount: amount=10 fcr.Balance=11")
 	})
@@ -109,20 +107,8 @@ func TestValidateCloseFC(t *testing.T) {
 		}
 		fcr := &fc.FeeCreditRecord{
 			Balance: 10,
-			Locked:  0,
 		}
 		require.EqualError(t, ValidateCloseFC(attr, fcr), "TargetUnitID is empty")
-	})
-	t.Run("unit is locked", func(t *testing.T) {
-		attr := &fc.CloseFeeCreditAttributes{
-			Amount:       10,
-			TargetUnitID: []byte{1, 2, 3},
-		}
-		fcr := &fc.FeeCreditRecord{
-			Balance: 10,
-			Locked:  1,
-		}
-		require.EqualError(t, ValidateCloseFC(attr, fcr), "fee credit record is locked")
 	})
 }
 

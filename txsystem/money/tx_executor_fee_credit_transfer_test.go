@@ -37,15 +37,6 @@ func TestModule_validateTransferFCTx(t *testing.T) {
 		exeCtx := testctx.NewMockExecutionContext()
 		require.EqualError(t, module.validateTransferFCTx(tx, attr, authProof, exeCtx), "invalid unit type")
 	})
-	t.Run("err - locked bill", func(t *testing.T) {
-		tx := testutils.NewTransferFC(t, signer, nil)
-		attr := &fcsdk.TransferFeeCreditAttributes{}
-		require.NoError(t, tx.UnmarshalAttributes(attr))
-		module := newTestMoneyModule(t, verifier,
-			withStateUnit(tx.UnitID, &money.BillData{Locked: 1, Value: 101, Counter: counter, OwnerPredicate: templates.AlwaysTrueBytes()}))
-		exeCtx := testctx.NewMockExecutionContext()
-		require.EqualError(t, module.validateTransferFCTx(tx, attr, authProof, exeCtx), "bill is locked")
-	})
 	t.Run("err - bill not found", func(t *testing.T) {
 		tx := testutils.NewTransferFC(t, signer, nil)
 		attr := &fcsdk.TransferFeeCreditAttributes{}
@@ -155,5 +146,4 @@ func TestModule_executeTransferFCTx(t *testing.T) {
 	require.EqualValues(t, bill.Value, value-attr.Amount)
 	// counter is incremented
 	require.EqualValues(t, bill.Counter, counter+1)
-	require.EqualValues(t, bill.Locked, 0)
 }

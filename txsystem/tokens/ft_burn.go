@@ -44,9 +44,6 @@ func (m *FungibleTokensModule) validateBurnFT(tx *types.TransactionOrder, attr *
 	if err != nil {
 		return err
 	}
-	if tokenData.Locked != 0 {
-		return errors.New("token is locked")
-	}
 	if !bytes.Equal(tokenData.TypeID, attr.TypeID) {
 		return fmt.Errorf("type of token to burn does not matches the actual type of the token: expected %s, got %s", tokenData.TypeID, attr.TypeID)
 	}

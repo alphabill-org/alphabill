@@ -42,13 +42,6 @@ func TestModule_validateTransferTx(t *testing.T) {
 		exeCtx := testctx.NewMockExecutionContext()
 		require.EqualError(t, module.validateTransferTx(tx, attr, authProof, exeCtx), "transfer validation error: invalid unit data type")
 	})
-	t.Run("locked bill", func(t *testing.T) {
-		unitID := moneyid.NewBillID(t)
-		tx, attr, authProof := createBillTransfer(t, unitID, fcrID, value, templates.AlwaysTrueBytes(), counter)
-		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, &money.BillData{Locked: 1, Value: value, Counter: counter, OwnerPredicate: templates.AlwaysTrueBytes()}))
-		exeCtx := testctx.NewMockExecutionContext()
-		require.EqualError(t, module.validateTransferTx(tx, attr, authProof, exeCtx), "transfer validation error: the bill is locked")
-	})
 	t.Run("invalid amount", func(t *testing.T) {
 		unitID := moneyid.NewBillID(t)
 		tx, attr, authProof := createBillTransfer(t, unitID, fcrID, value, templates.AlwaysTrueBytes(), counter)
@@ -98,5 +91,4 @@ func TestModule_executeTransferTx(t *testing.T) {
 	require.EqualValues(t, bill.Owner(), attr.NewOwnerPredicate)
 	require.EqualValues(t, bill.Value, value)
 	require.EqualValues(t, bill.Counter, counter+1)
-	require.EqualValues(t, bill.Locked, 0)
 }

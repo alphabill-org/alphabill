@@ -154,7 +154,7 @@ func (m *GenericTxSystem) executeLockedTx(proof *StateUnlockProof, txOnHold *typ
 				if err = m.state.Apply(state.MarkForDeletion(targetUnit, m.currentRoundNumber+1)); err != nil {
 					return nil, fmt.Errorf("failed to mark rollack tx dummy unit for deletion %s: %w", targetUnit, err)
 				}
-				m.log.Debug(fmt.Sprintf("unit %s marked for deletion", targetUnit))
+				m.log.Debug("unit marked for deletion", logger.UnitID(targetUnit))
 			}
 		}
 		m.log.Debug("transaction on hold successfully rolled back", logger.UnitID(txOnHold.GetUnitID()), logger.Data(txOnHold))

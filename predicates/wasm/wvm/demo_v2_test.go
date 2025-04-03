@@ -114,7 +114,7 @@ func Test_conference_tickets_v2(t *testing.T) {
 		res, err := wvm.Exec(context.Background(), predWASM, nil, conf, txNFTTransfer, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.NoError(t, err)
-		checkSpentGas(t, 9278, curGas-env.GasRemaining)
+		checkSpentGas(t, 7633, curGas-env.GasRemaining)
 		require.EqualValues(t, 0, res)
 
 		// set date past D1, should eval to false
@@ -127,7 +127,7 @@ func Test_conference_tickets_v2(t *testing.T) {
 		res, err = wvm.Exec(context.Background(), predWASM, nil, conf, txNFTTransfer, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.NoError(t, err)
-		checkSpentGas(t, 9253, curGas-env.GasRemaining)
+		checkSpentGas(t, 7626, curGas-env.GasRemaining)
 		require.EqualValues(t, 1, res)
 	})
 
@@ -277,7 +277,7 @@ func Test_conference_tickets_v2(t *testing.T) {
 		res, err = wvm.Exec(context.Background(), predWASM, ownerProofAttendee, conf, txNFTTransfer, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.NoError(t, err)
-		checkSpentGas(t, 11973, curGas-env.GasRemaining)
+		checkSpentGas(t, 10295, curGas-env.GasRemaining)
 		require.EqualValues(t, 0, res)
 	})
 

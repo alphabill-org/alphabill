@@ -260,6 +260,7 @@ func defaultFlags() *shardNodeRunFlags {
 	flags.MaxBodyBytes = rpc.DefaultMaxBodyBytes
 	flags.BatchItemLimit = rpc.DefaultBatchItemLimit
 	flags.BatchResponseSizeLimit = rpc.DefaultBatchResponseSizeLimit
+	flags.StateRpcRateLimit = 20
 
 	return flags
 }

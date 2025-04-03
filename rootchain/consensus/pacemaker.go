@@ -71,10 +71,10 @@ func NewPacemaker(minRoundLen, maxRoundLen time.Duration, observe Observability)
 
 	var err error
 	m := observe.Meter("pacemaker")
-	// we expect that the minRoundLen is relatively short (~0.5s) while maxRoundLen is
+	// we expect that the minRoundLen is relatively short (~0.25s) while maxRoundLen is
 	// relatively long (~10s). We hope that most rounds last only little bit longer than
 	// minRoundLen so generate few buckets between min and max with finer steps near the min end.
-	step := (100 * time.Millisecond).Seconds()
+	step := (25 * time.Millisecond).Seconds()
 	buckets := []float64{minRoundLen.Seconds()}
 	for i := 0; buckets[i] < 2*maxRoundLen.Seconds(); i++ {
 		n := time.Duration((buckets[i] + step) * float64(time.Second)).Truncate(time.Millisecond)

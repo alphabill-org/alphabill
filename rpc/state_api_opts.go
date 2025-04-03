@@ -10,6 +10,7 @@ type (
 		withGetUnits bool
 		shardConf    *types.PartitionDescriptionRecord
 		ownerIndex   partition.IndexReader
+		rateLimit    int
 	}
 
 	StateAPIOption func(*StateAPIOptions)
@@ -33,10 +34,17 @@ func WithOwnerIndex(ownerIndex partition.IndexReader) StateAPIOption {
 	}
 }
 
+func WithRateLimit(rateLimit int) StateAPIOption {
+	return func(c *StateAPIOptions) {
+		c.rateLimit = rateLimit
+	}
+}
+
 func defaultStateAPIOptions() *StateAPIOptions {
 	return &StateAPIOptions{
 		withGetUnits: false,
 		shardConf:    nil,
 		ownerIndex:   nil,
+		rateLimit:    0,
 	}
 }

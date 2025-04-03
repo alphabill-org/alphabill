@@ -131,10 +131,11 @@ func shardNodeRun(ctx context.Context, flags *shardNodeRunFlags) error {
 		flags.rpcFlags.APIs = []rpc.API{
 			{
 				Namespace: "state",
-				Service:   rpc.NewStateAPI(node, obs,
+				Service: rpc.NewStateAPI(node, obs,
 					rpc.WithOwnerIndex(nodeConf.OwnerIndexer()),
 					rpc.WithGetUnits(flags.WithGetUnits),
-					rpc.WithShardConf(nodeConf.ShardConf())),
+					rpc.WithShardConf(nodeConf.ShardConf()),
+					rpc.WithRateLimit(flags.StateRpcRateLimit)),
 			},
 			{
 				Namespace: "admin",

@@ -143,5 +143,5 @@ func runEvmNode(ctx context.Context, cfg *evmConfiguration) error {
 		params.GasUnitPrice,
 		log,
 	)
-	return run(ctx, node, cfg.RPCServer, ownerIndexer, cfg.Node.WithGetUnits, pg.PartitionDescription, obs)
+	return run(ctx, node, cfg.RPCServer, ownerIndexer, cfg.Node.WithGetUnits, pg.PartitionDescription, obs, cfg.Node.StateRpcRateLimit)
 }

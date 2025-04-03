@@ -1,6 +1,6 @@
 module github.com/alphabill-org/alphabill
 
-go 1.23
+go 1.24
 
 require (
 	github.com/ainvaltin/httpsrv v0.3.1
@@ -37,6 +37,7 @@ require (
 	go.opentelemetry.io/otel/sdk/metric v1.32.0
 	go.opentelemetry.io/otel/trace v1.32.0
 	golang.org/x/sync v0.10.0
+	golang.org/x/time v0.5.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 

@@ -42,12 +42,7 @@ func Test_conference_tickets_v2(t *testing.T) {
 	}
 	// parameters which can be shared by all tests
 	// conference organizer keys
-	signerOrg, err := abcrypto.NewInMemorySecp256K1Signer()
-	require.NoError(t, err)
-	verifierOrg, err := signerOrg.Verifier()
-	require.NoError(t, err)
-	pubKeyOrg, err := verifierOrg.MarshalPublicKey()
-	require.NoError(t, err)
+	signerOrg, organizerPKH := signerAndPKH(t)
 	// customer buying conference ticket
 	signerAttendee, err := abcrypto.NewInMemorySecp256K1Signer()
 	require.NoError(t, err)
@@ -62,14 +57,13 @@ func Test_conference_tickets_v2(t *testing.T) {
 	const regularDate uint64 = earlyBirdDate + 100000
 	const earlyBirdPrice uint64 = 1000
 	const regularPrice uint64 = 1500
-	predCfg, err := types.Cbor.Marshal([]any{earlyBirdDate, regularDate, earlyBirdPrice, regularPrice, hash.Sum256(pubKeyOrg)})
+	predCfg, err := types.Cbor.Marshal([]any{[]any{earlyBirdDate, regularDate, earlyBirdPrice, regularPrice}, organizerPKH})
 	require.NoError(t, err)
 
 	// tx system unit/attribute encoder
 	txsEnc := encoder.TXSystemEncoder{}
 	require.NoError(t, tokenenc.RegisterTxAttributeEncoders(txsEnc.RegisterAttrEncoder))
 	require.NoError(t, tokenenc.RegisterUnitDataEncoders(txsEnc.RegisterUnitDataEncoder))
-	require.NoError(t, tokenenc.RegisterAuthProof(txsEnc.RegisterAuthProof))
 
 	tmpPred, err := templates.New(observability.Default(t))
 	require.NoError(t, err)
@@ -194,7 +188,7 @@ func Test_conference_tickets_v2(t *testing.T) {
 		res, err = wvm.Exec(context.Background(), predWASM, nil, conf, txNFTUpdate, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.NoError(t, err)
-		checkSpentGas(t, 5226, curGas-env.GasRemaining)
+		checkSpentGas(t, 5191, curGas-env.GasRemaining)
 		require.EqualValues(t, 0x201, res, `expected error code 2: new value of the token data is not "regular"`)
 	})
 
@@ -253,7 +247,7 @@ func Test_conference_tickets_v2(t *testing.T) {
 		res, err := wvm.Exec(context.Background(), predWASM, ownerProofOrg, conf, txNFTTransfer, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.NoError(t, err)
-		checkSpentGas(t, 6964, curGas-env.GasRemaining)
+		checkSpentGas(t, 5334, curGas-env.GasRemaining)
 		require.EqualValues(t, 0, res)
 
 		// sign the transfer with some other key - p2pkh check should eval to "false" and predicate
@@ -267,13 +261,13 @@ func Test_conference_tickets_v2(t *testing.T) {
 		res, err = wvm.Exec(context.Background(), predWASM, ownerProofAttendee, conf, txNFTTransfer, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.NoError(t, err)
-		checkSpentGas(t, 6978, curGas-env.GasRemaining)
+		checkSpentGas(t, 5320, curGas-env.GasRemaining)
 		require.EqualValues(t, 0x801, res)
 
 		// set the OwnerProof to BLOB containing the payment proof, token is "early-bird"
 		// attempt to eval p2pkh with OwnerProof as argument should fail (returns error) and
 		// predicate should carry on attempting to decode argument BLOB as proof of payment.
-		ownerProofAttendee = proofOfPayment(t, signerAttendee, pubKeyOrg,
+		ownerProofAttendee = proofOfPayment(t, signerAttendee, organizerPKH,
 			earlyBirdPrice, hash.Sum256(slices.Concat([]byte{1}, txNFTTransfer.UnitID)))
 		require.NoError(t, txNFTTransfer.SetAuthProof(&tokens.TransferNonFungibleTokenAuthProof{
 			OwnerProof: ownerProofAttendee,
@@ -342,11 +336,11 @@ func Test_conference_tickets_v2(t *testing.T) {
 		res, err := wvm.Exec(context.Background(), predWASM, ownerProofOrg, conf, txNFTUpdate, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.NoError(t, err)
-		checkSpentGas(t, 6804, curGas-env.GasRemaining)
+		checkSpentGas(t, 5212, curGas-env.GasRemaining)
 		require.EqualValues(t, 0, res)
 
 		// set the OwnerProof to BLOB containing the payment proof (user upgrades the ticket)
-		ownerProof := proofOfPayment(t, signerAttendee, pubKeyOrg, regularPrice-earlyBirdPrice, hash.Sum256(slices.Concat([]byte{2}, txNFTUpdate.UnitID)))
+		ownerProof := proofOfPayment(t, signerAttendee, organizerPKH, regularPrice-earlyBirdPrice, hash.Sum256(slices.Concat([]byte{2}, txNFTUpdate.UnitID)))
 		require.NoError(t, txNFTUpdate.SetAuthProof(&tokens.UpdateNonFungibleTokenAuthProof{
 			TokenDataUpdateProof: ownerProof,
 		}))
@@ -355,11 +349,11 @@ func Test_conference_tickets_v2(t *testing.T) {
 		res, err = wvm.Exec(context.Background(), predWASM, ownerProof, conf, txNFTUpdate, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.NoError(t, err)
-		checkSpentGas(t, 8383, curGas-env.GasRemaining)
+		checkSpentGas(t, 6762, curGas-env.GasRemaining)
 		require.EqualValues(t, 0, res)
 
 		// user attempts to upgrade the ticket but the sum (amount of money transferred) in the payment proof is wrong
-		ownerProof = proofOfPayment(t, signerAttendee, pubKeyOrg, regularPrice-earlyBirdPrice-1, hash.Sum256(slices.Concat([]byte{2}, txNFTUpdate.UnitID)))
+		ownerProof = proofOfPayment(t, signerAttendee, organizerPKH, regularPrice-earlyBirdPrice-1, hash.Sum256(slices.Concat([]byte{2}, txNFTUpdate.UnitID)))
 		require.NoError(t, txNFTUpdate.SetAuthProof(&tokens.UpdateNonFungibleTokenAuthProof{
 			TokenDataUpdateProof: ownerProof,
 		}))
@@ -368,14 +362,14 @@ func Test_conference_tickets_v2(t *testing.T) {
 		res, err = wvm.Exec(context.Background(), predWASM, ownerProof, conf, txNFTUpdate, env)
 		t.Logf("took %s, spent %d gas", time.Since(start), curGas-env.GasRemaining)
 		require.NoError(t, err)
-		checkSpentGas(t, 8383, curGas-env.GasRemaining)
+		checkSpentGas(t, 6762, curGas-env.GasRemaining)
 		require.EqualValues(t, 0x701, res, "expected code `7` = transferred amount doesn't equal to `P2 - P1`")
 	})
 }
 
 // create tx record and tx proof pair for money transfer and serialize them into
 // CBOR array usable as predicate argument for mint and update token tx
-func proofOfPayment(t *testing.T, signer abcrypto.Signer, receiverPK []byte, value uint64, refNo []byte) []byte {
+func proofOfPayment(t *testing.T, signer abcrypto.Signer, receiverPKH []byte, value uint64, refNo []byte) []byte {
 	// attendee transfers to the organizer
 	txPayment := &types.TransactionOrder{
 		Version: 1,
@@ -390,7 +384,7 @@ func proofOfPayment(t *testing.T, signer abcrypto.Signer, receiverPK []byte, val
 	}
 	require.NoError(t, txPayment.SetAttributes(
 		money.TransferAttributes{
-			NewOwnerPredicate: predtempl.NewP2pkh256BytesFromKey(receiverPK),
+			NewOwnerPredicate: predtempl.NewP2pkh256BytesFromKeyHash(receiverPKH),
 			TargetValue:       value,
 			Counter:           1,
 		}))

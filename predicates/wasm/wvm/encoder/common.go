@@ -68,21 +68,21 @@ predicate SDK can load.
     it's handle returned as part of response allowing predicate to load the sub-object
     with next call.
 */
-func (enc TXSystemEncoder) Encode(obj any, ver uint32, getHandle func(obj any) uint64) ([]byte, error) {
+func (enc TXSystemEncoder) Encode(obj any, ver uint32, getHandle func(obj any) uint32) ([]byte, error) {
 	switch t := obj.(type) {
 	case *types.TransactionOrder:
 		return enc.txOrder(t, ver)
 	case *types.TransactionRecord:
 		return enc.txRecord(t, ver, getHandle)
-	case []byte:
-		return t, nil
-	case types.RawCBOR:
-		return t, nil
 	}
-	return nil, fmt.Errorf("no encoder for %T", obj)
+
+	// obj must be "plain old data type"
+	var buf TVEnc
+	buf.Encode(obj)
+	return buf.Bytes()
 }
 
-func (TXSystemEncoder) txRecord(txo *types.TransactionRecord, _ uint32, getHandle func(obj any) uint64) ([]byte, error) {
+func (TXSystemEncoder) txRecord(txo *types.TransactionRecord, _ uint32, getHandle func(obj any) uint32) ([]byte, error) {
 	var buf TVEnc
 	buf.EncodeTagged(1, getHandle(txo.TransactionOrder))
 	return buf.Bytes()

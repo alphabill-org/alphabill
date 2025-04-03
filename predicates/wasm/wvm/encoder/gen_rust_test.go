@@ -3,7 +3,6 @@ package encoder
 import (
 	"bytes"
 	"fmt"
-	"os"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -11,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill/internal/testutils/rust"
 )
 
 func Test_TXSystemEncoder_trigger(t *testing.T) {
@@ -28,16 +28,16 @@ func Test_TXSystemEncoder_trigger(t *testing.T) {
 	t.Run("txRecord", func(t *testing.T) {
 		// ver 1 of the txRec just contains txo handle so no need to fill out all the fields...
 		// getHandle is called once, always return 1 as the handle
-		getHandle := func(obj any) uint64 { return 1 }
+		getHandle := func(obj any) uint32 { return 1 }
 		tx, err := (&types.TransactionOrder{Version: 1}).MarshalCBOR()
 		require.NoError(t, err)
 		buf, err := enc.Encode(&types.TransactionRecord{Version: 1, TransactionOrder: tx}, 1, getHandle)
 		require.NoError(t, err)
-		require.Equal(t, []byte{0x1, 0x2, 0x1, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0}, buf)
+		require.Equal(t, []byte{0x1, 0x3, 0x1, 0x0, 0x0, 0x0}, buf)
 	})
 
 	t.Run("txOrder", func(t *testing.T) {
-		getHandle := func(obj any) uint64 { t.Errorf("unexpected call of getHandle(%T)", obj); return 0 }
+		getHandle := func(obj any) uint32 { t.Errorf("unexpected call of getHandle(%T)", obj); return 0 }
 		// ver 1 of the txOrder
 		txo := &types.TransactionOrder{
 			Version: 1,
@@ -56,53 +56,41 @@ func Test_TXSystemEncoder_trigger(t *testing.T) {
 	})
 
 	t.Run("byte slice", func(t *testing.T) {
-		// byte slice is returned exactly as-is
 		buf, err := enc.Encode([]byte{0, 1, 127, 128, 255}, 1, nil)
 		require.NoError(t, err)
-		require.Equal(t, []byte{0, 1, 127, 128, 255}, buf)
+		require.Equal(t, []byte{type_id_bytes, 0x5, 0x0, 0x0, 0x0, 0, 1, 127, 128, 255}, buf)
 	})
 
 	t.Run("types.RawCBOR", func(t *testing.T) {
-		// types.RawCBOR is returned exactly as-is but as byte slice (ie type cast)
 		buf, err := enc.Encode(types.RawCBOR{0, 1, 127, 128, 255}, 1, nil)
 		require.NoError(t, err)
-		require.Equal(t, []byte{0, 1, 127, 128, 255}, buf)
+		require.Equal(t, []byte{type_id_bytes, 0x5, 0x0, 0x0, 0x0, 0, 1, 127, 128, 255}, buf)
+	})
+
+	t.Run("uint64", func(t *testing.T) {
+		buf, err := enc.Encode(uint64(0x0807060504030201), 0, nil)
+		require.NoError(t, err)
+		require.Equal(t, []byte{type_id_u64, 1, 2, 3, 4, 5, 6, 7, 8}, buf)
 	})
 }
 
 func Test_generate_TXSTestsData(t *testing.T) {
-	t.Skip("generate test data for Rust predicate SDK")
-	/*
-		Generate inputs for tests loading generic tx system objects.
-		In the Rust SDK tests are in the file "src/txsystem.rs"
-		We only generate input for current struct version here, maintain
-		tests for relevant versions in the Rust code!
+	// generate integration tests for Rust SDK:
+	// tests loading generic tx system objects.
 
-		To use: comment out the Skip statement in the beginning, run the
-		test(s) to generate data, copy it to Rust project and uncomment
-		the Skip here.
-	*/
+	fOut := rust.TestFile(t, "tests/txsystem_test.rs", "use alphabill::txsystem::TxOrder;")
 
-	var hid atomic.Uint64
-	getHandle := func(obj any) uint64 { return hid.Add(1) }
+	var hid atomic.Uint32
+	getHandle := func(obj any) uint32 { return hid.Add(1) }
 	// encoder is stateless, can be shared between tests
 	enc, err := New()
 	require.NoError(t, err)
 
-	t.Run("txRecord", func(t *testing.T) {
-		// ver 1 of the txRec just contains txo handle so no need to fill out all the fields...
-		tx, err := (&types.TransactionOrder{Version: 1}).MarshalCBOR()
-		require.NoError(t, err)
-		buf, err := enc.Encode(&types.TransactionRecord{Version: 1, TransactionOrder: tx}, 1, getHandle)
-		require.NoError(t, err)
-		t.Errorf("\nlet data: &mut [u8] = &mut [%s];", bytesAsHex(t, buf))
-	})
-
 	t.Run("txOrder", func(t *testing.T) {
-		// ver 1 of the txOrder
 		txo := &types.TransactionOrder{
 			Version: 1,
 			Payload: types.Payload{
+				NetworkID:   1,
 				PartitionID: 7,
 				Type:        22,
 				UnitID:      []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10},
@@ -113,29 +101,26 @@ func Test_generate_TXSTestsData(t *testing.T) {
 		}
 		buf, err := enc.Encode(txo, 1, getHandle)
 		require.NoError(t, err)
-		t.Errorf("\n// %#v\n// %#v\nlet data: &mut [u8] = &mut [%s];", txo.Payload, txo.ClientMetadata, bytesAsHex(t, buf))
+		out := bytes.NewBufferString("\n#[test]\nfn txorder_from() {")
+		out.WriteString(fmt.Sprintf("\n// Payload: %#v\n// ClientMetadata: %#v\n", txo.Payload, txo.ClientMetadata))
+		out.WriteString("// txo version 1 SDK version 1\n")
+		out.WriteString(fmt.Sprintf("let data: &mut [u8] = &mut [%s];", rust.BytesAsHex(t, buf)))
+		out.WriteString("let txo = TxOrder::from(data).unwrap();\n")
+		out.WriteString(fmt.Sprintf("assert_eq!(txo.partition, %d);\n", txo.PartitionID))
+		out.WriteString(fmt.Sprintf("assert_eq!(txo.typ, %d);\n", txo.Type))
+		out.WriteString(fmt.Sprintf("assert_eq!(txo.unit_id, &[%s]);\n", rust.BytesAsHex(t, txo.UnitID)))
+		out.WriteString(fmt.Sprintf("assert_eq!(txo.ref_number.unwrap(), &[%s]);\n", rust.BytesAsHex(t, txo.ReferenceNumber())))
+		out.WriteString("}\n")
+		_, err = out.WriteTo(fOut)
+		require.NoError(t, err)
 	})
 }
 
 func Test_generateDecoderTests(t *testing.T) {
-	t.Skip("generate test data for Rust predicate SDK Decoder")
-	/*
-		To test that the Decoder in Rust SDK is able to decode data generated by the host
-		we generate these Rust tests:
-		- set the (absolute) path in the os.Create statement below to where to save the
-		  generated code;
-		- comment out the Skip statement in the beginning;
-		- run the test(s);
-		- copy the generated code into src/decoder.rs in Rust SDK;
-		- NB! the test fails on purpose to remind you to enable the Skip statement again!
+	// generate integration tests for Rust SDK:
+	// test that the Decoder in Rust SDK is able to decode data generated by the TVEnc encoder in host.
 
-		At this stage doing all this manual work seems to be acceptable (rather than building
-		some test harness to do it)...
-	*/
-
-	fOut, err := os.Create("decoder_test.rs")
-	require.NoError(t, err)
-	defer fOut.Close()
+	fOut := rust.TestFile(t, "tests/decoder_test.rs", "use alphabill::decoder::{Decoder, TagValueIter, Value};")
 
 	type encValue struct {
 		tag   uint8
@@ -145,8 +130,9 @@ func Test_generateDecoderTests(t *testing.T) {
 	t.Run("Decode Value", func(t *testing.T) {
 		// test decoding different types as Value enum defined in the Rust SDK
 		values := []encValue{
-			{value: uint32(101)},
-			{value: uint64(64)},
+			{value: uint16(0x0201)},
+			{value: uint32(0x04030201)},
+			{value: uint64(0x0807060504030201)},
 			{value: []byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10}},
 			{value: "this is string"},
 			{value: []any{uint32(32), uint64(64), "AB"}},
@@ -156,7 +142,6 @@ func Test_generateDecoderTests(t *testing.T) {
 			{value: []any{}},
 		}
 		out := bytes.NewBufferString("\n#[test]\nfn decode_value() {")
-		out.WriteString("\n// test generated by Go backend!")
 		for _, v := range values {
 			enc := TVEnc{}
 			enc.Encode(v.value)
@@ -164,35 +149,36 @@ func Test_generateDecoderTests(t *testing.T) {
 			require.NoError(t, err)
 			out.WriteString(fmt.Sprintf("\n// Go value %T = %#[1]v\n", v.value))
 			out.WriteString("let data: &mut [u8] = &mut [")
-			out.WriteString(bytesAsHex(t, buf))
+			out.WriteString(rust.BytesAsHex(t, buf))
 			out.WriteString("];\n")
 			out.WriteString("let mut dec = Decoder::new(data);\n")
-			out.WriteString(fmt.Sprintf("assert_eq!(dec.value(), %s);\n", rustValue(t, v.value)))
+			out.WriteString(fmt.Sprintf("assert_eq!(dec.value(), %s);\n", rust.Value(t, v.value)))
 		}
 		out.WriteString("}\n")
-		_, err = out.WriteTo(fOut)
+		_, err := out.WriteTo(fOut)
 		require.NoError(t, err)
 	})
 
 	t.Run("TagValueIter", func(t *testing.T) {
 		// test for parsing data sent from host using TagValueIter
 		values := []encValue{
+			{tag: 3, value: uint16(0xf0f0)},
 			{tag: 1, value: uint32(0xff00ff00)},
-			{tag: 4, value: uint64(0xff00ff00)},
+			{tag: 4, value: uint64(0xff00ff00ff00ff00)},
 			{tag: 2, value: "token"},
+			{tag: 8, value: []any{uint32(0x87654321), "str"}},
 		}
 		out := bytes.NewBufferString("\n#[test]\nfn iterator() {")
-		out.WriteString("\n// test generated by Go backend!\n")
 		enc := TVEnc{}
 		rv := []string{}
 		for _, v := range values {
 			enc.EncodeTagged(v.tag, v.value)
-			rv = append(rv, fmt.Sprintf("(%d, %s)", v.tag, rustValue(t, v.value)))
+			rv = append(rv, fmt.Sprintf("(%d, %s)", v.tag, rust.Value(t, v.value)))
 		}
 		buf, err := enc.Bytes()
 		require.NoError(t, err)
 		out.WriteString("let data: &mut [u8] = &mut [")
-		out.WriteString(bytesAsHex(t, buf))
+		out.WriteString(rust.BytesAsHex(t, buf))
 		out.WriteString("];\n")
 		out.WriteString("let dec = TagValueIter::new(&data);\nlet items: Vec<(u8, Value)> = dec.collect();\n")
 		out.WriteString(fmt.Sprintf("assert_eq!(items, vec![%s]);\n", strings.Join(rv, ", ")))
@@ -200,44 +186,4 @@ func Test_generateDecoderTests(t *testing.T) {
 		_, err = out.WriteTo(fOut)
 		require.NoError(t, err)
 	})
-
-	t.Error("Do NOT remove this error - instead add/enable the t.Skip statement in the beginning of the test! " +
-		"This error is here so that the test is enabled only for re-generating the test code for Rust SDK and then disabled again.")
-}
-
-// v as Rust SDK Value enum
-func rustValue(t *testing.T, v any) string {
-	t.Helper()
-	switch tv := v.(type) {
-	case uint32:
-		return fmt.Sprintf("Value::U32(%d)", tv)
-	case uint64:
-		return fmt.Sprintf("Value::U64(%d)", tv)
-	case []byte:
-		return fmt.Sprintf("Value::Bytes(vec![%v])", bytesAsHex(t, tv))
-	case string:
-		return fmt.Sprintf("Value::String(%q.to_string())", tv)
-	case []any:
-		out := "Value::Array(vec!["
-		for x, v := range tv {
-			if x > 0 {
-				out += ", "
-			}
-			out += rustValue(t, v)
-		}
-		return out + "])"
-	default:
-		t.Errorf("unsupported type %T", v)
-		return ""
-	}
-}
-
-// byte slice in Rust syntax (without enclosing [])
-func bytesAsHex(t *testing.T, b []byte) string {
-	t.Helper()
-	out := bytes.Buffer{}
-	for _, v := range b {
-		out.WriteString(fmt.Sprintf("0x%x, ", v))
-	}
-	return strings.TrimSuffix(out.String(), ", ")
 }

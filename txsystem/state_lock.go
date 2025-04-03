@@ -133,7 +133,7 @@ func (m *GenericTxSystem) executeLockedTx(proof *StateUnlockProof, txOnHold *typ
 		if err != nil {
 			return nil, fmt.Errorf("failed to execute transaction that was on hold: %w", err)
 		}
-		m.log.Debug("transaction on hold successfully executed")
+		m.log.Debug("transaction on hold successfully executed", logger.UnitID(txOnHold.GetUnitID()), logger.Data(txOnHold))
 		return sm, nil
 	case StateUnlockRollback:
 		exeCtx.SetExecutionType(txtypes.ExecutionTypeRollback)
@@ -157,7 +157,7 @@ func (m *GenericTxSystem) executeLockedTx(proof *StateUnlockProof, txOnHold *typ
 				m.log.Debug(fmt.Sprintf("unit %s marked for deletion", targetUnit))
 			}
 		}
-		m.log.Debug("transaction on hold successfully rolled back")
+		m.log.Debug("transaction on hold successfully rolled back", logger.UnitID(txOnHold.GetUnitID()), logger.Data(txOnHold))
 		return &types.ServerMetadata{TargetUnits: targetUnits, SuccessIndicator: types.TxStatusSuccessful}, nil
 	default:
 		return nil, errors.New("invalid state unlock proof kind")

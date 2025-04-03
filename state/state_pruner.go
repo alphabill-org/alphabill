@@ -1,7 +1,6 @@
 package state
 
 import (
-	"bytes"
 	"fmt"
 )
 
@@ -40,10 +39,6 @@ func (s *statePruner) Traverse(n *node) error {
 	if err != nil {
 		return fmt.Errorf("unable to parse cloned unit: %w", err)
 	}
-	clonedUnit.logs = []*Log{{
-		TxRecordHash:       nil,
-		UnitLedgerHeadHash: bytes.Clone(latestLog.UnitLedgerHeadHash),
-		NewUnitData:        copyData(unit.Data()),
-	}}
+	clonedUnit.logs = []*Log{NewUnitLog(nil, latestLog.UnitLedgerHeadHash, unit.Data(), unit.deletionRound, unit.stateLockTx)}
 	return s.prunedTree.Update(n.Key(), clonedUnit)
 }

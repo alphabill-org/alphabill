@@ -36,10 +36,6 @@ func VerifyMaxTxFeeDoesNotExceedFRCBalance(tx *types.TransactionOrder, fcrBalanc
 }
 
 func ValidateCloseFC(attr *fc.CloseFeeCreditAttributes, fcr *fc.FeeCreditRecord) error {
-	// verify the fee credit record is not locked
-	if fcr.IsLocked() {
-		return errors.New("fee credit record is locked")
-	}
 	// P.A.v = S.N[ι].b - the amount is the current balance of the record
 	if attr.Amount != fcr.Balance {
 		return fmt.Errorf("invalid amount: amount=%d fcr.Balance=%d", attr.Amount, fcr.Balance)

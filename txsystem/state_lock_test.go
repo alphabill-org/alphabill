@@ -3,10 +3,6 @@ package txsystem
 import (
 	"testing"
 
-	"github.com/alphabill-org/alphabill/state"
-	"github.com/fxamacker/cbor/v2"
-	"github.com/stretchr/testify/require"
-
 	basetemplates "github.com/alphabill-org/alphabill-go-base/predicates/templates"
 	moneyid "github.com/alphabill-org/alphabill-go-base/testutils/money"
 	fcsdk "github.com/alphabill-org/alphabill-go-base/txsystem/fc"
@@ -16,9 +12,12 @@ import (
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/predicates/templates"
+	"github.com/alphabill-org/alphabill/state"
 	abfc "github.com/alphabill-org/alphabill/txsystem/fc"
-	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
+	tt "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
 	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
+	"github.com/fxamacker/cbor/v2"
+	"github.com/stretchr/testify/require"
 )
 
 func Test_StateUnlockProofFromBytes(t *testing.T) {
@@ -91,45 +90,30 @@ func TestGenericTxSystem_handleUnlockUnitState(t *testing.T) {
 	t.Run("ok - unit not found", func(t *testing.T) {
 		unitID := moneyid.NewBillID(t)
 		txSys := NewTestGenericTxSystem(t, nil)
-		tx := testtransaction.NewTransactionOrder(
+		tx := tt.NewTransactionOrder(
 			t,
-			testtransaction.WithTransactionType(money.TransactionTypeTransfer),
-			testtransaction.WithUnitID(unitID),
-			testtransaction.WithPartitionID(money.DefaultPartitionID),
-			testtransaction.WithAttributes(&money.TransferAttributes{}),
+			tt.WithTransactionType(money.TransactionTypeTransfer),
+			tt.WithUnitID(unitID),
+			tt.WithPartitionID(money.DefaultPartitionID),
+			tt.WithAttributes(&money.TransferAttributes{}),
 		)
 		execCtx := txtypes.NewExecutionContext(txSys, abfc.NewNoFeeCreditModule(), nil, 10)
-		sm, err := txSys.handleUnlockUnitState(tx, execCtx)
+		sm, err := txSys.handleUnlockUnitState(tx, unitID, execCtx)
 		require.NoError(t, err)
 		require.Nil(t, sm)
 	})
 	t.Run("ok - unit is already unlocked", func(t *testing.T) {
 		unitID := moneyid.NewBillID(t)
 		txSys := NewTestGenericTxSystem(t, nil, withStateUnit(unitID, &money.BillData{Value: 1, Counter: 1, OwnerPredicate: basetemplates.AlwaysTrueBytes()}, nil))
-		tx := testtransaction.NewTransactionOrder(
+		tx := tt.NewTransactionOrder(
 			t,
-			testtransaction.WithTransactionType(money.TransactionTypeTransfer),
-			testtransaction.WithUnitID(unitID),
-			testtransaction.WithPartitionID(money.DefaultPartitionID),
-			testtransaction.WithAttributes(&money.TransferAttributes{}),
+			tt.WithTransactionType(money.TransactionTypeTransfer),
+			tt.WithUnitID(unitID),
+			tt.WithPartitionID(money.DefaultPartitionID),
+			tt.WithAttributes(&money.TransferAttributes{}),
 		)
 		execCtx := txtypes.NewExecutionContext(txSys, abfc.NewNoFeeCreditModule(), nil, 10)
-		sm, err := txSys.handleUnlockUnitState(tx, execCtx)
-		require.NoError(t, err)
-		require.Nil(t, sm)
-	})
-	t.Run("ok - unit is already unlocked", func(t *testing.T) {
-		unitID := moneyid.NewBillID(t)
-		txSys := NewTestGenericTxSystem(t, nil, withStateUnit(unitID, &money.BillData{Value: 1, Counter: 1, OwnerPredicate: basetemplates.AlwaysTrueBytes()}, nil))
-		tx := testtransaction.NewTransactionOrder(
-			t,
-			testtransaction.WithTransactionType(money.TransactionTypeTransfer),
-			testtransaction.WithUnitID(unitID),
-			testtransaction.WithPartitionID(money.DefaultPartitionID),
-			testtransaction.WithAttributes(&money.TransferAttributes{}),
-		)
-		execCtx := txtypes.NewExecutionContext(txSys, abfc.NewNoFeeCreditModule(), nil, 10)
-		sm, err := txSys.handleUnlockUnitState(tx, execCtx)
+		sm, err := txSys.handleUnlockUnitState(tx, unitID, execCtx)
 		require.NoError(t, err)
 		require.Nil(t, sm)
 	})
@@ -143,15 +127,15 @@ func TestGenericTxSystem_handleUnlockUnitState(t *testing.T) {
 			&money.BillData{Value: 1, Counter: 1, OwnerPredicate: basetemplates.AlwaysTrueBytes()},
 			createLockTransaction(t, unitID, pubKey1)))
 		// try to transfer without unlocking
-		tx := testtransaction.NewTransactionOrder(
+		tx := tt.NewTransactionOrder(
 			t,
-			testtransaction.WithTransactionType(money.TransactionTypeTransfer),
-			testtransaction.WithUnitID(unitID),
-			testtransaction.WithPartitionID(money.DefaultPartitionID),
-			testtransaction.WithAttributes(&money.TransferAttributes{}),
+			tt.WithTransactionType(money.TransactionTypeTransfer),
+			tt.WithUnitID(unitID),
+			tt.WithPartitionID(money.DefaultPartitionID),
+			tt.WithAttributes(&money.TransferAttributes{}),
 		)
 		execCtx := txtypes.NewExecutionContext(txSys, abfc.NewNoFeeCreditModule(), nil, 10)
-		sm, err := txSys.handleUnlockUnitState(tx, execCtx)
+		sm, err := txSys.handleUnlockUnitState(tx, unitID, execCtx)
 		require.EqualError(t, err, "unlock proof error: invalid state unlock proof: empty")
 		require.Nil(t, sm)
 	})
@@ -166,16 +150,16 @@ func TestGenericTxSystem_handleUnlockUnitState(t *testing.T) {
 			createLockTransaction(t, unitID, pubKey1)))
 		// add unlock
 		require.NoError(t, err)
-		tx := testtransaction.NewTransactionOrder(
+		tx := tt.NewTransactionOrder(
 			t,
-			testtransaction.WithTransactionType(money.TransactionTypeTransfer),
-			testtransaction.WithUnitID(unitID),
-			testtransaction.WithPartitionID(money.DefaultPartitionID),
-			testtransaction.WithAttributes(&money.TransferAttributes{}),
-			testtransaction.WithUnlockProof([]byte{255}),
+			tt.WithTransactionType(money.TransactionTypeTransfer),
+			tt.WithUnitID(unitID),
+			tt.WithPartitionID(money.DefaultPartitionID),
+			tt.WithAttributes(&money.TransferAttributes{}),
+			tt.WithStateUnlock([]byte{255}),
 		)
 		execCtx := txtypes.NewExecutionContext(txSys, abfc.NewNoFeeCreditModule(), nil, 10)
-		sm, err := txSys.handleUnlockUnitState(tx, execCtx)
+		sm, err := txSys.handleUnlockUnitState(tx, unitID, execCtx)
 		require.EqualError(t, err, "unlock error: invalid state unlock proof kind")
 		require.Nil(t, sm)
 	})
@@ -194,20 +178,20 @@ func TestGenericTxSystem_handleUnlockUnitState(t *testing.T) {
 		)
 		// add unlock
 		require.NoError(t, err)
-		tx := testtransaction.NewTransactionOrder(
+		tx := tt.NewTransactionOrder(
 			t,
-			testtransaction.WithTransactionType(money.TransactionTypeTransfer),
-			testtransaction.WithUnitID(unitID),
-			testtransaction.WithPartitionID(money.DefaultPartitionID),
-			testtransaction.WithAttributes(&money.TransferAttributes{}),
-			testtransaction.WithUnlockProof([]byte{byte(StateUnlockExecute), 1, 2, 3}),
-			testtransaction.WithClientMetadata(&types.ClientMetadata{
+			tt.WithTransactionType(money.TransactionTypeTransfer),
+			tt.WithUnitID(unitID),
+			tt.WithPartitionID(money.DefaultPartitionID),
+			tt.WithAttributes(&money.TransferAttributes{}),
+			tt.WithStateUnlock([]byte{byte(StateUnlockExecute), 1, 2, 3}),
+			tt.WithClientMetadata(&types.ClientMetadata{
 				Timeout:           txSys.currentRoundNumber + 1,
 				FeeCreditRecordID: fcrID,
 				MaxTransactionFee: 10,
 			}))
 		execCtx := txtypes.NewExecutionContext(txSys, abfc.NewNoFeeCreditModule(), nil, 10)
-		sm, err := txSys.handleUnlockUnitState(tx, execCtx)
+		sm, err := txSys.handleUnlockUnitState(tx, unitID, execCtx)
 		require.EqualError(t, err, "unlock error: state lock's execution predicate failed: executing predicate: failed to decode P2PKH256 signature: cbor: 2 bytes of extraneous data starting at index 1")
 		require.Nil(t, sm)
 	})
@@ -222,16 +206,16 @@ func TestGenericTxSystem_handleUnlockUnitState(t *testing.T) {
 			createLockTransaction(t, unitID, pubKey1)))
 		// add unlock
 		require.NoError(t, err)
-		tx := testtransaction.NewTransactionOrder(
+		tx := tt.NewTransactionOrder(
 			t,
-			testtransaction.WithTransactionType(money.TransactionTypeTransfer),
-			testtransaction.WithUnitID(unitID),
-			testtransaction.WithPartitionID(money.DefaultPartitionID),
-			testtransaction.WithAttributes(&money.TransferAttributes{}),
-			testtransaction.WithUnlockProof([]byte{byte(StateUnlockRollback), 1, 2, 3}),
+			tt.WithTransactionType(money.TransactionTypeTransfer),
+			tt.WithUnitID(unitID),
+			tt.WithPartitionID(money.DefaultPartitionID),
+			tt.WithAttributes(&money.TransferAttributes{}),
+			tt.WithStateUnlock([]byte{byte(StateUnlockRollback), 1, 2, 3}),
 		)
 		execCtx := txtypes.NewExecutionContext(txSys, abfc.NewNoFeeCreditModule(), nil, 10)
-		sm, err := txSys.handleUnlockUnitState(tx, execCtx)
+		sm, err := txSys.handleUnlockUnitState(tx, unitID, execCtx)
 		require.EqualError(t, err, "unlock error: state lock's rollback predicate failed: predicate is empty")
 		require.Nil(t, sm)
 	})
@@ -246,21 +230,111 @@ func TestGenericTxSystem_handleUnlockUnitState(t *testing.T) {
 			createLockTransaction(t, unitID, pubKey1)))
 		// add unlock
 		require.NoError(t, err)
-		tx := testtransaction.NewTransactionOrder(
+		tx := tt.NewTransactionOrder(
 			t,
-			testtransaction.WithTransactionType(money.TransactionTypeTransfer),
-			testtransaction.WithUnitID(unitID),
-			testtransaction.WithPartitionID(money.DefaultPartitionID),
-			testtransaction.WithAttributes(&money.TransferAttributes{}),
-			testtransaction.WithAuthProof(&money.TransferAuthProof{}),
+			tt.WithTransactionType(money.TransactionTypeTransfer),
+			tt.WithUnitID(unitID),
+			tt.WithPartitionID(money.DefaultPartitionID),
+			tt.WithAttributes(&money.TransferAttributes{}),
+			tt.WithAuthProof(&money.TransferAuthProof{}),
 		)
 		execCtx := txtypes.NewExecutionContext(txSys, abfc.NewNoFeeCreditModule(), nil, 10)
 
 		ownerProof := testsig.NewStateLockProofSignature(t, tx, sig1)
 		tx.StateUnlock = append([]byte{byte(StateUnlockExecute)}, ownerProof...)
-		sm, err := txSys.handleUnlockUnitState(tx, execCtx)
+		sm, err := txSys.handleUnlockUnitState(tx, unitID, execCtx)
 		require.EqualError(t, err, "failed to execute transaction that was on hold: unknown transaction type 1")
 		require.Nil(t, sm)
+	})
+	t.Run("ok - unlock and Tx succeed", func(t *testing.T) {
+		// create state with unit(unitID, lockedFor=pubKey1)
+		sig1, ver1 := testsig.CreateSignerAndVerifier(t)
+		pubKey1, err := ver1.MarshalPublicKey()
+		require.NoError(t, err)
+		unitID := moneyid.NewBillID(t)
+		dummyUnitID1 := moneyid.NewBillID(t)
+		dummyUnitID2 := moneyid.NewBillID(t)
+
+		// create "txOnHold" with 3 target units
+		targetUnits := []types.UnitID{unitID, dummyUnitID1, dummyUnitID2}
+		txOnHold := tt.NewTransactionOrder(
+			t,
+			tt.WithTransactionType(mockSplitTxType),
+			tt.WithUnitID(unitID),
+			tt.WithPartitionID(money.DefaultPartitionID),
+			tt.WithAttributes(&MockSplitTxAttributes{Value: 10, TargetUnits: targetUnits}),
+			tt.WithAuthProof(&MockTxAuthProof{}),
+			tt.WithStateLock(&types.StateLock{
+				ExecutionPredicate: basetemplates.NewP2pkh256BytesFromKey(pubKey1),
+				RollbackPredicate:  basetemplates.NewP2pkh256BytesFromKey(pubKey1)},
+			),
+		)
+		txOnHoldBytes, err := cbor.Marshal(txOnHold)
+		require.NoError(t, err)
+
+		// create mock tx system with unit(unitID, txOnHold) and dummy target units
+		txSys := NewTestGenericTxSystem(t,
+			[]txtypes.Module{NewMockTxModule(nil)},
+			withStateUnit(
+				unitID,
+				&money.BillData{Value: 1, Counter: 1, OwnerPredicate: basetemplates.AlwaysTrueBytes()},
+				txOnHoldBytes,
+			),
+			withStateUnit(
+				dummyUnitID1,
+				nil,
+				txOnHoldBytes,
+			),
+			withStateUnit(
+				dummyUnitID2,
+				nil,
+				txOnHoldBytes,
+			),
+		)
+
+		// create the rollback tx
+		tx := tt.NewTransactionOrder(
+			t,
+			tt.WithTransactionType(mockTxType),
+			tt.WithUnitID(unitID),
+			tt.WithPartitionID(money.DefaultPartitionID),
+			tt.WithAttributes(&MockTxAttributes{}),
+			tt.WithAuthProof(&MockTxAuthProof{}),
+		)
+		stateUnlockProof := testsig.NewStateLockProofSignature(t, tx, sig1)
+		tx.StateUnlock = append([]byte{byte(StateUnlockRollback)}, stateUnlockProof...)
+
+		// execute the rollback tx
+		execCtx := txtypes.NewExecutionContext(txSys, abfc.NewNoFeeCreditModule(), nil, 10)
+		sm, err := txSys.handleUnlockUnitState(tx, unitID, execCtx)
+		require.NoError(t, err)
+		require.NotNil(t, sm)
+		require.Equal(t, unitID, sm.TargetUnits[0])
+
+		// verify state lock was removed for all units and the dummy units are deleted
+		u, err := txSys.GetUnit(unitID, false)
+		require.NoError(t, err)
+		unit, err := state.ToUnitV1(u)
+		require.NoError(t, err)
+		require.NotNil(t, unit)
+		require.False(t, unit.IsStateLocked())
+		require.Zero(t, unit.DeletionRound())
+
+		dummyUnit1, err := txSys.GetUnit(dummyUnitID1, false)
+		require.NoError(t, err)
+		require.NotNil(t, dummyUnit1)
+		dummyUnit1V1, err := state.ToUnitV1(dummyUnit1)
+		require.NoError(t, err)
+		require.False(t, false, dummyUnit1V1.IsStateLocked())
+		require.EqualValues(t, 1, dummyUnit1V1.DeletionRound())
+
+		dummyUnit2, err := txSys.GetUnit(dummyUnitID2, false)
+		require.NoError(t, err)
+		dummyUnit2V1, err := state.ToUnitV1(dummyUnit2)
+		require.NoError(t, err)
+		require.NotNil(t, dummyUnit2V1)
+		require.False(t, false, dummyUnit2V1.IsStateLocked())
+		require.EqualValues(t, 1, dummyUnit2V1.DeletionRound())
 	})
 }
 
@@ -268,51 +342,59 @@ func TestGenericTxSystem_executeLockUnitState(t *testing.T) {
 	t.Run("err - invalid state lock", func(t *testing.T) {
 		unitID := moneyid.NewBillID(t)
 		txSys := NewTestGenericTxSystem(t, nil, withStateUnit(unitID, &money.BillData{Value: 1, Counter: 1, OwnerPredicate: basetemplates.AlwaysTrueBytes()}, nil))
-		tx := testtransaction.NewTransactionOrder(
+		tx := tt.NewTransactionOrder(
 			t,
-			testtransaction.WithTransactionType(money.TransactionTypeTransfer),
-			testtransaction.WithUnitID(unitID),
-			testtransaction.WithPartitionID(money.DefaultPartitionID),
-			testtransaction.WithAttributes(&money.TransferAttributes{}),
-			testtransaction.WithStateLock(&types.StateLock{}),
+			tt.WithTransactionType(money.TransactionTypeTransfer),
+			tt.WithUnitID(unitID),
+			tt.WithPartitionID(money.DefaultPartitionID),
+			tt.WithAttributes(&money.TransferAttributes{}),
+			tt.WithStateLock(&types.StateLock{}),
 		)
+		txBytes, err := types.Cbor.Marshal(tx)
+		require.NoError(t, err)
 		execCtx := txtypes.NewExecutionContext(txSys, abfc.NewNoFeeCreditModule(), nil, 10)
-		sm, err := txSys.executeLockUnitState(tx, execCtx)
+		sm, err := txSys.executeLockUnitState(tx, txBytes, []types.UnitID{unitID}, execCtx)
 		require.EqualError(t, err, "invalid state lock parameter: missing execution predicate")
 		require.Nil(t, sm)
 	})
 	t.Run("err - invalid state lock, missing rollback", func(t *testing.T) {
 		unitID := moneyid.NewBillID(t)
 		txSys := NewTestGenericTxSystem(t, nil, withStateUnit(unitID, &money.BillData{Value: 1, Counter: 1, OwnerPredicate: basetemplates.AlwaysTrueBytes()}, nil))
-		tx := testtransaction.NewTransactionOrder(
+		tx := tt.NewTransactionOrder(
 			t,
-			testtransaction.WithTransactionType(money.TransactionTypeTransfer),
-			testtransaction.WithUnitID(unitID),
-			testtransaction.WithPartitionID(money.DefaultPartitionID),
-			testtransaction.WithAttributes(&money.TransferAttributes{}),
-			testtransaction.WithStateLock(&types.StateLock{ExecutionPredicate: []byte{1, 2, 3}}),
+			tt.WithTransactionType(money.TransactionTypeTransfer),
+			tt.WithUnitID(unitID),
+			tt.WithPartitionID(money.DefaultPartitionID),
+			tt.WithAttributes(&money.TransferAttributes{}),
+			tt.WithStateLock(&types.StateLock{ExecutionPredicate: []byte{1, 2, 3}}),
 		)
+		txBytes, err := types.Cbor.Marshal(tx)
+		require.NoError(t, err)
+		targetUnits := []types.UnitID{unitID}
 		execCtx := txtypes.NewExecutionContext(txSys, abfc.NewNoFeeCreditModule(), nil, 10)
-		sm, err := txSys.executeLockUnitState(tx, execCtx)
+		sm, err := txSys.executeLockUnitState(tx, txBytes, targetUnits, execCtx)
 		require.EqualError(t, err, "invalid state lock parameter: missing rollback predicate")
 		require.Nil(t, sm)
 	})
 	t.Run("ok", func(t *testing.T) {
 		unitID := moneyid.NewBillID(t)
 		txSys := NewTestGenericTxSystem(t, nil, withStateUnit(unitID, &money.BillData{Value: 1, Counter: 1, OwnerPredicate: basetemplates.AlwaysTrueBytes()}, nil))
-		tx := testtransaction.NewTransactionOrder(
+		tx := tt.NewTransactionOrder(
 			t,
-			testtransaction.WithTransactionType(money.TransactionTypeTransfer),
-			testtransaction.WithUnitID(unitID),
-			testtransaction.WithPartitionID(money.DefaultPartitionID),
-			testtransaction.WithAttributes(&money.TransferAttributes{}),
-			testtransaction.WithStateLock(&types.StateLock{
+			tt.WithTransactionType(money.TransactionTypeTransfer),
+			tt.WithUnitID(unitID),
+			tt.WithPartitionID(money.DefaultPartitionID),
+			tt.WithAttributes(&money.TransferAttributes{}),
+			tt.WithStateLock(&types.StateLock{
 				ExecutionPredicate: basetemplates.AlwaysTrueBytes(),
 				RollbackPredicate:  basetemplates.AlwaysTrueBytes(),
 			}),
 		)
+		txBytes, err := types.Cbor.Marshal(tx)
+		require.NoError(t, err)
+		targetUnits := []types.UnitID{unitID}
 		execCtx := txtypes.NewExecutionContext(txSys, abfc.NewNoFeeCreditModule(), nil, 10)
-		sm, err := txSys.executeLockUnitState(tx, execCtx)
+		sm, err := txSys.executeLockUnitState(tx, txBytes, targetUnits, execCtx)
 		require.NoError(t, err, "invalid state lock parameter: missing rollback predicate")
 		require.NotNil(t, sm)
 		require.EqualValues(t, []types.UnitID{unitID}, sm.TargetUnits)
@@ -324,16 +406,74 @@ func TestGenericTxSystem_executeLockUnitState(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, unit.IsStateLocked())
 	})
+	t.Run("ok - lock state with multiple target units", func(t *testing.T) {
+		unitID := moneyid.NewBillID(t)
+		txSys := NewTestGenericTxSystem(t, nil, withStateUnit(unitID, &money.BillData{Value: 10, OwnerPredicate: basetemplates.AlwaysTrueBytes()}, nil))
+		attr := &money.SplitAttributes{
+			TargetUnits: []*money.TargetUnit{
+				{Amount: 1, OwnerPredicate: nil},
+				{Amount: 2, OwnerPredicate: nil},
+			},
+		}
+		tx := tt.NewTransactionOrder(
+			t,
+			tt.WithTransactionType(money.TransactionTypeSplit),
+			tt.WithUnitID(unitID),
+			tt.WithPartitionID(money.DefaultPartitionID),
+			tt.WithAttributes(attr),
+			tt.WithAuthProof(&money.SplitAuthProof{
+				OwnerProof: basetemplates.AlwaysTrueBytes(),
+			}),
+			tt.WithStateLock(&types.StateLock{
+				ExecutionPredicate: basetemplates.AlwaysTrueBytes(),
+				RollbackPredicate:  basetemplates.AlwaysTrueBytes(),
+			}),
+		)
+		txBytes, err := types.Cbor.Marshal(tx)
+		require.NoError(t, err)
+		targetUnits := []types.UnitID{unitID}
+		idGen := money.PrndSh(tx)
+		for range attr.TargetUnits {
+			newUnitID, err := txSys.pdr.ComposeUnitID(types.ShardID{}, money.BillUnitType, idGen)
+			require.NoError(t, err)
+			targetUnits = append(targetUnits, newUnitID)
+		}
+
+		execCtx := txtypes.NewExecutionContext(txSys, abfc.NewNoFeeCreditModule(), nil, 10)
+		sm, err := txSys.executeLockUnitState(tx, txBytes, targetUnits, execCtx)
+		require.NoError(t, err)
+		require.NotNil(t, sm)
+		require.Equal(t, types.TxStatusSuccessful, sm.SuccessIndicator)
+		require.Equal(t, targetUnits, sm.TargetUnits)
+
+		// verify main unit got locked
+		u, err := txSys.state.GetUnit(unitID, false)
+		require.NoError(t, err)
+		unit, err := state.ToUnitV1(u)
+		require.NoError(t, err)
+		require.Equal(t, txBytes, unit.StateLockTx())
+
+		// and dummy units were created for targets
+		require.Len(t, targetUnits, 3)
+		for i := 1; i < len(targetUnits); i++ {
+			u, err = txSys.state.GetUnit(targetUnits[i], false)
+			require.NoError(t, err)
+			require.Nil(t, u.Data())
+			unit, err := state.ToUnitV1(u)
+			require.NoError(t, err)
+			require.Equal(t, txBytes, unit.StateLockTx())
+		}
+	})
 }
 
 func createLockTransaction(t *testing.T, id types.UnitID, pubkey []byte) []byte {
-	tx := testtransaction.NewTransactionOrder(
+	tx := tt.NewTransactionOrder(
 		t,
-		testtransaction.WithTransactionType(money.TransactionTypeTransfer),
-		testtransaction.WithUnitID(id),
-		testtransaction.WithPartitionID(money.DefaultPartitionID),
-		testtransaction.WithAttributes(&money.TransferAttributes{NewOwnerPredicate: basetemplates.AlwaysTrueBytes(), TargetValue: 1, Counter: 1}),
-		testtransaction.WithStateLock(&types.StateLock{
+		tt.WithTransactionType(money.TransactionTypeTransfer),
+		tt.WithUnitID(id),
+		tt.WithPartitionID(money.DefaultPartitionID),
+		tt.WithAttributes(&money.TransferAttributes{NewOwnerPredicate: basetemplates.AlwaysTrueBytes(), TargetValue: 1, Counter: 1}),
+		tt.WithStateLock(&types.StateLock{
 			ExecutionPredicate: basetemplates.NewP2pkh256BytesFromKey(pubkey)}),
 	)
 	txBytes, err := cbor.Marshal(tx)

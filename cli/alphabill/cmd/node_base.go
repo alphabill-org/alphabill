@@ -220,22 +220,22 @@ func loadPartitionGenesis(genesisPath string) (*genesis.PartitionGenesis, error)
 	return pg, nil
 }
 
-func loadStateFile(stateFilePath string, unitDataConstructor state.UnitDataConstructor) (*state.State, error) {
+func loadStateFile(stateFilePath string, unitDataConstructor state.UnitDataConstructor) (*state.State, *state.Header, error) {
 	if !util.FileExists(stateFilePath) {
-		return nil, fmt.Errorf("state file '%s' not found", stateFilePath)
+		return nil, nil, fmt.Errorf("state file '%s' not found", stateFilePath)
 	}
 
 	stateFile, err := os.Open(filepath.Clean(stateFilePath))
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer stateFile.Close()
 
-	s, err := state.NewRecoveredState(stateFile, unitDataConstructor)
+	s, header, err := state.NewRecoveredState(stateFile, unitDataConstructor)
 	if err != nil {
-		return nil, fmt.Errorf("failed to build state tree from state file: %w", err)
+		return nil, nil, fmt.Errorf("failed to build state tree from state file: %w", err)
 	}
-	return s, nil
+	return s, header, nil
 }
 
 func addCommonNodeConfigurationFlags(nodeCmd *cobra.Command, config *startNodeConfiguration, partitionSuffix string) {

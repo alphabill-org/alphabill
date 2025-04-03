@@ -5,7 +5,10 @@ import (
 	"fmt"
 )
 
-var ErrNotFound = errors.New("not found")
+var (
+	ErrNotFound      = errors.New("not found")
+	ErrAlreadyExists = errors.New("node already exists")
+)
 
 // Get looks for the value with given key in the AVL tree, returning it.
 // Returns nil if unable to find that value.

@@ -27,7 +27,7 @@ func insert[K Key[K], V Value[V]](p *Node[K, V], key K, value V) (*Node[K, V], e
 	}
 	i := p.key.Compare(key)
 	if i == 0 {
-		return nil, fmt.Errorf("key %v exists", key)
+		return nil, fmt.Errorf("%w: key %v exists", ErrAlreadyExists, key)
 	}
 	if p.clean {
 		// if node is clean then make a dirty clone of it

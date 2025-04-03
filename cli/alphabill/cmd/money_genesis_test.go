@@ -144,7 +144,7 @@ func Test_MoneyGenesis(t *testing.T) {
 
 		stateFile, err := os.Open(filepath.Join(homeDir, moneyPartitionDir, moneyGenesisStateFileName))
 		require.NoError(t, err)
-		s, err := state.NewRecoveredState(stateFile, func(ui types.UnitID) (types.UnitData, error) {
+		s, _, err := state.NewRecoveredState(stateFile, func(ui types.UnitID) (types.UnitData, error) {
 			return moneysdk.NewUnitData(ui, pdr)
 		})
 		require.NoError(t, err)

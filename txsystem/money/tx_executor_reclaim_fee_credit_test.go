@@ -170,7 +170,6 @@ func TestModule_executeReclaimFCTx(t *testing.T) {
 	require.EqualValues(t, bill.Value, amount+v)
 	// counter is incremented
 	require.EqualValues(t, bill.Counter, counter+1)
-	require.EqualValues(t, bill.Locked, 0)
 }
 
 func newInvalidProof(t *testing.T, pdr *types.PartitionDescriptionRecord, signer abcrypto.Signer) *types.TxRecordProof {

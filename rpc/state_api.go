@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"time"
 
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -42,6 +43,7 @@ type (
 		GetTransactionRecordProof(ctx context.Context, hash []byte) (*types.TxRecordProof, error)
 		CurrentRoundInfo(ctx context.Context) (*partition.RoundInfo, error)
 		TransactionSystemState() txsystem.StateReader
+		SerializeState(w io.Writer) error
 		Validators() peer.IDSlice
 		RegisterValidatorAssignmentRecord(v *partitions.ValidatorAssignmentRecord) error
 		GetTrustBase(epochNumber uint64) (types.RootTrustBase, error)
@@ -55,6 +57,7 @@ type (
 		UnitID      types.UnitID          `json:"unitId"`
 		Data        T                     `json:"data"`
 		StateProof  *types.UnitStateProof `json:"stateProof,omitempty"`
+		StateLockTx hex.Bytes             `json:"stateLockTx,omitempty"`
 	}
 
 	TransactionRecordAndProof struct {
@@ -119,6 +122,10 @@ func (s *StateAPI) GetUnit(unitID types.UnitID, includeStateProof bool) (_ *Unit
 		}
 		return nil, err
 	}
+	unitV1, err := state.ToUnitV1(unit)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert unit to v1: %w", err)
+	}
 
 	resp := &Unit[any]{
 		NetworkID:   s.node.NetworkID(),
@@ -126,6 +133,7 @@ func (s *StateAPI) GetUnit(unitID types.UnitID, includeStateProof bool) (_ *Unit
 		UnitID:      unitID,
 		Data:        unit.Data(),
 		StateProof:  nil,
+		StateLockTx: unitV1.StateLockTx(),
 	}
 
 	if includeStateProof {

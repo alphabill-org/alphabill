@@ -72,7 +72,7 @@ func runTokensNode(ctx context.Context, cfg *tokensConfiguration) error {
 	if stateFilePath == "" {
 		stateFilePath = filepath.Join(cfg.Base.HomeDir, utDir, utGenesisStateFileName)
 	}
-	state, err := loadStateFile(stateFilePath, func(ui types.UnitID) (types.UnitData, error) {
+	state, header, err := loadStateFile(stateFilePath, func(ui types.UnitID) (types.UnitData, error) {
 		return tokenssdk.NewUnitData(ui, pg.PartitionDescription)
 	})
 	if err != nil {
@@ -156,6 +156,7 @@ func runTokensNode(ctx context.Context, cfg *tokensConfiguration) error {
 		tokens.WithPredicateExecutor(predEng.Execute),
 		tokens.WithAdminOwnerPredicate(params.AdminOwnerPredicate),
 		tokens.WithFeelessMode(params.FeelessMode),
+		tokens.WithExecutedTransactions(header.ExecutedTransactions),
 	)
 	if err != nil {
 		return fmt.Errorf("creating transaction system: %w", err)

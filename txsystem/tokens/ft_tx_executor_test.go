@@ -39,9 +39,9 @@ var (
 	existingTokenTypeID  types.UnitID = append(make([]byte, 31), 1, tokens.FungibleTokenTypeUnitType)
 	existingTokenTypeID2 types.UnitID = append(make([]byte, 31), 11, tokens.FungibleTokenTypeUnitType)
 
-	existingTokenID       types.UnitID = append(make([]byte, 31), 0x02, tokens.FungibleTokenUnitType)
-	existingTokenID2      types.UnitID = append(make([]byte, 31), 0xaa, tokens.FungibleTokenUnitType)
-	existingLockedTokenID types.UnitID = append(make([]byte, 31), 0xbb, tokens.FungibleTokenUnitType)
+	existingTokenID  types.UnitID = append(make([]byte, 31), 0x02, tokens.FungibleTokenUnitType)
+	existingTokenID2 types.UnitID = append(make([]byte, 31), 0xaa, tokens.FungibleTokenUnitType)
+	existingTokenID3 types.UnitID = append(make([]byte, 31), 0xbb, tokens.FungibleTokenUnitType)
 
 	nonExistingTokenTypeID types.UnitID = append(make([]byte, 31), 100, tokens.FungibleTokenTypeUnitType)
 	nonExistingTokenID     types.UnitID = append(make([]byte, 31), 100, tokens.FungibleTokenUnitType)
@@ -486,7 +486,6 @@ func TestMintFungibleToken_Ok(t *testing.T) {
 	require.Equal(t, attributes.Value, d.Value)
 	require.Equal(t, uint64(0), d.Counter)
 	require.Equal(t, uint64(1000), d.MinLifetime)
-	require.Equal(t, uint64(0), d.Locked)
 	require.Equal(t, attributes.OwnerPredicate, d.Owner())
 }
 
@@ -519,17 +518,6 @@ func TestTransferFungibleToken_NotOk(t *testing.T) {
 			attr:       &tokens.TransferFungibleTokenAttributes{},
 			authProof:  &tokens.TransferFungibleTokenAuthProof{},
 			wantErrStr: fmt.Sprintf("unit %s does not exist", ftUnitID),
-		},
-		{
-			name: "token locked",
-			tx:   createTxOrder(t, existingLockedTokenID, tokens.TransactionTypeTransferFT, &tokens.TransferFungibleTokenAttributes{}),
-			attr: &tokens.TransferFungibleTokenAttributes{
-				NewOwnerPredicate: templates.AlwaysTrueBytes(),
-				Value:             existingTokenValue,
-				Counter:           0,
-			},
-			authProof:  &tokens.TransferFungibleTokenAuthProof{},
-			wantErrStr: "token is locked",
 		},
 		{
 			name: "invalid value",
@@ -651,17 +639,6 @@ func TestSplitFungibleToken_NotOk(t *testing.T) {
 			attr:       &tokens.SplitFungibleTokenAttributes{},
 			authProof:  &tokens.SplitFungibleTokenAuthProof{},
 			wantErrStr: fmt.Sprintf("unit %s does not exist", ftUnitID),
-		},
-		{
-			name: "token locked",
-			tx:   createTxOrder(t, existingLockedTokenID, tokens.TransactionTypeSplitFT, nil),
-			attr: &tokens.SplitFungibleTokenAttributes{
-				NewOwnerPredicate: templates.AlwaysTrueBytes(),
-				TargetValue:       existingTokenValue,
-				Counter:           0,
-			},
-			authProof:  &tokens.SplitFungibleTokenAuthProof{},
-			wantErrStr: "token is locked",
 		},
 		{
 			name: "target value exceeds token value",
@@ -821,18 +798,6 @@ func TestBurnFungibleToken_NotOk(t *testing.T) {
 			wantErrStr: fmt.Sprintf("unit %s does not exist", ftUnitID),
 		},
 		{
-			name: "token locked",
-			tx:   createTxOrder(t, existingLockedTokenID, tokens.TransactionTypeBurnFT, nil),
-			attr: &tokens.BurnFungibleTokenAttributes{
-				TypeID:             existingTokenTypeID,
-				Value:              existingTokenValue,
-				TargetTokenCounter: 0,
-				Counter:            0,
-			},
-			authProof:  &tokens.BurnFungibleTokenAuthProof{},
-			wantErrStr: "token is locked",
-		},
-		{
 			name: "invalid value",
 			tx:   createTxOrder(t, existingTokenID, tokens.TransactionTypeBurnFT, nil),
 			attr: &tokens.BurnFungibleTokenAttributes{
@@ -917,7 +882,6 @@ func TestBurnFungibleToken_Ok(t *testing.T) {
 	require.Equal(t, existingTokenTypeID, d.TypeID)
 	require.Equal(t, uint64(0), d.Value)
 	require.Equal(t, uint64(1), d.Counter)
-	require.Equal(t, uint64(0), d.Locked)
 }
 
 func TestJoinFungibleToken_Ok(t *testing.T) {
@@ -929,10 +893,11 @@ func TestJoinFungibleToken_Ok(t *testing.T) {
 	txExecutors := make(txtypes.TxExecutors)
 	require.NoError(t, txExecutors.Add(m.TxHandlers()))
 
+	// burn existingTokenID and join to existingTokenID3
 	burnAttributes := &tokens.BurnFungibleTokenAttributes{
 		TypeID:             existingTokenTypeID,
 		Value:              existingTokenValue,
-		TargetTokenID:      existingLockedTokenID,
+		TargetTokenID:      existingTokenID3,
 		TargetTokenCounter: 0,
 		Counter:            0,
 	}
@@ -948,16 +913,11 @@ func TestJoinFungibleToken_Ok(t *testing.T) {
 		BurnTokenProofs: []*types.TxRecordProof{burnTxRecordProof},
 	}
 	burnAuthProof := testtransaction.WithAuthProof(&tokens.BurnFungibleTokenAuthProof{TokenTypeOwnerProofs: [][]byte{templates.EmptyArgument()}})
-	joinTx := createTxOrder(t, existingLockedTokenID, tokens.TransactionTypeJoinFT, joinAttr, burnAuthProof)
+	joinTx := createTxOrder(t, existingTokenID3, tokens.TransactionTypeJoinFT, joinAttr, burnAuthProof)
 
 	sm, err = txExecutors.ValidateAndExecute(joinTx, testctx.NewMockExecutionContext(testctx.WithCurrentRound(roundNo)))
 	require.NoError(t, err)
 	require.NotNil(t, sm)
-
-	// verify locked target unit was unlocked
-	u, err := opts.state.GetUnit(existingLockedTokenID, false)
-	require.NoError(t, err)
-	require.EqualValues(t, 0, u.Data().(*tokens.FungibleTokenData).Locked)
 }
 
 func TestJoinFungibleToken_NotOk(t *testing.T) {
@@ -1192,12 +1152,11 @@ func initState(t *testing.T) *state.State {
 		Counter:        0,
 	}))
 	require.NoError(t, err)
-	err = s.Apply(state.AddUnit(existingLockedTokenID, &tokens.FungibleTokenData{
+	err = s.Apply(state.AddUnit(existingTokenID3, &tokens.FungibleTokenData{
 		TypeID:         existingTokenTypeID,
 		Value:          existingTokenValue,
 		OwnerPredicate: templates.AlwaysTrueBytes(),
 		Counter:        0,
-		Locked:         1,
 	}))
 	require.NoError(t, err)
 	err = s.Apply(state.AddUnit(feeCreditID, &fc.FeeCreditRecord{
@@ -1266,10 +1225,6 @@ func defaultAuthProof(transactionType uint16) any {
 		return &tokens.BurnFungibleTokenAuthProof{}
 	case tokens.TransactionTypeJoinFT:
 		return &tokens.JoinFungibleTokenAuthProof{}
-	case tokens.TransactionTypeLockToken:
-		return &tokens.LockTokenAuthProof{}
-	case tokens.TransactionTypeUnlockToken:
-		return &tokens.UnlockTokenAuthProof{}
 	default:
 		return nil
 	}

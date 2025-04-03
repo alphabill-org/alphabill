@@ -7,6 +7,14 @@ import (
 	"github.com/alphabill-org/alphabill/state"
 )
 
+// transaction execution types
+const (
+	ExecutionTypeUnconditional ExecutionType = iota // normal execution
+	ExecutionTypeConditional                        // creating dummy units and placing tx "on hold"
+	ExecutionTypeCommit                             // converting dummy units to normal units and executing "on hold" tx
+	ExecutionTypeRollback                           // deleting dummy units?
+)
+
 type (
 	StateInfo interface {
 		GetUnit(id types.UnitID, committed bool) (state.Unit, error)
@@ -28,8 +36,22 @@ type (
 		remainingGas uint64
 		customData   []byte
 		exArgument   func() ([]byte, error)
+		executionType ExecutionType
 	}
+
+	ExecutionType uint
 )
+
+func NewExecutionContext(txSys StateInfo, f FeeCalculation, tb types.RootTrustBase, maxCost uint64) *TxExecutionContext {
+	gasUnits := f.BuyGas(maxCost)
+	return &TxExecutionContext{
+		txs:          txSys,
+		fee:          f,
+		trustStore:   tb,
+		initialGas:   gasUnits,
+		remainingGas: gasUnits,
+	}
+}
 
 func (ec *TxExecutionContext) GetUnit(id types.UnitID, committed bool) (state.Unit, error) {
 	return ec.txs.GetUnit(id, committed)
@@ -93,13 +115,10 @@ func (ec *TxExecutionContext) WithExArg(f func() ([]byte, error)) ExecutionConte
 	return ec
 }
 
-func NewExecutionContext(txSys StateInfo, f FeeCalculation, tb types.RootTrustBase, maxCost uint64) *TxExecutionContext {
-	gasUnits := f.BuyGas(maxCost)
-	return &TxExecutionContext{
-		txs:          txSys,
-		fee:          f,
-		trustStore:   tb,
-		initialGas:   gasUnits,
-		remainingGas: gasUnits,
-	}
+func (ec *TxExecutionContext) ExecutionType() ExecutionType {
+	return ec.executionType
+}
+
+func (ec *TxExecutionContext) SetExecutionType(exeType ExecutionType) {
+	ec.executionType = exeType
 }

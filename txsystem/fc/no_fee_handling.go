@@ -35,10 +35,14 @@ func (f *NoFeeHandling) IsFeeCreditTx(tx *types.TransactionOrder) bool {
 	return false
 }
 
-func (m *NoFeeHandling) IsPermissionedMode() bool {
+func (f *NoFeeHandling) IsPermissionedMode() bool {
 	return false
 }
 
-func (m *NoFeeHandling) IsFeelessMode() bool {
+func (f *NoFeeHandling) IsFeelessMode() bool {
 	return true
+}
+
+func (f *NoFeeHandling) FeeCreditRecordUnitType() uint32 {
+	return 0
 }

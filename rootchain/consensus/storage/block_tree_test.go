@@ -25,6 +25,7 @@ var inputRecord1 = &types.InputRecord{
 	Hash:         []byte{2, 2, 2},
 	BlockHash:    []byte{3, 3, 3},
 	SummaryValue: []byte{4, 4, 4},
+	ETHash:       []byte{4, 4, 5},
 	RoundNumber:  1,
 	Timestamp:    202411131,
 }
@@ -41,6 +42,7 @@ var inputRecord2 = &types.InputRecord{
 	Hash:         []byte{5, 5, 5},
 	BlockHash:    []byte{3, 3, 3},
 	SummaryValue: []byte{4, 4, 4},
+	ETHash:       []byte{5, 5, 5},
 	RoundNumber:  1,
 	Timestamp:    202411132,
 }
@@ -55,7 +57,7 @@ var pdr2 = &types.PartitionDescriptionRecord{
 var roundInfo = &drctypes.RoundInfo{
 	RoundNumber:     genesis.RootRound,
 	Timestamp:       genesis.Timestamp,
-	CurrentRootHash: hexToBytes("6439C3FBC4811C9B8139BE7E817A2C89623434AE60EAD6F177AA7F49B05C7A3A"),
+	CurrentRootHash: hexToBytes("DA077151B1F51071BF85060D155EF0FE74FF1B09947F769F9654F19A39F49F7A"),
 }
 
 var pg = func() []*genesis.GenesisPartitionRecord {
@@ -591,7 +593,7 @@ func TestAddAndCommit(t *testing.T) {
 		IR:        &types.InputRecord{},
 		PDRHash:   nil,
 	})
-	b.RootHash = hexToBytes("955486064743538FB1EA182505025D1BEC57BB07D6FA06DE3F31322447055D1B")
+	b.RootHash = hexToBytes("CAE38201ADF8D40E2D97CB6201A6639E0B7A02F2E282EEBB92C255D600B2D908")
 
 	commitQc := &drctypes.QuorumCert{
 		VoteInfo: &drctypes.RoundInfo{

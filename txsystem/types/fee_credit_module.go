@@ -13,6 +13,7 @@ type (
 
 		IsPermissionedMode() bool
 		IsFeelessMode() bool
+		FeeCreditRecordUnitType() uint32
 	}
 
 	FeeBalanceValidator interface {

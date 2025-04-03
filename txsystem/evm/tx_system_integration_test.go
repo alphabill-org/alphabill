@@ -66,7 +66,7 @@ func TestEVMPartition_DeployAndCallContract(t *testing.T) {
 	genesisState := newGenesisState(t, from, big.NewInt(oneEth))
 	blockDB, err := memorydb.New()
 	require.NoError(t, err)
-	evmPartition, err := testpartition.NewPartition(t, 3, func(trustBase types.RootTrustBase) txsystem.TransactionSystem {
+	evmPartition, err := testpartition.AddShard(t, 3, func(trustBase types.RootTrustBase) txsystem.TransactionSystem {
 		genesisState = genesisState.Clone()
 		system, err := NewEVMTxSystem(
 			pdr.NetworkID,
@@ -80,7 +80,7 @@ func TestEVMPartition_DeployAndCallContract(t *testing.T) {
 	}, pdr, genesisState)
 	require.NoError(t, err)
 
-	network, err := testpartition.NewAlphabillPartition(t, []*testpartition.NodePartition{evmPartition})
+	network := testpartition.NewAlphabillNetwork(t, 1)
 	require.NoError(t, err)
 	require.NoError(t, network.Start(t))
 	defer network.WaitClose(t)

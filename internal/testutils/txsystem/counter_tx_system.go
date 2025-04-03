@@ -7,6 +7,7 @@ import (
 
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/util"
+
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
 )
@@ -140,8 +141,13 @@ func (m *CounterTxSystem) Commit(uc *types.UnicityCertificate) error {
 func (m *CounterTxSystem) CommittedUC() *types.UnicityCertificate {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-
 	return m.committedUC
+}
+
+func (m *CounterTxSystem) SetCommittedUC(committedUC *types.UnicityCertificate) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.committedUC = committedUC
 }
 
 func (m *CounterTxSystem) SerializeState(writer io.Writer, committed bool) error {
@@ -184,9 +190,6 @@ func (m *CounterTxSystem) TypeID() types.PartitionTypeID {
 }
 
 func (m *CounterTxSystem) stateCountToHash(stateCount uint64) []byte {
-	if stateCount == 0 {
-		return nil
-	}
 	root := make([]byte, 32)
 	binary.LittleEndian.PutUint64(root, stateCount)
 	return root

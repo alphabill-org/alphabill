@@ -20,7 +20,6 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	"github.com/alphabill-org/alphabill-go-base/util"
 
 	"github.com/alphabill-org/alphabill/keyvaluedb"
@@ -346,7 +345,6 @@ func (n *Node) initState(ctx context.Context) (err error) {
 	// state. Never look further back from this starting point.
 	dbIt := n.blockStore.Find(util.Uint64ToBytes(n.fuc.GetRoundNumber() + 1))
 	defer func() { err = errors.Join(err, dbIt.Close()) }()
-
 	for ; dbIt.Valid(); dbIt.Next() {
 		var b types.Block
 		roundNo := util.BytesToUint64(dbIt.Key())
@@ -1369,9 +1367,9 @@ func (n *Node) handleBlock(ctx context.Context, b *types.Block) error {
 		return fmt.Errorf("missing blocks between rounds %v and %v", committedUC.GetRoundNumber(), blockUC.GetRoundNumber())
 	}
 
-	if !bytes.Equal(b.Header.PreviousBlockHash, committedUC.InputRecord.BlockHash) {
+	if !bytes.Equal(b.Header.PreviousBlockHash, committedUC.GetBlockHash()) {
 		return fmt.Errorf("invalid block %v (expected previous block hash='%X', actual previous block hash='%X', )",
-			blockUC.GetRoundNumber(), b.Header.PreviousBlockHash, committedUC.InputRecord.BlockHash)
+			blockUC.GetRoundNumber(), b.Header.PreviousBlockHash, committedUC.GetBlockHash())
 	}
 
 	n.log.DebugContext(ctx, fmt.Sprintf("Applying block from round %d", blockUC.GetRoundNumber()))
@@ -1382,7 +1380,7 @@ func (n *Node) handleBlock(ctx context.Context, b *types.Block) error {
 	if err != nil {
 		return fmt.Errorf("error reading current state, %w", err)
 	}
-	if !bytes.Equal(blockUC.InputRecord.PreviousHash, state.Root()) {
+	if blockUC.GetPreviousStateHash() != nil && !bytes.Equal(blockUC.InputRecord.PreviousHash, state.Root()) {
 		return fmt.Errorf("block does not extend current state, expected state hash: %X, actual state hash: %X",
 			blockUC.InputRecord.PreviousHash, state.Root())
 	}
@@ -1513,18 +1511,13 @@ func (n *Node) sendCertificationRequest(ctx context.Context, blockAuthor string)
 		return fmt.Errorf("failed to marshal unicity certificate: %w", err)
 	}
 
-	var prevBlockHash hex.Bytes
-	committedUC := n.committedUC()
-	if committedUC != nil {
-		prevBlockHash = committedUC.InputRecord.BlockHash
-	}
 	pendingProposal := &types.Block{
 		Header: &types.Header{
 			Version:           1,
 			PartitionID:       n.configuration.GetPartitionID(),
 			ShardID:           n.configuration.shardConf.ShardID,
 			ProposerID:        blockAuthor,
-			PreviousBlockHash: prevBlockHash,
+			PreviousBlockHash: n.committedUC().GetBlockHash(),
 		},
 		Transactions:       n.proposedTransactions,
 		UnicityCertificate: ucBytes,
@@ -1540,6 +1533,7 @@ func (n *Node) sendCertificationRequest(ctx context.Context, blockAuthor string)
 	n.pendingBlockProposal = pendingProposal
 	n.proposedTransactions = []*types.TransactionRecord{}
 	n.sumOfEarnedFees = 0
+
 	// send new input record for certification
 	req := &certification.BlockCertificationRequest{
 		PartitionID: n.configuration.GetPartitionID(),
@@ -1547,6 +1541,7 @@ func (n *Node) sendCertificationRequest(ctx context.Context, blockAuthor string)
 		NodeID:      n.peer.ID().String(),
 		InputRecord: ir,
 	}
+
 	if req.BlockSize, err = pendingProposal.Size(); err != nil {
 		return fmt.Errorf("calculating block size: %w", err)
 	}
@@ -1743,6 +1738,15 @@ func (n *Node) startProcessingTransactions(ctx context.Context) {
 
 	wg.Add(1)
 	go func() {
+		defer wg.Done()
+		luc := n.luc.Load()
+		if luc == nil || luc.IsInitial() {
+			// Do not process transactions in the first round - nodes have only done
+			// a handshake and are not in sync yet. And it would be nice for the first UC
+			// to certify clean genesis state.
+			return
+		}
+
 		processCtx := txCtx
 		receiverFunc := n.shardStore.RandomValidator
 
@@ -1755,7 +1759,6 @@ func (n *Node) startProcessingTransactions(ctx context.Context) {
 			receiverFunc = n.leader.Get
 		}
 
-		defer wg.Done()
 		if n.leader.IsLeader(n.peer.ID()) {
 			n.network.ProcessTransactions(processCtx, n.process)
 		} else {

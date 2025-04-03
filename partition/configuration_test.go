@@ -20,8 +20,20 @@ func TestNewNodeConf(t *testing.T) {
 	require.NoError(t, err)
 	t1Timeout := 250 * time.Millisecond
 
-	keyConf := &KeyConf{}
-	shardConf := &types.PartitionDescriptionRecord{}
+	keyConf, nodeInfo := createKeyConf(t)
+	shardConf := &types.PartitionDescriptionRecord{
+		Version:         1,
+		NetworkID:       5,
+		PartitionID:     0x01010101,
+		ShardID:         types.ShardID{},
+		PartitionTypeID: 999,
+		TypeIDLen:       8,
+		UnitIDLen:       256,
+		T2Timeout:       2500 * time.Millisecond,
+		Epoch:           0,
+		EpochStart:      1,
+		Validators:      []*types.NodeInfo{nodeInfo},
+	}
 	_, verifier := testsig.CreateSignerAndVerifier(t)
 	trustBase := trustbase.NewTrustBase(t, verifier)
 	obs := testobserve.Default(t)
@@ -52,8 +64,20 @@ func TestNewNodeConf(t *testing.T) {
 }
 
 func TestNewNodeConf_WithDefaults(t *testing.T) {
-	keyConf := &KeyConf{}
-	shardConf := &types.PartitionDescriptionRecord{}
+	keyConf, nodeInfo := createKeyConf(t)
+	shardConf := &types.PartitionDescriptionRecord{
+		Version:         1,
+		NetworkID:       5,
+		PartitionID:     0x01010101,
+		ShardID:         types.ShardID{},
+		PartitionTypeID: 999,
+		TypeIDLen:       8,
+		UnitIDLen:       256,
+		T2Timeout:       2500 * time.Millisecond,
+		Epoch:           0,
+		EpochStart:      1,
+		Validators:      []*types.NodeInfo{nodeInfo},
+	}
 
 	_, verifier := testsig.CreateSignerAndVerifier(t)
 	trustBase := trustbase.NewTrustBase(t, verifier)

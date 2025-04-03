@@ -11,6 +11,7 @@ import (
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/network"
 	"github.com/alphabill-org/alphabill/network/protocol/certification"
+	"github.com/alphabill-org/alphabill/partition"
 	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
@@ -36,6 +37,21 @@ func (n *TestNode) NodeInfo(t *testing.T) *types.NodeInfo {
 		NodeID: n.PeerConf.ID.String(),
 		SigKey: sigKey,
 		Stake:  1,
+	}
+}
+
+func (n *TestNode) KeyConf(t *testing.T) *partition.KeyConf {
+	sigPrivKeyBytes, err := n.Signer.MarshalPrivateKey()
+	require.NoError(t, err)
+	return &partition.KeyConf{
+		SigKey: partition.Key{
+			Algorithm:  "secp256k1",
+			PrivateKey: sigPrivKeyBytes,
+		},
+		AuthKey: partition.Key{
+			Algorithm:  "secp256k1",
+			PrivateKey: n.PeerConf.KeyPair.PrivateKey,
+		},
 	}
 }
 

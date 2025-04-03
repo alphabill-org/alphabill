@@ -43,13 +43,13 @@ func TestInitPartitionAndDefineNFT_Ok(t *testing.T) {
 		T2Timeout:   2000 * time.Millisecond,
 	}
 	genesisState := newStateWithFeeCredit(t, feeCreditID)
-	tokenPrt, err := testpartition.NewPartition(t, 3, func(trustBase types.RootTrustBase) txsystem.TransactionSystem {
+	tokenPrt, err := testpartition.NewShard(t, 3, func(trustBase types.RootTrustBase) txsystem.TransactionSystem {
 		system, err := NewTxSystem(pdr, types.ShardID{}, observability.Default(t), WithTrustBase(trustBase), WithState(genesisState.Clone()))
 		require.NoError(t, err)
 		return system
 	}, pdr, genesisState)
 	require.NoError(t, err)
-	abNet, err := testpartition.NewAlphabillPartition(t, []*testpartition.NodePartition{tokenPrt})
+	abNet := testpartition.NewAlphabillNetwork(t, 1)
 	require.NoError(t, err)
 	require.NoError(t, abNet.Start(t))
 	defer abNet.WaitClose(t)
@@ -98,7 +98,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 
 	// setup network
 	genesisState := newStateWithFeeCredit(t, feeCreditID)
-	tokenPrt, err := testpartition.NewPartition(t, 1, func(tb types.RootTrustBase) txsystem.TransactionSystem {
+	tokenPrt, err := testpartition.NewShard(t, 1, func(tb types.RootTrustBase) txsystem.TransactionSystem {
 		trustBase = tb
 		genesisState = genesisState.Clone()
 		system, err := NewTxSystem(pdr, types.ShardID{}, observability.Default(t), WithState(genesisState), WithTrustBase(tb))
@@ -110,7 +110,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	// the tx system lambda is called once for node genesis, but this is not interesting so clear the states before node
 	// is started
 	states = []*state.State{}
-	abNet, err := testpartition.NewAlphabillPartition(t, []*testpartition.NodePartition{tokenPrt})
+	abNet := testpartition.NewAlphabillNetwork(t, 1)
 	require.NoError(t, err)
 	require.NoError(t, abNet.Start(t))
 	defer abNet.WaitClose(t)

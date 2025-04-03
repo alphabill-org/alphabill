@@ -5,7 +5,6 @@ import (
 	"context"
 	gocrypto "crypto"
 	"crypto/rand"
-	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -19,6 +18,7 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/hash"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	testlogger "github.com/alphabill-org/alphabill/internal/testutils/logger"
 	testnetwork "github.com/alphabill-org/alphabill/internal/testutils/network"
 	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
 	testevent "github.com/alphabill-org/alphabill/internal/testutils/partition/event"
@@ -38,6 +38,7 @@ type AlwaysValidTransactionValidator struct{}
 
 type SingleNodePartition struct {
 	nodeConf   *NodeConf
+	txSystem   txsystem.TransactionSystem
 	node       *Node
 
 	rootNodeID string
@@ -80,17 +81,17 @@ func newSingleNodeShard(t *testing.T, txSystem txsystem.TransactionSystem, valid
 	_, fakeNodeInfo := createKeyConf(t)
 
 	shardConf := &types.PartitionDescriptionRecord{
-		Version: 1,
-		NetworkID: 5,
-		PartitionID: 0x01010101,
-		ShardID: types.ShardID{},
-		PartitionTypeID: 999, // TODO: cannot generate state, shardConf
-		TypeIDLen: 8,
-		UnitIDLen: 256,
-		T2Timeout: 2500 * time.Millisecond,
-		Epoch: 0,
-		EpochStart: 1,
-		Validators: []*types.NodeInfo{fakeNodeInfo},
+		Version:         1,
+		NetworkID:       5,
+		PartitionID:     0x01010101,
+		ShardID:         types.ShardID{},
+		PartitionTypeID: 999,
+		TypeIDLen:       8,
+		UnitIDLen:       256,
+		T2Timeout:       2500 * time.Millisecond,
+		Epoch:           0,
+		EpochStart:      1,
+		Validators:      []*types.NodeInfo{fakeNodeInfo},
 	}
 
 	if validator {
@@ -100,50 +101,36 @@ func newSingleNodeShard(t *testing.T, txSystem txsystem.TransactionSystem, valid
 	// trust base
 	rootSigner, rootVerifier := testsig.CreateSignerAndVerifier(t)
 	trustBase := trustbase.NewTrustBase(t, rootVerifier)
-
-	// root state
-	var certs = make(map[types.PartitionID]*types.UnicityCertificate)
 	net := testnetwork.NewMockNetwork(t)
-
-	obs := testobserve.Default(t)
-	obs2 := observability.WithLogger(obs, obs.Logger().With(logger.NodeID(nodeID)))
-
+	log := testlogger.New(t).With(logger.NodeID(nodeID))
+	obs := observability.WithLogger(testobserve.Default(t), log)
 	eh := &testevent.TestEventHandler{}
+
 	nodeOptions = append([]NodeOption{
 		WithT1Timeout(100 * time.Minute),
 		WithTxValidator(&AlwaysValidTransactionValidator{}),
 		WithEventHandler(eh.HandleEvent, 100),
 		WithBlockProposalValidator(&AlwaysValidBlockProposalValidator{}),
+		WithValidatorNetwork(net),
 	}, nodeOptions...)
 
-	nodeConf, err := NewNodeConf(keyConf, shardConf, trustBase, obs2, nodeOptions...)
+	nodeConf, err := NewNodeConf(keyConf, shardConf, trustBase, obs, nodeOptions...)
 	require.NoError(t, err)
 
-	node, err := NewNode(context.Background(), txSystem, nodeConf)
-	require.NoError(t, err, "failed to init partition node")
-
-	partition := &SingleNodePartition{
-		node:       node,
-		nodeConf:   nodeConf, // TODO: part of Node already
+	shard := &SingleNodePartition{
+		nodeConf:   nodeConf,
+		txSystem:   txSystem,
 		rootRound:  1,
-		certs:      certs,
+		certs:      make(map[types.PartitionID]*types.UnicityCertificate),
 		rootSigner: rootSigner,
 		rootNodeID: trustBase.GetRootNodes()[0].NodeID,
-		mockNet:    net, // TODO: part of NodeConf already?
-		eh:         eh, // TODO: could get from NodeConf?
-		obs:        obs2, // TODO: part of nodeConf
+		mockNet:    net,
+		eh:         eh,
+		obs:        obs,
 	}
 
-	return partition
-}
-
-func startSingleNodeShard(ctx context.Context, t *testing.T, s *SingleNodePartition) chan struct{} {
-	done := make(chan struct{})
-	go func() {
-		require.ErrorIs(t, s.node.Run(ctx), context.Canceled)
-		close(done)
-	}()
-	return done
+	shard.createInitialUC(t)
+	return shard
 }
 
 func runSingleValidatorNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, nodeOptions ...NodeOption) *SingleNodePartition {
@@ -157,21 +144,53 @@ func runSingleNonValidatorNodePartition(t *testing.T, txSystem txsystem.Transact
 func runSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, validator bool, nodeOptions ...NodeOption) *SingleNodePartition {
 	ctx, cancel := context.WithCancel(context.Background())
 
-	partition := newSingleNodeShard(t, txSystem, validator, nodeOptions...)
-	done := startSingleNodeShard(ctx, t, partition)
+	shard := newSingleNodeShard(t, txSystem, validator, nodeOptions...)
+	done := shard.start(ctx, t)
 	t.Cleanup(func() {
 		cancel()
 		select {
 		case <-done:
 		case <-time.After(3 * time.Second):
-			t.Fatal("partition node didn't shut down within timeout")
+			t.Fatal("shard node didn't shut down within timeout")
 		}
 	})
-	return partition
+	return shard
 }
 
-func (sn *SingleNodePartition) nodeID() string {
-	return sn.node.peer.ID().String()
+func (s *SingleNodePartition) createInitialUC(t *testing.T) {
+	// TODO: perhaps start with UC for genesis state?
+	// stateSummary, err := s.txSystem.StateSummary()
+	// require.NoError(t, err)
+	// initialUC, _, err := s.CreateUnicityCertificate(t, &types.InputRecord{
+	// 	Version: 1,
+	// 	RoundNumber: 1,
+	// 	Hash: stateSummary.Root(),
+	// 	SummaryValue: stateSummary.Summary(),
+	// 	BlockHash: []byte{1,2,3},
+	// 	Timestamp: 1,
+	// }, 1)
+	initialUC, _, err := s.CreateUnicityCertificate(t, &types.InputRecord{Version: 1}, 1)
+	require.NoError(t, err)
+	s.certs[s.nodeConf.shardConf.PartitionID] = initialUC
+	require.NoError(t, s.txSystem.Commit(initialUC))
+}
+
+func (sn *SingleNodePartition) start(ctx context.Context, t *testing.T) chan struct{} {
+	done := make(chan struct{})
+	node, err := NewNode(context.Background(), sn.txSystem, sn.nodeConf)
+	require.NoError(t, err, "failed to init shard node")
+	sn.node = node
+
+	go func() {
+		require.ErrorIs(t, sn.node.Run(ctx), context.Canceled)
+		close(done)
+	}()
+	return done
+}
+func (sn *SingleNodePartition) nodeID(t *testing.T) peer.ID {
+	nodeID, err := sn.nodeConf.keyConf.NodeID()
+	require.NoError(t, err)
+	return nodeID
 }
 
 func (sn *SingleNodePartition) SubmitTx(tx *types.TransactionOrder) error {
@@ -196,7 +215,7 @@ func (sn *SingleNodePartition) ReceiveCertResponseWithEpoch(t *testing.T, ir *ty
 ReceiveCertResponse builds UC and TR based on given input and "sends" them as CertificationResponse to the node.
 */
 func (sn *SingleNodePartition) ReceiveCertResponse(t *testing.T, ir *types.InputRecord, rootRoundNumber uint64, epoch uint64) {
-	uc, tr, err := sn.CreateUnicityCertificateTR(ir, rootRoundNumber, epoch)
+	uc, tr, err := sn.CreateUnicityCertificateTR(t, ir, rootRoundNumber, epoch)
 	if err != nil {
 		t.Fatalf("creating UC and TR: %v", err)
 	}
@@ -218,10 +237,7 @@ func (sn *SingleNodePartition) SubmitUnicityCertificate(t *testing.T, uc *types.
 		Shard:     sn.nodeConf.shardConf.ShardID,
 		UC:        *uc,
 	}
-	tr, err := technicalRecord(uc.InputRecord, []string{sn.node.peer.ID().String()})
-	if err != nil {
-		t.Fatalf("creating TechnicalRecord: %v", err)
-	}
+	tr := technicalRecord(t, uc.InputRecord, []string{sn.node.peer.ID().String()})
 	if err := cr.SetTechnicalRecord(tr); err != nil {
 		t.Fatalf("setting TR of the CertResp: %v", err)
 	}
@@ -237,18 +253,23 @@ normal operation.
 func (sn *SingleNodePartition) WaitHandshake(t *testing.T) {
 	test.TryTilCountIs(t, RequestReceived(sn, network.ProtocolHandshake), 5, test.WaitShortTick)
 	sn.mockNet.ResetSentMessages(network.ProtocolHandshake)
-	// root responds with genesis
-	uc := sn.certs[sn.node.PartitionID()]
+
 	cr := &certification.CertificationResponse{
-		Partition: sn.node.PartitionID(),
-		Shard:     sn.node.configuration.shardConf.ShardID,
-		UC:        *uc,
+		Partition: sn.nodeConf.shardConf.PartitionID,
+		Shard:     sn.nodeConf.shardConf.ShardID,
 	}
-	tr, err := technicalRecord(uc.InputRecord, []string{sn.nodeID()})
-	if err != nil {
-		t.Fatalf("creating TechnicalRecord: %v", err)
+	uc := sn.certs[sn.node.PartitionID()]
+	if uc == nil {
+		uc, tr, err := sn.CreateUnicityCertificate(t, &types.InputRecord{Version: 1}, 1)
+		require.NoError(t, err)
+		cr.UC = *uc
+		cr.Technical = *tr
+	} else {
+		// TODO: makes it a duplicate, same uc already in txs as commitedUC, is this needed?
+		cr.UC = *uc
+		cr.Technical = technicalRecord(t, uc.InputRecord, []string{sn.nodeID(t).String()})
 	}
-	cr.Technical = tr
+
 	if err := cr.IsValid(); err != nil {
 		t.Errorf("invalid CertRsp: %v", err)
 	}
@@ -261,11 +282,8 @@ func (sn *SingleNodePartition) SubmitBlockProposal(prop *blockproposal.BlockProp
 	sn.mockNet.Receive(prop)
 }
 
-func (sn *SingleNodePartition) CreateUnicityCertificate(ir *types.InputRecord, roundNumber uint64) (*types.UnicityCertificate, *certification.TechnicalRecord, error) {
-	tr, err := technicalRecord(ir, []string{sn.nodeID()})
-	if err != nil {
-		return nil, nil, fmt.Errorf("creating TechnicalRecord: %w", err)
-	}
+func (sn *SingleNodePartition) CreateUnicityCertificate(t *testing.T, ir *types.InputRecord, rootRound uint64) (*types.UnicityCertificate, *certification.TechnicalRecord, error) {
+	tr := technicalRecord(t, ir, []string{sn.nodeID(t).String()})
 	trHash, err := tr.Hash()
 	if err != nil {
 		return nil, nil, fmt.Errorf("calculating TechnicalRecord hash: %w", err)
@@ -295,7 +313,7 @@ func (sn *SingleNodePartition) CreateUnicityCertificate(ir *types.InputRecord, r
 		return nil, nil, err
 	}
 	rootHash := ut.RootHash()
-	unicitySeal, err := sn.createUnicitySeal(roundNumber, rootHash)
+	unicitySeal, err := sn.createUnicitySeal(rootRound, rootHash)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -314,12 +332,9 @@ func (sn *SingleNodePartition) CreateUnicityCertificate(ir *types.InputRecord, r
 	}, &tr, nil
 }
 
-func (sn *SingleNodePartition) CreateUnicityCertificateTR(ir *types.InputRecord, rootRoundNumber uint64, epoch uint64) (*types.UnicityCertificate, certification.TechnicalRecord, error) {
-	tr, err := technicalRecord(ir, []string{sn.nodeID()})
+func (sn *SingleNodePartition) CreateUnicityCertificateTR(t *testing.T, ir *types.InputRecord, rootRoundNumber uint64, epoch uint64) (*types.UnicityCertificate, certification.TechnicalRecord, error) {
+	tr := technicalRecord(t, ir, []string{sn.nodeID(t).String()})
 	tr.Epoch = epoch
-	if err != nil {
-		return nil, tr, fmt.Errorf("creating TechnicalRecord: %w", err)
-	}
 	trHash, err := tr.Hash()
 	if err != nil {
 		return nil, tr, fmt.Errorf("calculating TechnicalRecord hash: %w", err)
@@ -412,7 +427,7 @@ func (sn *SingleNodePartition) IssueBlockUC(t *testing.T) *types.UnicityCertific
 	require.NoError(t, err)
 	require.NoError(t, req.IsValid(ver))
 	rootRound := sn.node.luc.Load().GetRootRoundNumber()
-	uc, _, err := sn.CreateUnicityCertificate(req.InputRecord, rootRound+1)
+	uc, _, err := sn.CreateUnicityCertificate(t, req.InputRecord, rootRound+1)
 	require.NoError(t, err)
 	// update state
 	sn.rootRound = uc.UnicitySeal.RootChainRoundNumber
@@ -435,7 +450,6 @@ func (sn *SingleNodePartition) SubmitMonitorTimeout(t *testing.T) {
 	sn.node.handleMonitoring(context.Background(), time.Now().Add(-3*sn.nodeConf.GetT2Timeout()), time.Now())
 }
 
-// TODO: moved to testutils
 func createKeyConf(t *testing.T) (*KeyConf, *types.NodeInfo) {
 	privKey, _, err := p2pcrypto.GenerateSecp256k1Key(rand.Reader)
 	require.NoError(t, err)
@@ -537,13 +551,10 @@ func WaitNodeRequestReceived(t *testing.T, tp *SingleNodePartition, req string) 
 	}
 }
 
-// TODO: needed for genesis?
-func technicalRecord(ir *types.InputRecord, nodes []string) (tr certification.TechnicalRecord, err error) {
-	if len(nodes) == 0 {
-		return tr, errors.New("node list is empty")
-	}
+func technicalRecord(t *testing.T, ir *types.InputRecord, nodes []string) certification.TechnicalRecord {
+	require.NotEmpty(t, nodes)
 
-	tr = certification.TechnicalRecord{
+	tr := certification.TechnicalRecord{
 		Round:  ir.RoundNumber + 1,
 		Epoch:  ir.Epoch,
 		Leader: nodes[0],
@@ -558,9 +569,9 @@ func technicalRecord(ir *types.InputRecord, nodes []string) (tr certification.Te
 	h := hash.New(gocrypto.SHA256.New())
 	h.WriteRaw(types.RawCBOR{0xA0}) // empty map
 	h.Write(fees)
-	if tr.FeeHash, err = h.Sum(); err != nil {
-		return tr, fmt.Errorf("calculating fee hash: %w", err)
-	}
 
-	return tr, nil
+	feeHash, err := h.Sum()
+	require.NoError(t, err)
+	tr.FeeHash = feeHash
+	return tr
 }

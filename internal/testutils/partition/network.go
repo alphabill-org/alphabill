@@ -2,22 +2,18 @@ package testpartition
 
 import (
 	"bytes"
-	"cmp"
 	"context"
 	"crypto"
-	"crypto/rand"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"runtime/pprof"
 	"slices"
-	"sort"
 	"testing"
 	"time"
 
 	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
-	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/stretchr/testify/require"
@@ -25,12 +21,9 @@ import (
 	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	testlogger "github.com/alphabill-org/alphabill/internal/testutils/logger"
 	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
 	testevent "github.com/alphabill-org/alphabill/internal/testutils/partition/event"
-	"github.com/alphabill-org/alphabill/internal/testutils/trustbase"
-	"github.com/alphabill-org/alphabill/keyvaluedb"
-	"github.com/alphabill-org/alphabill/keyvaluedb/boltdb"
-	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/logger"
 	"github.com/alphabill-org/alphabill/network"
 	"github.com/alphabill-org/alphabill/observability"
@@ -38,445 +31,183 @@ import (
 	"github.com/alphabill-org/alphabill/rootchain"
 	"github.com/alphabill-org/alphabill/rootchain/consensus"
 	"github.com/alphabill-org/alphabill/rootchain/partitions"
-	"github.com/alphabill-org/alphabill/state"
+	"github.com/alphabill-org/alphabill/rootchain/testutils"
 	"github.com/alphabill-org/alphabill/txsystem"
 )
 
+const networkID   = 5
+const speedFactor = 4
+
 // AlphabillNetwork for integration tests
 type AlphabillNetwork struct {
-	NodePartitions map[types.PartitionID]*NodePartition
-	RootPartition  *RootPartition
-	BootNodes      []*network.Peer
-	ctxCancel      context.CancelFunc
+	RootChain *RootChain
+	Shards    map[types.PartitionShardID]*Shard
+	ctx       context.Context
+	ctxCancel context.CancelFunc
 }
 
-type RootPartition struct {
-	rcGenesis *genesis.RootGenesis
+type RootChain struct {
 	TrustBase types.RootTrustBase
-	Nodes     []*rootNode
-	obs       testobserve.Factory
+	nodes     []*rootNode
 }
 
-type NodePartition struct {
-	partitionID      types.PartitionID
-	shardConf        *types.PartitionDescriptionRecord
-	genesisState     *state.State
-	txSystemFunc     func(trustBase types.RootTrustBase) txsystem.TransactionSystem
-	ctx              context.Context
-	tb               types.RootTrustBase
-	Nodes            []*partitionNode
-	obs              testobserve.Factory
+type Shard struct {
+	shardConf *types.PartitionDescriptionRecord
+	nodes     []*shardNode
+	ctx       context.Context
+	ctxCancel context.CancelFunc
 }
 
-type partitionNode struct {
+type shardNode struct {
 	*partition.Node
-	dbFile            string
-	idxFile           string
-	orchestrationFile string
-	peerConf          *network.PeerConfiguration
-	signer            abcrypto.Signer
-	genesis           *genesis.PartitionNode
-	EventHandler      *testevent.TestEventHandler
-	confOpts          []partition.NodeOption
-	proofDB           keyvaluedb.KeyValueDB
-	cancel            context.CancelFunc
-	done              chan error
+	nodeConf     *partition.NodeConf
+	EventHandler *testevent.TestEventHandler
+	txSystem     txsystem.TransactionSystem
+
+	ctxCancel context.CancelFunc
+	done      chan error
 }
 
 type rootNode struct {
 	*rootchain.Node
-	RootSigner abcrypto.Signer
-	genesis    *genesis.RootGenesis
-	peerConf   *network.PeerConfiguration
-	addr       []multiaddr.Multiaddr
-	homeDir    string
+	RootSigner    abcrypto.Signer
+	peerConf      *network.PeerConfiguration
+	orchestration *partitions.Orchestration
+	addr          []multiaddr.Multiaddr
+	homeDir       string
 
-	cancel context.CancelFunc
-	done   chan error
+	ctxCancel context.CancelFunc
+	done      chan error
 }
 
-func (pn *partitionNode) Stop() error {
-	pn.cancel()
-	return <-pn.done
+type txSystemProvider func(trustBase types.RootTrustBase) txsystem.TransactionSystem
+
+func (n *shardNode) Stop() error {
+	n.ctxCancel()
+	return <-n.done
 }
 
-func (rn *rootNode) Stop() error {
-	rn.cancel()
-	return <-rn.done
+func (n *rootNode) Stop() error {
+	n.ctxCancel()
+	return <-n.done
 }
 
 const testNetworkTimeout = 600 * time.Millisecond
 
-// TODO: needed?
-// getGenesisFiles is a helper function to collect all node genesis files
-func getGenesisFiles(nodePartitions []*NodePartition) []*genesis.PartitionNode {
-	var partitionRecords []*genesis.PartitionNode
-	for _, part := range nodePartitions {
-		for _, node := range part.Nodes {
-			partitionRecords = append(partitionRecords, node.genesis)
-		}
-	}
-	return partitionRecords
-}
+func NewAlphabillNetwork(t *testing.T, rootNodeCount int) *AlphabillNetwork {
+	nodes, nodeInfos := testutils.CreateTestNodes(t, rootNodeCount)
+	rootNodes := make([]*rootNode, rootNodeCount)
 
-// newRootPartition creates new root partition, requires node partitions with genesis files
-func newRootPartition(t *testing.T, nofRootNodes uint8, nodePartitions []*NodePartition) (*RootPartition, error) {
-	rootSigners, err := createSigners(nofRootNodes)
-	if err != nil {
-		return nil, fmt.Errorf("create signer failed, %w", err)
-	}
-	rootNodes := make([]*rootNode, nofRootNodes)
-	rootGenesisFiles := make([]*genesis.RootGenesis, nofRootNodes)
-	trustBaseNodes := make([]*types.NodeInfo, nofRootNodes)
-	var unicityTreeRootHash []byte
-	// generates keys and sorts them in lexical order - meaning root node 0 is the first leader
-	rootPeerCfg, _, err := createPeerConfs(nofRootNodes)
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate peer configuration, %w", err)
-	}
-	for i, peerCfg := range rootPeerCfg {
-		rg, err := rootgenesis.NewRootGenesis(
-			peerCfg.ID.String(),
-			rootSigners[i],
-			rootgenesis.WithTotalNodes(uint32(nofRootNodes)),
-			rootgenesis.WithBlockRate(max(genesis.MinBlockRateMs, 300)), // set block rate at 300 ms to give a bit more time for nodes to bootstrap
-			rootgenesis.WithConsensusTimeout(genesis.DefaultConsensusTimeout))
-		if err != nil {
-			return nil, err
-		}
-		verifier, err := rootSigners[i].Verifier()
-		if err != nil {
-			return nil, fmt.Errorf("failed to get root node verifier, %w", err)
-		}
-		rootGenesisFiles[i] = rg
+	for i, node := range nodes {
 		rootNodes[i] = &rootNode{
-			genesis:    rg,
-			RootSigner: rootSigners[i],
-			peerConf:   peerCfg,
+			RootSigner: node.Signer,
+			peerConf:   node.PeerConf,
 			homeDir:    t.TempDir(),
 		}
-		trustBaseNodes[i] = trustbase.NewNodeInfoFromVerifier(t, peerCfg.ID.String(), verifier)
-		for _, p := range rg.Partitions {
-			if len(unicityTreeRootHash) == 0 {
-				unicityTreeRootHash = p.Certificate.UnicitySeal.Hash
-			} else if !bytes.Equal(unicityTreeRootHash, p.Certificate.UnicitySeal.Hash) {
-				return nil, errors.New("unicity certificate seal hashes are not equal")
-			}
-		}
 	}
-	trustBase, err := types.NewTrustBaseGenesis(trustBaseNodes, unicityTreeRootHash)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create genesis trust base, %w", err)
-	}
-
-	rootGenesis, err := rootgenesis.MergeRootGenesisFiles(rootGenesisFiles)
-	if err != nil {
-		return nil, fmt.Errorf("failed to finalize root genesis, %w", err)
-	}
-	return &RootPartition{
-		rcGenesis: rootGenesis,
-		TrustBase: trustBase,
-		Nodes:     rootNodes,
-	}, nil
-}
-
-func (r *RootPartition) start(ctx context.Context, bootNodes []peer.AddrInfo, rootNodes ...*rootNode) error {
-	// start root nodes
-	for _, rn := range rootNodes {
-		log := r.obs.DefaultLogger().With(logger.NodeID(rn.peerConf.ID))
-		obs := observability.WithLogger(r.obs.DefaultObserver(), log)
-		if len(bootNodes) > 0 {
-			rn.peerConf.BootstrapPeers = bootNodes
-		}
-		rootPeer, err := network.NewPeer(ctx, rn.peerConf, log, nil)
-		if err != nil {
-			return fmt.Errorf("failed to create root peer node: %w", err)
-		}
-		if len(bootNodes) > 0 {
-			if err = rootPeer.BootstrapConnect(ctx, log); err != nil {
-				return fmt.Errorf("root node bootstrap failed, %w", err)
-			}
-		}
-		rootNet, err := network.NewLibP2PRootChainNetwork(rootPeer, 100, testNetworkTimeout, obs)
-		if err != nil {
-			return fmt.Errorf("failed to init root and partition nodes network, %w", err)
-		}
-
-		rootConsensusNet, err := network.NewLibP2RootConsensusNetwork(rootPeer, 100, testNetworkTimeout, obs)
-		if err != nil {
-			return fmt.Errorf("failed to init consensus network, %w", err)
-		}
-
-		orchestration, err := partitions.NewOrchestration(r.rcGenesis, filepath.Join(rn.homeDir, "orchestration.db"))
-		if err != nil {
-			return fmt.Errorf("failed to init orchestration: %w", err)
-		}
-		cm, err := consensus.NewConsensusManager(rootPeer.ID(), r.rcGenesis, r.TrustBase, orchestration, rootConsensusNet, rn.RootSigner, obs)
-		if err != nil {
-			return fmt.Errorf("consensus manager initialization failed, %w", err)
-		}
-		rootchainNode, err := rootchain.New(rootPeer, rootNet, cm, obs)
-		if err != nil {
-			return fmt.Errorf("failed to create root node, %w", err)
-		}
-		rn.Node = rootchainNode
-		rn.addr = rootPeer.MultiAddresses()
-		// start root node
-		nctx, ncfn := context.WithCancel(ctx)
-		rn.cancel = ncfn
-		rn.done = make(chan error, 1)
-		// start root node
-		go func(ec chan error) { ec <- rootchainNode.Run(nctx) }(rn.done)
-	}
-	return nil
-}
-
-func NewPartition(t *testing.T, nodeCount uint8, txSystemProvider func(trustBase types.RootTrustBase) txsystem.TransactionSystem, pdr types.PartitionDescriptionRecord, state *state.State) (abPartition *NodePartition, err error) {
-	if nodeCount < 1 {
-		return nil, fmt.Errorf("invalid count of partition Nodes: %d", nodeCount)
-	}
-	abPartition = &NodePartition{
-		partitionID:  pdr.PartitionID,
-		txSystemFunc: txSystemProvider,
-		genesisState: state,
-		Nodes:        make([]*partitionNode, nodeCount),
-		obs:          testobserve.NewFactory(t),
-	}
-	// create peer configurations
-	peerConfs, _, err := createPeerConfs(nodeCount)
-	if err != nil {
-		return nil, err
-	}
-	// create partition signing keys
-	signers, err := createSigners(nodeCount)
-	if err != nil {
-		return nil, err
-	}
-	for i := 0; i < int(nodeCount); i++ {
-		peerConf := peerConfs[i]
-
-		signer := signers[i]
-		// create partition genesis file
-		nodeGenesis, err := partition.NewNodeGenesis(
-			state,
-			pdr,
-			partition.WithPeerID(peerConf.ID),
-			partition.WithSigner(signer),
-		)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create node genesis, %w", err)
-		}
-		tmpDir := t.TempDir()
-		abPartition.Nodes[i] = &partitionNode{
-			genesis:  nodeGenesis,
-			peerConf: peerConf,
-			signer:   signer,
-			dbFile:   filepath.Join(tmpDir, "blocks.db"),
-			idxFile:  filepath.Join(tmpDir, "tx.db"),
-		}
-	}
-	return abPartition, nil
-}
-
-func (n *NodePartition) start(t *testing.T, ctx context.Context, bootNodes []peer.AddrInfo) error {
-	n.ctx = ctx
-	// partition nodes as they are set up for test, require bootstrap info
-	require.NotEmpty(t, bootNodes)
-
-	// start Nodes
-	for _, nd := range n.Nodes {
-		nd.EventHandler = &testevent.TestEventHandler{}
-		blockStore, err := boltdb.New(nd.dbFile)
-		if err != nil {
-			return err
-		}
-		t.Cleanup(func() { require.NoError(t, blockStore.Close()) })
-		if nd.proofDB, err = memorydb.New(); err != nil {
-			return fmt.Errorf("creating proof DB: %w", err)
-		}
-		// set root node as bootstrap peer
-		nd.peerConf.BootstrapPeers = bootNodes
-		nd.confOpts = append(nd.confOpts,
-			partition.WithEventHandler(nd.EventHandler.HandleEvent, 100),
-			partition.WithBlockStore(blockStore),
-			partition.WithProofIndex(nd.proofDB, 0),
-			partition.WithOwnerIndex(partition.NewOwnerIndexer(n.obs.DefaultLogger())),
-		)
-		if err = n.startNode(ctx, nd); err != nil {
-			return err
-		}
-	}
-	// make sure node network (to other nodes and root nodes) is initiated
-	for _, nd := range n.Nodes {
-		if ok := test.Eventually(
-			func() bool { return len(nd.Peer().Network().Peers()) >= len(n.Nodes) },
-			2*time.Second, 100*time.Millisecond); !ok {
-			return fmt.Errorf("network not initialized")
-		}
-	}
-	return nil
-}
-
-func (n *NodePartition) startNode(ctx context.Context, pn *partitionNode) error {
-	log := n.obs.DefaultLogger().With(logger.NodeID(pn.peerConf.ID))
-	node, err := partition.NewNode(
-		ctx,
-		pn.peerConf,
-		pn.signer,
-		n.txSystemFunc(n.tb),
-		nil, // TODO: PDR
-		n.shardConf,
-		n.tb,
-		nil,
-		observability.WithLogger(n.obs.DefaultObserver(), log),
-		pn.confOpts...,
-	)
-	if err != nil {
-		return fmt.Errorf("failed to resume node, %w", err)
-	}
-	nctx, ncfn := context.WithCancel(n.ctx)
-	pn.Node = node
-	pn.cancel = ncfn
-	pn.done = make(chan error, 1)
-	go func(ec chan error) { ec <- node.Run(nctx) }(pn.done)
-	return nil
-}
-
-func NewAlphabillPartition(t *testing.T, nodePartitions []*NodePartition) (*AlphabillNetwork, error) {
-	if len(nodePartitions) < 1 {
-		return nil, fmt.Errorf("no node partitions set, it makes no sense to start with only root")
-	}
-	// create root node(s)
-	rootPartition, err := newRootPartition(t, 1, nodePartitions)
-	if err != nil {
-		return nil, err
-	}
-	nodeParts := make(map[types.PartitionID]*NodePartition)
-	for _, part := range nodePartitions {
-		part.tb = rootPartition.TrustBase
-		nodeParts[part.partitionID] = part
-	}
-	return &AlphabillNetwork{
-		RootPartition:  rootPartition,
-		NodePartitions: nodeParts,
-	}, nil
-}
-
-func NewMultiRootAlphabillPartition(t *testing.T, nofRootNodes uint8, nodePartitions []*NodePartition) (*AlphabillNetwork, error) {
-	if len(nodePartitions) < 1 {
-		return nil, fmt.Errorf("no node partitions set, it makes no sense to start with only root")
-	}
-	// create root node(s)
-	rootPartition, err := newRootPartition(t, nofRootNodes, nodePartitions)
-	if err != nil {
-		return nil, err
-	}
-	nodeParts := make(map[types.PartitionID]*NodePartition)
-	for _, part := range nodePartitions {
-		part.tb = rootPartition.TrustBase
-		nodeParts[part.partitionID] = part
-	}
-	return &AlphabillNetwork{
-		RootPartition:  rootPartition,
-		NodePartitions: nodeParts,
-	}, nil
-}
-
-func (a *AlphabillNetwork) createBootNodes(t *testing.T, ctx context.Context, obs testobserve.Factory, nofBootNodes uint8) {
-	encKeyPairs, err := generateKeyPairs(nofBootNodes)
+	trustBase, err := types.NewTrustBaseGenesis(networkID, nodeInfos)
 	require.NoError(t, err)
-	bootNodes := make([]*network.Peer, nofBootNodes)
-	for i := 0; i < int(nofBootNodes); i++ {
-		peerConf, err := network.NewPeerConfiguration("/ip4/127.0.0.1/tcp/0", nil, encKeyPairs[i], nil)
-		require.NoError(t, err)
-		bootNodes[i], err = network.NewPeer(ctx, peerConf, obs.DefaultLogger(), nil)
-		require.NoError(t, err)
+
+	return &AlphabillNetwork{
+		RootChain: &RootChain{
+			TrustBase: trustBase,
+			nodes:     rootNodes,
+		},
+		Shards: make(map[types.PartitionShardID]*Shard),
 	}
-	a.BootNodes = bootNodes
+}
+
+// Adds a shard to a running AlphabillNetwork instance
+func (a *AlphabillNetwork) AddShard(t *testing.T, shardConf *types.PartitionDescriptionRecord, nodeCount int, txSystemProvider txSystemProvider) {
+	require.NotZero(t, len(a.RootChain.nodes), "AlphabillNetwork must contain at least one root node")
+	require.NotNil(t, a.RootChain.nodes[0].addr, "AlphabillNetwork must be running to add shards")
+
+	nodes, nodeInfos := testutils.CreateTestNodes(t, nodeCount)
+	shardConf.Validators = nodeInfos
+
+	// Add new shard to root chain
+	for _, n := range a.RootChain.nodes {
+		require.NoError(t, n.orchestration.AddShardConfig(shardConf))
+	}
+
+	shard := &Shard{
+		shardConf: shardConf,
+		nodes:     make([]*shardNode, nodeCount),
+	}
+
+	for idx, node := range nodes {
+		ctx, ctxCancel := context.WithCancel(a.ctx)
+		eventHandler := &testevent.TestEventHandler{}
+		log := testlogger.New(t).With(logger.NodeID(node.PeerConf.ID))
+		obs := observability.WithLogger(testobserve.Default(t),	log)
+
+		bootNode := a.RootChain.nodes[0]
+		bootstrapAddress := fmt.Sprintf("%s/p2p/%s", bootNode.addr[0], bootNode.peerConf.ID)
+
+		nodeConf, err := partition.NewNodeConf(
+			node.KeyConf(t),
+			shardConf,
+			a.RootChain.TrustBase,
+			obs,
+			partition.WithAddress("/ip4/127.0.0.1/tcp/0"),
+			partition.WithBootstrapAddresses([]string{bootstrapAddress}),
+			partition.WithEventHandler(eventHandler.HandleEvent, 100),
+			partition.WithT1Timeout(partition.DefaultT1Timeout/speedFactor),
+			partition.WithOwnerIndex(partition.NewOwnerIndexer(obs.Logger())),
+		)
+		require.NoError(t, err)
+
+		txSystem := txSystemProvider(a.RootChain.TrustBase)
+		node, err := partition.NewNode(
+			ctx,
+			txSystem,
+			nodeConf,
+		)
+		require.NoError(t, err)
+
+		shard.nodes[idx] = &shardNode{
+			Node:         node,
+			nodeConf:     nodeConf,
+			txSystem:     txSystem,
+			EventHandler: eventHandler,
+			ctxCancel:    ctxCancel,
+		}
+
+		shard.nodes[idx].done = make(chan error, 1)
+		go func(ec chan error) {
+			ec <- node.Run(ctx)
+		}(shard.nodes[idx].done)
+	}
+
+	a.Shards[shard.PartitionShardID()] = shard
+
+	// make sure node network (to other nodes and root nodes) is initiated
+	for _, nd := range shard.nodes {
+		require.Eventually(t, func() bool {
+			return len(nd.Peer().Network().Peers()) >= len(shard.nodes)
+		}, 2*time.Second, 100*time.Millisecond)
+	}
 }
 
 // Start AB network, no bootstrap all id's and addresses are injected to peer store at start
 func (a *AlphabillNetwork) Start(t *testing.T) error {
-	a.RootPartition.obs = testobserve.NewFactory(t)
-	// create context
-	ctx, ctxCancel := context.WithCancel(context.Background())
-	// by default, use root node 1 as bootstrap
-	require.NotEmpty(t, a.RootPartition.Nodes)
-	// sort by node id to make sure that leader is not first node (if not only 1 node)
-	// first leader is selected by round number from lexically sorted ID's
-	// NB! this is not an optimal solution, but it is a unit test issue, in a real deploy
-	// it is ok that some rounds at start are lost until enough nodes are up.
-	slices.SortFunc(a.RootPartition.Nodes, func(a, b *rootNode) int {
-		return cmp.Compare(a.peerConf.ID, b.peerConf.ID)
-	})
-	// first start root node 0 and use it as bootstrap node
-	bootNode, rest := a.RootPartition.Nodes[0], a.RootPartition.Nodes[1:]
-	if err := a.RootPartition.start(ctx, nil, bootNode); err != nil {
-		ctxCancel()
-		return fmt.Errorf("failed to start root partition boot node, %w", err)
-	}
-	bootStrapInfo := []peer.AddrInfo{{
-		ID:    a.RootPartition.Nodes[0].peerConf.ID,
-		Addrs: a.RootPartition.Nodes[0].addr,
-	}}
-	if len(rest) > 0 {
-		if err := a.RootPartition.start(ctx, bootStrapInfo, rest...); err != nil {
-			ctxCancel()
-			return fmt.Errorf("failed to start root partition, %w", err)
-		}
-	}
-	for id, part := range a.NodePartitions {
-		// create one event handler per partition
-		if err := part.start(t, ctx, bootStrapInfo); err != nil {
-			ctxCancel()
-			return fmt.Errorf("failed to start partition %s, %w", id, err)
-		}
-	}
-	a.ctxCancel = ctxCancel
-	return nil
-}
+	a.ctx, a.ctxCancel = context.WithCancel(context.Background())
+	require.NotEmpty(t, a.RootChain.nodes)
 
-// StartWithStandAloneBootstrapNodes - starts AB network with dedicated bootstrap nodes
-func (a *AlphabillNetwork) StartWithStandAloneBootstrapNodes(t *testing.T) error {
-	a.RootPartition.obs = testobserve.NewFactory(t)
-	// create context
-	ctx, ctxCancel := context.WithCancel(context.Background())
-	// create boot nodes
-	a.createBootNodes(t, ctx, a.RootPartition.obs, 2)
-	// Setup bootstrap info for the whole network to use the dedicated nodes
-	bootStrapInfo := make([]peer.AddrInfo, len(a.BootNodes))
-	for i, n := range a.BootNodes {
-		bootStrapInfo[i] = peer.AddrInfo{ID: n.ID(), Addrs: n.MultiAddresses()}
+	if err := a.RootChain.start(t, a.ctx); err != nil {
+		a.ctxCancel()
+		return fmt.Errorf("failed to start root chain, %w", err)
 	}
-	// sort by node id to make sure that leader is not first node (if not only 1 node)
-	// first leader is selected by round number from lexically sorted ID's
-	// NB! this is not an optimal solution, but it is a unit test issue, in a real deploy
-	// it is ok that some rounds at start are lost until enough nodes are up.
-	slices.SortFunc(a.RootPartition.Nodes, func(a, b *rootNode) int {
-		return cmp.Compare(a.peerConf.ID, b.peerConf.ID)
-	})
-	if err := a.RootPartition.start(ctx, bootStrapInfo, a.RootPartition.Nodes...); err != nil {
-		ctxCancel()
-		return fmt.Errorf("failed to start root partition with dedicated boot node, %w", err)
-	}
-	for id, part := range a.NodePartitions {
-		// create one event handler per partition
-		if err := part.start(t, ctx, bootStrapInfo); err != nil {
-			ctxCancel()
-			return fmt.Errorf("failed to start partition %s, %w", id, err)
-		}
-	}
-	a.ctxCancel = ctxCancel
 	return nil
 }
 
 func (a *AlphabillNetwork) Close() (retErr error) {
 	a.ctxCancel()
 	// wait and check validator exit
-	for _, part := range a.NodePartitions {
+	for _, shard := range a.Shards {
 		// stop all nodes
-		for _, n := range part.Nodes {
-			if err := n.Node.Peer().Close(); err != nil {
+		for _, n := range shard.nodes {
+			if err := n.Peer().Close(); err != nil {
 				retErr = errors.Join(retErr, fmt.Errorf("peer close error: %w", err))
 			}
 			nodeErr := <-n.done
@@ -485,8 +216,9 @@ func (a *AlphabillNetwork) Close() (retErr error) {
 			}
 		}
 	}
+
 	// check root exit
-	for _, rNode := range a.RootPartition.Nodes {
+	for _, rNode := range a.RootChain.nodes {
 		if err := rNode.Node.GetPeer().Close(); err != nil {
 			retErr = errors.Join(retErr, fmt.Errorf("peer close error: %w", err))
 		}
@@ -519,25 +251,106 @@ func (a *AlphabillNetwork) WaitClose(t *testing.T) {
 	}
 }
 
-func (a *AlphabillNetwork) GetNodePartition(sysID types.PartitionID) (*NodePartition, error) {
-	part, f := a.NodePartitions[sysID]
+func (a *AlphabillNetwork) GetShard(psID types.PartitionShardID) (*Shard, error) {
+	shard, f := a.Shards[psID]
 	if !f {
-		return nil, fmt.Errorf("unknown partition %s", sysID)
+		return nil, fmt.Errorf("unknown shard %s", psID)
 	}
-	return part, nil
+	return shard, nil
 }
 
-func (a *AlphabillNetwork) GetValidator(sysID types.PartitionID) (partition.UnicityCertificateValidator, error) {
-	part, f := a.NodePartitions[sysID]
+func (a *AlphabillNetwork) GetValidator(psID types.PartitionShardID) (partition.UnicityCertificateValidator, error) {
+	shard, f := a.Shards[psID]
 	if !f {
-		return nil, fmt.Errorf("unknown partition %s", sysID)
+		return nil, fmt.Errorf("unknown shard %s", psID)
 	}
-	return partition.NewDefaultUnicityCertificateValidator(part.shardConf, a.RootPartition.TrustBase, crypto.SHA256)
+	return partition.NewDefaultUnicityCertificateValidator(shard.shardConf, a.RootChain.TrustBase, crypto.SHA256)
+}
+
+func (r *RootChain) start(t *testing.T, ctx context.Context) error {
+	// start root nodes
+	var bootNode []peer.AddrInfo
+	for _, rn := range r.nodes {
+		// root node context
+		ctx, rn.ctxCancel = context.WithCancel(ctx)
+
+		log := testlogger.New(t).With(logger.NodeID(rn.peerConf.ID))
+		obs := observability.WithLogger(testobserve.Default(t), log)
+
+		if bootNode != nil {
+			rn.peerConf.BootstrapPeers = bootNode
+		}
+		rootPeer, err := network.NewPeer(ctx, rn.peerConf, log, nil)
+		if err != nil {
+			return fmt.Errorf("failed to create root peer node: %w", err)
+		}
+		if bootNode != nil {
+			if err = rootPeer.BootstrapConnect(ctx, log); err != nil {
+				return fmt.Errorf("root node bootstrap failed, %w", err)
+			}
+		} else {
+			bootNode = []peer.AddrInfo{{
+				ID:    rootPeer.ID(),
+				Addrs: rootPeer.MultiAddresses(),
+			}}
+		}
+
+		rootNet, err := network.NewLibP2PRootChainNetwork(rootPeer, 100, testNetworkTimeout, obs)
+		if err != nil {
+			return fmt.Errorf("failed to init root and partition nodes network, %w", err)
+		}
+
+		rootConsensusNet, err := network.NewLibP2RootConsensusNetwork(rootPeer, 100, testNetworkTimeout, obs)
+		if err != nil {
+			return fmt.Errorf("failed to init consensus network, %w", err)
+		}
+
+		orchestration, err := partitions.NewOrchestration(networkID, filepath.Join(rn.homeDir, "orchestration.db"), testlogger.New(t))
+		if err != nil {
+			return fmt.Errorf("failed to init orchestration: %w", err)
+		}
+
+		consensusParams := consensus.NewConsensusParams()
+		consensusParams.BlockRate /= speedFactor
+
+		cm, err := consensus.NewConsensusManager(
+			rootPeer.ID(),
+			r.TrustBase,
+			orchestration,
+			rootConsensusNet,
+			rn.RootSigner,
+			obs,
+			consensus.WithConsensusParams(*consensusParams))
+		if err != nil {
+			return fmt.Errorf("consensus manager initialization failed, %w", err)
+		}
+		node, err := rootchain.New(rootPeer, rootNet, cm, obs)
+		if err != nil {
+			return fmt.Errorf("failed to create root node, %w", err)
+		}
+		rn.Node = node
+		rn.orchestration = orchestration
+		rn.addr = rootPeer.MultiAddresses()
+
+		// start root node
+		rn.done = make(chan error, 1)
+		go func(ec chan error) {
+			ec <- node.Run(ctx)
+		}(rn.done)
+	}
+	return nil
+}
+
+func (s *Shard) PartitionShardID() types.PartitionShardID {
+	return types.PartitionShardID{
+		PartitionID: s.shardConf.PartitionID,
+		ShardID: s.shardConf.ShardID.Key(),
+	}
 }
 
 // BroadcastTx sends transactions to all nodes.
-func (n *NodePartition) BroadcastTx(tx *types.TransactionOrder) error {
-	for _, n := range n.Nodes {
+func (n *Shard) BroadcastTx(tx *types.TransactionOrder) error {
+	for _, n := range n.nodes {
 		if _, err := n.SubmitTx(context.Background(), tx); err != nil {
 			return err
 		}
@@ -546,14 +359,14 @@ func (n *NodePartition) BroadcastTx(tx *types.TransactionOrder) error {
 }
 
 // SubmitTx sends transactions to the first node.
-func (n *NodePartition) SubmitTx(tx *types.TransactionOrder) error {
-	_, err := n.Nodes[0].SubmitTx(context.Background(), tx)
+func (n *Shard) SubmitTx(tx *types.TransactionOrder) error {
+	_, err := n.nodes[0].SubmitTx(context.Background(), tx)
 	return err
 }
 
-func (n *NodePartition) GetTxProof(t *testing.T, tx *types.TransactionOrder) (*types.Block, *types.TxRecordProof, error) {
+func (n *Shard) GetTxProof(t *testing.T, tx *types.TransactionOrder) (*types.Block, *types.TxRecordProof, error) {
 	txBytes := testtransaction.TxoToBytes(t, tx)
-	for _, n := range n.Nodes {
+	for _, n := range n.nodes {
 		number, err := n.LatestBlockNumber()
 		if err != nil {
 			return nil, nil, err
@@ -577,11 +390,11 @@ func (n *NodePartition) GetTxProof(t *testing.T, tx *types.TransactionOrder) (*t
 	return nil, nil, fmt.Errorf("tx with id %x was not found", tx.UnitID)
 }
 
-// PartitionInitReady - all nodes are in normal state and return the latest block number
-func PartitionInitReady(t *testing.T, part *NodePartition) func() bool {
+// ShardInitReady - all nodes are in normal state and return the latest block number
+func ShardInitReady(t *testing.T, shard *Shard) func() bool {
 	t.Helper()
 	return func() bool {
-		for _, n := range part.Nodes {
+		for _, n := range shard.nodes {
 			_, err := n.LatestBlockNumber()
 			if err != nil {
 				return false
@@ -591,14 +404,15 @@ func PartitionInitReady(t *testing.T, part *NodePartition) func() bool {
 	}
 }
 
-// WaitTxProof - wait for proof from any validator in partition. If one has the proof it does not mean all have processed
+// WaitTxProof - wait for proof from any validator in a shard. If one has the proof it does not mean all have processed
 // the UC. Returns both transaction record and proof when tx has been executed and added to block
-func WaitTxProof(t *testing.T, part *NodePartition, txOrder *types.TransactionOrder) (*types.TxRecordProof, error) {
+func WaitTxProof(t *testing.T, shard *Shard, txOrder *types.TransactionOrder) (*types.TxRecordProof, error) {
 	t.Helper()
 	var txRecordProof *types.TxRecordProof
 	txHash := test.DoHash(t, txOrder)
-	ok := test.Eventually(func() bool {
-		for _, n := range part.Nodes {
+
+	require.Eventually(t, func() bool {
+		for _, n := range shard.nodes {
 			txRecProof, err := n.GetTransactionRecordProof(context.Background(), txHash)
 			if errors.Is(err, partition.ErrIndexNotFound) {
 				continue
@@ -608,21 +422,18 @@ func WaitTxProof(t *testing.T, part *NodePartition, txOrder *types.TransactionOr
 		}
 		return false
 	}, test.WaitDuration, test.WaitTick)
-	if !ok {
-		return nil, fmt.Errorf("failed to confirm tx")
-	}
+
 	return txRecordProof, nil
 }
 
-func WaitUnitProof(t *testing.T, part *NodePartition, ID types.UnitID, txOrder *types.TransactionOrder) (*types.UnitDataAndProof, error) {
+func WaitUnitProof(t *testing.T, shard *Shard, ID types.UnitID, txOrder *types.TransactionOrder) (*types.UnitStateWithProof, error) {
 	t.Helper()
-	var (
-		unitProof *types.UnitDataAndProof
-	)
+	var unitProof *types.UnitStateWithProof
 	txHash := test.DoHash(t, txOrder)
-	if ok := test.Eventually(func() bool {
-		for _, n := range part.Nodes {
-			unitDataAndProof, err := partition.ReadUnitProofIndex(n.proofDB, ID, txHash)
+
+	require.Eventually(t, func() bool {
+		for _, n := range shard.nodes {
+			unitDataAndProof, err := partition.ReadUnitProofIndex(n.nodeConf.ProofStore(), ID, txHash)
 			if err != nil {
 				continue
 			}
@@ -630,35 +441,34 @@ func WaitUnitProof(t *testing.T, part *NodePartition, ID types.UnitID, txOrder *
 			return true
 		}
 		return false
-	}, test.WaitDuration, test.WaitTick); ok {
-		return unitProof, nil
-	}
-	return nil, fmt.Errorf("failed to confirm tx")
+	}, test.WaitDuration, test.WaitTick)
+
+	return unitProof, nil
 }
 
-// BlockchainContainsTx checks if at least one partition node block contains the given transaction.
-func BlockchainContainsTx(t *testing.T, part *NodePartition, tx *types.TransactionOrder) func() bool {
-	return BlockchainContains(t, part, func(actualTx *types.TransactionRecord) bool {
+// BlockchainContainsTx checks if at least one shard node block contains the given transaction.
+func BlockchainContainsTx(t *testing.T, shard *Shard, tx *types.TransactionOrder) func() bool {
+	return BlockchainContains(t, shard, func(actualTx *types.TransactionRecord) bool {
 		return bytes.Equal(actualTx.TransactionOrder, testtransaction.TxoToBytes(t, tx))
 	})
 }
 
-// BlockchainContainsSuccessfulTx checks if at least one partition node has successfully executed the given transaction.
-func BlockchainContainsSuccessfulTx(t *testing.T, part *NodePartition, tx *types.TransactionOrder) func() bool {
-	return BlockchainContains(t, part, func(actualTx *types.TransactionRecord) bool {
+// BlockchainContainsSuccessfulTx checks if at least one shard node has successfully executed the given transaction.
+func BlockchainContainsSuccessfulTx(t *testing.T, shard *Shard, tx *types.TransactionOrder) func() bool {
+	return BlockchainContains(t, shard, func(actualTx *types.TransactionRecord) bool {
 		return actualTx.ServerMetadata.SuccessIndicator == types.TxStatusSuccessful &&
 			bytes.Equal(actualTx.TransactionOrder, testtransaction.TxoToBytes(t, tx))
 	})
 }
 
-func BlockchainContains(t *testing.T, part *NodePartition, criteria func(txr *types.TransactionRecord) bool) func() bool {
+func BlockchainContains(t *testing.T, shard *Shard, criteria func(txr *types.TransactionRecord) bool) func() bool {
 	return func() bool {
-		nodes := slices.Clone(part.Nodes)
+		nodes := slices.Clone(shard.nodes)
 		for len(nodes) > 0 {
 			for ni, n := range nodes {
 				number, err := n.LatestBlockNumber()
 				if err != nil {
-					t.Logf("partition node %s returned error: %v", n.peerConf.ID, err)
+					t.Logf("shard node %s returned error: %v", n.Peer().ID(), err)
 					continue
 				}
 				nodes[ni] = nil
@@ -674,71 +484,9 @@ func BlockchainContains(t *testing.T, part *NodePartition, criteria func(txr *ty
 					}
 				}
 			}
-			nodes = slices.DeleteFunc(nodes, func(pn *partitionNode) bool { return pn == nil })
+			nodes = slices.DeleteFunc(nodes, func(pn *shardNode) bool { return pn == nil })
 			time.Sleep(10 * time.Millisecond)
 		}
 		return false
 	}
-}
-
-func createSigners(count uint8) ([]abcrypto.Signer, error) {
-	var signers = make([]abcrypto.Signer, count)
-	for i := 0; i < int(count); i++ {
-		s, err := abcrypto.NewInMemorySecp256K1Signer()
-		if err != nil {
-			return nil, err
-		}
-		signers[i] = s
-	}
-	return signers, nil
-}
-
-func createPeerConfs(count uint8) ([]*network.PeerConfiguration, peer.IDSlice, error) {
-	var peerConfs = make([]*network.PeerConfiguration, count)
-
-	// generate authentication keypairs
-	keyPairs, err := generateKeyPairs(count)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	var validators = make(peer.IDSlice, count)
-	for i := 0; i < int(count); i++ {
-		peerConfs[i], err = network.NewPeerConfiguration(
-			"/ip4/127.0.0.1/tcp/0",
-			nil,
-			keyPairs[i], // authentication keypair. The ID of the node is derived from this keypair.
-			nil,
-		)
-		if err != nil {
-			return nil, nil, err
-		}
-		validators[i] = peerConfs[i].ID
-	}
-	sort.Sort(validators)
-
-	return peerConfs, validators, nil
-}
-
-func generateKeyPairs(count uint8) ([]*network.PeerKeyPair, error) {
-	var keyPairs = make([]*network.PeerKeyPair, count)
-	for i := 0; i < int(count); i++ {
-		privateKey, publicKey, err := libp2pcrypto.GenerateSecp256k1Key(rand.Reader)
-		if err != nil {
-			return nil, fmt.Errorf("failed to generate key pair %d/%d: %w", i, count, err)
-		}
-		privateKeyBytes, err := privateKey.Raw()
-		if err != nil {
-			return nil, err
-		}
-		pubKeyBytes, err := publicKey.Raw()
-		if err != nil {
-			return nil, err
-		}
-		keyPairs[i] = &network.PeerKeyPair{
-			PublicKey:  pubKeyBytes,
-			PrivateKey: privateKeyBytes,
-		}
-	}
-	return keyPairs, nil
 }

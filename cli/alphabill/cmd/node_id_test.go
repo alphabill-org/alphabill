@@ -18,7 +18,7 @@ func TestNodeID_KeyConfNotFound(t *testing.T) {
 		"node-id", "--key-conf", file,
 	})
 	err := cmd.Execute(context.Background())
-	require.ErrorContains(t, err, fmt.Sprintf("failed to load keys %s", file))
+	require.ErrorContains(t, err, fmt.Sprintf("failed to load %q", file))
 }
 
 func TestNodeID_Ok(t *testing.T) {

@@ -35,7 +35,7 @@ func TestRootValidator_OK(t *testing.T) {
 	moneyHome := writeShardConf(t, defaultMoneyShardConf)
 	cmd := New(obsF)
 	cmd.baseCmd.SetArgs([]string{
-		"shard-node", "init", "--gen-keys", "--home", moneyHome,
+		"shard-node", "init", "--generate", "--home", moneyHome,
 	})
 	require.NoError(t, cmd.Execute(context.Background()))
 
@@ -43,7 +43,7 @@ func TestRootValidator_OK(t *testing.T) {
 	rootHome1 := t.TempDir()
 	cmd = New(obsF)
 	cmd.baseCmd.SetArgs([]string{
-		"root-node", "init", "--gen-keys", "--home", rootHome1,
+		"root-node", "init", "--generate", "--home", rootHome1,
 	})
 	require.NoError(t, cmd.Execute(context.Background()))
 
@@ -51,7 +51,7 @@ func TestRootValidator_OK(t *testing.T) {
 	rootHome2 := t.TempDir()
 	cmd = New(obsF)
 	cmd.baseCmd.SetArgs([]string{
-		"root-node", "init", "--gen-keys", "--home", rootHome2,
+		"root-node", "init", "--generate", "--home", rootHome2,
 	})
 	require.NoError(t, cmd.Execute(context.Background()))
 
@@ -111,7 +111,7 @@ func generateSingleNodeSetup(t *testing.T) (string, string) {
 	// generate trust base
 	cmd = New(logF)
 	args = "trust-base generate --home " + rootHomeDir +
-		" --node-info-file=" + filepath.Join(rootHomeDir, nodeInfoFileName)
+		" --node-info=" + filepath.Join(rootHomeDir, nodeInfoFileName)
 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
 	require.NoError(t, cmd.Execute(context.Background()))
 	return rootHomeDir, moneyHomeDir
@@ -162,19 +162,19 @@ func TestRootValidator_CannotBeStartedInvalidKeyFile(t *testing.T) {
 	})
 	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*100)
 	defer cancel()
-	require.ErrorContains(t, cmd.Execute(ctx), "root node key not found in trust base: node id/encode key not found in genesis")
+	require.ErrorContains(t, cmd.Execute(ctx), "root node key not found in trust base: node not part of trust base")
 }
 
 func TestRootValidator_CannotBeStartedInvalidDBDir(t *testing.T) {
-	homeDir := t.TempDir()
-	rootDir, _ := generateSingleNodeSetup(t)
+	rootHome, _ := generateSingleNodeSetup(t)
+
 	cmd := New(observability.NewFactory(t))
-	trustBase := filepath.Join(rootDir, trustBaseFileName)
-	args := "root --home " + homeDir + " --db=/foobar/doesnotexist3454/" + " --trust-base-file " + trustBase
-	cmd.baseCmd.SetArgs(strings.Split(args, " "))
+	invalidStore := "/foobar/doesnotexist3454/"
+	cmd.baseCmd.SetArgs([]string{"root-node", "run", "--home", rootHome, "--root-db", invalidStore})
+
 	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*100)
 	defer cancel()
-	require.ErrorContains(t, cmd.Execute(ctx), "root store init failed: open /foobar/doesnotexist3454/rootchain.db: no such file or directory")
+	require.ErrorContains(t, cmd.Execute(ctx), fmt.Sprintf("failed to init %q", invalidStore))
 }
 
 func getRootValidatorMultiAddress(addressStr string) (multiaddr.Multiaddr, error) {

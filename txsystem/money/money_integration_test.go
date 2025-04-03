@@ -47,7 +47,7 @@ func TestPartition_Ok(t *testing.T) {
 	pdrs := createPDRs(t)
 	moneyPDR := *pdrs[0]
 	s := genesisState(t, ib, pdrs)
-	moneyPrt, err := testpartition.NewPartition(t, 3, func(tb types.RootTrustBase) txsystem.TransactionSystem {
+	moneyPrt, err := testpartition.NewShard(t, 3, func(tb types.RootTrustBase) txsystem.TransactionSystem {
 		s = s.Clone()
 		system, err := NewTxSystem(
 			moneyPDR,
@@ -61,7 +61,7 @@ func TestPartition_Ok(t *testing.T) {
 		return system
 	}, moneyPDR, s)
 	require.NoError(t, err)
-	abNet, err := testpartition.NewAlphabillPartition(t, []*testpartition.NodePartition{moneyPrt})
+	abNet := testpartition.NewAlphabillNetwork(t, 1)
 
 	require.NoError(t, err)
 	require.NoError(t, abNet.Start(t))
@@ -175,7 +175,7 @@ func TestPartition_SwapDCOk(t *testing.T) {
 	require.NoError(t, err)
 	total := moneyInvariant
 	txsState := genesisState(t, initialBill, pdrs)
-	moneyPrt, err := testpartition.NewPartition(t, 3, func(tb types.RootTrustBase) txsystem.TransactionSystem {
+	moneyPrt, err := testpartition.NewShard(t, 3, func(tb types.RootTrustBase) txsystem.TransactionSystem {
 		txsState = txsState.Clone()
 		system, err := NewTxSystem(
 			moneyPDR,
@@ -189,7 +189,7 @@ func TestPartition_SwapDCOk(t *testing.T) {
 		return system
 	}, moneyPDR, txsState)
 	require.NoError(t, err)
-	abNet, err := testpartition.NewAlphabillPartition(t, []*testpartition.NodePartition{moneyPrt})
+	abNet := testpartition.NewAlphabillNetwork(t, 1)
 	require.NoError(t, err)
 	require.NoError(t, abNet.Start(t))
 	defer abNet.WaitClose(t)

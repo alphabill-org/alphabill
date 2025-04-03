@@ -327,6 +327,10 @@ func (c *NodeConf) BlockStore() keyvaluedb.KeyValueDB {
 	return c.blockStore
 }
 
+func (c *NodeConf) ProofStore() keyvaluedb.KeyValueDB {
+	return c.proofIndexConfig.store
+}
+
 func (c *NodeConf) PeerConf() (*network.PeerConfiguration, error) {
 	authKeyPair, err := c.keyConf.AuthKeyPair()
 	if err != nil {

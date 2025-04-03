@@ -181,7 +181,7 @@ func (r *baseFlags) pathWithDefault(path string, defaultFileName string) string 
 func (r *baseFlags) loadConf(path string, defaultFileName string, conf any) error {
 	path = r.pathWithDefault(path, defaultFileName)
 	if _, err := util.ReadJsonFile(path, &conf); err != nil {
-		return fmt.Errorf("failed to load %q", path)
+		return fmt.Errorf("failed to load %q: %w", path, err)
 	}
 	return nil
 }
@@ -191,7 +191,7 @@ func (f *baseFlags) initStore(path string, defaultFileName string) (keyvaluedb.K
 
 	db, err := boltdb.New(path)
 	if err != nil {
-		return nil, fmt.Errorf("failed to init %q", path)
+		return nil, fmt.Errorf("failed to init %q: %w", path, err)
 	}
 	return db, nil
 }

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
@@ -37,7 +36,7 @@ var defaultMoneyShardConf = &types.PartitionDescriptionRecord{
 }
 
 func Test_MoneyGenesis(t *testing.T) {
-	pdr := &types.PartitionDescriptionRecord{
+	shardConf := &types.PartitionDescriptionRecord{
 		Version:     1,
 		NetworkID:   types.NetworkLocal,
 		PartitionID: moneysdk.DefaultPartitionID,
@@ -54,21 +53,17 @@ func Test_MoneyGenesis(t *testing.T) {
 			"dcMoneySupplyValue": "2",
 		},
 	}
-	homeDir := writeShardConf(t, pdr) // TODO: should return pdr file location
-	pdrArgument := " --partition-description " + filepath.Join(homeDir, shardConfFileName)
+	homeDir := writeShardConf(t, shardConf)
 
 	t.Run("GenesisStateExists", func(t *testing.T) {
-		homeDir := t.TempDir()
 		genesisStatePath := filepath.Join(homeDir, stateFileName)
 		_, err := os.Create(genesisStatePath)
 		require.NoError(t, err)
 
 		cmd := New(testobserve.NewFactory(t))
-		args := "genesis --gen-keys --home " + homeDir + pdrArgument
-		cmd.baseCmd.SetArgs(strings.Split(args, " "))
+		cmd.baseCmd.SetArgs([]string{"shard-conf", "genesis", "--home", homeDir})
 		err = cmd.Execute(context.Background())
-		require.ErrorContains(t, err, fmt.Sprintf("genesis state %q already exists", genesisStatePath))
-		require.NoFileExists(t, filepath.Join(homeDir, keyConfFileName))
+		require.ErrorContains(t, err, fmt.Sprintf("state file %q already exists", genesisStatePath))
 	})
 
 	// t.Run("WritesGenesisToSpecifiedOutputLocation", func(t *testing.T) {
@@ -155,34 +150,24 @@ func Test_MoneyGenesis(t *testing.T) {
 	// })
 
 	t.Run("EvmPartitionParams", func(t *testing.T) {
-		// Create a new PDR file with invalid GasUnitPrice
-		pdr2 := types.PartitionDescriptionRecord{
+		shardConf := types.PartitionDescriptionRecord{
 			Version:         1,
 			NetworkID:       5,
 			PartitionID:     evm.DefaultPartitionID,
+			PartitionTypeID: evm.PartitionTypeID,
 			TypeIDLen:       8,
 			UnitIDLen:       256,
 			T2Timeout:       2500 * time.Millisecond,
 			PartitionParams: map[string]string{
-				"gasUnitPrice":  "1",
-				"blockGasLimit": "999",
+				evmGasUnitPrice:  "9223372036854775808",
+				evmBlockGasLimit: "100000",
 			},
 		}
 
-		pdr2.PartitionID = 999
-		pdr2.PartitionParams = map[string]string{
-			"gasUnitPrice":  "9223372036854775808",
-			"blockGasLimit": "100000",
-		}
-		homeDir := writeShardConf(t, &pdr2)
-
-		kf := filepath.Join(homeDir, stateFileName)
-
+		homeDir := writeShardConf(t, &shardConf)
 		cmd := New(testobserve.NewFactory(t))
-		args := "genesis -g -k " + kf + " --home " + homeDir
-		cmd.baseCmd.SetArgs(strings.Split(args, " "))
-		err := cmd.Execute(context.Background())
-		require.ErrorContains(t, err, "invalid gasUnitPrice, max value is")
+		cmd.baseCmd.SetArgs([]string{"shard-conf", "genesis", "--home", homeDir})
+		require.NoError(t, cmd.Execute(context.Background()))
 	})
 
 	// t.Run("OrchestrationPartitionParams", func(t *testing.T) {

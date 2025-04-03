@@ -173,6 +173,11 @@ func (v *Node) onHandshake(ctx context.Context, req *handshake.Handshake) error 
 	if err != nil {
 		return fmt.Errorf("reading partition %s certificate: %w", req.PartitionID, err)
 	}
+	if si.LastCR.UC.GetRoundNumber() == 0 {
+		// Make sure shard nodes get CertificationResponses even
+		// before they send the first BlockCertificationRequests
+		v.subscription.Subscribe(req.PartitionID, req.NodeID)
+	}
 	if err = v.sendResponse(ctx, req.NodeID, si.LastCR); err != nil {
 		return fmt.Errorf("failed to send response: %w", err)
 	}
@@ -180,8 +185,8 @@ func (v *Node) onHandshake(ctx context.Context, req *handshake.Handshake) error 
 }
 
 /*
-onBlockCertificationRequest handles Certification Request from partition nodes.
-Partition nodes can only extend the stored/certified state.
+onBlockCertificationRequest handles Certification Request from shard nodes.
+Shard nodes can only extend the stored/certified state.
 */
 func (v *Node) onBlockCertificationRequest(ctx context.Context, req *certification.BlockCertificationRequest) (rErr error) {
 	ctx, span := v.tracer.Start(ctx, "node.onBlockCertificationRequest")

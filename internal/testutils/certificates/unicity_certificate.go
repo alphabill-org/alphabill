@@ -15,8 +15,8 @@ func CreateUnicityCertificate(
 	signer crypto.Signer,
 	ir *types.InputRecord,
 	pdr *types.PartitionDescriptionRecord,
-	roundNumber uint64,
-	previousRoundRootHash []byte,
+	rootRound uint64,
+	previousHash []byte,
 	trHash []byte,
 ) *types.UnicityCertificate {
 	t.Helper()
@@ -40,7 +40,7 @@ func CreateUnicityCertificate(
 		t.Error(err)
 	}
 	rootHash := ut.RootHash()
-	unicitySeal := createUnicitySeal(rootHash, roundNumber, previousRoundRootHash)
+	unicitySeal := createUnicitySeal(rootHash, rootRound, previousHash)
 	err = unicitySeal.Sign("test", signer)
 	if err != nil {
 		t.Error(err)
@@ -59,12 +59,12 @@ func CreateUnicityCertificate(
 	}
 }
 
-func createUnicitySeal(rootHash []byte, roundNumber uint64, previousRoundRootHash []byte) *types.UnicitySeal {
+func createUnicitySeal(rootHash []byte, roundNumber uint64, previousHash []byte) *types.UnicitySeal {
 	return &types.UnicitySeal{
 		Version:              1,
 		RootChainRoundNumber: roundNumber,
 		Timestamp:            types.NewTimestamp(),
-		PreviousHash:         previousRoundRootHash,
+		PreviousHash:         previousHash,
 		Hash:                 rootHash,
 	}
 }

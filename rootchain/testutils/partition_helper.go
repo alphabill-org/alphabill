@@ -71,6 +71,7 @@ func CreateBlockCertificationRequest(t *testing.T, ir *types.InputRecord, partit
 	t.Helper()
 	r1 := &certification.BlockCertificationRequest{
 		PartitionID: partitionID,
+		ShardID:     types.ShardID{},
 		NodeID:      node.PeerConf.ID.String(),
 		InputRecord: ir,
 	}

@@ -13,11 +13,12 @@ import (
 
 type (
 	Options struct {
-		state          *state.State
-		hashAlgorithm  crypto.Hash
-		ownerPredicate types.PredicateBytes
-		trustBase      types.RootTrustBase
-		exec           predicates.PredicateExecutor
+		state                *state.State
+		executedTransactions map[string]uint64
+		hashAlgorithm        crypto.Hash
+		ownerPredicate       types.PredicateBytes
+		trustBase            types.RootTrustBase
+		exec                 predicates.PredicateExecutor
 	}
 
 	Option func(*Options)
@@ -42,6 +43,12 @@ func defaultOptions(observe txsystem.Observability) (*Options, error) {
 func WithState(s *state.State) Option {
 	return func(g *Options) {
 		g.state = s
+	}
+}
+
+func WithExecutedTransactions(executedTransactions map[string]uint64) Option {
+	return func(c *Options) {
+		c.executedTransactions = executedTransactions
 	}
 }
 

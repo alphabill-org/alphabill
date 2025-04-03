@@ -163,18 +163,6 @@ func TestFeeCredit_validateCloseFC(t *testing.T) {
 		require.EqualError(t, feeModule.validateCloseFC(tx, &attr, &authProof, execCtx),
 			"not enough funds: max fee cannot exceed fee credit record balance: tx.maxFee=51 fcr.Balance=50")
 	})
-	t.Run("Close locked credit", func(t *testing.T) {
-		tx := testfc.NewCloseFC(t, signer, nil)
-		feeModule := newTestFeeModule(t, &targetPDR, trustBase, withStateUnit(tx.UnitID, &fc.FeeCreditRecord{Locked: 1, Balance: 50}))
-		var attr fc.CloseFeeCreditAttributes
-		require.NoError(t, tx.UnmarshalAttributes(&attr))
-		var authProof fc.CloseFeeCreditAuthProof
-		require.NoError(t, tx.UnmarshalAuthProof(&authProof))
-		execCtx := testctx.NewMockExecutionContext(testctx.WithCurrentRound(5))
-		require.EqualError(t, feeModule.validateCloseFC(tx, &attr, &authProof, execCtx),
-			"validation error: fee credit record is locked")
-	})
-
 }
 
 type feeTestOption func(m *FeeCreditModule) error

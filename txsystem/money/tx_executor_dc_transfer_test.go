@@ -47,13 +47,6 @@ func TestModule_validateTransferDCTx(t *testing.T) {
 	t.Run("bill is locked", func(t *testing.T) {
 		unitID := moneyid.NewBillID(t)
 		tx, attr, authProof := createDCTransfer(t, unitID, fcrID, value, counter, targetUnitID, targetCounter)
-		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, &money.BillData{Locked: 1, Value: value, Counter: counter, OwnerPredicate: templates.AlwaysTrueBytes()}))
-		exeCtx := testctx.NewMockExecutionContext()
-		require.EqualError(t, module.validateTransferDCTx(tx, attr, authProof, exeCtx), "validateTransferDC error: the bill is locked")
-	})
-	t.Run("bill is locked", func(t *testing.T) {
-		unitID := moneyid.NewBillID(t)
-		tx, attr, authProof := createDCTransfer(t, unitID, fcrID, value, counter, targetUnitID, targetCounter)
 		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, &money.BillData{Value: value + 1, Counter: counter, OwnerPredicate: templates.AlwaysTrueBytes()}))
 		exeCtx := testctx.NewMockExecutionContext()
 		require.EqualError(t, module.validateTransferDCTx(tx, attr, authProof, exeCtx), "validateTransferDC error: the transaction value is not equal to the bill value")
@@ -108,13 +101,10 @@ func TestModule_executeTransferDCTx(t *testing.T) {
 	require.True(t, ok)
 	require.EqualValues(t, bill.Counter, counter+1)
 	require.EqualValues(t, bill.Value, 0)
-	require.EqualValues(t, bill.Locked, 0)
 	// bill value has been added to the dust collector
 	d, err = module.state.GetUnit(DustCollectorMoneySupplyID, false)
 	require.NoError(t, err)
 	dustBill, ok = d.Data().(*money.BillData)
 	require.True(t, ok)
 	require.EqualValues(t, dustBill.Value, dustBefore.(*money.BillData).Value+value)
-	// locked status was not changed
-	require.EqualValues(t, dustBill.Locked, dustBefore.(*money.BillData).Locked)
 }

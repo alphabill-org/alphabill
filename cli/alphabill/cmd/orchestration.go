@@ -66,7 +66,7 @@ func runOrchestrationNode(ctx context.Context, cfg *orchestrationConfiguration) 
 	if stateFilePath == "" {
 		stateFilePath = filepath.Join(cfg.Base.HomeDir, orchestrationPartitionDir, orchestrationGenesisFileName)
 	}
-	state, err := loadStateFile(stateFilePath, func(ui types.UnitID) (types.UnitData, error) {
+	state, header, err := loadStateFile(stateFilePath, func(ui types.UnitID) (types.UnitData, error) {
 		return sdkorchestration.NewUnitData(ui, pg.PartitionDescription)
 	})
 	if err != nil {
@@ -120,6 +120,7 @@ func runOrchestrationNode(ctx context.Context, cfg *orchestrationConfiguration) 
 		orchestration.WithTrustBase(trustBase),
 		orchestration.WithState(state),
 		orchestration.WithOwnerPredicate(params.OwnerPredicate),
+		orchestration.WithExecutedTransactions(header.ExecutedTransactions),
 	)
 	if err != nil {
 		return fmt.Errorf("creating transaction system: %w", err)

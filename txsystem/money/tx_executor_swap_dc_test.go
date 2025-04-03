@@ -150,7 +150,6 @@ func TestModule_executeSwapTx(t *testing.T) {
 	require.EqualValues(t, bill.Value, targetBillValue+dustTransferValue)
 	// counter was 0,
 	require.EqualValues(t, bill.Counter, 1)
-	require.EqualValues(t, bill.Locked, 0)
 	// check dust bill as well
 	d, err := module.state.GetUnit(DustCollectorMoneySupplyID, false)
 	require.NoError(t, err)
@@ -158,7 +157,6 @@ func TestModule_executeSwapTx(t *testing.T) {
 	require.True(t, ok)
 	require.EqualValues(t, dustBill.Owner(), DustCollectorPredicate)
 	require.EqualValues(t, dustBill.Value, dustAmount-dustTransferValue)
-	require.EqualValues(t, dustBill.Locked, 0)
 }
 
 func createTransferDCTransactionRecord(t *testing.T, pdr *types.PartitionDescriptionRecord, transferID []byte, attr *money.TransferDCAttributes) *types.TransactionRecord {

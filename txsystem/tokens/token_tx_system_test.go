@@ -368,6 +368,7 @@ func TestExecuteDefineNFT_UnitIDExists(t *testing.T) {
 	require.Equal(t, []types.UnitID{tx.UnitID, feeCreditID}, txr.TargetUnits())
 	require.True(t, txr.ServerMetadata.ActualFee > 0)
 
+	tx.ClientMetadata.Timeout += 1 // increment timeout to pass executed transactions buffer
 	txr, err = txs.Execute(tx)
 	require.NoError(t, err)
 	require.NotNil(t, txr)
@@ -1201,64 +1202,6 @@ func TestTransferNFT_BurnedBearerMustFail(t *testing.T) {
 	require.ErrorContains(t, txr.ServerMetadata.ErrDetail(), "evaluating owner predicate: predicate evaluated to \"false\"")
 }
 
-func TestTransferNFT_LockedToken(t *testing.T) {
-	txs, _, pdr := newTokenTxSystem(t)
-	nftID := defineNFTAndMintToken(t, txs, &pdr, nftTypeID2)
-
-	// lock token
-	lockTx := testtransaction.NewTransactionOrder(
-		t,
-		testtransaction.WithTransactionType(tokens.TransactionTypeLockToken),
-		testtransaction.WithUnitID(nftID),
-		testtransaction.WithPartitionID(tokens.DefaultPartitionID),
-		testtransaction.WithAttributes(&tokens.LockTokenAttributes{
-			LockStatus: 1,
-			Counter:    0,
-		}),
-		testtransaction.WithAuthProof(&tokens.LockTokenAuthProof{
-			OwnerProof: templates.EmptyArgument(),
-		}),
-		testtransaction.WithClientMetadata(&types.ClientMetadata{
-			Timeout:           1000,
-			MaxTransactionFee: 10,
-			FeeCreditRecordID: feeCreditID,
-		}),
-	)
-	txr, err := txs.Execute(lockTx)
-	require.NoError(t, err)
-	require.NotNil(t, txr)
-	require.Equal(t, types.TxStatusSuccessful, txr.ServerMetadata.SuccessIndicator)
-
-	// verify unit was locked
-	u, err := txs.State().GetUnit(nftID, false)
-	require.NoError(t, err)
-	tokenData := u.Data().(*tokens.NonFungibleTokenData)
-	require.EqualValues(t, 1, tokenData.Locked)
-
-	// update nft
-	tx := testtransaction.NewTransactionOrder(
-		t,
-		testtransaction.WithTransactionType(tokens.TransactionTypeTransferNFT),
-		testtransaction.WithUnitID(nftID),
-		testtransaction.WithPartitionID(tokens.DefaultPartitionID),
-		testtransaction.WithAttributes(&tokens.TransferNonFungibleTokenAttributes{
-			TypeID:            nftTypeID2,
-			NewOwnerPredicate: templates.AlwaysTrueBytes(),
-			Counter:           0,
-		}),
-		testtransaction.WithAuthProof(&tokens.TransferNonFungibleTokenAuthProof{
-			OwnerProof: templates.EmptyArgument(),
-		}),
-		testtransaction.WithClientMetadata(createClientMetadata()),
-		testtransaction.WithFeeProof(nil),
-	)
-	txr, err = txs.Execute(tx)
-	require.NoError(t, err)
-	require.NotNil(t, txr)
-	require.Equal(t, types.TxStatusFailed, txr.ServerMetadata.SuccessIndicator)
-	require.ErrorContains(t, txr.ServerMetadata.ErrDetail(), "token is locked")
-}
-
 func TestUpdateNFT_DataLengthIsInvalid(t *testing.T) {
 	txs, _, pdr := newTokenTxSystem(t)
 	nftID := defineNFTAndMintToken(t, txs, &pdr, nftTypeID2)
@@ -1350,61 +1293,6 @@ func TestUpdateNFT_UnitIsNotNFT(t *testing.T) {
 	require.NotNil(t, txr)
 	require.Equal(t, types.TxStatusFailed, txr.ServerMetadata.SuccessIndicator)
 	require.ErrorContains(t, txr.ServerMetadata.ErrDetail(), "invalid unit ID")
-}
-
-func TestUpdateNFT_LockedToken(t *testing.T) {
-	txs, _, pdr := newTokenTxSystem(t)
-	nftID := defineNFTAndMintToken(t, txs, &pdr, nftTypeID2)
-
-	// lock token
-	lockTx := testtransaction.NewTransactionOrder(
-		t,
-		testtransaction.WithTransactionType(tokens.TransactionTypeLockToken),
-		testtransaction.WithUnitID(nftID),
-		testtransaction.WithPartitionID(tokens.DefaultPartitionID),
-		testtransaction.WithAttributes(&tokens.LockTokenAttributes{
-			LockStatus: 1,
-			Counter:    0,
-		}),
-		testtransaction.WithAuthProof(&tokens.LockTokenAuthProof{OwnerProof: templates.EmptyArgument()}),
-		testtransaction.WithClientMetadata(&types.ClientMetadata{
-			Timeout:           1000,
-			MaxTransactionFee: 10,
-			FeeCreditRecordID: feeCreditID,
-		}),
-	)
-	txr, err := txs.Execute(lockTx)
-	require.NoError(t, err)
-	require.NotNil(t, txr)
-	require.Equal(t, types.TxStatusSuccessful, txr.ServerMetadata.SuccessIndicator)
-	require.Equal(t, []types.UnitID{lockTx.UnitID, feeCreditID}, txr.TargetUnits())
-
-	// verify unit was locked
-	u, err := txs.State().GetUnit(nftID, false)
-	require.NoError(t, err)
-	tokenData := u.Data().(*tokens.NonFungibleTokenData)
-	require.EqualValues(t, 1, tokenData.Locked)
-
-	// update nft
-	tx := testtransaction.NewTransactionOrder(
-		t,
-		testtransaction.WithTransactionType(tokens.TransactionTypeUpdateNFT),
-		testtransaction.WithUnitID(nftID),
-		testtransaction.WithPartitionID(tokens.DefaultPartitionID),
-		testtransaction.WithAttributes(&tokens.UpdateNonFungibleTokenAttributes{
-			Data:    test.RandomBytes(10),
-			Counter: 0,
-		}),
-		testtransaction.WithAuthProof(&tokens.UpdateNonFungibleTokenAuthProof{}),
-		testtransaction.WithClientMetadata(createClientMetadata()),
-		testtransaction.WithFeeProof(nil),
-	)
-	txr, err = txs.Execute(tx)
-	require.NoError(t, err)
-	require.NotNil(t, txr)
-	require.Equal(t, types.TxStatusFailed, txr.ServerMetadata.SuccessIndicator)
-	require.Equal(t, []types.UnitID{feeCreditID}, txr.TargetUnits())
-	require.ErrorContains(t, txr.ServerMetadata.ErrDetail(), "token is locked")
 }
 
 func TestUpdateNFT_InvalidCounter(t *testing.T) {
@@ -1521,7 +1409,7 @@ func TestUpdateNFT_InvalidSignature(t *testing.T) {
 	require.NotNil(t, txr)
 	require.Equal(t, types.TxStatusFailed, txr.ServerMetadata.SuccessIndicator)
 	require.Equal(t, []types.UnitID{feeCreditID}, txr.TargetUnits())
-	require.EqualError(t, txr.ServerMetadata.ErrDetail(), `transaction validation error (type=12): data update predicate: executing predicate: failed to decode P2PKH256 signature: cbor: cannot unmarshal positive integer into Go value of type templates.P2pkh256Signature`)
+	require.EqualError(t, txr.ServerMetadata.ErrDetail(), `transaction validation error (type=10): data update predicate: executing predicate: failed to decode P2PKH256 signature: cbor: cannot unmarshal positive integer into Go value of type templates.P2pkh256Signature`)
 }
 
 func TestUpdateNFT_Ok(t *testing.T) {
@@ -1566,63 +1454,14 @@ func TestUpdateNFT_Ok(t *testing.T) {
 	require.EqualValues(t, templates.AlwaysTrueBytes(), d.Owner())
 }
 
-// Test LockFC -> UnlockFC
-func TestExecute_LockFeeCreditTxs_OK(t *testing.T) {
-	txs, _, _ := newTokenTxSystem(t)
-
-	err := txs.BeginBlock(1)
-	require.NoError(t, err)
-
-	// lock fee credit record
-	signer, _ := testsig.CreateSignerAndVerifier(t)
-	lockFCAttr := testutils.NewLockFCAttr(testutils.WithLockFCCounter(10))
-	lockFC := testutils.NewLockFC(t, signer, lockFCAttr,
-		testtransaction.WithUnitID(feeCreditID),
-		testtransaction.WithPartitionID(tokens.DefaultPartitionID),
-	)
-	txr, err := txs.Execute(lockFC)
-	require.NoError(t, err)
-	require.NotNil(t, txr)
-	require.Equal(t, types.TxStatusSuccessful, txr.ServerMetadata.SuccessIndicator)
-	require.Equal(t, []types.UnitID{lockFC.UnitID}, txr.TargetUnits())
-
-	// verify unit was locked
-	u, err := txs.State().GetUnit(feeCreditID, false)
-	require.NoError(t, err)
-	fcr, ok := u.Data().(*fc.FeeCreditRecord)
-	require.True(t, ok)
-	require.True(t, fcr.IsLocked())
-
-	// unlock fee credit record
-	unlockFCAttr := testutils.NewUnlockFCAttr(testutils.WithUnlockFCCounter(11))
-	unlockFC := testutils.NewUnlockFC(t, signer, unlockFCAttr,
-		testtransaction.WithUnitID(feeCreditID),
-		testtransaction.WithPartitionID(tokens.DefaultPartitionID),
-	)
-	txr, err = txs.Execute(unlockFC)
-	require.NoError(t, err)
-	require.NotNil(t, txr)
-	require.Equal(t, types.TxStatusSuccessful, txr.ServerMetadata.SuccessIndicator)
-	require.Equal(t, []types.UnitID{unlockFC.UnitID}, txr.TargetUnits())
-
-	// verify unit was unlocked
-	fcrUnit, err := txs.State().GetUnit(feeCreditID, false)
-	require.NoError(t, err)
-	fcr, ok = fcrUnit.Data().(*fc.FeeCreditRecord)
-	require.True(t, ok)
-	require.False(t, fcr.IsLocked())
-}
-
 func TestExecute_FailedTxInFeelessMode(t *testing.T) {
 	txs, _, _ := newTokenTxSystem(t,
 		WithAdminOwnerPredicate(templates.AlwaysTrueBytes()),
 		WithFeelessMode(true))
 
-	// lock fee credit record (not supported in feeless mode)
+	// add fee credit record (not supported in feeless mode)
 	signer, _ := testsig.CreateSignerAndVerifier(t)
-	lockFCAttr := testutils.NewLockFCAttr(testutils.WithLockFCCounter(10))
-
-	lockFC := testutils.NewLockFC(t, signer, lockFCAttr,
+	addFC := testutils.NewAddFC(t, signer, nil,
 		testtransaction.WithUnitID(feeCreditID),
 		testtransaction.WithPartitionID(tokens.DefaultPartitionID),
 		testtransaction.WithClientMetadata(createClientMetadata()),
@@ -1638,7 +1477,7 @@ func TestExecute_FailedTxInFeelessMode(t *testing.T) {
 	fcrBefore, ok := u.Data().(*fc.FeeCreditRecord)
 	require.True(t, ok)
 
-	txr, err := txs.Execute(lockFC)
+	txr, err := txs.Execute(addFC)
 	require.NoError(t, err)
 	require.NotNil(t, txr)
 	require.Equal(t, types.TxStatusFailed, txr.ServerMetadata.SuccessIndicator)

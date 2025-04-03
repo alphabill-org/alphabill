@@ -44,7 +44,7 @@ func Test_AuthProof(t *testing.T) {
 		require.NoError(t, txo.SetAuthProof([]byte{1, 2, 3}))
 
 		b, err := enc.AuthProof(&txo)
-		require.EqualError(t, err, `unmarshaling auth proof attributes of tx type 12: cbor: cannot unmarshal byte string into Go value of type tokens.UpdateNonFungibleTokenAuthProof`)
+		require.EqualError(t, err, `unmarshaling auth proof attributes of tx type 10: cbor: cannot unmarshal byte string into Go value of type tokens.UpdateNonFungibleTokenAuthProof`)
 		require.Nil(t, b)
 	})
 

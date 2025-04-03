@@ -65,7 +65,7 @@ func TestNewTxSystem_OK(t *testing.T) {
 	require.NoError(t, txSystem.Commit(createUC(stateSummary, roundNumber)))
 }
 
-func createUC(s txsystem.StateSummary, roundNumber uint64) *types.UnicityCertificate {
+func createUC(s *txsystem.StateSummary, roundNumber uint64) *types.UnicityCertificate {
 	return &types.UnicityCertificate{
 		Version: 1,
 		InputRecord: &types.InputRecord{

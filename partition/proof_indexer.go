@@ -182,12 +182,12 @@ func (p *ProofIndexer) create(ctx context.Context, block *types.Block, roundNumb
 				if !bytes.Equal(unitLog.TxRecordHash, txrHash) {
 					continue
 				}
-				usp, e := stateReader.CreateUnitStateProof(unitID, j)
+				unitStateProof, e := stateReader.CreateUnitStateProof(unitID, j)
 				if e != nil {
 					err = errors.Join(err, fmt.Errorf("unit %X proof creation failed: %w", unitID, e))
 					continue
 				}
-				res, e := state.MarshalUnitData(unitLog.NewUnitData)
+				unitState, e := unitLog.UnitState()
 				if e != nil {
 					err = errors.Join(err, fmt.Errorf("unit %X data encode failed: %w", unitID, e))
 					continue
@@ -195,8 +195,8 @@ func (p *ProofIndexer) create(ctx context.Context, block *types.Block, roundNumb
 				key := bytes.Join([][]byte{unitID, txoHash}, nil)
 				history.UnitProofIndexKeys = append(history.UnitProofIndexKeys, key)
 				if err = dbTx.Write(key, &types.UnitStateWithProof{
-					State: &types.UnitState{Data: res},
-					Proof: usp,
+					State: unitState,
+					Proof: unitStateProof,
 				}); err != nil {
 					return fmt.Errorf("unit proof write failed: %w", err)
 				}

@@ -40,9 +40,6 @@ func (m *FungibleTokensModule) validateTransferFT(tx *types.TransactionOrder, at
 	if err != nil {
 		return err
 	}
-	if tokenData.Locked != 0 {
-		return fmt.Errorf("token is locked")
-	}
 	if tokenData.Value != attr.Value {
 		return fmt.Errorf("invalid token value: expected %v, got %v", tokenData.Value, attr.Value)
 	}

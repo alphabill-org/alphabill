@@ -114,7 +114,7 @@ func TestExecutedBlock_Extend(t *testing.T) {
 }
 
 func TestExecutedBlock_GenerateCertificates(t *testing.T) {
-	rh, err := hex.DecodeString("B8E278ACF8DB0FADF5AA7A2C079CB888DEB38303020218A003F42B32E44F1F9E")
+	rh, err := hex.DecodeString("3A05A9B02F4201942030DFD1621D14B02AE1E1CCB6979607E817C9BDA4DBF903")
 	require.NoError(t, err)
 	block := &ExecutedBlock{
 		BlockData: &drctypes.BlockData{
@@ -132,6 +132,7 @@ func TestExecutedBlock_GenerateCertificates(t *testing.T) {
 					Hash:            []byte{2, 2, 2, 2},
 					BlockHash:       []byte{3, 3, 3, 3},
 					SummaryValue:    []byte{4, 4, 4, 4},
+					ETHash:          []byte{5, 5, 5, 5},
 					RoundNumber:     3,
 					SumOfEarnedFees: 4,
 					Timestamp:       20241113,
@@ -146,6 +147,7 @@ func TestExecutedBlock_GenerateCertificates(t *testing.T) {
 					Hash:            []byte{4, 4, 4, 4},
 					BlockHash:       []byte{3, 3, 3, 3},
 					SummaryValue:    []byte{4, 4, 4, 4},
+					ETHash:          []byte{5, 5, 5, 5},
 					RoundNumber:     3,
 					SumOfEarnedFees: 6,
 					Timestamp:       20241113,

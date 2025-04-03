@@ -23,6 +23,9 @@ func (n *NonFungibleTokensModule) executeDefineNFT(tx *types.TransactionOrder, a
 }
 
 func (n *NonFungibleTokensModule) validateDefineNFT(tx *types.TransactionOrder, attr *tokens.DefineNonFungibleTokenAttributes, authProof *tokens.DefineNonFungibleTokenAuthProof, exeCtx txtypes.ExecutionContext) error {
+	if tx.HasStateLock() {
+		return errors.New("defNFT transaction cannot contain state lock")
+	}
 	unitID := tx.GetUnitID()
 	if err := unitID.TypeMustBe(tokens.NonFungibleTokenTypeUnitType, &n.pdr); err != nil {
 		return fmt.Errorf("invalid nft ID: %w", err)

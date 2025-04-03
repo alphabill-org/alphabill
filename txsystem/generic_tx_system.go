@@ -8,8 +8,8 @@ import (
 	"io"
 	"log/slog"
 
-	"go.opentelemetry.io/otel/metric"
-
+	"github.com/alphabill-org/alphabill-go-base/txsystem/fc"
+	"github.com/alphabill-org/alphabill-go-base/txsystem/nop"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/util"
 	"github.com/alphabill-org/alphabill/logger"
@@ -19,6 +19,7 @@ import (
 	abfc "github.com/alphabill-org/alphabill/txsystem/fc"
 	"github.com/alphabill-org/alphabill/txsystem/fc/unit"
 	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
+	"go.opentelemetry.io/otel/metric"
 )
 
 var _ TransactionSystem = (*GenericTxSystem)(nil)
@@ -38,6 +39,8 @@ type (
 		log                 *slog.Logger
 		pr                  predicates.PredicateRunner
 		unitIDValidator     func(types.UnitID) error
+		etBuffer            *ETBuffer // executed transactions buffer
+		fcrTypeID           uint32
 	}
 
 	Observability interface {
@@ -76,9 +79,10 @@ func NewGenericTxSystem(shardConf types.PartitionDescriptionRecord, trustBase ty
 		handlers:            make(txtypes.TxExecutors),
 		pr:                  options.predicateRunner,
 		fees:                options.feeCredit,
+		etBuffer:            NewETBuffer(WithExecutedTxs(options.executedTransactions)),
 	}
 	txs.log = observe.RoundLogger(txs.CurrentRound)
-	txs.beginBlockFunctions = append(txs.beginBlockFunctions, txs.pruneState)
+	txs.beginBlockFunctions = append([]func(roundNo uint64) error{txs.pruneState, txs.rInit}, txs.beginBlockFunctions...)
 
 	for _, module := range modules {
 		if err := txs.handlers.Add(module.TxHandlers()); err != nil {
@@ -118,7 +122,7 @@ func (m *GenericTxSystem) StateSize() (uint64, error) {
 	return m.state.Size()
 }
 
-func (m *GenericTxSystem) StateSummary() (StateSummary, error) {
+func (m *GenericTxSystem) StateSummary() (*StateSummary, error) {
 	committed, err := m.state.IsCommitted()
 	if err != nil {
 		return nil, fmt.Errorf("unable to check state committed status: %w", err)
@@ -129,12 +133,16 @@ func (m *GenericTxSystem) StateSummary() (StateSummary, error) {
 	return m.getStateSummary()
 }
 
-func (m *GenericTxSystem) getStateSummary() (StateSummary, error) {
+func (m *GenericTxSystem) getStateSummary() (*StateSummary, error) {
 	sv, hash, err := m.state.CalculateRoot()
 	if err != nil {
 		return nil, err
 	}
-	return NewStateSummary(hash, util.Uint64ToBytes(sv)), nil
+	etHash, err := m.etBuffer.Hash()
+	if err != nil {
+		return nil, fmt.Errorf("failed to caluclate executed transactions hash: %w", err)
+	}
+	return NewStateSummary(hash, util.Uint64ToBytes(sv), etHash), nil
 }
 
 func (m *GenericTxSystem) BeginBlock(roundNo uint64) error {
@@ -148,15 +156,91 @@ func (m *GenericTxSystem) BeginBlock(roundNo uint64) error {
 	return nil
 }
 
+// rInit generic round initialization procedure common for all transaction systems:
+//  1. Prune the state change history for all units that were targeted by transactions in the previous round (done in state pruner)
+//  2. Delete all unlocked fee credit records with zero remaining balance and expired lifetime
+//  3. Delete all expired units
+func (m *GenericTxSystem) rInit(roundNumber uint64) error {
+	var expiredFCRs []types.UnitID
+	var expiredUnits []types.UnitID
+	err := m.state.Traverse(state.NewInorderTraverser(func(unitID types.UnitID, unit state.Unit) error {
+		unitV1, err := state.ToUnitV1(unit)
+		if err != nil {
+			return fmt.Errorf("failed to extract unit v1: %w", err)
+		}
+		unitType, err := m.pdr.ExtractUnitType(unitID)
+		if err != nil {
+			return fmt.Errorf("failed to extract unit type: %w", err)
+		}
+		if unitType == m.fees.FeeCreditRecordUnitType() {
+			fcr, ok := unit.Data().(*fc.FeeCreditRecord)
+			if !ok {
+				// sanity check, should never happen
+				return fmt.Errorf("unit data type is not a fee credit record")
+			}
+			if fcr.IsExpired(roundNumber) {
+				expiredFCRs = append(expiredFCRs, unitID)
+			}
+		} else if unitV1.IsExpired(roundNumber) {
+			expiredUnits = append(expiredUnits, unitID)
+		}
+		// TODO move state_pruner here?
+		return nil
+	}))
+	if err != nil {
+		return fmt.Errorf("failed to traverse the state tree: %w", err)
+	}
+	if err := m.deleteUnits(expiredFCRs); err != nil {
+		return fmt.Errorf("failed to delete fcr units: %w", err)
+	}
+	if err := m.deleteUnits(expiredUnits); err != nil {
+		return fmt.Errorf("failed to delete ordinary units: %w", err)
+	}
+	return nil
+}
+
+// deleteUnits deletes provided units, the unitIDs must be sorted lexicographically
+func (m *GenericTxSystem) deleteUnits(unitIDs []types.UnitID) error {
+	if len(unitIDs) == 0 {
+		return nil
+	}
+	// delete all units in a single batch to minimise concurrency overhead
+	var actions []state.Action
+	for _, unitID := range unitIDs {
+		actions = append(actions, state.DeleteUnit(unitID))
+	}
+	if err := m.state.Apply(actions...); err != nil {
+		return fmt.Errorf("failed to delete units: %w", err)
+	}
+	return nil
+}
+
 func (m *GenericTxSystem) pruneState(roundNo uint64) error {
 	return m.state.Prune()
 }
 
+// snFees charge storage and network fees.
 func (m *GenericTxSystem) snFees(_ *types.TransactionOrder, execCxt txtypes.ExecutionContext) error {
 	return execCxt.SpendGas(abfc.GeneralTxCostGasUnits)
 }
 
-func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (*types.TransactionRecord, error) {
+func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (tr *types.TransactionRecord, err error) {
+	// discard tx if it is a duplicate
+	txHash, err := tx.Hash(m.hashAlgorithm)
+	if err != nil {
+		return nil, fmt.Errorf("failed to hash transaction: %w", err)
+	}
+	txID := string(txHash)
+	_, f := m.etBuffer.Get(txID)
+	if f {
+		return nil, errors.New("transaction already executed")
+	}
+	defer func() {
+		if tr != nil {
+			m.etBuffer.Add(txID, tx.Timeout())
+		}
+	}()
+
 	// First, check transaction credible and that there are enough fee credits on the FCR?
 	// buy gas according to the maximum tx fee allowed by client -
 	// if fee proof check fails, function will exit tx and tx will not be added to block
@@ -174,18 +258,18 @@ func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (*types.Transactio
 	m.log.Debug(fmt.Sprintf("execute %d", tx.Type), logger.UnitID(tx.GetUnitID()), logger.Data(tx))
 	// execute fee credit transactions
 	if m.fees.IsFeeCreditTx(tx) {
-		sm, err := m.executeFc(tx, exeCtx)
+		tr, err = m.executeFc(tx, exeCtx)
 		if err != nil {
 			return nil, fmt.Errorf("execute fc error: %w", err)
 		}
-		return sm, nil
+		return tr, nil
 	}
 	// execute rest ordinary transactions
 	if err := m.fees.IsCredible(exeCtx, tx); err != nil {
 		// not credible, means that no fees can be charged, so just exit with error tx will not be added to block
 		return nil, fmt.Errorf("error transaction not credible: %w", err)
 	}
-	tr, err := m.doExecute(tx, exeCtx)
+	tr, err = m.doExecute(tx, exeCtx)
 	if err != nil {
 		return nil, fmt.Errorf("execute error: %w", err)
 	}
@@ -261,23 +345,31 @@ func (m *GenericTxSystem) doExecute(tx *types.TransactionOrder, exeCtx *txtypes.
 		// transaction execution succeeded
 		m.state.ReleaseToSavepoint(savepointID)
 	}()
-	// check conditional state unlock and release it, either roll back or execute the pending Tx
-	unlockSm, err := m.handleUnlockUnitState(tx, exeCtx)
-	txr.ServerMetadata = appendServerMetadata(txr.ServerMetadata, unlockSm)
+
+	// unmarshal tx
+	attr, authProof, targetUnits, err := m.handlers.UnmarshalTx(tx, exeCtx)
 	if err != nil {
-		txExecErr = fmt.Errorf("unit state lock error: %w", err)
+		txExecErr = fmt.Errorf("failed to unmarshal transaction: %w", err)
 		return txr, nil
 	}
+	// check conditional state unlock and release it, either roll back or execute the pending tx
+	for _, targetUnit := range targetUnits {
+		sm, err := m.handleUnlockUnitState(tx, targetUnit, exeCtx)
+		txr.ServerMetadata = appendServerMetadata(txr.ServerMetadata, sm)
+		if err != nil {
+			txExecErr = fmt.Errorf("unit state unlock error: %w", err)
+			return txr, nil
+		}
+	}
 	// perform transaction-system-specific validation and owner predicate check
-	attr, authProof, err := m.handlers.Validate(tx, exeCtx)
-	if err != nil {
+	if err := m.handlers.Validate(tx, attr, authProof, exeCtx); err != nil {
 		txExecErr = fmt.Errorf("transaction validation error (type=%d): %w", tx.Type, err)
 		return txr, nil
 	}
-	// either state lock or execute Tx
+	// either state lock or execute tx
 	if tx.HasStateLock() {
 		// handle conditional lock of units
-		sm, err := m.executeLockUnitState(tx, exeCtx)
+		sm, err := m.executeLockUnitState(tx, txBytes, targetUnits, exeCtx)
 		txr.ServerMetadata = appendServerMetadata(txr.ServerMetadata, sm)
 		if err != nil {
 			txExecErr = fmt.Errorf("unit state lock error: %w", err)
@@ -294,44 +386,71 @@ func (m *GenericTxSystem) doExecute(tx *types.TransactionOrder, exeCtx *txtypes.
 }
 
 func (m *GenericTxSystem) executeFc(tx *types.TransactionOrder, exeCtx *txtypes.TxExecutionContext) (*types.TransactionRecord, error) {
-	// 4. If P.C , ⊥ then return ⊥ – discard P if it is conditional
+	// 4. If P.C != ⊥ then return ⊥ – discard P if it is conditional
 	if tx.StateLock != nil {
-		return nil, fmt.Errorf("error fc transaction contains state lock")
+		return nil, errors.New("error fc transaction contains state lock")
 	}
-	// will not check 5. S.N[P.ι].L != ⊥ and S .N[P.ι].L.Ppend.τ != nop then return ⊥,
-	// if we do no handle state locking and unlocking then lock state must be impossible state
+	// 5. S.N[P.ι].L != ⊥ and S.N[P.ι].L.Ppend.τ != nop then return ⊥,
+	// discard P if the target unit is in a lock state with a non-trivial pending transaction.
+	txOnHold, err := m.parseTxOnHold(tx.UnitID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse txOnHold: %w", err)
+	}
+	if txOnHold != nil && txOnHold.Type != nop.TransactionTypeNOP {
+		return nil, errors.New("target unit is locked with a non-trivial (non-NOP) transaction")
+	}
+
 	// 6. If S.N[P.ι] != ⊥ and not EvalPred(S.N[P.ι].φ; S, P, P.s; &MS) - will be done during VerifyPsi
 	// 7. If not VerifyPsi(S, P; &MS)
 	// perform transaction-system-specific validation and owner predicate check
-	attr, authProof, err := m.handlers.Validate(tx, exeCtx)
+	attr, authProof, _, err := m.handlers.UnmarshalTx(tx, exeCtx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to unmarshal transaction: %w", err)
+	}
+	if err := m.handlers.Validate(tx, attr, authProof, exeCtx); err != nil {
+		return nil, fmt.Errorf("failed to validate transaction: %w", err)
 	}
 	// 8. b ← SNFees(S, P; &MS) - is at the moment done for all tx before this call
+
+	// initialize metadata
+	txBytes, err := tx.MarshalCBOR()
+	if err != nil {
+		return nil, fmt.Errorf("marshalling transaction: %w", err)
+	}
+	tr := &types.TransactionRecord{
+		Version:          1,
+		TransactionOrder: txBytes,
+		ServerMetadata:   &types.ServerMetadata{SuccessIndicator: types.TxStatusSuccessful},
+	}
+
 	// 9. TakeSnapshot
 	savepointID, err := m.state.Savepoint()
 	if err != nil {
 		return nil, fmt.Errorf("savepoint error: %w", err)
 	}
-	// skip step 10 b ← Unlock(S, P; &MS) - nothing to unlock if state lock is disabled in step 4?
-	// skip 11 If S .N[P.ι].L != ⊥ - unlock fail, as currently no attempt is made to unlock
-	// proceed with the transaction execution
-	sm, err := m.handlers.ExecuteWithAttr(tx, attr, authProof, exeCtx)
+
+	// 10. b ← Unlock(S, P; &MS) – try to resolve the locked state (Sec. 4.6.6); b is ignored.
+	sm, err := m.handleTxOnHold(tx, txOnHold, exeCtx)
+	if err != nil {
+		// 11. If S.N[P.ι].L != ⊥ - if P could not resolve the locked state
+		// roll the state tree back to the snapshot of line 9 and discard P.
+		m.state.RollbackToSavepoint(savepointID)
+		return nil, fmt.Errorf("unit state unlock error: %w", err)
+	}
+	tr.ServerMetadata = appendServerMetadata(tr.ServerMetadata, sm)
+
+	// 12. MS.fa ← min{MS.fa, P.MC. fm} – adjust actual fees, if they exceed the allowed fees
+	// done in appendServerMetadata?
+
+	// 13. Execute(S, P; &MS ) – execute P (Sec. 4.6.8) - proceed with the transaction execution
+	sm, err = m.handlers.ExecuteWithAttr(tx, attr, authProof, exeCtx)
 	if err != nil {
 		m.state.RollbackToSavepoint(savepointID)
 		return nil, fmt.Errorf("execute error: %w", err)
 	}
-	txBytes, err := tx.MarshalCBOR()
-	if err != nil {
-		m.state.RollbackToSavepoint(savepointID)
-		return nil, fmt.Errorf("marshalling transaction: %w", err)
-	}
-	trx := &types.TransactionRecord{
-		Version:          1,
-		TransactionOrder: txBytes,
-		ServerMetadata:   sm,
-	}
-	trHash, err := trx.Hash(m.hashAlgorithm)
+	tr.ServerMetadata = appendServerMetadata(tr.ServerMetadata, sm)
+
+	trHash, err := tr.Hash(m.hashAlgorithm)
 	if err != nil {
 		m.state.RollbackToSavepoint(savepointID)
 		return nil, fmt.Errorf("hashing transaction record: %w", err)
@@ -349,15 +468,13 @@ func (m *GenericTxSystem) executeFc(tx *types.TransactionOrder, exeCtx *txtypes.
 	}
 	// transaction execution succeeded
 	m.state.ReleaseToSavepoint(savepointID)
-	return trx, nil
+	return tr, nil
 }
 
 /*
-validateGenericTransaction does the tx validation common to all tx systems.
+validateGenericTransaction verifies that the transaction is sent to the correct network/partition/shard and is not expired.
 
-See Yellowpaper chapter 4.6 "Valid Transaction Orders".
-The (final) step "ψτ(P,S) – type-specific validity condition holds" must be
-implemented by the tx handler.
+See Yellowpaper chapter 4.6 "Transaction Processing".
 */
 func (m *GenericTxSystem) validateGenericTransaction(tx *types.TransactionOrder) error {
 	// T.α = S.α – transaction is sent to this network
@@ -386,7 +503,11 @@ func (m *GenericTxSystem) State() StateReader {
 	return m.state.Clone()
 }
 
-func (m *GenericTxSystem) EndBlock() (StateSummary, error) {
+func (m *GenericTxSystem) EndBlock() (*StateSummary, error) {
+	// remove expired transaction order data from ET (duplicate check buffer)
+	m.etBuffer.ClearExpired(m.currentRoundNumber)
+
+	// execute the transaction system specific completion steps
 	for _, function := range m.endBlockFunctions {
 		if err := function(m.currentRoundNumber); err != nil {
 			return nil, fmt.Errorf("end block function call failed: %w", err)
@@ -400,12 +521,14 @@ func (m *GenericTxSystem) Revert() {
 		return
 	}
 	m.state.Revert()
+	m.etBuffer.Revert()
 }
 
 func (m *GenericTxSystem) Commit(uc *types.UnicityCertificate) error {
 	err := m.state.Commit(uc)
 	if err == nil {
 		m.roundCommitted = true
+		m.etBuffer.Commit()
 	}
 	return err
 }
@@ -414,8 +537,8 @@ func (m *GenericTxSystem) CommittedUC() *types.UnicityCertificate {
 	return m.state.CommittedUC()
 }
 
-func (m *GenericTxSystem) SerializeState(writer io.Writer, committed bool) error {
-	return m.state.Serialize(writer, committed)
+func (m *GenericTxSystem) SerializeState(writer io.Writer) error {
+	return m.state.Serialize(writer, true, m.etBuffer.executedTransactions)
 }
 
 func (m *GenericTxSystem) CurrentRound() uint64 {

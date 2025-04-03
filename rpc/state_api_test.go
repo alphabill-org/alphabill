@@ -94,6 +94,37 @@ func TestGetUnit(t *testing.T) {
 		require.Equal(t, types.NetworkID(5), unit.NetworkID)
 		require.Equal(t, types.PartitionID(0x00010000), unit.PartitionID)
 	})
+	t.Run("stateLockTx exists", func(t *testing.T) {
+		stateLockTx := []byte{1}
+
+		s := state.NewEmptyState()
+		require.NoError(t, s.Apply(
+			state.AddUnit(unitID, &unitData{I: 10, O: templates.AlwaysTrueBytes()}),
+		))
+		require.NoError(t, s.Apply(state.SetStateLock(unitID, stateLockTx)))
+		require.NoError(t, s.AddUnitLog(unitID, test.RandomBytes(32)))
+
+		summaryValue, summaryHash, err := s.CalculateRoot()
+		require.NoError(t, err)
+		require.NoError(t, s.Commit(&types.UnicityCertificate{Version: 1, InputRecord: &types.InputRecord{
+			Version:      1,
+			RoundNumber:  1,
+			Hash:         summaryHash,
+			SummaryValue: util.Uint64ToBytes(summaryValue),
+		}}))
+
+		node := &MockNode{
+			txs: &testtxsystem.CounterTxSystem{
+				FixedState: s,
+			},
+		}
+		api := NewStateAPI(node, observe)
+
+		unit, err := api.GetUnit(unitID, false)
+		require.NoError(t, err)
+		require.NotNil(t, unit)
+		require.EqualValues(t, stateLockTx, unit.StateLockTx)
+	})
 }
 
 func TestGetUnitsByOwnerID(t *testing.T) {
@@ -416,10 +447,7 @@ func (mn *MockNode) Validators() peer.IDSlice {
 }
 
 func (mn *MockNode) SerializeState(writer io.Writer) error {
-	if mn.err != nil {
-		return mn.err
-	}
-	return nil
+	return mn.TransactionSystemState().Serialize(writer, true, nil)
 }
 
 func (mn *MockNode) GetTrustBase(epochNumber uint64) (types.RootTrustBase, error) {

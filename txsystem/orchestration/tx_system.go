@@ -29,6 +29,7 @@ func NewTxSystem(shardConf types.PartitionDescriptionRecord, observe txsystem.Ob
 		observe,
 		txsystem.WithHashAlgorithm(options.hashAlgorithm),
 		txsystem.WithState(options.state),
+		txsystem.WithExecutedTransactions(options.executedTransactions),
 	)
 }
 

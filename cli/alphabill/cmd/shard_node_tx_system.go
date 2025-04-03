@@ -45,7 +45,7 @@ func createTxSystem(flags *shardNodeRunFlags, nodeConf *partition.NodeConf) (txs
 
 func newMoneyTxSystem(flags *shardNodeRunFlags, nodeConf *partition.NodeConf) (txsystem.TransactionSystem, error) {
 	stateFilePath := flags.pathWithDefault(flags.StateFile, stateFileName)
-	state, err := loadStateFile(stateFilePath, func(ui types.UnitID) (types.UnitData, error) {
+	state, header, err := loadStateFile(stateFilePath, func(ui types.UnitID) (types.UnitData, error) {
 		return moneysdk.NewUnitData(ui, nodeConf.ShardConf())
 	})
 	if err != nil {
@@ -58,6 +58,7 @@ func newMoneyTxSystem(flags *shardNodeRunFlags, nodeConf *partition.NodeConf) (t
 		money.WithHashAlgorithm(nodeConf.HashAlgorithm()),
 		money.WithTrustBase(nodeConf.TrustBase()),
 		money.WithState(state),
+		money.WithExecutedTransactions(header.ExecutedTransactions),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create money tx system: %w", err)
@@ -67,7 +68,7 @@ func newMoneyTxSystem(flags *shardNodeRunFlags, nodeConf *partition.NodeConf) (t
 
 func newTokensTxSystem(flags *shardNodeRunFlags, nodeConf *partition.NodeConf) (txsystem.TransactionSystem, error) {
 	stateFilePath := flags.pathWithDefault(flags.StateFile, stateFileName)
-	state, err := loadStateFile(stateFilePath, func(ui types.UnitID) (types.UnitData, error) {
+	state, header, err := loadStateFile(stateFilePath, func(ui types.UnitID) (types.UnitData, error) {
 		return tokenssdk.NewUnitData(ui, nodeConf.ShardConf())
 	})
 	if err != nil {
@@ -117,6 +118,7 @@ func newTokensTxSystem(flags *shardNodeRunFlags, nodeConf *partition.NodeConf) (
 		tokens.WithPredicateExecutor(predEng.Execute),
 		tokens.WithAdminOwnerPredicate(params.AdminOwnerPredicate),
 		tokens.WithFeelessMode(params.FeelessMode),
+		tokens.WithExecutedTransactions(header.ExecutedTransactions),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create tokens tx system: %w", err)
@@ -126,7 +128,7 @@ func newTokensTxSystem(flags *shardNodeRunFlags, nodeConf *partition.NodeConf) (
 
 func newEvmTxSystem(flags *shardNodeRunFlags, nodeConf *partition.NodeConf) (txsystem.TransactionSystem, error) {
 	stateFilePath := flags.pathWithDefault(flags.StateFile, stateFileName)
-	state, err := loadStateFile(stateFilePath, evm.NewUnitData)
+	state, header, err := loadStateFile(stateFilePath, evm.NewUnitData)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load state file: %w", err)
 	}
@@ -143,6 +145,7 @@ func newEvmTxSystem(flags *shardNodeRunFlags, nodeConf *partition.NodeConf) (txs
 		evm.WithBlockDB(nodeConf.BlockStore()),
 		evm.WithTrustBase(nodeConf.TrustBase()),
 		evm.WithState(state),
+		evm.WithExecutedTransactions(header.ExecutedTransactions),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create evm tx system: %w", err)
@@ -160,7 +163,7 @@ func newEvmTxSystem(flags *shardNodeRunFlags, nodeConf *partition.NodeConf) (txs
 
 func newOrchestrationTxSystem(flags *shardNodeRunFlags, nodeConf *partition.NodeConf) (txsystem.TransactionSystem, error) {
 	stateFilePath := flags.pathWithDefault(flags.StateFile, stateFileName)
-	state, err := loadStateFile(stateFilePath, func(ui types.UnitID) (types.UnitData, error) {
+	state, header, err := loadStateFile(stateFilePath, func(ui types.UnitID) (types.UnitData, error) {
 		return moneysdk.NewUnitData(ui, nodeConf.ShardConf())
 	})
 	if err != nil {
@@ -179,6 +182,7 @@ func newOrchestrationTxSystem(flags *shardNodeRunFlags, nodeConf *partition.Node
 		orchestration.WithTrustBase(nodeConf.TrustBase()),
 		orchestration.WithState(state),
 		orchestration.WithOwnerPredicate(params.OwnerPredicate),
+		orchestration.WithExecutedTransactions(header.ExecutedTransactions),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create money tx system: %w", err)
@@ -186,20 +190,20 @@ func newOrchestrationTxSystem(flags *shardNodeRunFlags, nodeConf *partition.Node
 	return txs, err
 }
 
-func loadStateFile(stateFilePath string, unitDataConstructor state.UnitDataConstructor) (*state.State, error) {
+func loadStateFile(stateFilePath string, unitDataConstructor state.UnitDataConstructor) (*state.State, *state.Header, error) {
 	if !util.FileExists(stateFilePath) {
-		return nil, fmt.Errorf("state file '%s' not found", stateFilePath)
+		return nil, nil, fmt.Errorf("state file '%s' not found", stateFilePath)
 	}
 
 	stateFile, err := os.Open(filepath.Clean(stateFilePath))
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer stateFile.Close()
 
-	s, err := state.NewRecoveredState(stateFile, unitDataConstructor)
+	s, header, err := state.NewRecoveredState(stateFile, unitDataConstructor)
 	if err != nil {
-		return nil, fmt.Errorf("failed to build state tree from state file: %w", err)
+		return nil, nil, fmt.Errorf("failed to build state tree from state file: %w", err)
 	}
-	return s, nil
+	return s, header, nil
 }

@@ -64,6 +64,9 @@ func (m *Module) validateTransferDCTx(tx *types.TransactionOrder, attr *money.Tr
 }
 
 func (m *Module) validateTransDC(tx *types.TransactionOrder, attr *money.TransferDCAttributes, authProof *money.TransferDCAuthProof, exeCtx txtypes.ExecutionContext) error {
+	if tx.HasStateLock() {
+		return errors.New("transDC transaction cannot contain state lock")
+	}
 	unit, err := m.state.GetUnit(tx.UnitID, false)
 	if err != nil {
 		return err
@@ -71,9 +74,6 @@ func (m *Module) validateTransDC(tx *types.TransactionOrder, attr *money.Transfe
 	unitData, ok := unit.Data().(*money.BillData)
 	if !ok {
 		return errors.New("invalid unit data type")
-	}
-	if unitData.IsLocked() {
-		return errors.New("the bill is locked")
 	}
 	if unitData.Counter != attr.Counter {
 		return errors.New("the transaction counter is not equal to the bill counter")

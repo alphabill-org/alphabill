@@ -37,12 +37,12 @@ func (m *FungibleTokensModule) executeBurnFT(tx *types.TransactionOrder, _ *toke
 }
 
 func (m *FungibleTokensModule) validateBurnFT(tx *types.TransactionOrder, attr *tokens.BurnFungibleTokenAttributes, authProof *tokens.BurnFungibleTokenAuthProof, exeCtx txtypes.ExecutionContext) error {
+	if tx.HasStateLock() {
+		return errors.New("burnFT transaction cannot contain state lock")
+	}
 	tokenData, err := m.getFungibleTokenData(tx.UnitID)
 	if err != nil {
 		return err
-	}
-	if tokenData.Locked != 0 {
-		return errors.New("token is locked")
 	}
 	if !bytes.Equal(tokenData.TypeID, attr.TypeID) {
 		return fmt.Errorf("type of token to burn does not matches the actual type of the token: expected %s, got %s", tokenData.TypeID, attr.TypeID)

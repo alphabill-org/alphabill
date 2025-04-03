@@ -485,7 +485,7 @@ func TestAddAndCommit(t *testing.T) {
 		IR:            &types.InputRecord{},
 		ShardConfHash: nil,
 	})
-	b.RootHash = hexToBytes("955486064743538FB1EA182505025D1BEC57BB07D6FA06DE3F31322447055D1B")
+	b.RootHash = hexToBytes("CAE38201ADF8D40E2D97CB6201A6639E0B7A02F2E282EEBB92C255D600B2D908")
 
 	commitQc := &drctypes.QuorumCert{
 		VoteInfo: &drctypes.RoundInfo{

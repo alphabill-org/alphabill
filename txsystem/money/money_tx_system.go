@@ -42,5 +42,6 @@ func NewTxSystem(shardConf *basetypes.PartitionDescriptionRecord, observe txsyst
 		txsystem.WithBeginBlockFunctions(moneyModule.BeginBlockFuncs()...),
 		txsystem.WithHashAlgorithm(options.hashAlgorithm),
 		txsystem.WithState(options.state),
+		txsystem.WithExecutedTransactions(options.executedTransactions),
 	)
 }

@@ -34,7 +34,6 @@ func (m *Module) executeReclaimFCTx(tx *types.TransactionOrder, attr *fc.Reclaim
 		}
 		newBillData.Value += v
 		newBillData.Counter += 1
-		newBillData.Locked = 0
 		return newBillData, nil
 	}
 	updateAction := state.UpdateUnitData(unitID, updateFunc)

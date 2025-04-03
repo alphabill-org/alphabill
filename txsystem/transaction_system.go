@@ -24,7 +24,7 @@ type (
 
 		// StateSummary returns the summary of the current state of the transaction system or an ErrStateContainsUncommittedChanges if
 		// current state contains uncommitted changes.
-		StateSummary() (StateSummary, error)
+		StateSummary() (*StateSummary, error)
 
 		StateSize() (uint64, error)
 
@@ -33,7 +33,7 @@ type (
 
 		// EndBlock signals the end of the block and is called after all transactions have been delivered to the
 		// transaction system.
-		EndBlock() (StateSummary, error)
+		EndBlock() (*StateSummary, error)
 
 		// Revert signals the unsuccessful consensus round. When called the transaction system must revert all the changes
 		// made during the BeginBlock, EndBlock, and Execute method calls.
@@ -59,6 +59,8 @@ type (
 
 		// TypeID returns the type identifier of the transaction system.
 		TypeID() types.PartitionTypeID
+
+		SerializeState(writer io.Writer) error
 	}
 
 	StateReader interface {
@@ -69,7 +71,7 @@ type (
 		CreateIndex(state.KeyExtractor[string]) (state.Index[string], error)
 
 		// Serialize writes the serialized state to the given writer.
-		Serialize(writer io.Writer, committed bool) error
+		Serialize(writer io.Writer, committed bool, executedTransactions map[string]uint64) error
 
 		GetUnits(unitTypeID *uint32, pdr *types.PartitionDescriptionRecord) ([]types.UnitID, error)
 	}
@@ -80,32 +82,30 @@ type (
 		Execute(order *types.TransactionOrder) (*types.TransactionRecord, error)
 	}
 
-	// StateSummary represents the root hash and summary value of the transaction system.
-	StateSummary interface {
-		// Root returns the root hash of the TransactionSystem.
-		Root() []byte
-		// Summary returns the summary value of the state.
-		Summary() []byte
-	}
-
-	// stateSummary is the default implementation of StateSummary interface.
-	stateSummary struct {
+	// StateSummary represents aggregate state hashes of the transaction system.
+	StateSummary struct {
 		rootHash []byte
 		summary  []byte
+		etHash   []byte
 	}
 )
 
-func NewStateSummary(rootHash []byte, summary []byte) stateSummary {
-	return stateSummary{
+func NewStateSummary(rootHash []byte, summary []byte, etHash []byte) *StateSummary {
+	return &StateSummary{
 		rootHash: rootHash,
 		summary:  summary,
+		etHash:   etHash,
 	}
 }
 
-func (s stateSummary) Root() []byte {
+func (s StateSummary) Root() []byte {
 	return s.rootHash
 }
 
-func (s stateSummary) Summary() []byte {
+func (s StateSummary) Summary() []byte {
 	return s.summary
+}
+
+func (s StateSummary) ETHash() []byte {
+	return s.etHash
 }

@@ -55,10 +55,8 @@ func NewTxSystem(shardConf basetypes.PartitionDescriptionRecord, observe txsyste
 	if err != nil {
 		return nil, fmt.Errorf("failed to load fungible tokens module: %w", err)
 	}
-	lockTokens, err := NewLockTokensModule(shardConf, options)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load lock tokens module: %w", err)
-	}
+
+	nopModule := NewNopModule(shardConf, options)
 
 	var feeCreditModule txtypes.FeeCreditModule
 	if len(options.adminOwnerPredicate) > 0 {
@@ -82,10 +80,11 @@ func NewTxSystem(shardConf basetypes.PartitionDescriptionRecord, observe txsyste
 	return txsystem.NewGenericTxSystem(
 		shardConf,
 		options.trustBase,
-		[]txtypes.Module{nft, fungible, lockTokens},
+		[]txtypes.Module{nft, fungible, nopModule},
 		observe,
 		txsystem.WithFeeCredits(feeCreditModule),
 		txsystem.WithHashAlgorithm(options.hashAlgorithm),
 		txsystem.WithState(options.state),
+		txsystem.WithExecutedTransactions(options.executedTransactions),
 	)
 }

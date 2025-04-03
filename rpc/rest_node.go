@@ -23,7 +23,7 @@ func NodeEndpoints(node partitionNode, obs Observability) RegistrarFunc {
 
 func getState(node partitionNode, log *slog.Logger) http.HandlerFunc {
 	return func(w http.ResponseWriter, request *http.Request) {
-		if err := node.TransactionSystemState().Serialize(w, true); err != nil {
+		if err := node.SerializeState(w); err != nil {
 			w.Header().Set("Content-Type", "application/cbor")
 			w.WriteHeader(http.StatusInternalServerError)
 			if err := types.Cbor.Encode(w, struct {

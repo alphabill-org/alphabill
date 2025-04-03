@@ -1,27 +1,36 @@
 package txsystem
 
 import (
+	"crypto"
+	"crypto/rand"
 	"errors"
 	"math"
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
-
 	abhash "github.com/alphabill-org/alphabill-go-base/hash"
 	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
 	fcsdk "github.com/alphabill-org/alphabill-go-base/txsystem/fc"
+	"github.com/alphabill-org/alphabill-go-base/txsystem/nop"
 	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill-go-base/util"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/observability"
+	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
+	testtb "github.com/alphabill-org/alphabill/internal/testutils/trustbase"
 	"github.com/alphabill-org/alphabill/state"
+	"github.com/alphabill-org/alphabill/tree/avl"
 	"github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
 	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
+	"github.com/fxamacker/cbor/v2"
+	"github.com/stretchr/testify/require"
 )
 
-const mockTxType uint16 = 22
-const mockNetworkID types.NetworkID = 5
-const mockPartitionID types.PartitionID = 10
+const mockTxType uint16 = 1
+const mockSplitTxType uint16 = 2
+const mockFeeTxType uint16 = 3
+const mockNetworkID types.NetworkID = 5     // same as txsystem/testutils/transaction#defaultNetworkID
+const mockPartitionID types.PartitionID = 1 // same as txsystem/testutils/transaction#defaultPartitionID
 
 type MockData struct {
 	_              struct{} `cbor:",toarray"`
@@ -253,7 +262,7 @@ func Test_GenericTxSystem_Execute(t *testing.T) {
 				FeeCreditRecordID: fcrID,
 				MaxTransactionFee: 10,
 			}),
-			transaction.WithUnlockProof([]byte{byte(StateUnlockExecute)}),
+			transaction.WithStateUnlock([]byte{byte(StateUnlockExecute)}),
 		)
 		txr, err := txSys.Execute(txo)
 		require.NoError(t, err)
@@ -350,6 +359,161 @@ func Test_GenericTxSystem_Execute(t *testing.T) {
 	})
 }
 
+func Test_GenericTxSystem_Execute_FeeTransactions(t *testing.T) {
+	t.Run("fee tx is discarded if tx contains StateLock", func(t *testing.T) {
+		txSys := createTxSystemWithFees(t)
+
+		// create fee tx with StateLock
+		txo := transaction.NewTransactionOrder(t,
+			transaction.WithPartitionID(mockPartitionID),
+			transaction.WithTransactionType(mockFeeTxType),
+			transaction.WithAttributes(mockFeeTxAttributes{}),
+			transaction.WithAuthProof(mockFeeTxAuthProof{}),
+			transaction.WithClientMetadata(&types.ClientMetadata{
+				Timeout:           txSys.currentRoundNumber + 1,
+				MaxTransactionFee: 1000,
+			}),
+			transaction.WithStateLock(&types.StateLock{}),
+		)
+
+		// execute fee tx and verify fee tx is discarded due to having StateLock
+		tr, err := txSys.Execute(txo)
+		require.ErrorContains(t, err, "error fc transaction contains state lock")
+		require.Nil(t, tr)
+	})
+
+	t.Run("test fee tx is discarded if target unit is locked with non-nop tx", func(t *testing.T) {
+		txSys := createTxSystemWithFees(t)
+
+		// create txOnHold (non-nop tx)
+		txOnHold := transaction.NewTransactionOrder(t,
+			transaction.WithPartitionID(mockPartitionID),
+			transaction.WithTransactionType(mockFeeTxType),
+			transaction.WithAttributes(mockFeeTxAttributes{}),
+			transaction.WithAuthProof(mockFeeTxAuthProof{}),
+			transaction.WithClientMetadata(&types.ClientMetadata{
+				Timeout:           txSys.currentRoundNumber + 1,
+				MaxTransactionFee: 1000,
+			}),
+			transaction.WithStateLock(&types.StateLock{}),
+		)
+		txOnHoldBytes, err := types.Cbor.Marshal(txOnHold)
+		require.NoError(t, err)
+
+		// create FCR unit with txOnHold
+		fcrID := test.RandomBytes(33)
+		err = txSys.state.Apply(state.AddUnitWithLock(fcrID, nil, txOnHoldBytes))
+		require.NoError(t, err)
+
+		// create fee tx
+		tx := transaction.NewTransactionOrder(t,
+			transaction.WithUnitID(fcrID),
+			transaction.WithPartitionID(mockPartitionID),
+			transaction.WithTransactionType(mockFeeTxType),
+			transaction.WithAttributes(mockFeeTxAttributes{}),
+			transaction.WithAuthProof(mockFeeTxAuthProof{}),
+			transaction.WithClientMetadata(&types.ClientMetadata{
+				Timeout:           txSys.currentRoundNumber + 1,
+				MaxTransactionFee: 1000,
+			}),
+		)
+
+		// execute fee tx and verify fee tx is discarded due to being locked with non-nop tx
+		tr, err := txSys.Execute(tx)
+		require.ErrorContains(t, err, "target unit is locked with a non-trivial (non-NOP) transaction")
+		require.Nil(t, tr)
+	})
+
+	t.Run("test FCR can be locked and unlocked with NOP transaction ", func(t *testing.T) {
+		txSys := createTxSystemWithFees(t)
+
+		// create FCR
+		fcrID := test.RandomBytes(33)
+		err := txSys.state.Apply(state.AddUnit(fcrID, &fcsdk.FeeCreditRecord{
+			Balance: 100,
+			Counter: 0,
+		}))
+		require.NoError(t, err)
+
+		// create NOP tx with StateLock
+		tx := transaction.NewTransactionOrder(t,
+			transaction.WithUnitID(fcrID),
+			transaction.WithPartitionID(mockPartitionID),
+			transaction.WithTransactionType(nop.TransactionTypeNOP),
+			transaction.WithAttributes(nop.Attributes{}),
+			transaction.WithAuthProof(nop.AuthProof{}),
+			transaction.WithClientMetadata(&types.ClientMetadata{
+				Timeout:           txSys.currentRoundNumber + 1,
+				MaxTransactionFee: 1000,
+			}),
+			transaction.WithStateLock(&types.StateLock{
+				ExecutionPredicate: templates.AlwaysTrueBytes(),
+				RollbackPredicate:  templates.AlwaysTrueBytes(),
+			}),
+		)
+
+		// execute NOP tx and verify FCR is locked
+		tr, err := txSys.Execute(tx)
+		require.NoError(t, err)
+		require.NotNil(t, tr)
+		u, err := txSys.state.GetUnit(fcrID, false)
+		require.NoError(t, err)
+		unitV1, err := state.ToUnitV1(u)
+		require.NoError(t, err)
+		expectedTxBytes, err := cbor.Marshal(tx)
+		require.NoError(t, err)
+		require.Equal(t, expectedTxBytes, unitV1.StateLockTx())
+
+		// create NOP tx with StateUnlock
+		tx = transaction.NewTransactionOrder(t,
+			transaction.WithUnitID(fcrID),
+			transaction.WithPartitionID(mockPartitionID),
+			transaction.WithTransactionType(nop.TransactionTypeNOP),
+			transaction.WithAttributes(nop.Attributes{}),
+			transaction.WithAuthProof(nop.AuthProof{}),
+			transaction.WithClientMetadata(&types.ClientMetadata{
+				Timeout:           txSys.currentRoundNumber + 1,
+				MaxTransactionFee: 1000,
+			}),
+			transaction.WithStateUnlock([]byte{byte(StateUnlockExecute)}),
+		)
+
+		// execute NOP tx and verify FCR is unlocked
+		tr, err = txSys.Execute(tx)
+		require.NoError(t, err)
+		require.NotNil(t, tr)
+		u, err = txSys.state.GetUnit(fcrID, false)
+		require.NoError(t, err)
+		unitV1, err = state.ToUnitV1(u)
+		require.NoError(t, err)
+		expectedTxBytes, err = cbor.Marshal(tx)
+		require.NoError(t, err)
+		require.False(t, unitV1.IsStateLocked())
+	})
+}
+
+func createTxSystemWithFees(t *testing.T, options ...txSystemTestOption) *GenericTxSystem {
+	_, verifier := testsig.CreateSignerAndVerifier(t)
+	trustBase := testtb.NewTrustBase(t, verifier)
+	pdr := types.PartitionDescriptionRecord{
+		Version:     1,
+		NetworkID:   mockNetworkID,
+		PartitionID: mockPartitionID,
+		TypeIDLen:   8,
+		UnitIDLen:   8 * 32,
+		T2Timeout:   2500 * time.Millisecond,
+	}
+	obs := observability.Default(t)
+	feeModule := newMockFeeModule(16)
+	m := NewMockTxModule(nil)
+	txSys, err := NewGenericTxSystem(pdr, types.ShardID{}, trustBase, []txtypes.Module{m}, obs, WithFeeCredits(feeModule))
+	require.NoError(t, err)
+	for _, opt := range options {
+		require.NoError(t, opt(txSys))
+	}
+	return txSys
+}
+
 func Test_GenericTxSystem_validateGenericTransaction(t *testing.T) {
 	// create valid order (in the sense of basic checks performed by the generic
 	// tx system) for "txs" transaction system
@@ -400,6 +564,158 @@ func Test_GenericTxSystem_validateGenericTransaction(t *testing.T) {
 	})
 }
 
+func Test_GenericTxSystem_ExecutedTransactionsBuffer(t *testing.T) {
+	t.Run("same transaction cannot be executed twice", func(t *testing.T) {
+		txSystem := NewTestGenericTxSystem(t, nil)
+		txo := transaction.NewTransactionOrder(t)
+		_, err := txSystem.Execute(txo)
+		require.NoError(t, err)
+
+		// execute same tx again
+		_, err = txSystem.Execute(txo)
+		require.ErrorContains(t, err, "transaction already executed")
+	})
+	t.Run("executing multiple different transactions ok", func(t *testing.T) {
+		txSystem := NewTestGenericTxSystem(t, nil)
+
+		tx1 := transaction.NewTransactionOrder(t, transaction.WithClientMetadata(&types.ClientMetadata{Timeout: 1}))
+		tx1Hash, err := tx1.Hash(crypto.SHA256)
+		require.NoError(t, err)
+
+		tx2 := transaction.NewTransactionOrder(t, transaction.WithClientMetadata(&types.ClientMetadata{Timeout: 2}))
+		tx2Hash, err := tx2.Hash(crypto.SHA256)
+		require.NoError(t, err)
+
+		_, err = txSystem.Execute(tx1)
+		require.NoError(t, err)
+		_, err = txSystem.Execute(tx2)
+		require.NoError(t, err)
+
+		tx1Timeout, _ := txSystem.etBuffer.Get(string(tx1Hash))
+		tx2Timeout, _ := txSystem.etBuffer.Get(string(tx2Hash))
+		require.Equal(t, uint64(1), tx1Timeout)
+		require.Equal(t, uint64(2), tx2Timeout)
+	})
+	t.Run("expired transactions are deleted on EndBlock", func(t *testing.T) {
+		txSystem := NewTestGenericTxSystem(t, nil)
+		tx1 := transaction.NewTransactionOrder(t, transaction.WithClientMetadata(&types.ClientMetadata{
+			Timeout: 0,
+		}))
+		tx1Hash, err := tx1.Hash(crypto.SHA256)
+		require.NoError(t, err)
+
+		tx2 := transaction.NewTransactionOrder(t, transaction.WithClientMetadata(&types.ClientMetadata{
+			Timeout: 1,
+		}))
+		tx2Hash, err := tx2.Hash(crypto.SHA256)
+		require.NoError(t, err)
+
+		_, err = txSystem.Execute(tx1)
+		require.NoError(t, err)
+
+		_, err = txSystem.Execute(tx2)
+		require.NoError(t, err)
+
+		_, err = txSystem.EndBlock()
+		require.NoError(t, err)
+
+		timeout, f := txSystem.etBuffer.Get(string(tx1Hash))
+		require.False(t, f)
+		require.Zero(t, timeout)
+
+		timeout, f = txSystem.etBuffer.Get(string(tx2Hash))
+		require.True(t, f)
+		require.Equal(t, uint64(1), timeout)
+	})
+	t.Run("revert rolls back pending transactions", func(t *testing.T) {
+		txSystem := NewTestGenericTxSystem(t, nil)
+		tx := transaction.NewTransactionOrder(t, transaction.WithClientMetadata(&types.ClientMetadata{
+			Timeout: 10,
+		}))
+		txHash, err := tx.Hash(crypto.SHA256)
+		require.NoError(t, err)
+
+		_, err = txSystem.Execute(tx)
+		require.NoError(t, err)
+
+		txSystem.Revert()
+
+		timeout, f := txSystem.etBuffer.Get(string(txHash))
+		require.False(t, f)
+		require.Zero(t, timeout)
+	})
+}
+
+func Test_GenericTxSystem_RInit(t *testing.T) {
+	t.Run("rInit deletes expired units", func(t *testing.T) {
+		txSys := createTxSystemWithFees(t)
+		fcrUnitType := uint32(16)
+		ordinaryUnitType := uint32(1)
+		deletionRound := uint64(10)
+		fcrID1, err := txSys.pdr.ComposeUnitID(types.ShardID{}, fcrUnitType, random)
+		require.NoError(t, err)
+		fcrID2, err := txSys.pdr.ComposeUnitID(types.ShardID{}, fcrUnitType, random)
+		require.NoError(t, err)
+		unitID3, err := txSys.pdr.ComposeUnitID(types.ShardID{}, ordinaryUnitType, random)
+		require.NoError(t, err)
+		unitID4, err := txSys.pdr.ComposeUnitID(types.ShardID{}, ordinaryUnitType, random)
+		require.NoError(t, err)
+
+		require.NoError(t, txSys.state.Apply(state.AddUnit(fcrID1, fcsdk.NewFeeCreditRecord(0, nil, deletionRound-1))))
+		require.NoError(t, txSys.state.Apply(state.AddUnit(fcrID2, fcsdk.NewFeeCreditRecord(0, nil, deletionRound))))
+		require.NoError(t, txSys.state.Apply(state.AddUnit(unitID3, &MockData{})))
+		require.NoError(t, txSys.state.Apply(state.AddUnit(unitID4, &MockData{})))
+		require.NoError(t, txSys.state.Apply(state.MarkForDeletion(unitID3, deletionRound)))
+
+		// apply changes (rInit works on the committed state)
+		commitState(t, txSys)
+
+		// execute rInit procedure
+		require.NoError(t, txSys.rInit(deletionRound))
+
+		// verify fcr 1 was deleted
+		u, err := txSys.state.GetUnit(fcrID1, false)
+		require.ErrorIs(t, err, avl.ErrNotFound)
+		require.Nil(t, u)
+
+		// verify fcr 2 was not deleted
+		u, err = txSys.state.GetUnit(fcrID2, false)
+		require.NoError(t, err)
+		require.NotNil(t, u)
+
+		// verify ordinary unit 3 was deleted
+		u, err = txSys.state.GetUnit(unitID3, false)
+		require.ErrorIs(t, err, avl.ErrNotFound)
+		require.Nil(t, u)
+
+		// verify ordinary unit 4 was not deleted
+		u, err = txSys.state.GetUnit(unitID4, false)
+		require.NoError(t, err)
+		require.NotNil(t, u)
+	})
+}
+
+func random(buf []byte) error {
+	_, err := rand.Read(buf)
+	return err
+}
+
+func commitState(t *testing.T, txSys *GenericTxSystem) {
+	sum, rootHash, err := txSys.state.CalculateRoot()
+	require.NoError(t, err)
+	require.NotNil(t, rootHash)
+	uc := &types.UnicityCertificate{
+		Version: 1,
+		InputRecord: &types.InputRecord{
+			Version:      1,
+			RoundNumber:  9,
+			Hash:         rootHash,
+			SummaryValue: util.Uint64ToBytes(sum),
+		},
+	}
+	require.NoError(t, txSys.state.Commit(uc))
+}
+
 type MockTxAttributes struct {
 	_     struct{} `cbor:",toarray"`
 	Value uint64
@@ -408,6 +724,12 @@ type MockTxAttributes struct {
 type MockTxAuthProof struct {
 	_          struct{} `cbor:",toarray"`
 	OwnerProof []byte
+}
+
+type MockSplitTxAttributes struct {
+	_           struct{} `cbor:",toarray"`
+	Value       uint64
+	TargetUnits []types.UnitID
 }
 
 func newMockLockTx(t *testing.T, option ...transaction.Option) []byte {
@@ -437,9 +759,34 @@ func (mm MockModule) mockExecuteTx(tx *types.TransactionOrder, _ *MockTxAttribut
 	return &types.ServerMetadata{ActualFee: 0, SuccessIndicator: types.TxStatusSuccessful}, nil
 }
 
+func (mm MockModule) mockValidateSplitTx(tx *types.TransactionOrder, _ *MockSplitTxAttributes, _ *MockTxAuthProof, _ txtypes.ExecutionContext) (err error) {
+	return mm.ValidateError
+}
+
+func (mm MockModule) mockExecuteSplitTx(tx *types.TransactionOrder, _ *MockSplitTxAttributes, _ *MockTxAuthProof, _ txtypes.ExecutionContext) (*types.ServerMetadata, error) {
+	if mm.Result != nil {
+		return &types.ServerMetadata{SuccessIndicator: types.TxStatusFailed}, mm.Result
+	}
+	return &types.ServerMetadata{ActualFee: 0, SuccessIndicator: types.TxStatusSuccessful}, nil
+}
+
+func (mm MockModule) mockSplitTargetUnits(tx *types.TransactionOrder, attr *MockSplitTxAttributes, _ *MockTxAuthProof, _ txtypes.ExecutionContext) ([]types.UnitID, error) {
+	return attr.TargetUnits, nil
+}
+
+func (mm MockModule) mockValidateNopTx(tx *types.TransactionOrder, _ *nop.Attributes, _ *nop.AuthProof, _ txtypes.ExecutionContext) (err error) {
+	return nil
+}
+
+func (mm MockModule) mockExecuteNopTx(tx *types.TransactionOrder, _ *nop.Attributes, _ *nop.AuthProof, _ txtypes.ExecutionContext) (*types.ServerMetadata, error) {
+	return &types.ServerMetadata{ActualFee: 0, SuccessIndicator: types.TxStatusSuccessful, TargetUnits: []types.UnitID{tx.UnitID}}, nil
+}
+
 func (mm MockModule) TxHandlers() map[uint16]txtypes.TxExecutor {
 	return map[uint16]txtypes.TxExecutor{
-		mockTxType: txtypes.NewTxHandler[MockTxAttributes](mm.mockValidateTx, mm.mockExecuteTx),
+		mockTxType:             txtypes.NewTxHandler[MockTxAttributes, MockTxAuthProof](mm.mockValidateTx, mm.mockExecuteTx),
+		mockSplitTxType:        txtypes.NewTxHandler[MockSplitTxAttributes, MockTxAuthProof](mm.mockValidateSplitTx, mm.mockExecuteSplitTx, txtypes.WithTargetUnitsFn(mm.mockSplitTargetUnits)),
+		nop.TransactionTypeNOP: txtypes.NewTxHandler[nop.Attributes, nop.AuthProof](mm.mockValidateNopTx, mm.mockExecuteNopTx),
 	}
 }
 
@@ -461,6 +808,13 @@ func withTrustBase(tb types.RootTrustBase) txSystemTestOption {
 func withCurrentRound(round uint64) txSystemTestOption {
 	return func(m *GenericTxSystem) error {
 		m.currentRoundNumber = round
+		return nil
+	}
+}
+
+func withFeeModule(module txtypes.FeeCreditModule) txSystemTestOption {
+	return func(m *GenericTxSystem) error {
+		m.fees = module
 		return nil
 	}
 }
@@ -487,4 +841,66 @@ func defaultTestConfiguration(t *testing.T, modules []txtypes.Module) *GenericTx
 	txSys, err := NewGenericTxSystem(pdr, types.ShardID{}, nil, modules, observability.Default(t))
 	require.NoError(t, err)
 	return txSys
+}
+
+var _ txtypes.Module = (*mockFeeModule)(nil)
+
+type mockFeeModule struct {
+	feeCreditRecordUnitType uint32
+}
+
+type mockFeeTxAttributes struct {
+	_     struct{} `cbor:",toarray"`
+	Value uint64
+}
+
+type mockFeeTxAuthProof struct {
+	_          struct{} `cbor:",toarray"`
+	OwnerProof []byte
+}
+
+func newMockFeeModule(fcrUnitType uint32) *mockFeeModule {
+	return &mockFeeModule{feeCreditRecordUnitType: fcrUnitType}
+}
+
+func (f *mockFeeModule) CalculateCost(_ uint64) uint64 {
+	return 0
+}
+
+func (f *mockFeeModule) BuyGas(_ uint64) uint64 {
+	return math.MaxUint64
+}
+
+func (f *mockFeeModule) TxHandlers() map[uint16]txtypes.TxExecutor {
+	return map[uint16]txtypes.TxExecutor{
+		mockFeeTxType: txtypes.NewTxHandler[mockFeeTxAttributes, mockFeeTxAuthProof](f.validateFeeTx, f.executeFeeTx),
+	}
+}
+
+func (f *mockFeeModule) IsCredible(_ txtypes.ExecutionContext, _ *types.TransactionOrder) error {
+	return nil
+}
+
+func (f *mockFeeModule) IsFeeCreditTx(tx *types.TransactionOrder) bool {
+	return tx.Type == mockFeeTxType
+}
+
+func (f *mockFeeModule) IsPermissionedMode() bool {
+	return false
+}
+
+func (f *mockFeeModule) IsFeelessMode() bool {
+	return true
+}
+
+func (f *mockFeeModule) FeeCreditRecordUnitType() uint32 {
+	return f.feeCreditRecordUnitType
+}
+
+func (f *mockFeeModule) validateFeeTx(tx *types.TransactionOrder, _ *mockFeeTxAttributes, _ *mockFeeTxAuthProof, _ txtypes.ExecutionContext) (err error) {
+	return nil
+}
+
+func (f *mockFeeModule) executeFeeTx(tx *types.TransactionOrder, _ *mockFeeTxAttributes, _ *mockFeeTxAuthProof, _ txtypes.ExecutionContext) (*types.ServerMetadata, error) {
+	return &types.ServerMetadata{ActualFee: 0, SuccessIndicator: types.TxStatusSuccessful}, nil
 }

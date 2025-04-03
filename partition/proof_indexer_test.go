@@ -307,7 +307,7 @@ func (m mockStateStoreOK) CreateIndex(state.KeyExtractor[string]) (state.Index[s
 	return nil, nil
 }
 
-func (m mockStateStoreOK) Serialize(writer io.Writer, committed bool) error {
+func (m mockStateStoreOK) Serialize(writer io.Writer, committed bool, executedTransactions map[string]uint64) error {
 	return nil
 }
 

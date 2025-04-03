@@ -24,8 +24,6 @@ const (
 var _ txtypes.FeeCreditModule = (*FeeCreditModule)(nil)
 
 var (
-	ErrNetworkIDMissing        = errors.New("network identifier is missing")
-	ErrPartitionIDMissing      = errors.New("partition identifier is missing")
 	ErrMoneyPartitionIDMissing = errors.New("money transaction partition identifier is missing")
 	ErrStateIsNil              = errors.New("state is nil")
 	ErrTrustBaseIsNil          = errors.New("trust base is nil")
@@ -96,10 +94,8 @@ func (f *FeeCreditModule) BuyGas(maxTxCost uint64) uint64 {
 
 func (f *FeeCreditModule) TxHandlers() map[uint16]txtypes.TxExecutor {
 	return map[uint16]txtypes.TxExecutor{
-		fc.TransactionTypeAddFeeCredit:    txtypes.NewTxHandler[fc.AddFeeCreditAttributes, fc.AddFeeCreditAuthProof](f.validateAddFC, f.executeAddFC),
-		fc.TransactionTypeCloseFeeCredit:  txtypes.NewTxHandler[fc.CloseFeeCreditAttributes, fc.CloseFeeCreditAuthProof](f.validateCloseFC, f.executeCloseFC),
-		fc.TransactionTypeLockFeeCredit:   txtypes.NewTxHandler[fc.LockFeeCreditAttributes, fc.LockFeeCreditAuthProof](f.validateLockFC, f.executeLockFC),
-		fc.TransactionTypeUnlockFeeCredit: txtypes.NewTxHandler[fc.UnlockFeeCreditAttributes, fc.UnlockFeeCreditAuthProof](f.validateUnlockFC, f.executeUnlockFC),
+		fc.TransactionTypeAddFeeCredit:   txtypes.NewTxHandler[fc.AddFeeCreditAttributes, fc.AddFeeCreditAuthProof](f.validateAddFC, f.executeAddFC),
+		fc.TransactionTypeCloseFeeCredit: txtypes.NewTxHandler[fc.CloseFeeCreditAttributes, fc.CloseFeeCreditAuthProof](f.validateCloseFC, f.executeCloseFC),
 	}
 }
 
@@ -133,4 +129,8 @@ func (f *FeeCreditModule) IsPermissionedMode() bool {
 
 func (f *FeeCreditModule) IsFeelessMode() bool {
 	return false
+}
+
+func (f *FeeCreditModule) FeeCreditRecordUnitType() uint32 {
+	return f.feeCreditRecordUnitType
 }

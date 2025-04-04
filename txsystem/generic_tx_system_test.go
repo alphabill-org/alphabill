@@ -3,6 +3,7 @@ package txsystem
 import (
 	"crypto"
 	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"math"
 	"testing"
@@ -591,8 +592,8 @@ func Test_GenericTxSystem_ExecutedTransactionsBuffer(t *testing.T) {
 		_, err = txSystem.Execute(tx2)
 		require.NoError(t, err)
 
-		tx1Timeout, _ := txSystem.etBuffer.Get(string(tx1Hash))
-		tx2Timeout, _ := txSystem.etBuffer.Get(string(tx2Hash))
+		tx1Timeout, _ := txSystem.etBuffer.Get(hex.EncodeToString(tx1Hash))
+		tx2Timeout, _ := txSystem.etBuffer.Get(hex.EncodeToString(tx2Hash))
 		require.Equal(t, uint64(1), tx1Timeout)
 		require.Equal(t, uint64(2), tx2Timeout)
 	})
@@ -619,11 +620,11 @@ func Test_GenericTxSystem_ExecutedTransactionsBuffer(t *testing.T) {
 		_, err = txSystem.EndBlock()
 		require.NoError(t, err)
 
-		timeout, f := txSystem.etBuffer.Get(string(tx1Hash))
+		timeout, f := txSystem.etBuffer.Get(hex.EncodeToString(tx1Hash))
 		require.False(t, f)
 		require.Zero(t, timeout)
 
-		timeout, f = txSystem.etBuffer.Get(string(tx2Hash))
+		timeout, f = txSystem.etBuffer.Get(hex.EncodeToString(tx2Hash))
 		require.True(t, f)
 		require.Equal(t, uint64(1), timeout)
 	})
@@ -640,9 +641,22 @@ func Test_GenericTxSystem_ExecutedTransactionsBuffer(t *testing.T) {
 
 		txSystem.Revert()
 
-		timeout, f := txSystem.etBuffer.Get(string(txHash))
+		timeout, f := txSystem.etBuffer.Get(hex.EncodeToString(txHash))
 		require.False(t, f)
 		require.Zero(t, timeout)
+	})
+	t.Run("transaction hash is encoded as hex", func(t *testing.T) {
+		txSystem := NewTestGenericTxSystem(t, nil)
+		tx := transaction.NewTransactionOrder(t, transaction.WithClientMetadata(&types.ClientMetadata{Timeout: 10}))
+		txHash, err := tx.Hash(crypto.SHA256)
+		require.NoError(t, err)
+
+		_, err = txSystem.Execute(tx)
+		require.NoError(t, err)
+
+		timeout, f := txSystem.etBuffer.Get(hex.EncodeToString(txHash))
+		require.True(t, f)
+		require.EqualValues(t, 10, timeout)
 	})
 }
 

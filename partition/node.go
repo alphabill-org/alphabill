@@ -1752,13 +1752,13 @@ func (n *Node) startProcessingTransactions(ctx context.Context) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		luc := n.luc.Load()
-		if luc == nil || luc.IsInitial() {
-			// Do not process transactions in the first round - nodes have only done
-			// a handshake and are not in sync yet. And it would be nice for the first UC
-			// to certify clean genesis state.
-			return
-		}
+		// luc := n.luc.Load()
+		// if luc == nil || luc.IsInitial() {
+		// 	// Do not process transactions in the first round - nodes have only done
+		// 	// a handshake and are not in sync yet. And it would be nice for the first UC
+		// 	// to certify clean genesis state.
+		// 	return
+		// }
 
 		processCtx := txCtx
 		receiverFunc := n.shardStore.RandomValidator

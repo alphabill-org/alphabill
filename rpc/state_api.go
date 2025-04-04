@@ -81,6 +81,7 @@ func NewStateAPI(node partitionNode, obs Observability, opts ...StateAPIOption) 
 			{"getUnitsByOwnerID", 100},
 			{"getUnits", 100},
 			{"sendTransaction", 1},
+			{"getTransactionProof", 1},
 			{"getBlock", 1},
 			{"getTrustBase", 1},
 		},

@@ -3,6 +3,7 @@ package txsystem
 import (
 	"context"
 	"crypto"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -233,7 +234,9 @@ func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (tr *types.Transac
 	if err != nil {
 		return nil, fmt.Errorf("failed to hash transaction: %w", err)
 	}
-	txID := string(txHash)
+	// encode tx hash to hex string as the transaction buffer is included
+	// in the state file and encoded as CBOR which requires string values to be UTF-8 encoded
+	txID := hex.EncodeToString(txHash)
 	_, f := m.etBuffer.Get(txID)
 	if f {
 		return nil, errors.New("transaction already executed")

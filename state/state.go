@@ -295,6 +295,9 @@ func (s *State) CalculateRoot() (uint64, []byte, error) {
 	return value.subTreeSummaryValue, value.subTreeSummaryHash, nil
 }
 
+// Returns true if state is clean and contains no uncommitted changes.
+// Does not care if the committed state is also certified with an UC.
+// TODO: a better name would be IsClean
 func (s *State) IsCommitted() (bool, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
@@ -580,7 +583,6 @@ func (s *State) releaseToSavepoint(id int) {
 	s.savepoints = s.savepoints[0:id]
 }
 
-// TODO: a better name perhaps, committed state and committed tree are different things, this checks if tree is committed/clean
 func (s *State) isCommitted() (bool, error) {
 	if len(s.savepoints) == 1 && s.savepoints[0].IsClean() {
 		return isRootClean(s.savepoints[0])

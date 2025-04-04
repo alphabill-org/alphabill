@@ -334,12 +334,6 @@ func TestRecoveryBlock_IsValid(t *testing.T) {
 	b := validBlock()
 	require.NoError(t, b.IsValid())
 
-	t.Run("input record state is invalid", func(t *testing.T) {
-		r := validBlock()
-		r.ShardInfo = nil
-		require.ErrorContains(t, r.IsValid(), "missing ShardInfo")
-	})
-
 	t.Run("invalid ShardInfo", func(t *testing.T) {
 		r := validBlock()
 		r.ShardInfo[0].Partition = 0

@@ -1185,6 +1185,8 @@ func TestNode_RecoverySendInvalidLedgerReplicationReplies(t *testing.T) {
 func TestNode_RespondToReplicationRequest(t *testing.T) {
 	tp := runSingleValidatorNodePartition(t, &testtxsystem.CounterTxSystem{}, WithReplicationParams(3, 3, 5, 1000))
 	tp.WaitHandshake(t)
+	tp.CreateBlock(t)
+
 	genesisBlockNumber := tp.GetCommittedUC(t).GetRoundNumber()
 
 	tp.node.startNewRound(context.Background())
@@ -1249,6 +1251,7 @@ func TestNode_RespondToReplicationRequest(t *testing.T) {
 func TestNode_RespondToInvalidReplicationRequest(t *testing.T) {
 	tp := runSingleValidatorNodePartition(t, &testtxsystem.CounterTxSystem{}, WithReplicationParams(3, 3, 5, 1000))
 	tp.WaitHandshake(t)
+	tp.CreateBlock(t)
 	genesisBlockNumber := tp.GetCommittedUC(t).GetRoundNumber()
 
 	tp.node.startNewRound(context.Background())
@@ -1288,7 +1291,7 @@ func TestNode_RespondToInvalidReplicationRequest(t *testing.T) {
 	require.IsType(t, resp.Message, &replication.LedgerReplicationResponse{})
 	msg := resp.Message.(*replication.LedgerReplicationResponse)
 	require.Equal(t, replication.BlocksNotFound, msg.Status)
-	require.Contains(t, msg.Message, "Node does not have block: 11, latest block: 4")
+	require.Contains(t, msg.Message, "Node does not have block: 11, latest block: 5")
 	tp.mockNet.ResetSentMessages(network.ProtocolLedgerReplicationResp)
 	// partition id is valid, but does not match
 	tp.mockNet.Receive(&replication.LedgerReplicationRequest{

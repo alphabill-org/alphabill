@@ -35,7 +35,7 @@ import (
 	"github.com/alphabill-org/alphabill/txsystem"
 )
 
-const networkID   = 5
+const networkID = 5
 const speedFactor = 4
 
 // AlphabillNetwork for integration tests
@@ -53,7 +53,7 @@ type RootChain struct {
 
 type Shard struct {
 	shardConf *types.PartitionDescriptionRecord
-	nodes     []*shardNode
+	Nodes     []*shardNode
 	ctx       context.Context
 	ctxCancel context.CancelFunc
 }
@@ -132,14 +132,14 @@ func (a *AlphabillNetwork) AddShard(t *testing.T, shardConf *types.PartitionDesc
 
 	shard := &Shard{
 		shardConf: shardConf,
-		nodes:     make([]*shardNode, nodeCount),
+		Nodes:     make([]*shardNode, nodeCount),
 	}
 
 	for idx, node := range nodes {
 		ctx, ctxCancel := context.WithCancel(a.ctx)
 		eventHandler := &testevent.TestEventHandler{}
 		log := testlogger.New(t).With(logger.NodeID(node.PeerConf.ID))
-		obs := observability.WithLogger(testobserve.Default(t),	log)
+		obs := observability.WithLogger(testobserve.Default(t), log)
 
 		bootNode := a.RootChain.nodes[0]
 		bootstrapAddress := fmt.Sprintf("%s/p2p/%s", bootNode.addr[0], bootNode.peerConf.ID)
@@ -165,7 +165,7 @@ func (a *AlphabillNetwork) AddShard(t *testing.T, shardConf *types.PartitionDesc
 		)
 		require.NoError(t, err)
 
-		shard.nodes[idx] = &shardNode{
+		shard.Nodes[idx] = &shardNode{
 			Node:         node,
 			nodeConf:     nodeConf,
 			txSystem:     txSystem,
@@ -173,18 +173,18 @@ func (a *AlphabillNetwork) AddShard(t *testing.T, shardConf *types.PartitionDesc
 			ctxCancel:    ctxCancel,
 		}
 
-		shard.nodes[idx].done = make(chan error, 1)
+		shard.Nodes[idx].done = make(chan error, 1)
 		go func(ec chan error) {
 			ec <- node.Run(ctx)
-		}(shard.nodes[idx].done)
+		}(shard.Nodes[idx].done)
 	}
 
 	a.Shards[shard.PartitionShardID()] = shard
 
 	// make sure node network (to other nodes and root nodes) is initiated
-	for _, nd := range shard.nodes {
+	for _, nd := range shard.Nodes {
 		require.Eventually(t, func() bool {
-			return len(nd.Peer().Network().Peers()) >= len(shard.nodes)
+			return len(nd.Peer().Network().Peers()) >= len(shard.Nodes)
 		}, 2*time.Second, 100*time.Millisecond)
 	}
 }
@@ -206,7 +206,7 @@ func (a *AlphabillNetwork) Close() (retErr error) {
 	// wait and check validator exit
 	for _, shard := range a.Shards {
 		// stop all nodes
-		for _, n := range shard.nodes {
+		for _, n := range shard.Nodes {
 			if err := n.Peer().Close(); err != nil {
 				retErr = errors.Join(retErr, fmt.Errorf("peer close error: %w", err))
 			}
@@ -344,13 +344,13 @@ func (r *RootChain) start(t *testing.T, ctx context.Context) error {
 func (s *Shard) PartitionShardID() types.PartitionShardID {
 	return types.PartitionShardID{
 		PartitionID: s.shardConf.PartitionID,
-		ShardID: s.shardConf.ShardID.Key(),
+		ShardID:     s.shardConf.ShardID.Key(),
 	}
 }
 
 // BroadcastTx sends transactions to all nodes.
 func (n *Shard) BroadcastTx(tx *types.TransactionOrder) error {
-	for _, n := range n.nodes {
+	for _, n := range n.Nodes {
 		if _, err := n.SubmitTx(context.Background(), tx); err != nil {
 			return err
 		}
@@ -360,13 +360,13 @@ func (n *Shard) BroadcastTx(tx *types.TransactionOrder) error {
 
 // SubmitTx sends transactions to the first node.
 func (n *Shard) SubmitTx(tx *types.TransactionOrder) error {
-	_, err := n.nodes[0].SubmitTx(context.Background(), tx)
+	_, err := n.Nodes[0].SubmitTx(context.Background(), tx)
 	return err
 }
 
 func (n *Shard) GetTxProof(t *testing.T, tx *types.TransactionOrder) (*types.Block, *types.TxRecordProof, error) {
 	txBytes := testtransaction.TxoToBytes(t, tx)
-	for _, n := range n.nodes {
+	for _, n := range n.Nodes {
 		number, err := n.LatestBlockNumber()
 		if err != nil {
 			return nil, nil, err
@@ -394,7 +394,7 @@ func (n *Shard) GetTxProof(t *testing.T, tx *types.TransactionOrder) (*types.Blo
 func ShardInitReady(t *testing.T, shard *Shard) func() bool {
 	t.Helper()
 	return func() bool {
-		for _, n := range shard.nodes {
+		for _, n := range shard.Nodes {
 			_, err := n.LatestBlockNumber()
 			if err != nil {
 				return false
@@ -412,7 +412,7 @@ func WaitTxProof(t *testing.T, shard *Shard, txOrder *types.TransactionOrder) (*
 	txHash := test.DoHash(t, txOrder)
 
 	require.Eventually(t, func() bool {
-		for _, n := range shard.nodes {
+		for _, n := range shard.Nodes {
 			txRecProof, err := n.GetTransactionRecordProof(context.Background(), txHash)
 			if errors.Is(err, partition.ErrIndexNotFound) {
 				continue
@@ -432,7 +432,7 @@ func WaitUnitProof(t *testing.T, shard *Shard, ID types.UnitID, txOrder *types.T
 	txHash := test.DoHash(t, txOrder)
 
 	require.Eventually(t, func() bool {
-		for _, n := range shard.nodes {
+		for _, n := range shard.Nodes {
 			unitDataAndProof, err := partition.ReadUnitProofIndex(n.nodeConf.ProofStore(), ID, txHash)
 			if err != nil {
 				continue
@@ -463,7 +463,7 @@ func BlockchainContainsSuccessfulTx(t *testing.T, shard *Shard, tx *types.Transa
 
 func BlockchainContains(t *testing.T, shard *Shard, criteria func(txr *types.TransactionRecord) bool) func() bool {
 	return func() bool {
-		nodes := slices.Clone(shard.nodes)
+		nodes := slices.Clone(shard.Nodes)
 		for len(nodes) > 0 {
 			for ni, n := range nodes {
 				number, err := n.LatestBlockNumber()

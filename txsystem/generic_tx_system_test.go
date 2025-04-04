@@ -31,6 +31,7 @@ const mockSplitTxType uint16 = 2
 const mockFeeTxType uint16 = 3
 const mockNetworkID types.NetworkID = 5     // same as txsystem/testutils/transaction#defaultNetworkID
 const mockPartitionID types.PartitionID = 1 // same as txsystem/testutils/transaction#defaultPartitionID
+const mockPartitionTypeID types.PartitionTypeID = 6
 
 type MockData struct {
 	_              struct{} `cbor:",toarray"`
@@ -56,25 +57,26 @@ func (t *MockData) GetVersion() types.ABVersion { return 0 }
 
 func Test_NewGenericTxSystem(t *testing.T) {
 	validPDR := types.PartitionDescriptionRecord{
-		Version:     1,
-		NetworkID:   mockNetworkID,
-		PartitionID: mockPartitionID,
-		TypeIDLen:   8,
-		UnitIDLen:   256,
-		T2Timeout:   2500 * time.Millisecond,
+		Version:         1,
+		NetworkID:       mockNetworkID,
+		PartitionID:     mockPartitionID,
+		PartitionTypeID: mockPartitionTypeID,
+		TypeIDLen:       8,
+		UnitIDLen:       256,
+		T2Timeout:       2500 * time.Millisecond,
 	}
 	require.NoError(t, validPDR.IsValid())
 
 	t.Run("partition ID param is mandatory", func(t *testing.T) {
 		pdr := validPDR
 		pdr.PartitionID = 0
-		txSys, err := NewGenericTxSystem(pdr, types.ShardID{}, nil, nil, nil, nil)
+		txSys, err := NewGenericTxSystem(pdr, nil, nil, nil, nil)
 		require.Nil(t, txSys)
 		require.EqualError(t, err, `invalid Partition Description: invalid partition identifier: 00000000`)
 	})
 
 	t.Run("observability must not be nil", func(t *testing.T) {
-		txSys, err := NewGenericTxSystem(validPDR, types.ShardID{}, nil, nil, nil)
+		txSys, err := NewGenericTxSystem(validPDR, nil, nil, nil)
 		require.Nil(t, txSys)
 		require.EqualError(t, err, "observability must not be nil")
 	})
@@ -83,7 +85,6 @@ func Test_NewGenericTxSystem(t *testing.T) {
 		obs := observability.Default(t)
 		txSys, err := NewGenericTxSystem(
 			validPDR,
-			types.ShardID{},
 			nil,
 			nil,
 			obs,
@@ -496,17 +497,18 @@ func createTxSystemWithFees(t *testing.T, options ...txSystemTestOption) *Generi
 	_, verifier := testsig.CreateSignerAndVerifier(t)
 	trustBase := testtb.NewTrustBase(t, verifier)
 	pdr := types.PartitionDescriptionRecord{
-		Version:     1,
-		NetworkID:   mockNetworkID,
-		PartitionID: mockPartitionID,
-		TypeIDLen:   8,
-		UnitIDLen:   8 * 32,
-		T2Timeout:   2500 * time.Millisecond,
+		Version:         1,
+		NetworkID:       mockNetworkID,
+		PartitionID:     mockPartitionID,
+		PartitionTypeID: mockPartitionTypeID,
+		TypeIDLen:       8,
+		UnitIDLen:       8 * 32,
+		T2Timeout:       2500 * time.Millisecond,
 	}
 	obs := observability.Default(t)
 	feeModule := newMockFeeModule(16)
 	m := NewMockTxModule(nil)
-	txSys, err := NewGenericTxSystem(pdr, types.ShardID{}, trustBase, []txtypes.Module{m}, obs, WithFeeCredits(feeModule))
+	txSys, err := NewGenericTxSystem(pdr, trustBase, []txtypes.Module{m}, obs, WithFeeCredits(feeModule))
 	require.NoError(t, err)
 	for _, opt := range options {
 		require.NoError(t, opt(txSys))
@@ -830,15 +832,16 @@ func NewTestGenericTxSystem(t *testing.T, modules []txtypes.Module, opts ...txSy
 
 func defaultTestConfiguration(t *testing.T, modules []txtypes.Module) *GenericTxSystem {
 	pdr := types.PartitionDescriptionRecord{
-		Version:     1,
-		NetworkID:   mockNetworkID,
-		PartitionID: mockPartitionID,
-		TypeIDLen:   8,
-		UnitIDLen:   8 * 32,
-		T2Timeout:   2500 * time.Millisecond,
+		Version:         1,
+		NetworkID:       mockNetworkID,
+		PartitionID:     mockPartitionID,
+		PartitionTypeID: mockPartitionTypeID,
+		TypeIDLen:       8,
+		UnitIDLen:       8 * 32,
+		T2Timeout:       2500 * time.Millisecond,
 	}
 	// default configuration has no fee handling
-	txSys, err := NewGenericTxSystem(pdr, types.ShardID{}, nil, modules, observability.Default(t))
+	txSys, err := NewGenericTxSystem(pdr, nil, modules, observability.Default(t))
 	require.NoError(t, err)
 	return txSys
 }

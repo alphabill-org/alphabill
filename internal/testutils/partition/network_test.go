@@ -39,7 +39,7 @@ func TestNewNetwork_Ok(t *testing.T) {
 	require.Len(t, abNetwork.Shards, 1)
 	cPart, err := abNetwork.GetShard(types.PartitionShardID{PartitionID: shardConf.PartitionID, ShardID: shardConf.ShardID.Key()})
 	require.NoError(t, err)
-	require.Len(t, cPart.nodes, 3)
+	require.Len(t, cPart.Nodes, 3)
 
 	require.Eventually(t, ShardInitReady(t, cPart), test.WaitDuration*3, test.WaitTick)
 	tx := testtransaction.NewTransactionOrder(t, testtransaction.WithPartitionID(shardConf.PartitionID))

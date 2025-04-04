@@ -25,16 +25,16 @@ func TestNewTxSystem_OK(t *testing.T) {
 	pubKey, err := verifier.MarshalPublicKey()
 	require.NoError(t, err)
 	pdr := types.PartitionDescriptionRecord{
-		Version:     1,
-		NetworkID:   5,
-		PartitionID: orchestration.DefaultPartitionID,
-		TypeIDLen:   8,
-		UnitIDLen:   256,
-		T2Timeout:   2000 * time.Millisecond,
+		Version:         1,
+		NetworkID:       5,
+		PartitionID:     orchestration.DefaultPartitionID,
+		PartitionTypeID: orchestration.PartitionTypeID,
+		TypeIDLen:       8,
+		UnitIDLen:       256,
+		T2Timeout:       2000 * time.Millisecond,
 	}
 	txSystem, err := NewTxSystem(
 		pdr,
-		types.ShardID{},
 		observability.Default(t),
 		WithHashAlgorithm(crypto.SHA256),
 		WithState(s),

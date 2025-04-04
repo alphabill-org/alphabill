@@ -4,13 +4,13 @@ import (
 	"bytes"
 	"context"
 	"crypto"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/api"
 
-	"github.com/alphabill-org/alphabill-go-base/hash"
 	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
 	"github.com/alphabill-org/alphabill-go-base/types"
@@ -23,7 +23,6 @@ AB functions to verify objects etc
 func addAlphabillModule(ctx context.Context, rt wazero.Runtime, _ Observability) error {
 	_, err := rt.NewHostModuleBuilder("ab").
 		NewFunctionBuilder().WithGoModuleFunction(hostAPI(digestSHA256), []api.ValueType{api.ValueTypeI64}, []api.ValueType{api.ValueTypeI64}).Export("digest_sha256").
-		NewFunctionBuilder().WithGoModuleFunction(hostAPI(verifyTxProof), []api.ValueType{api.ValueTypeI32, api.ValueTypeI32}, []api.ValueType{api.ValueTypeI32}).Export("verify_tx_proof").
 		NewFunctionBuilder().WithGoModuleFunction(hostAPI(amountTransferred), []api.ValueType{api.ValueTypeI32, api.ValueTypeI32, api.ValueTypeI64}, []api.ValueType{api.ValueTypeI64}).Export("amount_transferred").
 		NewFunctionBuilder().WithGoModuleFunction(api.GoModuleFunc(txSignedByPKH), []api.ValueType{api.ValueTypeI32, api.ValueTypeI32, api.ValueTypeI32}, []api.ValueType{api.ValueTypeI32}).Export("tx_signed_by_pkh").
 		Instantiate(ctx)
@@ -95,37 +94,10 @@ func txSignedByPKH(ctx context.Context, mod api.Module, stack []uint64) {
 	}
 }
 
-func verifyTxProof(vec *vmContext, mod api.Module, stack []uint64) error {
-	// args: handle of txProof, handle of txRec
-	txProof, err := getVar[*types.TxProof](vec.curPrg.vars, api.DecodeU32(stack[0]))
-	if err != nil {
-		return fmt.Errorf("tx proof: %w", err)
-	}
-	txRec, err := getVar[*types.TransactionRecord](vec.curPrg.vars, api.DecodeU32(stack[1]))
-	if err != nil {
-		return fmt.Errorf("tx record: %w", err)
-	}
-
-	tb, err := trustBaseLoader(vec.curPrg.env.TrustBase)(txProof)
-	if err != nil {
-		return fmt.Errorf("acquiring trust base: %w", err)
-	}
-	txRecordProof := &types.TxRecordProof{
-		TxRecord: txRec,
-		TxProof:  txProof,
-	}
-	if err := types.VerifyTxProof(txRecordProof, tb, crypto.SHA256); err != nil {
-		vec.log.Debug(fmt.Sprintf("%s.verifyTxProof: %v", mod.Name(), err))
-		stack[0] = 1
-	} else {
-		stack[0] = 0
-	}
-	return nil
-}
-
 func digestSHA256(vec *vmContext, mod api.Module, stack []uint64) error {
 	data := read(mod, stack[0])
-	addr, err := vec.writeToMemory(mod, hash.Sum256(data))
+	h := sha256.Sum256(data)
+	addr, err := vec.writeToMemory(mod, h[:])
 	if err != nil {
 		return fmt.Errorf("allocating memory for digest result: %w", err)
 	}

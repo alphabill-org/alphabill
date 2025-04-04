@@ -70,11 +70,12 @@ type shardNode struct {
 
 type rootNode struct {
 	*rootchain.Node
-	RootSigner    abcrypto.Signer
-	peerConf      *network.PeerConfiguration
-	orchestration *partitions.Orchestration
-	addr          []multiaddr.Multiaddr
-	homeDir       string
+	RootSigner       abcrypto.Signer
+	peerConf         *network.PeerConfiguration
+	consensusManager *consensus.ConsensusManager
+	orchestration    *partitions.Orchestration
+	addr             []multiaddr.Multiaddr
+	homeDir          string
 
 	ctxCancel context.CancelFunc
 	done      chan error
@@ -129,6 +130,10 @@ func (a *AlphabillNetwork) AddShard(t *testing.T, shardConf *types.PartitionDesc
 	for _, n := range a.RootChain.nodes {
 		require.NoError(t, n.orchestration.AddShardConfig(shardConf))
 	}
+
+	// Run shard nodes only after root chain has activated the shard,
+	// then we won't have delays because of failed handshakes
+	a.waitShardActivation(t, shardConf.PartitionID, shardConf.ShardID)
 
 	shard := &Shard{
 		shardConf: shardConf,
@@ -187,6 +192,15 @@ func (a *AlphabillNetwork) AddShard(t *testing.T, shardConf *types.PartitionDesc
 			return len(nd.Peer().Network().Peers()) >= len(shard.Nodes)
 		}, 2*time.Second, 100*time.Millisecond)
 	}
+}
+
+func (a *AlphabillNetwork) waitShardActivation(t *testing.T, partitionID types.PartitionID, shardID types.ShardID) {
+	require.NotEmpty(t, a.RootChain.nodes)
+	require.Eventually(t, func() bool {
+		cm := a.RootChain.nodes[0].consensusManager
+		_, err := cm.ShardInfo(partitionID, shardID)
+		return err == nil
+	}, test.WaitDuration, test.WaitTick)
 }
 
 // Start AB network, no bootstrap all id's and addresses are injected to peer store at start
@@ -329,6 +343,7 @@ func (r *RootChain) start(t *testing.T, ctx context.Context) error {
 			return fmt.Errorf("failed to create root node, %w", err)
 		}
 		rn.Node = node
+		rn.consensusManager = cm
 		rn.orchestration = orchestration
 		rn.addr = rootPeer.MultiAddresses()
 

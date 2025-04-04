@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	testcertificates "github.com/alphabill-org/alphabill/internal/testutils/certificates"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
@@ -76,7 +75,7 @@ func TestDefaultUnicityCertificateValidator_ValidateNotOk(t *testing.T) {
 
 func TestDefaultUnicityCertificateValidator_ValidateOk(t *testing.T) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
-	rootTrust := trustbase.NewTrustBaseFromVerifiers(t, map[string]crypto.Verifier{"test": verifier})
+	rootTrust := trustbase.NewTrustBase(t, verifier)
 	v, err := NewDefaultUnicityCertificateValidator(shardConf, rootTrust, gocrypto.SHA256)
 	require.NoError(t, err)
 	ir := &types.InputRecord{
@@ -151,7 +150,7 @@ func TestDefaultNewDefaultBlockProposalValidator_ValidateNotOk(t *testing.T) {
 func TestDefaultNewDefaultBlockProposalValidator_ValidateOk(t *testing.T) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	nodeSigner, nodeVerifier := testsig.CreateSignerAndVerifier(t)
-	rootTrust := trustbase.NewTrustBaseFromVerifiers(t, map[string]crypto.Verifier{"test": verifier})
+	rootTrust := trustbase.NewTrustBase(t, verifier)
 	v, err := NewDefaultBlockProposalValidator(shardConf, rootTrust, gocrypto.SHA256)
 	require.NoError(t, err)
 	ir := &types.InputRecord{

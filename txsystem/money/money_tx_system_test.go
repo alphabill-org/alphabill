@@ -45,7 +45,7 @@ var (
 		Owner: templates.AlwaysTrueBytes(),
 	}
 	moneyPartitionID = money.DefaultPartitionID
-	networkID        = types.NetworkID(3)
+	networkID        = types.NetworkID(5)
 )
 
 func TestNewTxSystem(t *testing.T) {
@@ -56,8 +56,7 @@ func TestNewTxSystem(t *testing.T) {
 		trustBase   = testtb.NewTrustBase(t, verifier)
 	)
 	txSystem, err := NewTxSystem(
-		*sdrs[0],
-		types.ShardID{},
+		sdrs[0],
 		observability.Default(t),
 		WithHashAlgorithm(crypto.SHA256),
 		WithState(txsState),
@@ -87,8 +86,7 @@ func TestNewTxSystem_RecoveredState(t *testing.T) {
 	observe := observability.Default(t)
 
 	originalTxs, err := NewTxSystem(
-		*sdrs[0],
-		types.ShardID{},
+		sdrs[0],
 		observe,
 		WithState(s),
 		WithTrustBase(trustBase),
@@ -125,8 +123,7 @@ func TestNewTxSystem_RecoveredState(t *testing.T) {
 	recoveredState, _, err := state.NewRecoveredState(buf, func(ui types.UnitID) (types.UnitData, error) { return money.NewUnitData(ui, sdrs[0]) }, state.WithHashAlgorithm(crypto.SHA256))
 	require.NoError(t, err)
 	recoveredTxs, err := NewTxSystem(
-		*sdrs[0],
-		types.ShardID{},
+		sdrs[0],
 		observe,
 		WithState(recoveredState),
 		WithTrustBase(trustBase),
@@ -927,8 +924,7 @@ func createStateAndTxSystem(t *testing.T, pdrs []*types.PartitionDescriptionReco
 	fcrID := testutils.NewFeeCreditRecordIDAlwaysTrue(t)
 
 	mss, err := NewTxSystem(
-		*pdrs[0],
-		types.ShardID{},
+		pdrs[0],
 		observability.Default(t),
 		WithState(s),
 		WithTrustBase(trustBase),
@@ -1001,7 +997,7 @@ func createPDRs(t *testing.T) []*types.PartitionDescriptionRecord {
 	return []*types.PartitionDescriptionRecord{{
 		Version:         1,
 		PartitionTypeID: money.PartitionTypeID,
-		NetworkID:       types.NetworkLocal,
+		NetworkID:       networkID,
 		PartitionID:     money.DefaultPartitionID,
 		TypeIDLen:       8,
 		UnitIDLen:       256,

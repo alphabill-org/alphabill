@@ -754,7 +754,7 @@ func (n *Node) handleBlockProposal(ctx context.Context, prop *blockproposal.Bloc
 		return fmt.Errorf("transaction system state error, %w", err)
 	}
 	// Check previous state matches before processing transactions.
-	// Initial UC does contain a state hash and needs not to match.
+	// Initial UC contains a nil state hash and needs not to match.
 	if !uc.IsInitial() && !bytes.Equal(uc.GetStateHash(), txState.Root()) {
 		return fmt.Errorf("transaction system start state mismatch error, expected: %X, got: %X", txState.Root(), uc.GetStateHash())
 	}
@@ -807,11 +807,14 @@ func (n *Node) updateLUC(ctx context.Context, uc *types.UnicityCertificate, tr *
 	}
 
 	// check for equivocation
-	if err := types.CheckNonEquivocatingCertificates(luc, uc); err != nil {
-		// this is not normal, log all info
-		n.log.WarnContext(ctx, fmt.Sprintf("equivocating UC for round %d", uc.InputRecord.RoundNumber), logger.Error(err), logger.Data(uc))
-		n.log.WarnContext(ctx, "LUC", logger.Data(luc))
-		return fmt.Errorf("equivocating certificate: %w", err)
+	// Skip this check if LUC is missing. LUC can only miss if node was started with an uncertified state (likely genesis).
+	if luc != nil {
+		if err := types.CheckNonEquivocatingCertificates(luc, uc); err != nil {
+			// this is not normal, log all info
+			n.log.WarnContext(ctx, fmt.Sprintf("equivocating UC for round %d", uc.InputRecord.RoundNumber), logger.Error(err), logger.Data(uc))
+			n.log.WarnContext(ctx, "LUC", logger.Data(luc))
+			return fmt.Errorf("equivocating certificate: %w", err)
+		}
 	}
 
 	if uc.IsDuplicate(luc) && n.ltr.Load() != nil {
@@ -999,7 +1002,7 @@ func (n *Node) handleUnicityCertificate(ctx context.Context, uc *types.UnicityCe
 	// this node will start a new round (the one that has been already finalized).
 	// Eventually it will start the recovery and catch up.
 	if n.pendingBlockProposal == nil {
-		// Initial UC has no state hash, no need to recover
+		// Initial UC has nil state hash, and it can be different from the calculated state hash, no need to recover.
 		if uc.IsInitial() {
 			n.log.DebugContext(ctx, "Initial UC received, start new round to certify genesis state")
 			return n.startNewRound(ctx)
@@ -1752,14 +1755,6 @@ func (n *Node) startProcessingTransactions(ctx context.Context) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		// luc := n.luc.Load()
-		// if luc == nil || luc.IsInitial() {
-		// 	// Do not process transactions in the first round - nodes have only done
-		// 	// a handshake and are not in sync yet. And it would be nice for the first UC
-		// 	// to certify clean genesis state.
-		// 	return
-		// }
-
 		processCtx := txCtx
 		receiverFunc := n.shardStore.RandomValidator
 

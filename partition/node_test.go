@@ -305,10 +305,9 @@ func TestNode_CreateEmptyBlock(t *testing.T) {
 	require.Equal(t, uc1.InputRecord.Hash, uc2.InputRecord.Hash)
 	require.Equal(t, uc1.InputRecord.Hash, uc2.InputRecord.PreviousHash)
 	require.Equal(t, uc1.InputRecord.SummaryValue, uc2.InputRecord.SummaryValue)
-	// blockHash is not nil since state hash changed
-	require.NotNil(t, uc1.InputRecord.BlockHash)
-	// blockHash is nil since state hash did not change and there are no transactions
-	require.Nil(t, uc2.InputRecord.BlockHash)
+
+	// with no transactions, block hashes do not change
+	require.Equal(t, uc1.InputRecord.BlockHash, uc2.InputRecord.BlockHash)
 	require.Equal(t, uc1.UnicitySeal.RootChainRoundNumber+1, uc2.UnicitySeal.RootChainRoundNumber)
 }
 

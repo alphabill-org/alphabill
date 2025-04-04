@@ -173,6 +173,9 @@ func (m *CounterTxSystem) TypeID() types.PartitionTypeID {
 }
 
 func (m *CounterTxSystem) stateCountToHash(stateCount uint64) []byte {
+	if stateCount == 0 {
+		return nil
+	}
 	root := make([]byte, 32)
 	binary.LittleEndian.PutUint64(root, stateCount)
 	return root

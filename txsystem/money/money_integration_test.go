@@ -48,6 +48,8 @@ func TestPartition_Ok(t *testing.T) {
 	moneyPDR := *pdrs[0]
 	s := genesisState(t, ib, pdrs)
 	abNet := testpartition.NewAlphabillNetwork(t, 1)
+	require.NoError(t, abNet.Start(t))
+	defer abNet.WaitClose(t)
 	abNet.AddShard(t, &moneyPDR, 3, func(tb types.RootTrustBase) txsystem.TransactionSystem {
 		s = s.Clone()
 		system, err := NewTxSystem(
@@ -62,10 +64,6 @@ func TestPartition_Ok(t *testing.T) {
 	})
 	moneyPrt, err := abNet.GetShard(types.PartitionShardID{PartitionID: moneyPDR.PartitionID, ShardID: moneyPDR.ShardID.Key()})
 	require.NoError(t, err)
-
-	require.NoError(t, err)
-	require.NoError(t, abNet.Start(t))
-	defer abNet.WaitClose(t)
 
 	// create fee credit for initial bill transfer
 	signer, _ := testsig.CreateSignerAndVerifier(t)
@@ -176,7 +174,6 @@ func TestPartition_SwapDCOk(t *testing.T) {
 	total := moneyInvariant
 	txsState := genesisState(t, initialBill, pdrs)
 	abNet := testpartition.NewAlphabillNetwork(t, 1)
-	require.NoError(t, err)
 	require.NoError(t, abNet.Start(t))
 	defer abNet.WaitClose(t)
 	abNet.AddShard(t, &moneyPDR, 3, func(tb types.RootTrustBase) txsystem.TransactionSystem {

@@ -45,7 +45,7 @@ var (
 		Owner: templates.AlwaysTrueBytes(),
 	}
 	moneyPartitionID = money.DefaultPartitionID
-	networkID        = types.NetworkID(3)
+	networkID        = types.NetworkID(5)
 )
 
 func TestNewTxSystem(t *testing.T) {
@@ -997,7 +997,7 @@ func createPDRs(t *testing.T) []*types.PartitionDescriptionRecord {
 	return []*types.PartitionDescriptionRecord{{
 		Version:         1,
 		PartitionTypeID: money.PartitionTypeID,
-		NetworkID:       types.NetworkLocal,
+		NetworkID:       networkID,
 		PartitionID:     money.DefaultPartitionID,
 		TypeIDLen:       8,
 		UnitIDLen:       256,

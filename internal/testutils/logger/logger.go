@@ -1,14 +1,16 @@
 package logger
 
 import (
+	"context"
 	"io"
 	"log/slog"
 	"math"
 	"os"
 	"testing"
 
-	"github.com/alphabill-org/alphabill/logger"
 	"github.com/neilotoole/slogt"
+
+	"github.com/alphabill-org/alphabill/logger"
 )
 
 /*
@@ -78,4 +80,55 @@ func LoggerBuilder(t testing.TB) func(*logger.LogConfiguration) (*slog.Logger, e
 	return func(*logger.LogConfiguration) (*slog.Logger, error) {
 		return logr, nil
 	}
+}
+
+/*
+HookedLoggerBuilder creates logger which sends every log message also to "hook".
+*/
+func HookedLoggerBuilder(t testing.TB, hook func(ctx context.Context, r slog.Record)) func(*logger.LogConfiguration) (*slog.Logger, error) {
+	return func(lc *logger.LogConfiguration) (*slog.Logger, error) {
+		opt := slogt.Factory(func(w io.Writer) slog.Handler {
+			cfg := defaultLogCfg()
+			h, err := cfg.Handler(w)
+			if err != nil {
+				t.Fatalf("creating handler for logger: %v", err)
+				return nil
+			}
+			return NewLoggerHook(h, hook)
+		})
+		return slogt.New(t, opt), nil
+	}
+}
+
+func NewLoggerHook(h slog.Handler, hook func(ctx context.Context, r slog.Record)) *logHandler {
+	if lh, ok := h.(*logHandler); ok {
+		h = lh.Handler()
+	}
+	return &logHandler{h, hook}
+}
+
+type logHandler struct {
+	handler slog.Handler
+	hook    func(ctx context.Context, r slog.Record)
+}
+
+func (h *logHandler) Handle(ctx context.Context, r slog.Record) error {
+	defer h.hook(ctx, r)
+	return h.handler.Handle(ctx, r)
+}
+
+func (h *logHandler) Enabled(ctx context.Context, level slog.Level) bool {
+	return h.handler.Enabled(ctx, level)
+}
+
+func (h *logHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	return NewLoggerHook(h.handler.WithAttrs(attrs), h.hook)
+}
+
+func (h *logHandler) WithGroup(name string) slog.Handler {
+	return NewLoggerHook(h.handler.WithGroup(name), h.hook)
+}
+
+func (h *logHandler) Handler() slog.Handler {
+	return h.handler
 }

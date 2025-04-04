@@ -2,77 +2,90 @@ package rootchain
 
 import (
 	"context"
+	"fmt"
+	"log/slog"
 	"sync"
 
-	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill/observability"
-	"go.opentelemetry.io/otel/attribute"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"go.opentelemetry.io/otel/metric"
+
+	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill/logger"
+	"github.com/alphabill-org/alphabill/network/protocol/certification"
+	"github.com/alphabill-org/alphabill/observability"
 )
 
 const responsesPerSubscription = 2
 
 type Subscriptions struct {
-	mu   sync.RWMutex
-	subs map[types.PartitionID]map[string]int
+	mu     sync.RWMutex
+	subs   map[partitionShard]map[peer.ID]int
+	sender func(ctx context.Context, msg any, receivers ...peer.ID) error
+
+	log *slog.Logger
+
+	bcRespSent metric.Int64Counter // number of Block Certification Responses sent
 }
 
-func NewSubscriptions(m metric.Meter) *Subscriptions {
+func NewSubscriptions(sender func(ctx context.Context, msg any, receivers ...peer.ID) error, obs Observability) (*Subscriptions, error) {
 	r := &Subscriptions{
-		subs: map[types.PartitionID]map[string]int{},
+		subs:   map[partitionShard]map[peer.ID]int{},
+		sender: sender,
+		log:    obs.Logger(),
 	}
 
-	_, _ = m.Int64ObservableUpDownCounter("subscriptions",
-		metric.WithDescription("number of responses to send to subscribed validators"),
-		metric.WithInt64Callback(
-			func(ctx context.Context, io metric.Int64Observer) error {
-				r.mu.Lock()
-				defer r.mu.Unlock()
+	meter := obs.Meter("rootchain.node")
 
-				for sysID, nodes := range r.subs {
-					partition := observability.Partition(sysID)
-					for nodeID, cnt := range nodes {
-						io.Observe(int64(cnt), metric.WithAttributes(partition, attribute.String("node.id", nodeID)))
-					}
-				}
+	var err error
+	r.bcRespSent, err = meter.Int64Counter("block.cert.rsp", metric.WithDescription("Number of Block Certification Responses sent (ie how many subscribers the node had)"))
+	if err != nil {
+		return nil, fmt.Errorf("creating Block Certification Responses counter: %w", err)
+	}
 
-				return nil
-			},
-		))
-
-	return r
+	return r, nil
 }
 
-func (s *Subscriptions) Subscribe(id types.PartitionID, nodeId string) {
+func (s *Subscriptions) Subscribe(partition types.PartitionID, shard types.ShardID, nodeId string) error {
+	peerID, err := peer.Decode(nodeId)
+	if err != nil {
+		return fmt.Errorf("invalid receiver id: %w", err)
+	}
+	id := partitionShard{partition: partition, shard: shard.Key()}
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	if _, found := s.subs[id]; !found {
-		s.subs[id] = make(map[string]int)
+		s.subs[id] = make(map[peer.ID]int)
 	}
-	s.subs[id][nodeId] = responsesPerSubscription
+	s.subs[id][peerID] = responsesPerSubscription
+	return nil
 }
 
-func (s *Subscriptions) ResponseSent(id types.PartitionID, nodeId string) {
+func (s *Subscriptions) Send(ctx context.Context, cr *certification.CertificationResponse) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	subs, found := s.subs[id]
-	if !found {
-		return
-	}
-	subs[nodeId]--
-	if subs[nodeId] <= 0 {
-		delete(subs, nodeId)
-	}
-}
 
-func (s *Subscriptions) Get(id types.PartitionID) []string {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	subs := s.subs[id]
-	subscribed := make([]string, 0, len(subs))
-	for k := range subs {
-		subscribed = append(subscribed, k)
+	subs := s.subs[partitionShard{cr.Partition, cr.Shard.Key()}]
+	recipients := make([]peer.ID, 0, len(subs))
+	for peerID, cnt := range subs {
+		if cnt == 0 {
+			delete(subs, peerID)
+			continue
+		}
+
+		subs[peerID]--
+		recipients = append(recipients, peerID)
 	}
-	return subscribed
+
+	go func() {
+		s.log.DebugContext(ctx, fmt.Sprintf("sending CertificationResponse, %d receivers, R_next: %d, IR Hash: %X, Block Hash: %X",
+			len(recipients), cr.Technical.Round, cr.UC.InputRecord.Hash, cr.UC.InputRecord.BlockHash), logger.Shard(cr.Partition, cr.Shard))
+		if len(recipients) > 0 {
+			if err := s.sender(ctx, cr, recipients...); err != nil {
+				s.log.WarnContext(ctx, "sending certification result", logger.Error(err), logger.Shard(cr.Partition, cr.Shard))
+			}
+			s.bcRespSent.Add(ctx, int64(len(recipients)), observability.Shard(cr.Partition, cr.Shard))
+		}
+	}()
 }

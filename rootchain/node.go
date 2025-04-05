@@ -7,6 +7,7 @@ import (
 	"log/slog"
 
 	"github.com/libp2p/go-libp2p/core/peer"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
@@ -55,8 +56,7 @@ type (
 		log    *slog.Logger
 		tracer trace.Tracer
 
-		bcrCount   metric.Int64Counter // Block Certification Request count
-		bcRespSent metric.Int64Counter // Block Certification Responses sent
+		execMsgCnt metric.Int64Counter
 	}
 )
 
@@ -74,15 +74,19 @@ func New(
 		return nil, fmt.Errorf("network is nil")
 	}
 
-	meter := observe.Meter("rootchain.node", metric.WithInstrumentationAttributes(observability.PeerID("node.id", peer.ID())))
+	meter := observe.Meter("rootchain.node")
 	reqBuf, err := NewCertificationRequestBuffer(meter)
 	if err != nil {
 		return nil, fmt.Errorf("creating request buffer: %w", err)
 	}
+	subs, err := NewSubscriptions(pNet.Send, observe)
+	if err != nil {
+		return nil, fmt.Errorf("creating subscribers list: %w", err)
+	}
 	node := &Node{
 		peer:             peer,
 		incomingRequests: reqBuf,
-		subscription:     NewSubscriptions(meter),
+		subscription:     subs,
 		net:              pNet,
 		consensusManager: cm,
 		log:              observe.Logger(),
@@ -95,13 +99,9 @@ func New(
 }
 
 func (v *Node) initMetrics(m metric.Meter) (err error) {
-	v.bcrCount, err = m.Int64Counter("block.cert.req", metric.WithDescription("Number of Block Certification Requests received"))
+	v.execMsgCnt, err = m.Int64Counter("exec.msg.count", metric.WithDescription("Number of messages processed by the node"))
 	if err != nil {
-		return fmt.Errorf("creating Block Certification Requests counter: %w", err)
-	}
-	v.bcRespSent, err = m.Int64Counter("block.cert.rsp", metric.WithDescription("Number of Block Certification Responses sent (ie how many subscribers the node had)"))
-	if err != nil {
-		return fmt.Errorf("creating Block Certification Responses counter: %w", err)
+		return fmt.Errorf("creating counter for processed messages: %w", err)
 	}
 
 	return nil
@@ -113,7 +113,7 @@ func (v *Node) Run(ctx context.Context) error {
 	// Run root consensus algorithm
 	g.Go(func() error { return v.consensusManager.Run(gctx) })
 	// Start receiving messages from partition nodes
-	g.Go(func() error { return v.loop(gctx) })
+	g.Go(func() error { return v.partitionMsgLoop(gctx) })
 	// Start handling certification responses
 	g.Go(func() error { return v.handleConsensus(gctx) })
 	return g.Wait()
@@ -123,8 +123,8 @@ func (v *Node) GetPeer() *network.Peer {
 	return v.peer
 }
 
-// loop handles messages from different goroutines.
-func (v *Node) loop(ctx context.Context) error {
+// handle messages from partition nodes
+func (v *Node) partitionMsgLoop(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
@@ -134,19 +134,37 @@ func (v *Node) loop(ctx context.Context) error {
 				return fmt.Errorf("partition channel closed")
 			}
 			v.log.LogAttrs(ctx, logger.LevelTrace, fmt.Sprintf("received %T", msg), logger.Data(msg))
-			switch mt := msg.(type) {
-			case *certification.BlockCertificationRequest:
-				if err := v.onBlockCertificationRequest(ctx, mt); err != nil {
-					v.log.LogAttrs(ctx, slog.LevelWarn, fmt.Sprintf("handling block certification request from %s", mt.NodeID), logger.Error(err))
-				}
-			case *handshake.Handshake:
-				if err := v.onHandshake(ctx, mt); err != nil {
-					v.log.LogAttrs(ctx, slog.LevelWarn, fmt.Sprintf("handling handshake from %s", mt.NodeID), logger.Error(err))
-				}
-			default:
-				v.log.LogAttrs(ctx, slog.LevelWarn, fmt.Sprintf("message %T not supported.", msg))
+			if err := v.handlePartitionMsg(ctx, msg); err != nil {
+				v.log.WarnContext(ctx, fmt.Sprintf("processing %T", msg), logger.Error(err))
 			}
 		}
+	}
+}
+
+func (v *Node) handlePartitionMsg(ctx context.Context, msg any) (rErr error) {
+	partitionID, shardID, nodeID := types.PartitionID(0), types.ShardID{}, ""
+	ctx, span := v.tracer.Start(ctx, "node.handlePartitionMsg")
+	defer func() {
+		if rErr != nil {
+			span.RecordError(rErr)
+			span.SetStatus(codes.Error, rErr.Error())
+		}
+		msgAttr := attribute.String("msg", fmt.Sprintf("%T", msg))
+		attrNode := attribute.String("node.id", nodeID)
+		v.execMsgCnt.Add(ctx, 1, observability.Shard(partitionID, shardID, msgAttr, attrNode, observability.ErrStatus(rErr)))
+		span.SetAttributes(msgAttr, observability.Partition(partitionID), attrNode)
+		span.End()
+	}()
+
+	switch mt := msg.(type) {
+	case *certification.BlockCertificationRequest:
+		partitionID, shardID, nodeID = mt.PartitionID, mt.ShardID, mt.NodeID
+		return v.onBlockCertificationRequest(ctx, mt)
+	case *handshake.Handshake:
+		partitionID, shardID, nodeID = mt.PartitionID, mt.ShardID, mt.NodeID
+		return v.onHandshake(ctx, mt)
+	default:
+		return fmt.Errorf("unknown message type %T", msg)
 	}
 }
 
@@ -166,6 +184,9 @@ func (v *Node) sendResponse(ctx context.Context, nodeID string, cr *certificatio
 }
 
 func (v *Node) onHandshake(ctx context.Context, req *handshake.Handshake) error {
+	ctx, span := v.tracer.Start(ctx, "node.onHandshake")
+	defer span.End()
+
 	if err := req.IsValid(); err != nil {
 		return fmt.Errorf("invalid handshake request: %w", err)
 	}
@@ -176,7 +197,7 @@ func (v *Node) onHandshake(ctx context.Context, req *handshake.Handshake) error 
 	if si.LastCR.UC.GetRoundNumber() == 0 {
 		// Make sure shard nodes get CertificationResponses even
 		// before they send the first BlockCertificationRequests
-		v.subscription.Subscribe(req.PartitionID, req.NodeID)
+		v.subscription.Subscribe(req.PartitionID, req.ShardID, req.NodeID)
 	}
 	if err = v.sendResponse(ctx, req.NodeID, si.LastCR); err != nil {
 		return fmt.Errorf("failed to send response: %w", err)
@@ -190,21 +211,15 @@ Shard nodes can only extend the stored/certified state.
 */
 func (v *Node) onBlockCertificationRequest(ctx context.Context, req *certification.BlockCertificationRequest) (rErr error) {
 	ctx, span := v.tracer.Start(ctx, "node.onBlockCertificationRequest")
-	defer func() {
-		if rErr != nil {
-			span.RecordError(rErr)
-			span.SetStatus(codes.Error, rErr.Error())
-		}
-		span.SetAttributes(observability.Partition(req.PartitionID))
-		v.bcrCount.Add(ctx, 1, observability.Shard(req.PartitionID, req.ShardID, observability.ErrStatus(rErr)))
-		span.End()
-	}()
+	defer span.End()
 
 	si, err := v.consensusManager.ShardInfo(req.PartitionID, req.ShardID)
 	if err != nil {
 		return fmt.Errorf("acquiring shard %s - %s info: %w", req.PartitionID, req.ShardID, err)
 	}
-	v.subscription.Subscribe(req.PartitionID, req.NodeID)
+	if err := v.subscription.Subscribe(req.PartitionID, req.ShardID, req.NodeID); err != nil {
+		return fmt.Errorf("subscribing the sender: %w", err)
+	}
 	// we got the shard info thus it's a valid partition/shard
 	if err := si.ValidRequest(req); err != nil {
 		err = fmt.Errorf("invalid block certification request: %w", err)
@@ -256,28 +271,12 @@ func (v *Node) handleConsensus(ctx context.Context) error {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case uc, ok := <-v.consensusManager.CertificationResult():
+		case cr, ok := <-v.consensusManager.CertificationResult():
 			if !ok {
 				return fmt.Errorf("consensus channel closed")
 			}
-			v.onCertificationResult(ctx, uc)
+			v.subscription.Send(ctx, cr)
+			v.incomingRequests.Clear(ctx, cr.Partition, cr.Shard)
 		}
-	}
-}
-
-func (v *Node) onCertificationResult(ctx context.Context, cr *certification.CertificationResponse) {
-	// clear the incoming buffer to accept new BlockCertificationRequest from the shard
-	defer v.incomingRequests.Clear(ctx, cr.Partition, cr.Shard)
-
-	subscribed := v.subscription.Get(cr.Partition)
-	v.log.DebugContext(ctx, fmt.Sprintf("sending CertificationResponse, %d receivers, R_next: %d, IR Hash: %X, Block Hash: %X",
-		len(subscribed), cr.Technical.Round, cr.UC.InputRecord.Hash, cr.UC.InputRecord.BlockHash), logger.Shard(cr.Partition, cr.Shard))
-	v.bcRespSent.Add(ctx, int64(len(subscribed)), observability.Shard(cr.Partition, cr.Shard))
-	// send response to all registered nodes
-	for _, node := range subscribed {
-		if err := v.sendResponse(ctx, node, cr); err != nil {
-			v.log.WarnContext(ctx, "sending certification result", logger.Error(err), logger.Shard(cr.Partition, cr.Shard))
-		}
-		v.subscription.ResponseSent(cr.Partition, node)
 	}
 }

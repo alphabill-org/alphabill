@@ -2,538 +2,909 @@ package rootchain
 
 import (
 	"context"
-	gocrypto "crypto"
+	"crypto"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
 
+	p2peer "github.com/libp2p/go-libp2p/core/peer"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill-go-base/crypto"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
-	testuc "github.com/alphabill-org/alphabill/internal/testutils/certificates"
-	testlogger "github.com/alphabill-org/alphabill/internal/testutils/logger"
-	testnetwork "github.com/alphabill-org/alphabill/internal/testutils/network"
 	testobservability "github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/alphabill-org/alphabill/internal/testutils/peer"
-	"github.com/alphabill-org/alphabill/internal/testutils/trustbase"
-	"github.com/alphabill-org/alphabill/logger"
+	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/network"
 	"github.com/alphabill-org/alphabill/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/network/protocol/handshake"
-	"github.com/alphabill-org/alphabill/observability"
 	"github.com/alphabill-org/alphabill/rootchain/consensus"
 	"github.com/alphabill-org/alphabill/rootchain/consensus/storage"
-	rctypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
-	testpartition "github.com/alphabill-org/alphabill/rootchain/partitions/testutils"
-	"github.com/alphabill-org/alphabill/rootchain/testutils"
-	"github.com/stretchr/testify/require"
-	"golang.org/x/sync/errgroup"
 )
 
-const partitionID types.PartitionID = 0x00FF0001
-const unknownPartitionID types.PartitionID = 0
+func Test_rootNode(t *testing.T) {
+	nopObs := testobservability.NOPObservability()
 
-type MockConsensusManager struct {
-	certReqCh    chan consensus.IRChangeRequest
-	certResultCh chan *certification.CertificationResponse
-	certs        map[types.PartitionShardID]*certification.CertificationResponse
-	shardInfo    map[types.PartitionShardID]*storage.ShardInfo
+	t.Run("constructor", func(t *testing.T) {
+		nwPeer := network.Peer{}
+		cm := mockConsensusManager{}
+		partNet := mockPartitionNet{}
+
+		node, err := New(nil, partNet, cm, nopObs)
+		require.Nil(t, node)
+		require.EqualError(t, err, `partition listener is nil`)
+
+		node, err = New(&nwPeer, nil, cm, nopObs)
+		require.Nil(t, node)
+		require.EqualError(t, err, `network is nil`)
+
+		node, err = New(&nwPeer, partNet, cm, nopObs)
+		require.NoError(t, err)
+		require.NotNil(t, node)
+		require.Equal(t, &nwPeer, node.GetPeer())
+	})
+
+	t.Run("Run, context cancel", func(t *testing.T) {
+		nwPeer := peer.CreatePeer(t, peer.CreatePeerConfiguration(t))
+		cm := mockConsensusManager{
+			run: func(ctx context.Context) error {
+				<-ctx.Done()
+				return ctx.Err()
+			},
+		}
+
+		partMsg := make(chan any)
+		partNet := mockPartitionNet{recCh: func() <-chan any { return partMsg }}
+
+		node, err := New(nwPeer, partNet, cm, nopObs)
+		require.NoError(t, err)
+		require.NotNil(t, node)
+		require.Equal(t, nwPeer, node.GetPeer())
+
+		done := make(chan struct{})
+		ctx, cancel := context.WithCancel(t.Context())
+		go func() {
+			defer close(done)
+			require.ErrorIs(t, node.Run(ctx), context.Canceled)
+		}()
+
+		// wait until partition network message is accepted
+		partMsg <- "it's running"
+		// cancel the ctx, Run should exit
+		cancel()
+
+		select {
+		case <-done:
+		case <-time.After(1000 * time.Millisecond):
+			t.Error("not done within timeout")
+		}
+	})
+
+	t.Run("Run, CM exits with error", func(t *testing.T) {
+		nwPeer := peer.CreatePeer(t, peer.CreatePeerConfiguration(t))
+		cmResult := make(chan error)
+		cm := mockConsensusManager{
+			run: func(ctx context.Context) error {
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				case err := <-cmResult:
+					return err
+				}
+			},
+		}
+
+		partNet, _ := newMockPartitionNet()
+
+		node, err := New(nwPeer, partNet, cm, nopObs)
+		require.NoError(t, err)
+		require.NotNil(t, node)
+		require.Equal(t, nwPeer, node.GetPeer())
+
+		expErr := fmt.Errorf("something wrong in CM")
+		done := make(chan struct{})
+		go func() {
+			defer close(done)
+			require.ErrorIs(t, node.Run(t.Context()), expErr)
+		}()
+
+		// trigger error in the Consensus Manager's Run
+		cmResult <- expErr
+
+		select {
+		case <-done:
+		case <-time.After(1000 * time.Millisecond):
+			t.Error("not done within timeout")
+		}
+	})
 }
 
-func NewMockConsensus(t *testing.T, rootNode *testutils.TestNode, shardConf *types.PartitionDescriptionRecord) (*MockConsensusManager, error) {
-	psID := types.PartitionShardID{PartitionID: shardConf.PartitionID, ShardID: shardConf.ShardID.Key()}
+func Test_sendResponse(t *testing.T) {
+	// node constructor requires non nil arguments but the tests
+	// actually do not depend on peer and ConsensusManager.
+	// The sendResponse method only depends on partitionNet.Send
+	nwPeer := network.Peer{}
+	cm := mockConsensusManager{}
+	nopObs := testobservability.NOPObservability()
 
-	var certs = make(map[types.PartitionShardID]*certification.CertificationResponse)
-	certs[psID] = createInitialCR(t, shardConf, shardConf.Validators[0].NodeID, rootNode.Signer)
+	nodeID := generateNodeID(t).String()
+	certResp := validCertificationResponse(t)
 
-	shardInfo := map[types.PartitionShardID]*storage.ShardInfo{}
-	si, err := storage.NewShardInfo(shardConf, gocrypto.SHA256)
-	if err != nil {
-		return nil, fmt.Errorf("creating shard info: %w", err)
-	}
-	si.LastCR = certs[psID]
-	shardInfo[psID] = si
+	t.Run("invalid peer ID", func(t *testing.T) {
+		node, err := New(&nwPeer, mockPartitionNet{}, cm, nopObs)
+		require.NoError(t, err)
 
-	return &MockConsensusManager{
-		// use buffered channels here, we just want to know if a tlg is received
-		certReqCh:    make(chan consensus.IRChangeRequest, 1),
-		certResultCh: make(chan *certification.CertificationResponse, 1),
-		certs:        certs,
-		shardInfo:    shardInfo,
-	}, nil
+		err = node.sendResponse(t.Context(), "", &certResp)
+		require.EqualError(t, err, `invalid receiver id: failed to parse peer ID: invalid cid: cid too short`)
+
+		err = node.sendResponse(t.Context(), "not valid node ID", &certResp)
+		require.EqualError(t, err, `invalid receiver id: failed to parse peer ID: invalid cid: selected encoding not supported`)
+	})
+
+	t.Run("invalid CertificationResponse", func(t *testing.T) {
+		// CertResp is coming from ConsensusManager so this should be impossible?
+		// just send it out and shard nodes should be able to ignore invalid CRsp?
+		node, err := New(&nwPeer, mockPartitionNet{}, cm, nopObs)
+		require.NoError(t, err)
+
+		cr := certResp
+		cr.Partition = 0
+		err = node.sendResponse(t.Context(), nodeID, &cr)
+		require.EqualError(t, err, `invalid certification response: partition ID is unassigned`)
+	})
+
+	t.Run("send fails", func(t *testing.T) {
+		expErr := fmt.Errorf("not sending")
+		partNet := mockPartitionNet{
+			send: func(ctx context.Context, msg any, receivers ...p2peer.ID) error {
+				return expErr
+			},
+		}
+		node, err := New(&nwPeer, partNet, cm, nopObs)
+		require.NoError(t, err)
+		err = node.sendResponse(t.Context(), nodeID, &certResp)
+		require.ErrorIs(t, err, expErr)
+	})
+
+	t.Run("success", func(t *testing.T) {
+		partNet := mockPartitionNet{
+			send: func(ctx context.Context, msg any, receivers ...p2peer.ID) error {
+				require.Equal(t, &certResp, msg)
+				require.Len(t, receivers, 1)
+				require.Equal(t, nodeID, receivers[0].String())
+				return nil
+			},
+		}
+		node, err := New(&nwPeer, partNet, cm, nopObs)
+		require.NoError(t, err)
+		require.NoError(t, node.sendResponse(t.Context(), nodeID, &certResp))
+	})
 }
 
-func (m *MockConsensusManager) RequestCertification(ctx context.Context, cr consensus.IRChangeRequest) error {
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case m.certReqCh <- cr:
-	}
-	return nil
+func Test_onHandshake(t *testing.T) {
+	// node constructor requires non nil peer but the tests
+	// actually do not depend on valid peer
+	// depends on consensusManager.ShardInfo and partitionNet.Send
+	nwPeer := network.Peer{}
+	nodeID := generateNodeID(t)
+	certResp := validCertificationResponse(t)
+	nopObs := testobservability.NOPObservability()
+
+	t.Run("invalid handshake msg", func(t *testing.T) {
+		partNet := mockPartitionNet{}
+		cm := mockConsensusManager{}
+		node, err := New(&nwPeer, partNet, cm, nopObs)
+		require.NoError(t, err)
+		msg := handshake.Handshake{
+			PartitionID: 0, // invalid partition ID
+			ShardID:     certResp.Shard,
+			NodeID:      nodeID.String(),
+		}
+		err = node.onHandshake(t.Context(), &msg)
+		require.EqualError(t, err, `invalid handshake request: invalid partition identifier`)
+	})
+
+	t.Run("no ShardInfo", func(t *testing.T) {
+		partNet := mockPartitionNet{}
+		msg := handshake.Handshake{
+			PartitionID: certResp.Partition + 1,
+			ShardID:     certResp.Shard,
+			NodeID:      nodeID.String(),
+		}
+		expErr := fmt.Errorf("nope, no such shard")
+		cm := mockConsensusManager{
+			shardInfo: func(partition types.PartitionID, shard types.ShardID) (*storage.ShardInfo, error) {
+				require.EqualValues(t, msg.PartitionID, partition)
+				require.EqualValues(t, msg.ShardID, shard)
+				return nil, expErr
+			},
+		}
+		node, err := New(&nwPeer, partNet, cm, nopObs)
+		require.NoError(t, err)
+		err = node.onHandshake(t.Context(), &msg)
+		require.EqualError(t, err, fmt.Errorf(`reading partition %s certificate: %w`, msg.PartitionID, expErr).Error())
+	})
+
+	t.Run("failure to send response", func(t *testing.T) {
+		partNet := mockPartitionNet{
+			send: func(ctx context.Context, msg any, receivers ...p2peer.ID) error {
+				return fmt.Errorf("not sending")
+			},
+		}
+		cm := mockConsensusManager{
+			shardInfo: func(partition types.PartitionID, shard types.ShardID) (*storage.ShardInfo, error) {
+				return &storage.ShardInfo{LastCR: &certResp}, nil
+			},
+		}
+		node, err := New(&nwPeer, partNet, cm, nopObs)
+		require.NoError(t, err)
+
+		msg := handshake.Handshake{
+			PartitionID: certResp.Partition,
+			ShardID:     certResp.Shard,
+			NodeID:      nodeID.String(),
+		}
+		err = node.onHandshake(t.Context(), &msg)
+		require.EqualError(t, err, `failed to send response: not sending`)
+	})
+
+	t.Run("success", func(t *testing.T) {
+		partNet := mockPartitionNet{
+			send: func(ctx context.Context, msg any, receivers ...p2peer.ID) error {
+				require.Equal(t, &certResp, msg)
+				require.Len(t, receivers, 1)
+				require.Equal(t, nodeID, receivers[0])
+				return nil
+			},
+		}
+		cm := mockConsensusManager{
+			shardInfo: func(partition types.PartitionID, shard types.ShardID) (*storage.ShardInfo, error) {
+				return &storage.ShardInfo{LastCR: &certResp}, nil
+			},
+		}
+		node, err := New(&nwPeer, partNet, cm, nopObs)
+		require.NoError(t, err)
+
+		msg := handshake.Handshake{
+			PartitionID: certResp.Partition,
+			ShardID:     certResp.Shard,
+			NodeID:      nodeID.String(),
+		}
+		require.NoError(t, node.onHandshake(t.Context(), &msg))
+	})
 }
 
-func (m *MockConsensusManager) CertificationResult() <-chan *certification.CertificationResponse {
-	return m.certResultCh
+func Test_handlePartitionMsg(t *testing.T) {
+	nopObs := testobservability.NOPObservability()
+	nwPeer := network.Peer{}
+	nodeID := generateNodeID(t)
+	certResp := validCertificationResponse(t)
+
+	t.Run("unsupported message", func(t *testing.T) {
+		partNet := mockPartitionNet{}
+		cm := mockConsensusManager{}
+		node, err := New(&nwPeer, partNet, cm, nopObs)
+		require.NoError(t, err)
+		err = node.handlePartitionMsg(t.Context(), 555)
+		require.EqualError(t, err, `unknown message type int`)
+	})
+
+	t.Run("handshake", func(t *testing.T) {
+		sendCalled := 0
+		partNet := mockPartitionNet{
+			send: func(ctx context.Context, msg any, receivers ...p2peer.ID) error {
+				require.Equal(t, &certResp, msg)
+				require.Len(t, receivers, 1)
+				require.Equal(t, nodeID, receivers[0])
+				sendCalled++
+				return nil
+			},
+		}
+		cm := mockConsensusManager{
+			shardInfo: func(partition types.PartitionID, shard types.ShardID) (*storage.ShardInfo, error) {
+				return &storage.ShardInfo{LastCR: &certResp}, nil
+			},
+		}
+		node, err := New(&nwPeer, partNet, cm, nopObs)
+		require.NoError(t, err)
+
+		msg := handshake.Handshake{
+			PartitionID: certResp.Partition,
+			ShardID:     certResp.Shard,
+			NodeID:      nodeID.String(),
+		}
+		require.NoError(t, node.handlePartitionMsg(t.Context(), &msg))
+		require.EqualValues(t, 1, sendCalled)
+	})
+
+	t.Run("Certification Request", func(t *testing.T) {
+		// calls onBlockCertificationRequest with the message and one of
+		// the first things there ShardInfo is requested from CM.
+		// Return known error so we know expected calls did happen...
+		partNet := mockPartitionNet{}
+		expErr := errors.New("nope")
+		cm := mockConsensusManager{
+			shardInfo: func(partition types.PartitionID, shard types.ShardID) (*storage.ShardInfo, error) {
+				return nil, expErr
+			},
+		}
+		node, err := New(&nwPeer, partNet, cm, nopObs)
+		require.NoError(t, err)
+
+		msg := certification.BlockCertificationRequest{
+			PartitionID: certResp.Partition,
+			ShardID:     certResp.Shard,
+			NodeID:      nodeID.String(),
+		}
+		require.ErrorIs(t, node.handlePartitionMsg(t.Context(), &msg), expErr)
+	})
 }
 
-func (m *MockConsensusManager) Run(_ context.Context) error {
-	// nothing to do
-	return nil
+func Test_partitionMsgLoop(t *testing.T) {
+	nwPeer := network.Peer{}
+
+	t.Run("cancel ctx", func(t *testing.T) {
+		partNet, _ := newMockPartitionNet()
+		cm := mockConsensusManager{}
+
+		done := make(chan struct{})
+		node, err := New(&nwPeer, partNet, cm, testobservability.Default(t))
+		require.NoError(t, err)
+
+		ctx, cancel := context.WithCancel(t.Context())
+		go func() {
+			defer close(done)
+			require.ErrorIs(t, node.partitionMsgLoop(ctx), context.Canceled)
+		}()
+
+		time.AfterFunc(100*time.Millisecond, cancel)
+		select {
+		case <-done:
+		case <-time.After(1000 * time.Millisecond):
+			t.Error("msg loop didn't quit within timeout")
+		}
+	})
+
+	t.Run("msg chan closed", func(t *testing.T) {
+		partNet, partMsg := newMockPartitionNet()
+		cm := mockConsensusManager{}
+
+		done := make(chan struct{})
+		node, err := New(&nwPeer, partNet, cm, testobservability.Default(t))
+		require.NoError(t, err)
+
+		go func() {
+			defer close(done)
+			require.EqualError(t, node.partitionMsgLoop(t.Context()), `partition channel closed`)
+		}()
+
+		close(partMsg)
+		select {
+		case <-done:
+		case <-time.After(1000 * time.Millisecond):
+			t.Error("msg loop didn't quit within timeout")
+		}
+	})
+
+	t.Run("unsupported message", func(t *testing.T) {
+		// could check that warning was logged but we just make sure it doesn't crash...
+		partMsg := make(chan any)
+		partNet := mockPartitionNet{
+			recCh: func() <-chan any { return partMsg },
+		}
+		cm := mockConsensusManager{}
+
+		done := make(chan struct{})
+		node, err := New(&nwPeer, partNet, cm, testobservability.Default(t))
+		require.NoError(t, err)
+
+		ctx, cancel := context.WithCancel(t.Context())
+		go func() {
+			defer close(done)
+			require.ErrorIs(t, node.partitionMsgLoop(ctx), context.Canceled)
+		}()
+
+		partMsg <- "not a valid message"
+
+		cancel()
+		select {
+		case <-done:
+		case <-time.After(1000 * time.Millisecond):
+			t.Error("msg loop didn't quit within timeout")
+		}
+	})
 }
 
-func (m *MockConsensusManager) GetLatestUnicityCertificate(partitionID types.PartitionID, shardID types.ShardID) (*certification.CertificationResponse, error) {
-	psID := types.PartitionShardID{PartitionID: partitionID, ShardID: shardID.Key()}
-	luc, f := m.certs[psID]
-	if !f {
-		return nil, fmt.Errorf("no certificate found for partition id %X", partitionID)
+func Test_onBlockCertificationRequest(t *testing.T) {
+	// network peer and partition network are not used by the test
+	// but we need non nil values for the constructor
+	nwPeer := network.Peer{}
+	partNet := mockPartitionNet{}
+
+	nodeID := generateNodeID(t).String()
+	nodeID2 := generateNodeID(t).String()
+
+	// create "valid looking" (ie satisfy the checks performed by the tests here) data
+	shardConf := &types.PartitionDescriptionRecord{
+		Version:     1,
+		NetworkID:   5,
+		PartitionID: 1,
+		T2Timeout:   2000 * time.Millisecond,
 	}
-	return luc, nil
-}
-
-func (m *MockConsensusManager) ShardInfo(partitionID types.PartitionID, shardID types.ShardID) (*storage.ShardInfo, error) {
-	psID := types.PartitionShardID{PartitionID: partitionID, ShardID: shardID.Key()}
-	if si, ok := m.shardInfo[psID]; ok {
-		return si, nil
-	}
-	return nil, fmt.Errorf("no ShardInfo for %s - %s", partitionID, shardID)
-}
-
-func initRootNode(t *testing.T, net PartitionNet) (*Node, *testutils.TestNode, []*testutils.TestNode, *types.PartitionDescriptionRecord) {
-	t.Helper()
-	rootNode := testutils.NewTestNode(t)
-	shardNodes, shardNodeInfos := testutils.CreateTestNodes(t, 3)
-
-	var shardConf = &types.PartitionDescriptionRecord{
-		Version:         1,
-		PartitionID:     partitionID,
-		PartitionTypeID: 123,
-		ShardID:         types.ShardID{},
-		Validators:      shardNodeInfos,
-	}
-
-	cm, err := NewMockConsensus(t, rootNode, shardConf)
-	require.NoError(t, err)
-
-	observe := testobservability.Default(t)
-	peer := peer.CreatePeer(t, rootNode.PeerConf)
-
-	node, err := New(peer, net, cm, observability.WithLogger(observe, observe.Logger().With(logger.NodeID(rootNode.PeerConf.ID))))
-	require.NoError(t, err)
-	require.NotNil(t, node)
-	return node, rootNode, shardNodes, shardConf
-}
-
-func TestNew_OK(t *testing.T) {
-	rootNode1 := testutils.NewTestNode(t)
-	rootNode2 := testutils.NewTestNode(t)
-	trustBase := trustbase.NewTrustBase(t, rootNode1.Verifier, rootNode2.Verifier)
-
-	partitionNetMock := testnetwork.NewMockNetwork(t)
-	rootNetMock := testnetwork.NewMockNetwork(t)
-
-	log := testlogger.New(t).With(logger.NodeID(rootNode1.PeerConf.ID))
-	observe := observability.WithLogger(testobservability.Default(t), log)
-
-	cm, err := consensus.NewConsensusManager(
-		rootNode1.PeerConf.ID,
-		trustBase,
-		testpartition.NewOrchestration(t, log),
-		rootNetMock,
-		rootNode1.Signer,
-		observe)
-	require.NoError(t, err)
-
-	peer := peer.CreatePeer(t, rootNode1.PeerConf)
-	validator, err := New(peer, partitionNetMock, cm, observe)
-	require.NoError(t, err)
-	require.NotNil(t, validator)
-}
-
-func TestRootValidatorTest_CertificationReqRejected(t *testing.T) {
-	mockNet := testnetwork.NewMockNetwork(t)
-	rootNode, _, shardNodeConfs, _ := initRootNode(t, mockNet)
-	newIR := &types.InputRecord{
-		Version:      1,
-		Hash:         test.RandomBytes(32),
-		BlockHash:    test.RandomBytes(32),
-		SummaryValue: []byte{1, 2, 3},
-		RoundNumber:  1,
-		Timestamp:    lastUCTimestamp(t, rootNode),
-	}
-	req := testutils.CreateBlockCertificationRequest(t, newIR, unknownPartitionID, shardNodeConfs[0])
-	require.ErrorContains(t, rootNode.onBlockCertificationRequest(context.Background(), req), "acquiring shard")
-	// unknown partition shard, gets rejected
-	require.NotContains(t, rootNode.incomingRequests.store, unknownPartitionID)
-
-	// unknown node gets rejected
-	unknownNode := testutils.NewTestNode(t)
-	req = testutils.CreateBlockCertificationRequest(t, newIR, partitionID, unknownNode)
-	require.ErrorContains(t, rootNode.onBlockCertificationRequest(context.Background(), req), fmt.Sprintf("node %q is not in the trustbase of the shard", unknownNode.PeerConf.ID))
-	require.NotContains(t, rootNode.incomingRequests.store, partitionID)
-
-	// signature does not verify
-	invalidNode := testutils.TestNode{
-		PeerConf: shardNodeConfs[0].PeerConf,
-		Signer:   unknownNode.Signer,
-		Verifier: shardNodeConfs[0].Verifier,
-	}
-	req = testutils.CreateBlockCertificationRequest(t, newIR, partitionID, &invalidNode)
-	require.EqualError(t, rootNode.onBlockCertificationRequest(context.Background(), req), `invalid block certification request: invalid certification request: signature verification: verification failed`)
-	require.NotContains(t, rootNode.incomingRequests.store, partitionID)
-}
-
-func TestRootValidatorTest_CertificationReqEquivocatingReq(t *testing.T) {
-	mockNet := testnetwork.NewMockNetwork(t)
-	rootNode, _, shardNodeConfs, _ := initRootNode(t, mockNet)
-	newIR := &types.InputRecord{
-		Version:      1,
-		Hash:         test.RandomBytes(32),
-		BlockHash:    test.RandomBytes(32),
-		SummaryValue: []byte{1},
-		RoundNumber:  1,
-		Timestamp:    lastUCTimestamp(t, rootNode),
-	}
-	req := testutils.CreateBlockCertificationRequest(t, newIR, partitionID, shardNodeConfs[0])
-	require.NoError(t, rootNode.onBlockCertificationRequest(context.Background(), req))
-	// request is accepted
-	key := partitionShard{partition: partitionID, shard: req.ShardID.Key()}
-	require.Contains(t, rootNode.incomingRequests.store, key)
-
-	equivocatingIR := newIR.NewRepeatIR()
-	equivocatingIR.Hash = test.RandomBytes(32)
-	eqReq := testutils.CreateBlockCertificationRequest(t, equivocatingIR, partitionID, shardNodeConfs[0])
-	require.ErrorContains(t, rootNode.onBlockCertificationRequest(context.Background(), eqReq), "request of the node in this round already stored")
-
-	buffer, f := rootNode.incomingRequests.store[key]
-	require.True(t, f, "no requests for %#v", key)
-	require.Contains(t, buffer.nodeRequest, shardNodeConfs[0].PeerConf.ID.String())
-	require.Len(t, buffer.requests, 1)
-	for _, certReq := range buffer.requests {
-		require.Len(t, certReq, 1)
-	}
-}
-
-func TestRootValidatorTest_SimulateNetCommunication(t *testing.T) {
-	mockNet := testnetwork.NewMockNetwork(t)
-	rootNode, rootNodeConf, shardNodeConfs, _ := initRootNode(t, mockNet)
-	ctx, ctxCancel := context.WithCancel(context.Background())
-	t.Cleanup(ctxCancel)
-	go func() { require.ErrorIs(t, rootNode.Run(ctx), context.Canceled) }()
-
-	require.Len(t, shardNodeConfs, 3)
-	require.NotEmpty(t, rootNodeConf.PeerConf.ID.String())
-	// create certification request
-	newIR := &types.InputRecord{
-		Version:      1,
-		Hash:         test.RandomBytes(32),
-		BlockHash:    test.RandomBytes(32),
-		SummaryValue: []byte{1},
-		RoundNumber:  1,
-		Timestamp:    lastUCTimestamp(t, rootNode),
-	}
-	req := testutils.CreateBlockCertificationRequest(t, newIR, partitionID, shardNodeConfs[0])
-	mockNet.WaitReceive(t, req)
-	// send second
-	req = testutils.CreateBlockCertificationRequest(t, newIR, partitionID, shardNodeConfs[1])
-	mockNet.WaitReceive(t, req)
-	// since consensus is simple majority, then consensus is now achieved and message should be forwarded
-	mcm := rootNode.consensusManager.(*MockConsensusManager)
-	require.Eventually(t, func() bool { return len(mcm.certReqCh) == 1 }, 1*time.Second, 10*time.Millisecond)
-}
-
-func TestRootValidatorTest_SimulateNetCommunicationNoQuorum(t *testing.T) {
-	mockNet := testnetwork.NewMockNetwork(t)
-	rootNode, rootNodeConf, shardNodeConfs, _ := initRootNode(t, mockNet)
-	ctx, ctxCancel := context.WithCancel(context.Background())
-	t.Cleanup(ctxCancel)
-	go func() { require.ErrorIs(t, rootNode.Run(ctx), context.Canceled) }()
-
-	require.Len(t, shardNodeConfs, 3)
-	require.NotEmpty(t, rootNodeConf.PeerConf.ID.String())
-
-	// create certification request
-	newIR1 := &types.InputRecord{
-		Version:      1,
-		Hash:         test.RandomBytes(32),
-		BlockHash:    test.RandomBytes(32),
-		SummaryValue: []byte{1},
-		RoundNumber:  1,
-		Timestamp:    lastUCTimestamp(t, rootNode),
-	}
-	req1 := testutils.CreateBlockCertificationRequest(t, newIR1, partitionID, shardNodeConfs[0])
-	mockNet.WaitReceive(t, req1)
-	newIR2 := &types.InputRecord{
-		Version:      1,
-		Hash:         test.RandomBytes(32),
-		BlockHash:    test.RandomBytes(32),
-		SummaryValue: []byte{1},
-		RoundNumber:  1,
-		Timestamp:    lastUCTimestamp(t, rootNode),
-	}
-	req2 := testutils.CreateBlockCertificationRequest(t, newIR2, partitionID, shardNodeConfs[1])
-	mockNet.WaitReceive(t, req2)
-	newIR3 := &types.InputRecord{
-		Version:      1,
-		Hash:         test.RandomBytes(32),
-		BlockHash:    test.RandomBytes(32),
-		SummaryValue: []byte{1},
-		RoundNumber:  1,
-		Timestamp:    lastUCTimestamp(t, rootNode),
-	}
-	req3 := testutils.CreateBlockCertificationRequest(t, newIR3, partitionID, shardNodeConfs[2])
-	mockNet.WaitReceive(t, req3)
-	// no consensus can be achieved all reported different hashes
-	mcm := rootNode.consensusManager.(*MockConsensusManager)
-	require.Eventually(t, func() bool { return len(mcm.certReqCh) == 1 }, 1*time.Second, 10*time.Millisecond)
-}
-
-func TestRootValidatorTest_SimulateNetCommunicationHandshake(t *testing.T) {
-	mockNet := testnetwork.NewMockNetwork(t)
-	rootNode, rootNodeConf, shardNodeConfs, _ := initRootNode(t, mockNet)
-
-	ctx, ctxCancel := context.WithCancel(context.Background())
-	t.Cleanup(ctxCancel)
-	go func() { require.ErrorIs(t, rootNode.Run(ctx), context.Canceled) }()
-
-	require.Len(t, shardNodeConfs, 3)
-	require.NotEmpty(t, rootNodeConf.PeerConf.ID.String())
-	// create
-	h := &handshake.Handshake{
-		PartitionID: partitionID,
-		ShardID:     types.ShardID{},
-		NodeID:      shardNodeConfs[0].PeerConf.ID.String(),
-	}
-	mockNet.WaitReceive(t, h)
-
-	// make sure certificate is sent in return
-	cr := testutils.MockAwaitMessage[*certification.CertificationResponse](t, mockNet, network.ProtocolUnicityCertificates)
-
-	// make sure the node is subscribed - first handshake after shard activation subscribes the node
-	subscribed := rootNode.subscription.Get(partitionID)
-	require.Contains(t, subscribed, shardNodeConfs[0].PeerConf.ID.String())
-
-	// set network in error state
-	mockNet.SetErrorState(fmt.Errorf("failed to dial"))
-
-	rootNode.onCertificationResult(ctx, cr)
-	subscribed = rootNode.subscription.Get(partitionID)
-	require.Contains(t, subscribed, shardNodeConfs[0].PeerConf.ID.String())
-	rootNode.onCertificationResult(ctx, cr)
-
-	// subscription is cleared, node got two responses and is required to issue a block certification request
-	require.Empty(t, rootNode.subscription.Get(partitionID))
-}
-
-func TestRootValidatorTest_SimulateNetCommunicationInvalidReqRoundNumber(t *testing.T) {
-	mockNet := testnetwork.NewMockNetwork(t)
-	rootNode, rootNodeConf, shardNodeConfs, _ := initRootNode(t, mockNet)
-	ctx, ctxCancel := context.WithCancel(context.Background())
-	t.Cleanup(ctxCancel)
-	go func() { require.ErrorIs(t, rootNode.Run(ctx), context.Canceled) }()
-
-	require.NotNil(t, rootNode)
-	require.Len(t, shardNodeConfs, 3)
-	require.NotEmpty(t, rootNodeConf.PeerConf.ID.String())
-	// create certification request
-	newHash := test.RandomBytes(32)
-	blockHash := test.RandomBytes(32)
-	newIR := &types.InputRecord{
-		Version:      1,
-		Hash:         newHash,
-		BlockHash:    blockHash,
-		SummaryValue: []byte{1},
-		RoundNumber:  2, // round 1 is expected after shard activation
-		Timestamp:    lastUCTimestamp(t, rootNode),
-	}
-	req := testutils.CreateBlockCertificationRequest(t, newIR, partitionID, shardNodeConfs[0])
-	mockNet.WaitReceive(t, req)
-	// expect repeat UC to be sent
-	repeatCert := testutils.MockAwaitMessage[*certification.CertificationResponse](t, mockNet, network.ProtocolUnicityCertificates)
-	require.Equal(t, uint64(0), repeatCert.UC.GetRoundNumber())
-}
-
-func TestRootValidatorTest_SimulateNetCommunicationInvalidHash(t *testing.T) {
-	mockNet := testnetwork.NewMockNetwork(t)
-	rootNode, rootNodeConf, shardNodeConfs, _ := initRootNode(t, mockNet)
-	ctx, ctxCancel := context.WithCancel(context.Background())
-	t.Cleanup(ctxCancel)
-	go func() { require.ErrorIs(t, rootNode.Run(ctx), context.Canceled) }()
-
-	require.NotNil(t, rootNode)
-	require.Len(t, shardNodeConfs, 3)
-	require.NotEmpty(t, rootNodeConf.PeerConf.ID.String())
-	// create certification request
-	newHash := test.RandomBytes(32)
-	blockHash := test.RandomBytes(32)
-	newIR := &types.InputRecord{
+	partitionIR := types.InputRecord{
 		Version:      1,
 		PreviousHash: test.RandomBytes(32),
-		Hash:         newHash,
-		BlockHash:    blockHash,
-		SummaryValue: []byte{1},
-		RoundNumber:  1,
-		Timestamp:    lastUCTimestamp(t, rootNode),
+		Hash:         []byte{0, 0, 0, 1},
+		BlockHash:    []byte{0, 0, 1, 2},
+		SummaryValue: []byte{0, 0, 1, 3},
+		RoundNumber:  3864,
+		Epoch:        2,
+		Timestamp:    types.NewTimestamp(),
 	}
-	req := testutils.CreateBlockCertificationRequest(t, newIR, partitionID, shardNodeConfs[0])
-	mockNet.WaitReceive(t, req)
-	// expect repeat UC to be sent
-	repeatCert := testutils.MockAwaitMessage[*certification.CertificationResponse](t, mockNet, network.ProtocolUnicityCertificates)
-	require.Equal(t, uint64(0), repeatCert.UC.GetRoundNumber())
-}
 
-func TestRootValidatorTest_SimulateResponse(t *testing.T) {
-	mockNet := testnetwork.NewMockNetwork(t)
-	rootNode, rootNodeConf, shardNodeConfs, shardConf := initRootNode(t, mockNet)
-	ctx, ctxCancel := context.WithCancel(context.Background())
-	t.Cleanup(ctxCancel)
-	go func() { require.ErrorIs(t, rootNode.Run(ctx), context.Canceled) }()
-
-	require.Len(t, shardNodeConfs, 3)
-	require.NotEmpty(t, rootNodeConf.PeerConf.ID.String())
-
-	// create certification request
-	newIR := &types.InputRecord{
-		Version:      1,
-		Hash:         test.RandomBytes(32),
-		BlockHash:    test.RandomBytes(32),
-		SummaryValue: []byte{1},
-		RoundNumber:  2,
-	}
-	cr := certification.CertificationResponse{
-		Partition: partitionID,
+	// valid certification response
+	certResp := certification.CertificationResponse{
+		Partition: shardConf.PartitionID,
+		Shard:     types.ShardID{},
 		UC: types.UnicityCertificate{
-			Version:     1,
-			InputRecord: newIR,
+			InputRecord: &types.InputRecord{
+				Hash:      test.RandomBytes(32),
+				BlockHash: test.RandomBytes(32),
+			},
 			UnicityTreeCertificate: &types.UnicityTreeCertificate{
 				Version:   1,
-				Partition: partitionID,
+				Partition: shardConf.PartitionID,
 			},
-			UnicitySeal: &types.UnicitySeal{Version: 1},
+			UnicitySeal: &types.UnicitySeal{
+				Timestamp: types.NewTimestamp(),
+			},
 		},
 	}
 	require.NoError(t,
-		cr.SetTechnicalRecord(certification.TechnicalRecord{
-			Round:    3,
-			Epoch:    1,
-			Leader:   shardConf.Validators[0].NodeID,
+		certResp.SetTechnicalRecord(certification.TechnicalRecord{
+			Round:    partitionIR.RoundNumber,
+			Epoch:    partitionIR.Epoch,
+			Leader:   nodeID,
+			StatHash: []byte("state hash"),
+			FeeHash:  []byte("fee hash"),
+		}))
+	require.NoError(t, certResp.IsValid())
+
+	// create ShardInfo for the shard
+	signer, verifier := testsig.CreateSignerAndVerifier(t)
+	sigKey, err := verifier.MarshalPublicKey()
+	require.NoError(t, err)
+	shardConf.Validators = []*types.NodeInfo{
+		{NodeID: nodeID, SigKey: sigKey},
+		{NodeID: nodeID2, SigKey: sigKey},
+	}
+	si, err := storage.NewShardInfo(shardConf, crypto.SHA256)
+	require.NoError(t, err)
+	si.LastCR = &certResp
+	require.NoError(t, si.IsValid())
+
+	// certification request which is valid for the ShardInfo
+	validCertRequest := certification.BlockCertificationRequest{
+		PartitionID: shardConf.PartitionID,
+		ShardID:     types.ShardID{},
+		NodeID:      nodeID,
+		InputRecord: partitionIR.NewRepeatIR(),
+		BlockSize:   10,
+		StateSize:   1024,
+	}
+	validCertRequest.InputRecord.PreviousHash = si.RootHash
+	validCertRequest.InputRecord.Hash = test.RandomBytes(32)
+	require.NoError(t, validCertRequest.Sign(signer))
+	require.NoError(t, si.ValidRequest(&validCertRequest))
+
+	t.Run("invalid request - no ShardInfo", func(t *testing.T) {
+		cm := mockConsensusManager{
+			shardInfo: func(partition types.PartitionID, shard types.ShardID) (*storage.ShardInfo, error) {
+				require.Equal(t, validCertRequest.PartitionID, partition)
+				require.Equal(t, validCertRequest.ShardID, shard)
+				return nil, errors.New("no SI")
+			},
+		}
+
+		node, err := New(&nwPeer, partNet, cm, testobservability.Default(t))
+		require.NoError(t, err)
+		err = node.onBlockCertificationRequest(t.Context(), &validCertRequest)
+		require.EqualError(t, err, `acquiring shard 00000001 -  info: no SI`)
+	})
+
+	t.Run("invalid request - invalid NodeID", func(t *testing.T) {
+		cm := mockConsensusManager{
+			shardInfo: func(partition types.PartitionID, shard types.ShardID) (*storage.ShardInfo, error) {
+				// just return non nil SI - before the SI is used the request node
+				// is subscribed for responses and that's where we expect failure as
+				// the node ID is not valid (invalid encoding)
+				return &storage.ShardInfo{}, nil
+			},
+		}
+
+		node, err := New(&nwPeer, partNet, cm, testobservability.Default(t))
+		require.NoError(t, err)
+		cr := validCertRequest
+		cr.NodeID = "not valid ID"
+		err = node.onBlockCertificationRequest(t.Context(), &cr)
+		require.EqualError(t, err, `subscribing the sender: invalid receiver id: failed to parse peer ID: invalid cid: selected encoding not supported`)
+	})
+
+	t.Run("invalid request", func(t *testing.T) {
+		// in case of invalid request we respond with the latest cert of the shard
+		sendCallCnt := 0
+		partNet := mockPartitionNet{
+			send: func(ctx context.Context, msg any, receivers ...p2peer.ID) error {
+				require.Equal(t, &certResp, msg)
+				sendCallCnt++
+				return nil
+			},
+		}
+
+		/*** case 1: request from unknown node ***/
+
+		cm := &mockConsensusManager{
+			shardInfo: func(partition types.PartitionID, shard types.ShardID) (*storage.ShardInfo, error) {
+				// return SI which has empty TrustBase so the request is invalid (unknown node)
+				// however, we still send response with current certificate!
+				// should we change it so that when the node is not in the TB we just ignore the request?
+				return &storage.ShardInfo{LastCR: &certResp}, nil
+			},
+		}
+		node, err := New(&nwPeer, partNet, cm, testobservability.Default(t))
+		require.NoError(t, err)
+
+		err = node.onBlockCertificationRequest(t.Context(), &validCertRequest)
+		require.EqualError(t, err, `invalid block certification request: invalid certification request: node "`+nodeID+`" is not in the trustbase of the shard`)
+		require.EqualValues(t, 1, sendCallCnt)
+
+		/*** case 2: invalid request from a node in the trustbase ***/
+
+		// return SI where the node is in the TB
+		cm.shardInfo = func(partition types.PartitionID, shard types.ShardID) (*storage.ShardInfo, error) {
+			return si, nil
+		}
+		// invalidate CertRequest - any change invalidates the signature
+		cr := validCertRequest
+		cr.BlockSize++
+		err = node.onBlockCertificationRequest(t.Context(), &cr)
+		require.EqualError(t, err, `invalid block certification request: invalid certification request: signature verification: verification failed`)
+		require.EqualValues(t, 2, sendCallCnt, "expected that the latest Cert is sent to the node")
+	})
+
+	t.Run("Equivocating Request", func(t *testing.T) {
+		cm := &mockConsensusManager{
+			shardInfo: func(partition types.PartitionID, shard types.ShardID) (*storage.ShardInfo, error) {
+				return si, nil
+			},
+		}
+		node, err := New(&nwPeer, partNet, cm, testobservability.Default(t))
+		require.NoError(t, err)
+
+		err = node.onBlockCertificationRequest(t.Context(), &validCertRequest)
+		require.NoError(t, err)
+		// second request from the same node - as two votes is needed shard should be
+		// in the state "in progress" and another request from the same node must return error
+		err = node.onBlockCertificationRequest(t.Context(), &validCertRequest)
+		require.EqualError(t, err, `storing request: request of the node in this round already stored`)
+	})
+
+	t.Run("failure to RequestCertification", func(t *testing.T) {
+		expErr := errors.New("CM out of order")
+		cm := &mockConsensusManager{
+			shardInfo: func(partition types.PartitionID, shard types.ShardID) (*storage.ShardInfo, error) {
+				return si, nil
+			},
+			requestCert: func(ctx context.Context, cr consensus.IRChangeRequest) error {
+				return expErr
+			},
+		}
+		key := partitionShard{validCertRequest.PartitionID, validCertRequest.ShardID.Key()}
+
+		node, err := New(&nwPeer, partNet, cm, testobservability.Default(t))
+		require.NoError(t, err)
+		require.NotContains(t, node.incomingRequests.store, key)
+
+		// the quorum is two votes so we now should have "quorum in progress" state for the shard
+		err = node.onBlockCertificationRequest(t.Context(), &validCertRequest)
+		require.NoError(t, err)
+		if assert.Contains(t, node.incomingRequests.store, key) {
+			irs := node.incomingRequests.store[key]
+			require.NotEmpty(t, irs.nodeRequest)
+			require.NotEmpty(t, irs.requests)
+		}
+
+		// add valid request from another node, should reach consensus...
+		cr := validCertRequest
+		cr.NodeID = nodeID2
+		require.NoError(t, cr.Sign(signer))
+		// ...but CM returns error
+		err = node.onBlockCertificationRequest(t.Context(), &cr)
+		require.ErrorIs(t, err, expErr)
+		// failure to send to CM should clear the Incoming Request Buffer
+		if assert.Contains(t, node.incomingRequests.store, key) {
+			irs := node.incomingRequests.store[key]
+			require.Empty(t, irs.nodeRequest)
+			require.Empty(t, irs.requests)
+		}
+	})
+
+	t.Run("success, quorum", func(t *testing.T) {
+		certReqCalls := 0
+		cm := &mockConsensusManager{
+			shardInfo: func(partition types.PartitionID, shard types.ShardID) (*storage.ShardInfo, error) {
+				return si, nil
+			},
+			requestCert: func(ctx context.Context, cr consensus.IRChangeRequest) error {
+				require.Equal(t, validCertRequest.PartitionID, cr.Partition)
+				require.Equal(t, validCertRequest.ShardID, cr.Shard)
+				require.Equal(t, consensus.Quorum, cr.Reason)
+				certReqCalls++
+				return nil
+			},
+		}
+		key := partitionShard{validCertRequest.PartitionID, validCertRequest.ShardID.Key()}
+
+		node, err := New(&nwPeer, partNet, cm, testobservability.Default(t))
+		require.NoError(t, err)
+		require.NotContains(t, node.incomingRequests.store, key)
+
+		// the quorum is two votes so we now should have "quorum in progress" state for the shard
+		err = node.onBlockCertificationRequest(t.Context(), &validCertRequest)
+		require.NoError(t, err)
+		require.EqualValues(t, 0, certReqCalls, "unexpected request to certify")
+		if assert.Contains(t, node.incomingRequests.store, key) {
+			irs := node.incomingRequests.store[key]
+			require.Len(t, irs.nodeRequest, 1)
+			require.Len(t, irs.requests, 1)
+		}
+
+		// second request
+		cr := validCertRequest
+		cr.NodeID = nodeID2
+		require.NoError(t, cr.Sign(signer))
+		err = node.onBlockCertificationRequest(t.Context(), &cr)
+		require.NoError(t, err)
+		require.EqualValues(t, 1, certReqCalls, "expected request to be sent to CM")
+		// the Request Buffer should still have data for the shard - will be cleared when CResp is sent
+		if assert.Contains(t, node.incomingRequests.store, key) {
+			irs := node.incomingRequests.store[key]
+			assert.Len(t, irs.nodeRequest, 2)
+			assert.Len(t, irs.requests, 1)
+		}
+
+		// send one more request - but quorum is already achieved
+		// should log following DBG message and return nil error
+		// dropping stale block certification request (<status>) for partition %s
+		err = node.onBlockCertificationRequest(t.Context(), &cr)
+		require.NoError(t, err)
+		require.EqualValues(t, 1, certReqCalls, "unexpected request to certify when quorum is already achieved")
+		if assert.Contains(t, node.incomingRequests.store, key) {
+			irs := node.incomingRequests.store[key]
+			assert.Len(t, irs.nodeRequest, 2)
+			assert.Len(t, irs.requests, 1)
+		}
+	})
+
+	t.Run("success, no quorum", func(t *testing.T) {
+		certReqCalls := 0
+		cm := &mockConsensusManager{
+			shardInfo: func(partition types.PartitionID, shard types.ShardID) (*storage.ShardInfo, error) {
+				return si, nil
+			},
+			requestCert: func(ctx context.Context, cr consensus.IRChangeRequest) error {
+				require.Equal(t, validCertRequest.PartitionID, cr.Partition)
+				require.Equal(t, validCertRequest.ShardID, cr.Shard)
+				require.Equal(t, consensus.QuorumNotPossible, cr.Reason, "certification reason")
+				certReqCalls++
+				return nil
+			},
+		}
+		key := partitionShard{validCertRequest.PartitionID, validCertRequest.ShardID.Key()}
+
+		node, err := New(&nwPeer, partNet, cm, testobservability.Default(t))
+		require.NoError(t, err)
+		require.NotContains(t, node.incomingRequests.store, key)
+
+		// the quorum is two votes so we now should have "quorum in progress" state for the shard
+		err = node.onBlockCertificationRequest(t.Context(), &validCertRequest)
+		require.NoError(t, err)
+		require.EqualValues(t, 0, certReqCalls, "unexpected request to certify")
+		if assert.Contains(t, node.incomingRequests.store, key) {
+			irs := node.incomingRequests.store[key]
+			assert.Len(t, irs.nodeRequest, 1)
+			assert.Len(t, irs.requests, 1)
+			assert.Equal(t, QuorumInProgress, irs.qState)
+		}
+
+		// send different cert request, should make it impossible to get quorum
+		cr := validCertRequest
+		//cr.BlockSize++ // wont make it different request! AB-1928
+		cr.InputRecord = cr.InputRecord.NewRepeatIR()
+		cr.InputRecord.SumOfEarnedFees++
+		cr.NodeID = nodeID2
+		require.NoError(t, cr.Sign(signer))
+		err = node.onBlockCertificationRequest(t.Context(), &cr)
+		require.NoError(t, err)
+		require.EqualValues(t, 1, certReqCalls, "expected request to certify")
+		if assert.Contains(t, node.incomingRequests.store, key) {
+			irs := node.incomingRequests.store[key]
+			assert.Len(t, irs.nodeRequest, 2)
+			assert.Len(t, irs.requests, 2)
+			assert.Equal(t, QuorumNotPossible, irs.qState)
+		}
+	})
+}
+
+func Test_handleConsensus(t *testing.T) {
+	nwPeer := network.Peer{}
+	partNet := mockPartitionNet{}
+
+	t.Run("context cancelled", func(t *testing.T) {
+		cm := mockConsensusManager{}
+
+		done := make(chan struct{})
+		node, err := New(&nwPeer, partNet, cm, testobservability.Default(t))
+		require.NoError(t, err)
+
+		ctx, cancel := context.WithCancel(t.Context())
+		go func() {
+			defer close(done)
+			require.ErrorIs(t, node.handleConsensus(ctx), context.Canceled)
+		}()
+
+		time.AfterFunc(100*time.Millisecond, cancel)
+		select {
+		case <-done:
+		case <-time.After(1000 * time.Millisecond):
+			t.Error("msg loop didn't quit within timeout")
+		}
+	})
+
+	t.Run("message chan closed", func(t *testing.T) {
+		cm := mockConsensusManager{certificationResult: make(chan *certification.CertificationResponse)}
+
+		done := make(chan struct{})
+		node, err := New(&nwPeer, partNet, cm, testobservability.Default(t))
+		require.NoError(t, err)
+
+		go func() {
+			defer close(done)
+			require.EqualError(t, node.handleConsensus(t.Context()), `consensus channel closed`)
+		}()
+
+		close(cm.certificationResult)
+		select {
+		case <-done:
+		case <-time.After(1000 * time.Millisecond):
+			t.Error("msg loop didn't quit within timeout")
+		}
+	})
+
+	t.Run("success", func(t *testing.T) {
+		nodeID := generateNodeID(t).String()
+		cr := validCertificationResponse(t)
+
+		cm := mockConsensusManager{certificationResult: make(chan *certification.CertificationResponse)}
+
+		rspSent := make(chan struct{})
+		partNet := mockPartitionNet{
+			send: func(ctx context.Context, msg any, receivers ...p2peer.ID) error {
+				defer close(rspSent)
+				require.Equal(t, &cr, msg)
+				return nil
+			},
+		}
+
+		node, err := New(&nwPeer, partNet, cm, testobservability.Default(t))
+		require.NoError(t, err)
+
+		go func() {
+			require.ErrorIs(t, node.handleConsensus(t.Context()), context.Canceled)
+		}()
+
+		// normally node gets subscribed by sending Certification Request, here we
+		// use shortcut to subscribe directly so that the partitionNet.Send gets called
+		require.NoError(t, node.subscription.Subscribe(cr.Partition, cr.Shard, nodeID))
+
+		// manually add the node into request buffer so that we can check was it reset
+		req := certification.BlockCertificationRequest{
+			PartitionID: cr.Partition,
+			ShardID:     cr.Shard,
+			NodeID:      nodeID,
+			InputRecord: &types.InputRecord{},
+		}
+		tb := mockQuorumInfo{nodeCount: 1, quorum: 1}
+		qs, _, err := node.incomingRequests.Add(t.Context(), &req, tb)
+		require.NoError(t, err)
+		require.Equal(t, QuorumAchieved, qs)
+
+		// trigger the consensus handler (ie the Consensus Manager sends Cert Response)
+		cm.certificationResult <- &cr
+
+		select {
+		case <-rspSent:
+			// check that the incoming requests status has been reset
+			qs = node.incomingRequests.IsConsensusReceived(cr.Partition, cr.Shard, tb)
+			require.Equal(t, QuorumInProgress, qs)
+		case <-time.After(1000 * time.Millisecond):
+			t.Error("msg loop didn't quit within timeout")
+		}
+	})
+}
+
+type mockQuorumInfo struct {
+	nodeCount, quorum uint64
+}
+
+func (qi mockQuorumInfo) GetQuorum() uint64     { return qi.quorum }
+func (qi mockQuorumInfo) GetTotalNodes() uint64 { return qi.nodeCount }
+
+func newMockPartitionNet() (mockPartitionNet, chan any) {
+	nwc := make(chan any, 1)
+	return mockPartitionNet{
+		recCh: func() <-chan any { return nwc },
+	}, nwc
+}
+
+type mockPartitionNet struct {
+	send  func(ctx context.Context, msg any, receivers ...p2peer.ID) error
+	recCh func() <-chan any
+}
+
+func (pn mockPartitionNet) Send(ctx context.Context, msg any, receivers ...p2peer.ID) error {
+	return pn.send(ctx, msg, receivers...)
+}
+
+func (pn mockPartitionNet) ReceivedChannel() <-chan any { return pn.recCh() }
+
+type mockConsensusManager struct {
+	certificationResult chan *certification.CertificationResponse
+	shardInfo           func(partition types.PartitionID, shard types.ShardID) (*storage.ShardInfo, error)
+	requestCert         func(ctx context.Context, cr consensus.IRChangeRequest) error
+	run                 func(ctx context.Context) error
+}
+
+func (cm mockConsensusManager) ShardInfo(partition types.PartitionID, shard types.ShardID) (*storage.ShardInfo, error) {
+	return cm.shardInfo(partition, shard)
+}
+
+func (cm mockConsensusManager) CertificationResult() <-chan *certification.CertificationResponse {
+	return cm.certificationResult
+}
+
+func (cm mockConsensusManager) RequestCertification(ctx context.Context, cr consensus.IRChangeRequest) error {
+	return cm.requestCert(ctx, cr)
+}
+
+func (cm mockConsensusManager) Run(ctx context.Context) error { return cm.run(ctx) }
+
+// creates "valid looking" certification response
+func validCertificationResponse(t *testing.T) certification.CertificationResponse {
+	certResp := certification.CertificationResponse{
+		Partition: 8,
+		Shard:     types.ShardID{},
+		UC: types.UnicityCertificate{
+			InputRecord: &types.InputRecord{
+				Hash:      test.RandomBytes(32),
+				BlockHash: test.RandomBytes(32),
+			},
+			UnicityTreeCertificate: &types.UnicityTreeCertificate{
+				Version:   1,
+				Partition: 8,
+			},
+		},
+	}
+	require.NoError(t,
+		certResp.SetTechnicalRecord(certification.TechnicalRecord{
+			Round:    99,
+			Epoch:    8,
+			Leader:   "1",
 			StatHash: []byte{1},
 			FeeHash:  []byte{2},
 		}))
-
-	// simulate 2x subscriptions
-	id32 := shardConf.PartitionID
-	rootNode.subscription.Subscribe(id32, shardConf.Validators[0].NodeID)
-	rootNode.subscription.Subscribe(id32, shardConf.Validators[1].NodeID)
-
-	// simulate response from consensus manager
-	rootNode.onCertificationResult(ctx, &cr)
-
-	// UC's are sent to all partition nodes
-	certs := testutils.MockNetAwaitMultiple[*certification.CertificationResponse](t, mockNet, network.ProtocolUnicityCertificates, 2)
-	require.Len(t, certs, 2)
-	for _, cert := range certs {
-		require.Equal(t, partitionID, cert.UC.UnicityTreeCertificate.Partition)
-		require.Equal(t, newIR, cert.UC.InputRecord)
-	}
-}
-
-func TestRootValidator_ResultUnknown(t *testing.T) {
-	mockNet := testnetwork.NewMockNetwork(t)
-	rootNode, _, _, _ := initRootNode(t, mockNet)
-	ctx, ctxCancel := context.WithCancel(context.Background())
-	t.Cleanup(ctxCancel)
-	go func() { require.ErrorIs(t, rootNode.Run(ctx), context.Canceled) }()
-
-	newIR := &types.InputRecord{
-		Version:      1,
-		Hash:         test.RandomBytes(32),
-		BlockHash:    test.RandomBytes(32),
-		SummaryValue: []byte{1},
-		RoundNumber:  2,
-	}
-	cr := certification.CertificationResponse{
-		Partition: partitionID,
-		UC: types.UnicityCertificate{
-			Version:     1,
-			InputRecord: newIR,
-			UnicityTreeCertificate: &types.UnicityTreeCertificate{
-				Version:   1,
-				Partition: unknownPartitionID,
-			},
-			UnicitySeal: &types.UnicitySeal{Version: 1},
-		},
-	}
-	// simulate response from consensus manager
-	rootNode.onCertificationResult(ctx, &cr)
-	// no responses will be sent
-	require.Empty(t, mockNet.SentMessages(network.ProtocolUnicityCertificates))
-}
-
-func TestRootValidator_ExitWhenPendingCertRequestAndCMClosed(t *testing.T) {
-	mockNet := testnetwork.NewMockNetwork(t)
-	rootNode, _, shardNodeConfs, _ := initRootNode(t, mockNet)
-	ctx, ctxCancel := context.WithCancel(context.Background())
-	t.Cleanup(ctxCancel)
-
-	mockRunFn := func(ctx context.Context) error {
-		g, gctx := errgroup.WithContext(ctx)
-		// Start receiving messages from partition nodes
-		g.Go(func() error { return rootNode.loop(gctx) })
-		// Start handling certification responses
-		g.Go(func() error { return rootNode.handleConsensus(gctx) })
-		return g.Wait()
-	}
-
-	go func() { require.ErrorIs(t, mockRunFn(ctx), context.Canceled) }()
-
-	// create certification request
-	newIR := &types.InputRecord{
-		Version:      1,
-		Hash:         test.RandomBytes(32),
-		BlockHash:    test.RandomBytes(32),
-		SummaryValue: []byte{1},
-		RoundNumber:  1,
-		Timestamp:    lastUCTimestamp(t, rootNode),
-	}
-	req := testutils.CreateBlockCertificationRequest(t, newIR, partitionID, shardNodeConfs[0])
-	mockNet.WaitReceive(t, req)
-	// send second
-	req = testutils.CreateBlockCertificationRequest(t, newIR, partitionID, shardNodeConfs[1])
-	mockNet.WaitReceive(t, req)
-	// consensus is achieved and request will be sent to CM, but CM is not running
-	// node should still exit normally even if CM loop is not running and reading the channel
-}
-
-func createInitialCR(t *testing.T, shardConf *types.PartitionDescriptionRecord, leader string, signer crypto.Signer) *certification.CertificationResponse {
-	tr := certification.TechnicalRecord{
-		Round:    1,
-		Epoch:    0,
-		Leader:   leader,
-		StatHash: []byte{1},
-		FeeHash:  []byte{2},
-	}
-	trHash, err := tr.Hash()
-	require.NoError(t, err)
-	uc := testuc.CreateUnicityCertificate(
-		t,
-		signer,
-		&types.InputRecord{Version: 1},
-		shardConf,
-		rctypes.GenesisRootRound,
-		make([]byte, 32),
-		trHash)
-
-	cr := &certification.CertificationResponse{
-		Partition: shardConf.PartitionID,
-		Shard:     shardConf.ShardID,
-		UC:        *uc,
-		Technical: tr,
-	}
-	return cr
-}
-
-func lastUCTimestamp(t *testing.T, rootNode *Node) uint64 {
-	si, err := rootNode.consensusManager.ShardInfo(partitionID, types.ShardID{})
-	require.NoError(t, err)
-	return si.LastCR.UC.UnicitySeal.Timestamp
+	require.NoError(t, certResp.IsValid())
+	return certResp
 }

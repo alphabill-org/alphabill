@@ -26,7 +26,6 @@ type QuorumCert struct {
 	_                struct{}             `cbor:",toarray"`
 	VoteInfo         *RoundInfo           `json:"voteInfo"`         // Consensus data
 	LedgerCommitInfo *types.UnicitySeal   `json:"ledgerCommitInfo"` // Commit info
-	// TODO: why not use the Signatures field in LedgerCommitInfo?
 	Signatures       map[string]hex.Bytes `json:"signatures"`       // Node identifier to signature map (NB! aggregated signature schema in spec)
 }
 

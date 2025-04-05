@@ -268,7 +268,6 @@ func loadTrustBase(store keyvaluedb.KeyValueDB, flags *rootNodeRunFlags) (types.
 	if err != nil {
 		return nil, fmt.Errorf("consensus trust base storage init failed: %w", err)
 	}
-	// TODO latest epoch number must be provided externally or stored internally
 	trustBase, err := trustBaseStore.LoadTrustBase(0)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load trust base: %w", err)
@@ -281,8 +280,6 @@ func loadTrustBase(store keyvaluedb.KeyValueDB, flags *rootNodeRunFlags) (types.
 	if err != nil {
 		return nil, fmt.Errorf("failed to create trust base: %w", err)
 	}
-
-	// TODO: should verify trustBase to have enough signatures
 
 	if err := trustBaseStore.StoreTrustBase(0, trustBase); err != nil {
 		return nil, fmt.Errorf("failed to store trust base: %w", err)

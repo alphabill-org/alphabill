@@ -189,7 +189,6 @@ func TestProposalMsg_Verify(t *testing.T) {
 	s3, v3 := testsig.CreateSignerAndVerifier(t)
 	rootTrust := testtb.NewTrustBaseFromVerifiers(t, map[string]crypto.Verifier{"1": v1, "2": v2, "3": v3})
 
-	// TODO: rootTrust.GetRootNodes()[1].NodeID
 	validProposal := func(t *testing.T) *ProposalMsg {
 		t.Helper()
 		voteInfo := testutils.NewDummyRootRoundInfo(9)
@@ -294,7 +293,6 @@ func newQuorumCertificate(t *testing.T, voteInfo *drctypes.RoundInfo, commitHash
 	require.NoError(t, err)
 	return &drctypes.QuorumCert{
 		VoteInfo:         voteInfo,
-		// TODO: no value for rootchainroundnumber?
 		LedgerCommitInfo: &types.UnicitySeal{Version: 1, PreviousHash: ph, Hash: commitHash},
 		Signatures:       map[string]hex.Bytes{},
 	}, nil

@@ -1,14 +1,13 @@
 package cmd
 
 import (
-	// "bytes"
+	"bytes"
 	"context"
-	// "encoding/json"
+	"encoding/json"
 	"fmt"
-	// "io"
-	// "net/http"
-	// "net/http/httptest"
-	// "os"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -207,77 +206,68 @@ func (mn *mockNode) IsValidator() bool {
 	return slices.Contains(mn.validatorNodes, mn.peer.ID())
 }
 
-// TODO: re-enable
-// func Test_cfgHandler(t *testing.T) {
-// 	// helper to set up handler for the case where we expect that the addConfig
-// 	// callback is not called (ie handler fails before there is a reason to call it)
-// 	setupNoCallbackHandler := func(t *testing.T) (http.HandlerFunc, *httptest.ResponseRecorder) {
-// 		return putShardConfigHandler(func(rec *partitions.ValidatorAssignmentRecord) error {
-// 				err := fmt.Errorf("unexpected call of addConfig callback with %v", rec)
-// 				t.Error(err)
-// 				return err
-// 			}),
-// 			httptest.NewRecorder()
-// 	}
+func Test_cfgHandler(t *testing.T) {
+	// helper to set up handler for the case where we expect that the addConfig
+	// callback is not called (ie handler fails before there is a reason to call it)
+	setupNoCallbackHandler := func(t *testing.T) (http.HandlerFunc, *httptest.ResponseRecorder) {
+		return putShardConfigHandler(func(shardConf *types.PartitionDescriptionRecord) error {
+				err := fmt.Errorf("unexpected call of addConfig callback with %v", shardConf)
+				t.Error(err)
+				return err
+			}),
+			httptest.NewRecorder()
+	}
 
-// 	t.Run("missing request body", func(t *testing.T) {
-// 		hf, w := setupNoCallbackHandler(t)
-// 		hf(w, httptest.NewRequest("PUT", "/api/v1/configurations", nil))
-// 		resp := w.Result()
-// 		body, err := io.ReadAll(resp.Body)
-// 		require.NoError(t, err)
-// 		require.EqualValues(t, http.StatusBadRequest, resp.StatusCode)
-// 		require.Equal(t, `parsing var request body: decoding var json: EOF`, string(body))
-// 	})
+	t.Run("missing request body", func(t *testing.T) {
+		hf, w := setupNoCallbackHandler(t)
+		hf(w, httptest.NewRequest("PUT", "/api/v1/configurations", nil))
+		resp := w.Result()
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		require.EqualValues(t, http.StatusBadRequest, resp.StatusCode)
+		require.Equal(t, `parsing request body: decoding shard conf json: EOF`, string(body))
+	})
 
-// 	t.Run("invalid request body", func(t *testing.T) {
-// 		hf, w := setupNoCallbackHandler(t)
-// 		hf(w, httptest.NewRequest("PUT", "/api/v1/configurations", bytes.NewBufferString("not valid json")))
-// 		resp := w.Result()
-// 		body, err := io.ReadAll(resp.Body)
-// 		require.NoError(t, err)
-// 		require.EqualValues(t, http.StatusBadRequest, resp.StatusCode)
-// 		require.Equal(t, `parsing var request body: decoding var json: invalid character 'o' in literal null (expecting 'u')`, string(body))
-// 	})
+	t.Run("invalid request body", func(t *testing.T) {
+		hf, w := setupNoCallbackHandler(t)
+		hf(w, httptest.NewRequest("PUT", "/api/v1/configurations", bytes.NewBufferString("not valid json")))
+		resp := w.Result()
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		require.EqualValues(t, http.StatusBadRequest, resp.StatusCode)
+		require.Equal(t, `parsing request body: decoding shard conf json: invalid character 'o' in literal null (expecting 'u')`, string(body))
+	})
 
-// 	// for testing the callback we need valid root genesis - the body parser
-// 	// validates the input before calling the callback
-// 	genesisFiles := createRootGenesisFiles(t, t.TempDir(), consensusParams{totalNodes: 1})
-// 	rootGenesisData, err := os.ReadFile(genesisFiles[0])
-// 	require.NoError(t, err)
-// 	rg := genesis.RootGenesis{}
-// 	require.NoError(t, json.Unmarshal(rootGenesisData, &rg))
-// 	rec := partitions.NewVARFromGenesis(rg.Partitions[0])
-// 	varBytes, err := json.Marshal(rec)
-// 	require.NoError(t, err)
+	shardConfJson, err := json.Marshal(defaultMoneyShardConf)
+	require.NoError(t, err)
 
-// 	t.Run("config registration fails", func(t *testing.T) {
-// 		hf := putShardConfigHandler(func(cfg *partitions.ValidatorAssignmentRecord) error {
-// 			return fmt.Errorf("nope, can't add this conf")
-// 		})
-// 		w := httptest.NewRecorder()
-// 		hf(w, httptest.NewRequest("PUT", "/api/v1/configurations", bytes.NewBuffer(varBytes)))
-// 		resp := w.Result()
-// 		body, err := io.ReadAll(resp.Body)
-// 		require.NoError(t, err)
-// 		require.EqualValues(t, http.StatusInternalServerError, resp.StatusCode)
-// 		require.Equal(t, `registering configurations: nope, can't add this conf`, string(body))
-// 	})
+	t.Run("config registration fails", func(t *testing.T) {
+		hf := putShardConfigHandler(func(shardConf *types.PartitionDescriptionRecord) error {
+			return fmt.Errorf("nope, can't add this conf")
+		})
+		w := httptest.NewRecorder()
+		hf(w, httptest.NewRequest("PUT", "/api/v1/configurations", bytes.NewBuffer(shardConfJson)))
+		resp := w.Result()
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		require.EqualValues(t, http.StatusInternalServerError, resp.StatusCode)
+		require.Equal(t, `registering shard conf: nope, can't add this conf`, string(body))
+	})
 
-// 	t.Run("success", func(t *testing.T) {
-// 		cbCall := false
-// 		hf := putShardConfigHandler(func(cfg *partitions.ValidatorAssignmentRecord) error {
-// 			cbCall = true
-// 			require.Equal(t, rec, cfg)
-// 			return nil
-// 		})
-// 		w := httptest.NewRecorder()
-// 		hf(w, httptest.NewRequest("PUT", "/api/v1/configurations", bytes.NewBuffer(varBytes)))
-// 		resp := w.Result()
-// 		body, err := io.ReadAll(resp.Body)
-// 		require.NoError(t, err)
-// 		require.EqualValues(t, http.StatusOK, resp.StatusCode)
-// 		require.Empty(t, body)
-// 		require.True(t, cbCall, "add configuration callback has not been called")
-// 	})
-// }
+	t.Run("success", func(t *testing.T) {
+		cbCall := false
+		hf := putShardConfigHandler(func(shardConf *types.PartitionDescriptionRecord) error {
+			cbCall = true
+			require.Equal(t, shardConf, defaultMoneyShardConf)
+			return nil
+		})
+		w := httptest.NewRecorder()
+		hf(w, httptest.NewRequest("PUT", "/api/v1/configurations", bytes.NewBuffer(shardConfJson)))
+		resp := w.Result()
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		require.EqualValues(t, http.StatusOK, resp.StatusCode)
+		require.Empty(t, body)
+		require.True(t, cbCall, "add configuration callback has not been called")
+	})
+}

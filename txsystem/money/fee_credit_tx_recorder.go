@@ -35,7 +35,6 @@ type reclaimFeeCreditTx struct {
 	closeFee      uint64
 }
 
-// TODO: money partition will not know about other shards/partitions
 func newFeeCreditTxRecorder(s *state.State, partitionID types.PartitionID, records []*types.PartitionDescriptionRecord) *feeCreditTxRecorder {
 	sdrs := make(map[types.PartitionID]*types.PartitionDescriptionRecord)
 	for _, record := range records {

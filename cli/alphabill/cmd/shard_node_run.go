@@ -234,7 +234,7 @@ func createNode(ctx context.Context, flags *shardNodeRunFlags) (*partition.Node,
 			flags.LedgerReplicationMaxBlocks,
 			flags.LedgerReplicationMaxTx,
 			time.Duration(flags.LedgerReplicationTimeoutMs)*time.Millisecond),
-		partition.WithProofIndex(proofStore, 20), // TODO history size!
+		partition.WithProofIndex(proofStore, 20),
 		partition.WithOwnerIndex(ownerIndexer),
 		partition.WithBlockSubscriptionTimeout(time.Duration(flags.BlockSubscriptionTimeoutMs) * time.Millisecond),
 	)

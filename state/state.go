@@ -296,8 +296,7 @@ func (s *State) CalculateRoot() (uint64, []byte, error) {
 }
 
 // Returns true if state is clean and contains no uncommitted changes.
-// Does not care if the committed state is also certified with an UC.
-// TODO: a better name would be IsClean
+// Does not care if the committed state is certified with an UC or not.
 func (s *State) IsCommitted() (bool, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()

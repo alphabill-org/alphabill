@@ -115,5 +115,3 @@ func TestNewNodeConf_WithDefaults(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, rootNodes, 1)
 }
-
-// TODO: test KeyConf also, and getting PeerConf

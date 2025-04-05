@@ -288,7 +288,6 @@ func TestShardNodeRun_Ok(t *testing.T) {
 		logF := testobserve.NewFactory(t)
 		ctx, ctxCancel := context.WithCancel(context.Background())
 
-		// TODO: some helper function for this cmd execution
 		cmd := New(logF)
 		cmd.baseCmd.SetArgs([]string{
 			"shard-node", "init", "--home", homeDir, "--generate",

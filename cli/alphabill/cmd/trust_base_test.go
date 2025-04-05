@@ -1,62 +1,69 @@
 package cmd
 
 import (
-	// "context"
-	// "fmt"
-	// "path/filepath"
-	// "strconv"
-	// "strings"
-	// "testing"
+	"context"
+	"path/filepath"
+	"testing"
 
-	// "github.com/alphabill-org/alphabill-go-base/types"
-	// testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
-	// "github.com/stretchr/testify/require"
+	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill-go-base/util"
+	testobserve "github.com/alphabill-org/alphabill/internal/testutils/observability"
+	"github.com/stretchr/testify/require"
 )
 
-// TODO: re-enable
-// func TestTrustBaseGenerateAndSign(t *testing.T) {
-// 	homeDir := t.TempDir()
-// 	logF := testobserve.NewFactory(t)
+func TestTrustBaseGenerateAndSign(t *testing.T) {
+	logF := testobserve.NewFactory(t)
 
-// 	// create root genesis files
-// 	consensus := consensusParams{totalNodes: 4}
-// 	genesisFiles := createRootGenesisFiles(t, homeDir, consensus)
-// 	genesisArg := fmt.Sprintf("%s,%s,%s,%s", genesisFiles[0], genesisFiles[1], genesisFiles[2], genesisFiles[3])
+	// root node 1
+	homeDir1 := t.TempDir()
+	cmd := New(logF)
+	cmd.baseCmd.SetArgs([]string{
+		"root-node", "init", "--home", homeDir1, "--generate",
+	})
+	require.NoError(t, cmd.Execute(context.Background()))
+	nodeInfoFile1 := filepath.Join(homeDir1, nodeInfoFileName)
 
-// 	// merge to distributed root genesis
-// 	outputDir := filepath.Join(homeDir, "result")
-// 	cmd := New(logF)
-// 	args := "root-genesis combine --home " + homeDir +
-// 		" -o " + outputDir +
-// 		" --root-genesis=" + genesisArg
-// 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
-// 	require.NoError(t, cmd.Execute(context.Background()))
+	// root node 2
+	homeDir2 := t.TempDir()
+	cmd = New(logF)
+	cmd.baseCmd.SetArgs([]string{
+		"root-node", "init", "--home", homeDir2, "--generate",
+	})
+	require.NoError(t, cmd.Execute(context.Background()))
+	nodeInfoFile2 := filepath.Join(homeDir2, nodeInfoFileName)
 
-// 	// create trust base file
-// 	mergedRootGenesisFile := filepath.Join(outputDir, rootGenesisFileName)
-// 	cmd = New(logF)
-// 	args = "root-genesis gen-trust-base --home " + homeDir +
-// 		" --root-genesis=" + mergedRootGenesisFile
-// 	cmd.baseCmd.SetArgs(strings.Split(args, " "))
-// 	require.NoError(t, cmd.Execute(context.Background()))
+	cmd = New(logF)
+	cmd.baseCmd.SetArgs([]string{
+		"trust-base", "generate",
+		"--home", homeDir1,
+		"--node-info", nodeInfoFile1,
+		"--node-info", nodeInfoFile2,
+		"--network-id", "5",
+		"--quorum-threshold", "2",
+	})
+	require.NoError(t, cmd.Execute(context.Background()))
 
-// 	// verify trust base file
-// 	trustBaseFile := filepath.Join(homeDir, rootTrustBaseFileName)
-// 	tb, err := types.NewTrustBaseFromFile(trustBaseFile)
-// 	require.NoError(t, err)
-// 	require.Len(t, tb.RootNodes, 4)
+	// verify the resulting file
+	trustBasePath := filepath.Join(homeDir1, "trust-base.json")
+	trustBase, err := util.ReadJsonFile(trustBasePath, &types.RootTrustBaseV1{})
+	require.NoError(t, err)
+	require.Equal(t, types.NetworkID(5), trustBase.NetworkID)
+	require.Equal(t, uint64(1), trustBase.Epoch)
+	require.Len(t, trustBase.RootNodes, 2)
 
-// 	for i := uint8(8); i < consensus.totalNodes; i++ {
-// 		cmd = New(logF)
-// 		rootNodeDir := filepath.Join(homeDir, defaultRootChainDir+strconv.Itoa(int(i)))
-// 		rootNodeKeyFile := filepath.Join(rootNodeDir, defaultKeysFileName)
-// 		args = "root-genesis sign-trust-base --home " + homeDir + " -k " + rootNodeKeyFile
-// 		cmd.baseCmd.SetArgs(strings.Split(args, " "))
-// 		require.NoError(t, cmd.Execute(context.Background()))
-// 	}
+	// root node 1 signs the trust base in its home dir
+	cmd = New(logF)
+	cmd.baseCmd.SetArgs([]string{"trust-base", "sign", "--home", homeDir1})
+	require.NoError(t, cmd.Execute(context.Background()))
 
-// 	// verify trust base file contains correct signatures
-// 	tb, err = types.NewTrustBaseFromFile(trustBaseFile)
-// 	require.NoError(t, err)
-// 	require.Len(t, tb.GetRootNodes(), int(consensus.totalNodes))
-// }
+	// root node 2 signs the trust base at custom location
+	cmd = New(logF)
+	cmd.baseCmd.SetArgs([]string{"trust-base", "sign", "--home", homeDir2, "--trust-base", trustBasePath})
+	require.NoError(t, cmd.Execute(context.Background()))
+
+	// verify trust base has 2 signatures
+	trustBase, err = util.ReadJsonFile(filepath.Join(homeDir1, "trust-base.json"), &types.RootTrustBaseV1{})
+	require.NoError(t, err)
+	require.Len(t, trustBase.GetRootNodes(), 2)
+	require.Len(t, trustBase.Signatures, 2)
+}

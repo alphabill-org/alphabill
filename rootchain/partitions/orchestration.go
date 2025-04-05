@@ -89,11 +89,11 @@ func (o *Orchestration) ShardConfigs(rootRound uint64) (map[types.PartitionShard
 		}
 
 		// check all partitions
-		rootBucket.ForEachBucket(func(partitionID []byte) error {
+		return rootBucket.ForEachBucket(func(partitionID []byte) error {
 			partitionBucket := rootBucket.Bucket(partitionID)
 
 			// check all shards
-			partitionBucket.ForEachBucket(func(shardID []byte) error {
+			return partitionBucket.ForEachBucket(func(shardID []byte) error {
 				shardBucket := partitionBucket.Bucket(shardID)
 
 				// check if there is an active shard conf for the given root round
@@ -119,9 +119,7 @@ func (o *Orchestration) ShardConfigs(rootRound uint64) (map[types.PartitionShard
 				}
 				return nil
 			})
-			return nil
 		})
-		return nil
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to read shard confs: %w", err)

@@ -52,8 +52,8 @@ type shardNodeRunFlags struct {
 	LedgerReplicationMaxBlocksFetch uint64
 	LedgerReplicationMaxBlocks      uint64
 	LedgerReplicationMaxTx          uint32
-	LedgerReplicationTimeoutMs      uint64
-	BlockSubscriptionTimeoutMs      uint64
+	LedgerReplicationTimeoutMs      uint32
+	BlockSubscriptionTimeoutMs      uint32
 }
 
 func shardNodeRunCmd(baseFlags *baseFlags, shardNodeRunFn nodeRunnable) *cobra.Command {
@@ -94,9 +94,9 @@ func shardNodeRunCmd(baseFlags *baseFlags, shardNodeRunFn nodeRunnable) *cobra.C
 		"maximum number of blocks to return in a single replication response")
 	cmd.Flags().Uint32Var(&flags.LedgerReplicationMaxTx, "ledger-replication-max-transactions", 10000,
 		"maximum number of transactions to return in a single replication response")
-	cmd.Flags().Uint64Var(&flags.LedgerReplicationTimeoutMs, "ledger-replication-timeout", 1500,
+	cmd.Flags().Uint32Var(&flags.LedgerReplicationTimeoutMs, "ledger-replication-timeout", 1500,
 		"time since last received replication response when to trigger another request (in ms)")
-	cmd.Flags().Uint64Var(&flags.BlockSubscriptionTimeoutMs, "block-subscription-timeout", 3000,
+	cmd.Flags().Uint32Var(&flags.BlockSubscriptionTimeoutMs, "block-subscription-timeout", 3000,
 		"time since last received block when when to trigger recovery (in ms) for non-validating nodes")
 
 	return cmd

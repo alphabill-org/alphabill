@@ -197,7 +197,9 @@ func (v *Node) onHandshake(ctx context.Context, req *handshake.Handshake) error 
 	if si.LastCR.UC.GetRoundNumber() == 0 {
 		// Make sure shard nodes get CertificationResponses even
 		// before they send the first BlockCertificationRequests
-		v.subscription.Subscribe(req.PartitionID, req.ShardID, req.NodeID)
+		if err := v.subscription.Subscribe(req.PartitionID, req.ShardID, req.NodeID); err != nil {
+			return fmt.Errorf("subscribing the sender: %w", err)
+		}
 	}
 	if err = v.sendResponse(ctx, req.NodeID, si.LastCR); err != nil {
 		return fmt.Errorf("failed to send response: %w", err)

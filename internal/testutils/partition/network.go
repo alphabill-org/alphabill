@@ -64,6 +64,7 @@ type shardNode struct {
 	EventHandler *testevent.TestEventHandler
 	txSystem     txsystem.TransactionSystem
 
+	ctx       context.Context
 	ctxCancel context.CancelFunc
 	done      chan error
 }
@@ -77,6 +78,7 @@ type rootNode struct {
 	addr             []multiaddr.Multiaddr
 	homeDir          string
 
+	ctx       context.Context
 	ctxCancel context.CancelFunc
 	done      chan error
 }
@@ -116,6 +118,18 @@ func NewAlphabillNetwork(t *testing.T, rootNodeCount int) *AlphabillNetwork {
 		},
 		Shards: make(map[types.PartitionShardID]*Shard),
 	}
+}
+
+// Start AB network, no bootstrap all id's and addresses are injected to peer store at start
+func (a *AlphabillNetwork) Start(t *testing.T) error {
+	a.ctx, a.ctxCancel = context.WithCancel(context.Background())
+	require.NotEmpty(t, a.RootChain.nodes)
+
+	if err := a.RootChain.start(t, a.ctx); err != nil {
+		a.ctxCancel()
+		return fmt.Errorf("failed to start root chain, %w", err)
+	}
+	return nil
 }
 
 // Adds a shard to a running AlphabillNetwork instance
@@ -175,22 +189,25 @@ func (a *AlphabillNetwork) AddShard(t *testing.T, shardConf *types.PartitionDesc
 			nodeConf:     nodeConf,
 			txSystem:     txSystem,
 			EventHandler: eventHandler,
+			ctx:          ctx,
 			ctxCancel:    ctxCancel,
 		}
-
-		shard.Nodes[idx].done = make(chan error, 1)
-		go func(ec chan error) {
-			ec <- node.Run(ctx)
-		}(shard.Nodes[idx].done)
 	}
 
+	
 	a.Shards[shard.PartitionShardID()] = shard
 
-	// make sure node network (to other nodes and root nodes) is initiated
-	for _, nd := range shard.Nodes {
-		require.Eventually(t, func() bool {
-			return len(nd.Peer().Network().Peers()) >= len(shard.Nodes)
-		}, 2*time.Second, 100*time.Millisecond)
+	// start shard nodes
+	for _, n := range shard.Nodes {
+		n.done = make(chan error, 1)
+		go func() {
+			n.done <- n.Run(n.ctx)
+		}()
+
+		// make sure node network (to other nodes and root nodes) is initiated
+		// require.Eventually(t, func() bool {
+		// 	return len(nd.Peer().Network().Peers()) >= len(shard.Nodes)
+		// }, 2*time.Second, 100*time.Millisecond)
 	}
 }
 
@@ -201,18 +218,6 @@ func (a *AlphabillNetwork) waitShardActivation(t *testing.T, partitionID types.P
 		_, err := cm.ShardInfo(partitionID, shardID)
 		return err == nil
 	}, test.WaitDuration, test.WaitTick)
-}
-
-// Start AB network, no bootstrap all id's and addresses are injected to peer store at start
-func (a *AlphabillNetwork) Start(t *testing.T) error {
-	a.ctx, a.ctxCancel = context.WithCancel(context.Background())
-	require.NotEmpty(t, a.RootChain.nodes)
-
-	if err := a.RootChain.start(t, a.ctx); err != nil {
-		a.ctxCancel()
-		return fmt.Errorf("failed to start root chain, %w", err)
-	}
-	return nil
 }
 
 func (a *AlphabillNetwork) Close() (retErr error) {
@@ -286,7 +291,7 @@ func (r *RootChain) start(t *testing.T, ctx context.Context) error {
 	var bootNode []peer.AddrInfo
 	for _, rn := range r.nodes {
 		// root node context
-		ctx, rn.ctxCancel = context.WithCancel(ctx)
+		rn.ctx, rn.ctxCancel = context.WithCancel(ctx)
 
 		log := testlogger.New(t).With(logger.NodeID(rn.peerConf.ID))
 		obs := observability.WithLogger(testobserve.Default(t), log)
@@ -294,12 +299,12 @@ func (r *RootChain) start(t *testing.T, ctx context.Context) error {
 		if bootNode != nil {
 			rn.peerConf.BootstrapPeers = bootNode
 		}
-		rootPeer, err := network.NewPeer(ctx, rn.peerConf, log, nil)
+		rootPeer, err := network.NewPeer(rn.ctx, rn.peerConf, log, nil)
 		if err != nil {
 			return fmt.Errorf("failed to create root peer node: %w", err)
 		}
 		if bootNode != nil {
-			if err = rootPeer.BootstrapConnect(ctx, log); err != nil {
+			if err = rootPeer.BootstrapConnect(rn.ctx, log); err != nil {
 				return fmt.Errorf("root node bootstrap failed, %w", err)
 			}
 		} else {
@@ -346,13 +351,16 @@ func (r *RootChain) start(t *testing.T, ctx context.Context) error {
 		rn.consensusManager = cm
 		rn.orchestration = orchestration
 		rn.addr = rootPeer.MultiAddresses()
-
-		// start root node
-		rn.done = make(chan error, 1)
-		go func(ctx context.Context, ec chan error) {
-			ec <- node.Run(ctx)
-		}(ctx, rn.done)
 	}
+
+	// start root nodes
+	for _, rn := range r.nodes {
+		rn.done = make(chan error, 1)
+		go func() {
+			rn.done <- rn.Run(rn.ctx)
+		}()
+	}
+
 	return nil
 }
 

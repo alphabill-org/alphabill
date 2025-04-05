@@ -1033,7 +1033,7 @@ func (n *Node) handleUnicityCertificate(ctx context.Context, uc *types.UnicityCe
 	// Check pending block proposal
 	n.log.DebugContext(ctx, fmt.Sprintf("Proposed record: %s", proposedIR))
 	if err := types.AssertEqualIR(proposedIR, uc.InputRecord); err != nil {
-		n.log.WarnContext(ctx, fmt.Sprintf("Recovery needed, received UC does match proposed: %v", err))
+		n.log.WarnContext(ctx, fmt.Sprintf("Recovery needed, received UC does not match proposed: %v", err))
 		// UC with different IR hash. Node does not have the latest state. Revert changes and start recovery.
 		// revertState is called from startRecovery()
 		n.startRecovery(ctx)

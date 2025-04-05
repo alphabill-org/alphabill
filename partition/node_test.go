@@ -75,8 +75,8 @@ func TestNode_NodeStartWithRecoverStateFromDB(t *testing.T) {
 
 	// initial uc with stateHash == nil
 	uc0 := txs.CommittedUC()
-	// a copy so that we don't change the committed state in our test setup
-	txsCopy := &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}}
+	// a copy so that we don't change the committed state in node
+	txsCopy := txs.Clone()
 
 	newBlock1, uc1 := createSameEpochBlock(t, tp, txsCopy, uc0) // the one that commits genesis state of txSystem
 	newBlock2, uc2 := createSameEpochBlock(t, tp, txsCopy, uc1, testtransaction.NewTransactionRecord(t))
@@ -119,15 +119,8 @@ func TestNode_NodeStartWithRecoverStateFromDB(t *testing.T) {
 }
 
 func TestNode_CreateBlocks(t *testing.T) {
-	tp := runSingleValidatorNodePartition(t, &testtxsystem.CounterTxSystem{InitCount: 1})
-	// tp.createFirstBlock(t)
-	// initialUC := s.txSystem.CommittedUC()
-	// require.Equal(t, uint64(0), initialUC.GetRoundNumber())
-	// _, uc := createSameEpochBlock(t, s, s.txSystem, initialUC)
-	// require.Equal(t, uint64(1), uc.GetRoundNumber())
-
+	tp := runSingleValidatorNodePartition(t, &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}})
 	tp.WaitHandshake(t)
-	tp.CreateBlock(t)
 
 	transfer := testtransaction.NewTransactionOrder(t)
 	require.NoError(t, tp.SubmitTx(transfer))
@@ -141,10 +134,6 @@ func TestNode_CreateBlocks(t *testing.T) {
 		return false
 	}, test.WaitDuration, test.WaitTick)
 	tp.CreateBlock(t)
-	// uc0 := txs.CommittedUC()
-	// a copy so that we don't change the committed state in our test setup
-	// txsCopy := &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}}
-	// newBlock1, uc1 := createSameEpochBlock(t, tp, txsCopy, uc0) // the one that commits genesis state of txSystem
 
 	block1 := tp.GetLatestBlock(t)
 	require.NotEmpty(t, block1.GetProposerID())
@@ -330,10 +319,9 @@ func TestNode_HandleEquivocatingUnicityCertificate_SameRoundDifferentIRHashes(t 
 }
 
 func TestNode_HandleEquivocatingUnicityCertificate_SameIRPreviousHashDifferentIRHash(t *testing.T) {
-	txs := &testtxsystem.CounterTxSystem{}
+	txs := &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}}
 	tp := runSingleValidatorNodePartition(t, txs)
 	tp.WaitHandshake(t)
-	tp.CreateBlock(t)
 
 	tp.node.startNewRound(context.Background())
 	uc1 := tp.GetCommittedUC(t)
@@ -351,12 +339,11 @@ func TestNode_HandleEquivocatingUnicityCertificate_SameIRPreviousHashDifferentIR
 	ContainsError(t, tp, "equivocating UC, different input records for same partition round")
 }
 
-// state does not change in case of no transactions in money partition
+// state does not change in case of no transactions
 func TestNode_HandleUnicityCertificate_SameIR_DifferentBlockHash_StateReverted(t *testing.T) {
-	txs := &testtxsystem.CounterTxSystem{}
+	txs := &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}}
 	tp := runSingleValidatorNodePartition(t, txs)
 	tp.WaitHandshake(t)
-	tp.CreateBlock(t)
 
 	genesisUC := tp.node.luc.Load()
 	tp.node.startNewRound(context.Background())
@@ -409,9 +396,6 @@ func TestNode_HandleUnicityCertificate_Revert(t *testing.T) {
 	system := &testtxsystem.CounterTxSystem{EndBlockChangesState: true}
 	tp := runSingleValidatorNodePartition(t, system)
 	tp.WaitHandshake(t)
-	// Get genesis state certified to accept transactions
-	tp.CreateBlock(t)
-
 	uc := tp.GetCommittedUC(t)
 
 	transfer := testtransaction.NewTransactionOrder(t)
@@ -460,14 +444,11 @@ func TestNode_HandleUnicityCertificate_SumOfEarnedFeesMismatch_1(t *testing.T) {
 func TestNode_HandleUnicityCertificate_SwitchToNonValidator(t *testing.T) {
 	tp := runSingleValidatorNodePartition(t, &testtxsystem.CounterTxSystem{})
 	tp.WaitHandshake(t)
-	uc1 := tp.GetCommittedUC(t)
-	tp.CreateBlock(t)
-	require.Eventually(t, NextBlockReceived(t, tp, uc1), test.WaitDuration, test.WaitTick)
 
 	require.Equal(t, 2, len(tp.node.Validators()))
 	require.True(t, tp.node.IsValidator())
 
-	// Create VAR for epoch 1
+	// Create ShardConf for epoch 1
 	// epoch 1 validators are [epoch0Node, thisNode, epoch1Node]
 	shardConf1 := createShardConfWithNewNode(t, tp.nodeConf.shardConf)
 	require.NoError(t, tp.node.RegisterShardConf(shardConf1))
@@ -479,7 +460,7 @@ func TestNode_HandleUnicityCertificate_SwitchToNonValidator(t *testing.T) {
 	}, test.WaitDuration, test.WaitTick)
 	require.True(t, tp.node.IsValidator())
 
-	// Create VAR for epoch 2
+	// Create ShardConf for epoch 2
 	// epoch 2 validators are [epoch0Node, epoch1Node]
 	shardConf2 := createShardConfWithRemovedNode(t, shardConf1, 1)
 	require.NoError(t, tp.node.RegisterShardConf(shardConf2))
@@ -491,7 +472,7 @@ func TestNode_HandleUnicityCertificate_SwitchToNonValidator(t *testing.T) {
 	// This node has become a non-validator
 	require.False(t, tp.node.IsValidator())
 
-	// Create VAR for epoch 3
+	// Create ShardConf for epoch 3
 	// epoch 3 validators are [epoch0Node, thisNode, epoch1Node]
 	shardConf3 := *shardConf1
 	shardConf3.Epoch = 3
@@ -686,12 +667,11 @@ func TestBlockProposal_TxSystemStateIsDifferent_newUC(t *testing.T) {
 }
 
 func TestNode_GetTransactionRecord_OK(t *testing.T) {
-	system := &testtxsystem.CounterTxSystem{}
+	system := &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}}
 	indexDB, err := memorydb.New()
 	require.NoError(t, err)
 	tp := runSingleValidatorNodePartition(t, system, WithProofIndex(indexDB, 0))
 	tp.WaitHandshake(t)
-	tp.CreateBlock(t)
 	require.NoError(t, tp.node.startNewRound(context.Background()))
 	txo := testtransaction.NewTransactionOrder(t, testtransaction.WithTransactionType(21))
 	hash, err := txo.Hash(tp.node.configuration.hashAlgorithm)
@@ -729,7 +709,7 @@ func TestNode_ProcessInvalidTxInFeelessMode(t *testing.T) {
 	require.NoError(t, err)
 	tp := runSingleValidatorNodePartition(t, txSystem, WithProofIndex(indexDB, 0))
 	tp.WaitHandshake(t)
-	tp.CreateBlock(t)
+
 	require.NoError(t, tp.node.startNewRound(context.Background()))
 
 	txo := testtransaction.NewTransactionOrder(t, testtransaction.WithTransactionType(99))

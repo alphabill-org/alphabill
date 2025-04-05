@@ -158,17 +158,6 @@ func runSingleNodePartition(t *testing.T, txSystem txsystem.TransactionSystem, v
 }
 
 func (s *SingleNodePartition) createInitialUC(t *testing.T) {
-	// TODO: perhaps start with UC for genesis state?
-	// stateSummary, err := s.txSystem.StateSummary()
-	// require.NoError(t, err)
-	// initialUC, _, err := s.CreateUnicityCertificate(t, &types.InputRecord{
-	// 	Version: 1,
-	// 	RoundNumber: 1,
-	// 	Hash: stateSummary.Root(),
-	// 	SummaryValue: stateSummary.Summary(),
-	// 	BlockHash: []byte{1,2,3},
-	// 	Timestamp: 1,
-	// }, 1)
 	initialUC, _, err := s.CreateUnicityCertificate(t, &types.InputRecord{Version: 1}, 1)
 	require.NoError(t, err)
 	s.certs[s.nodeConf.shardConf.PartitionID] = initialUC
@@ -259,16 +248,9 @@ func (sn *SingleNodePartition) WaitHandshake(t *testing.T) {
 		Shard:     sn.nodeConf.shardConf.ShardID,
 	}
 	uc := sn.certs[sn.node.PartitionID()]
-	if uc == nil {
-		uc, tr, err := sn.CreateUnicityCertificate(t, &types.InputRecord{Version: 1}, 1)
-		require.NoError(t, err)
-		cr.UC = *uc
-		cr.Technical = *tr
-	} else {
-		// TODO: makes it a duplicate, same uc already in txs as commitedUC, is this needed?
-		cr.UC = *uc
-		cr.Technical = technicalRecord(t, uc.InputRecord, []string{sn.nodeID(t).String()})
-	}
+	// TODO: makes it a duplicate, same uc already in txs as commitedUC, is this needed?
+	cr.UC = *uc
+	cr.Technical = technicalRecord(t, uc.InputRecord, []string{sn.nodeID(t).String()})
 
 	if err := cr.IsValid(); err != nil {
 		t.Errorf("invalid CertRsp: %v", err)
@@ -346,7 +328,7 @@ func (sn *SingleNodePartition) CreateUnicityCertificateTR(t *testing.T, ir *type
 		return nil, tr, fmt.Errorf("calculating PDR hash: %w", err)
 	}
 	sTree, err := types.CreateShardTree(
-		nil, // TODO: should be nil or []types.ShardID{shardConf.ShardID}?
+		nil,
 		[]types.ShardTreeInput{{Shard: types.ShardID{}, IR: ir, TRHash: trHash}}, gocrypto.SHA256)
 	if err != nil {
 		return nil, tr, fmt.Errorf("creating shard tree: %w", err)

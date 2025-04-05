@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
-	//	"github.com/alphabill-org/alphabill-go-base/util"
+	"github.com/alphabill-org/alphabill-go-base/util"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testevent "github.com/alphabill-org/alphabill/internal/testutils/partition/event"
 	testtxsystem "github.com/alphabill-org/alphabill/internal/testutils/txsystem"
@@ -179,12 +179,15 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withPendingProposa
 	tp.SubmitT1Timeout(t)
 	uc := tp.IssueBlockUC(t)
 
+	system := &testtxsystem.CounterTxSystem{}
+	tp.txSystem = system
+
 	// kill current partition node and start it a new
 	cancel()
 	select {
 	case <-done:
 	case <-time.After(3 * time.Second):
-		t.Fatal("partition node didn't shut down within timeout")
+		t.Fatal("shard node didn't shut down within timeout")
 	}
 
 	ctx, cancel = context.WithCancel(context.Background())
@@ -205,10 +208,10 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withPendingProposa
 
 func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withPendingProposal_sameIR_butDifferentBlocks(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-	tp := newSingleValidatorNodePartition(t, &testtxsystem.CounterTxSystem{})
+	tp := newSingleValidatorNodePartition(t, &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}})
 	done := tp.start(ctx, t)
 	tp.WaitHandshake(t)
-	tp.CreateBlock(t)
+
 	t.Cleanup(func() {
 		cancel()
 		select {
@@ -271,8 +274,6 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_noPendingProposal_
 		}
 	})
 	tp.WaitHandshake(t)
-	tp.CreateBlock(t)
-	tp.node.startNewRound(context.Background())
 
 	// create new block
 	tp.CreateBlock(t)
@@ -343,9 +344,6 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_missedPendingPropo
 	})
 
 	tp.WaitHandshake(t)
-	tp.CreateBlock(t)
-
-	tp.node.startNewRound(context.Background())
 
 	// create new block
 	tp.CreateBlock(t)
@@ -942,7 +940,7 @@ func TestNode_RecoverySimulateStorageFailsOnRecovery(t *testing.T) {
 }
 
 func TestNode_RecoverySimulateStorageFailsDuringBlockFinalizationOnUC(t *testing.T) {
-	txs := &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}}
+	txs := &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}, Fee: 1}
 	tp := newSingleValidatorNodePartition(t, txs)
 
 	// Replace blockStore before node is run
@@ -960,12 +958,19 @@ func TestNode_RecoverySimulateStorageFailsDuringBlockFinalizationOnUC(t *testing
 			t.Fatal("partition node didn't shut down within timeout")
 		}
 	})
+
 	tp.WaitHandshake(t)
-	tp.CreateBlock(t)
+
+	// create a new block on the current txs state
+	uc0 := tp.GetCommittedUC(t)
+	require.Equal(t, uint64(0), uc0.GetRoundNumber())
+	txsCopy := txs.Clone()
+	newBlock1, uc1 := createSameEpochBlock(t, tp, txsCopy, uc0, testtransaction.NewTransactionRecord(t))
+	tx, err := newBlock1.Transactions[0].GetTransactionOrderV1()
+	require.Equal(t, uint64(1), uc1.GetRoundNumber())
 
 	// submit transaction
-	// tx, err := newBlock1.Transactions[0].GetTransactionOrderV1()
-	tx, err := testtransaction.NewTransactionRecord(t).GetTransactionOrderV1()
+	// tx, err := testtransaction.NewTransactionRecord(t).GetTransactionOrderV1()
 	require.NoError(t, err)
 	require.NoError(t, tp.SubmitTx(tx))
 	require.Eventually(t, func() bool {
@@ -980,16 +985,16 @@ func TestNode_RecoverySimulateStorageFailsDuringBlockFinalizationOnUC(t *testing
 	// simulate T1 timeout
 	// bad solution, but easiest for now
 	tp.node.handleT1TimeoutEvent(ctx)
+
 	// block proposal is sent
 	require.Eventually(t, func() bool {
 		return len(tp.mockNet.SentMessages(network.ProtocolBlockCertification)) == 1
 	}, test.WaitDuration, test.WaitTick, "block certification request not found")
 
-	// set DB in error state
+	// set DB in error state and submit UC, blcok finalization fails?
 	db.MockWriteError(fmt.Errorf("disk is full"))
-
 	tp.eh.Reset()
-	tp.SubmitUnicityCertificate(t, tp.IssueBlockUC(t))
+	tp.SubmitUnicityCertificate(t, uc1)
 
 	// block is requested from other nodes
 	testevent.ContainsEvent(t, tp.eh, event.RecoveryStarted)
@@ -1003,111 +1008,108 @@ func TestNode_RecoverySimulateStorageFailsDuringBlockFinalizationOnUC(t *testing
 	msg := req.Message.(*replication.LedgerReplicationRequest)
 	require.NotNil(t, msg)
 	// make sure block 1 is asked
-	require.Equal(t, uint64(2), msg.BeginBlockNumber)
+	require.Equal(t, uint64(1), msg.BeginBlockNumber)
 	// reset error
 	db.MockWriteError(nil)
 
-	// TODO: enable this
-	// tp.mockNet.Receive(&replication.LedgerReplicationResponse{
-	// 	Status:           replication.Ok,
-	// 	Blocks:           []*types.Block{newBlock1},
-	// 	FirstBlockNumber: uc1.GetRoundNumber(),
-	// 	LastBlockNumber:  uc1.GetRoundNumber(),
-	// })
-	// // wait for message to be processed and expect recovery finished event
-	// testevent.ContainsEvent(t, tp.eh, event.RecoveryFinished)
-	// // and status is normal
-	// require.Eventually(t, func() bool {
-	// 	return tp.node.status.Load() == normal
-	// }, test.WaitDuration, test.WaitTick)
+	tp.mockNet.Receive(&replication.LedgerReplicationResponse{
+		Status:           replication.Ok,
+		Blocks:           []*types.Block{newBlock1},
+		FirstBlockNumber: uc1.GetRoundNumber(),
+		LastBlockNumber:  uc1.GetRoundNumber(),
+	})
+	// wait for message to be processed and expect recovery finished event
+	testevent.ContainsEvent(t, tp.eh, event.RecoveryFinished)
+	// and status is normal
+	require.Eventually(t, func() bool {
+		return tp.node.status.Load() == normal
+	}, test.WaitDuration, test.WaitTick)
 }
 
-// TODO:
-// func TestNode_CertificationRequestNotSentWhenProposalStoreFails(t *testing.T) {
-// 	tp := newSingleValidatorNodePartition(t, &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}})
+func TestNode_CertificationRequestNotSentWhenProposalStoreFails(t *testing.T) {
+	txs := &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}, Fee: 1}
+	tp := newSingleValidatorNodePartition(t, txs)
 
-// 	// Replace blockStore before node is run
-// 	db, err := memorydb.New()
-// 	require.NoError(t, err)
-// 	tp.nodeConf.blockStore = db
+	// Replace blockStore before node is run
+	db, err := memorydb.New()
+	require.NoError(t, err)
+	tp.nodeConf.blockStore = db
 
-// 	ctx, cancel := context.WithCancel(context.Background())
-// 	done := tp.start(ctx, t)
-// 	t.Cleanup(func() {
-// 		cancel()
-// 		select {
-// 		case <-done:
-// 		case <-time.After(3 * time.Second):
-// 			t.Fatal("partition node didn't shut down within timeout")
-// 		}
-// 	})
+	ctx, cancel := context.WithCancel(context.Background())
+	done := tp.start(ctx, t)
+	t.Cleanup(func() {
+		cancel()
+		select {
+		case <-done:
+		case <-time.After(3 * time.Second):
+			t.Fatal("shard node didn't shut down within timeout")
+		}
+	})
 
-// 	tp.WaitHandshake(t)
-// 	tp.CreateBlock(t)
+	tp.WaitHandshake(t)
 
-// 	// node sends a handshake to root and subscribes to UC messages
-// 	require.Eventually(t, RequestReceived(tp, network.ProtocolHandshake), 200*time.Millisecond, test.WaitTick)
-// 	tp.mockNet.ResetSentMessages(network.ProtocolHandshake)
+	// create a new block on the current txs state
+	uc0 := tp.GetCommittedUC(t)
+	require.Equal(t, uint64(0), uc0.GetRoundNumber())
+	txsCopy := txs.Clone()
+	newBlock1, uc1 := createSameEpochBlock(t, tp, txsCopy, uc0, testtransaction.NewTransactionRecord(t))
+	tx, err := newBlock1.Transactions[0].GetTransactionOrderV1()
+	require.Equal(t, uint64(1), uc1.GetRoundNumber())
 
-// 	// // root responds with genesis
-// 	// tp.SubmitUnicityCertificate(t, uc0)
-// 	// newBlock1, uc1 := createSameEpochBlock(t, tp, system, uc0, testtransaction.NewTransactionRecord(t))
+	// mock error situation, every next write will fail with error
+	db.MockWriteError(fmt.Errorf("disk full"))
 
-// 	// require.Len(t, newBlock1.Transactions, 1)
+		// submit transaction
+	// tx, err := testtransaction.NewTransactionRecord(t).GetTransactionOrderV1()
+	require.NoError(t, err)
+	require.NoError(t, tp.SubmitTx(tx))
+	require.Eventually(t, func() bool {
+		events := tp.eh.GetEvents()
+		for _, e := range events {
+			if e.EventType == event.TransactionProcessed {
+				return true
+			}
+		}
+		return false
+	}, test.WaitDuration, test.WaitTick)
+	// simulate T1 timeout
+	// bad solution, but easiest for now
+	tp.node.handleT1TimeoutEvent(ctx)
 
-// 	// mock error situation, every next write will fail with error
-// 	db.MockWriteError(fmt.Errorf("disk full"))
+	// no block certification request is sent
+	require.Len(t, tp.mockNet.SentMessages(network.ProtocolBlockCertification), 0)
 
-// 	tx, err := testtransaction.NewTransactionRecord(t).GetTransactionOrderV1()
-// 	require.NoError(t, err)
-// 	require.NoError(t, tp.SubmitTx(tx))
-// 	require.Eventually(t, func() bool {
-// 		events := tp.eh.GetEvents()
-// 		for _, e := range events {
-// 			if e.EventType == event.TransactionProcessed {
-// 				return true
-// 			}
-// 		}
-// 		return false
-// 	}, test.WaitDuration, test.WaitTick)
-// 	// submit T1 timeout
-// 	// bad solution, but easiest for now
-// 	tp.node.handleT1TimeoutEvent(ctx)
+	// proposal is not stored
+	var pr types.Block
+	found, err := db.Read(util.Uint32ToBytes(proposalKey), &pr)
+	require.NoError(t, err)
+	require.False(t, found)
 
-// 	// no block certification request is sent
-// 	require.Len(t, tp.mockNet.SentMessages(network.ProtocolBlockCertification), 0)
+	tp.SubmitUnicityCertificate(t, uc1)
+	ContainsError(t, tp, ErrNodeDoesNotHaveLatestBlock.Error())
 
-// 	// proposal is not stored
-// 	var pr types.Block
-// 	found, err := db.Read(util.Uint32ToBytes(proposalKey), &pr)
-// 	require.NoError(t, err)
-// 	require.False(t, found)
+	require.Equal(t, recovering, tp.node.status.Load())
+	// block is requested from other nodes
+	testevent.ContainsEvent(t, tp.eh, event.RecoveryStarted)
+	// make sure replication request is sent
+	req := WaitNodeRequestReceived(t, tp, network.ProtocolLedgerReplicationReq)
+	require.NotNil(t, req)
+	// reset error
+	db.MockWriteError(nil)
 
-// 	tp.SubmitUnicityCertificate(t, uc1)
-// 	ContainsError(t, tp, ErrNodeDoesNotHaveLatestBlock.Error())
-
-// 	require.Equal(t, recovering, tp.node.status.Load())
-// 	// block is requested from other nodes
-// 	testevent.ContainsEvent(t, tp.eh, event.RecoveryStarted)
-// 	// make sure replication request is sent
-// 	req := WaitNodeRequestReceived(t, tp, network.ProtocolLedgerReplicationReq)
-// 	require.NotNil(t, req)
-// 	// reset error
-// 	db.MockWriteError(nil)
-
-// 	// tp.mockNet.Receive(&replication.LedgerReplicationResponse{
-// 	// 	Status:           replication.Ok,
-// 	// 	Blocks:           []*types.Block{newBlock1},
-// 	// 	FirstBlockNumber: uc1.GetRoundNumber(),
-// 	// 	LastBlockNumber:  uc1.GetRoundNumber(),
-// 	// })
-// 	// // wait for message to be processed and expect recovery finished event
-// 	// testevent.ContainsEvent(t, tp.eh, event.RecoveryFinished)
-// 	// // and status is normal
-// 	// require.Eventually(t, func() bool {
-// 	// 	return tp.node.status.Load() == normal
-// 	// }, test.WaitDuration, test.WaitTick)
-// }
+	tp.mockNet.Receive(&replication.LedgerReplicationResponse{
+		Status:           replication.Ok,
+		Blocks:           []*types.Block{newBlock1},
+		FirstBlockNumber: uc1.GetRoundNumber(),
+		LastBlockNumber:  uc1.GetRoundNumber(),
+	})
+	// wait for message to be processed and expect recovery finished event
+	testevent.ContainsEvent(t, tp.eh, event.RecoveryFinished)
+	// and status is normal
+	require.Eventually(t, func() bool {
+		return tp.node.status.Load() == normal
+	}, test.WaitDuration, test.WaitTick)
+}
 
 func TestNode_RecoverySendInvalidLedgerReplicationReplies(t *testing.T) {
 	tp := runSingleValidatorNodePartition(t, &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}})
@@ -1183,9 +1185,8 @@ func TestNode_RecoverySendInvalidLedgerReplicationReplies(t *testing.T) {
 }
 
 func TestNode_RespondToReplicationRequest(t *testing.T) {
-	tp := runSingleValidatorNodePartition(t, &testtxsystem.CounterTxSystem{}, WithReplicationParams(3, 3, 5, 1000))
+	tp := runSingleValidatorNodePartition(t, &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}}, WithReplicationParams(3, 3, 5, 1000))
 	tp.WaitHandshake(t)
-	tp.CreateBlock(t)
 
 	genesisBlockNumber := tp.GetCommittedUC(t).GetRoundNumber()
 
@@ -1249,9 +1250,9 @@ func TestNode_RespondToReplicationRequest(t *testing.T) {
 }
 
 func TestNode_RespondToInvalidReplicationRequest(t *testing.T) {
-	tp := runSingleValidatorNodePartition(t, &testtxsystem.CounterTxSystem{}, WithReplicationParams(3, 3, 5, 1000))
+	tp := runSingleValidatorNodePartition(t, &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}}, WithReplicationParams(3, 3, 5, 1000))
 	tp.WaitHandshake(t)
-	tp.CreateBlock(t)
+
 	genesisBlockNumber := tp.GetCommittedUC(t).GetRoundNumber()
 
 	tp.node.startNewRound(context.Background())
@@ -1291,7 +1292,7 @@ func TestNode_RespondToInvalidReplicationRequest(t *testing.T) {
 	require.IsType(t, resp.Message, &replication.LedgerReplicationResponse{})
 	msg := resp.Message.(*replication.LedgerReplicationResponse)
 	require.Equal(t, replication.BlocksNotFound, msg.Status)
-	require.Contains(t, msg.Message, "Node does not have block: 11, latest block: 5")
+	require.Contains(t, msg.Message, "Node does not have block: 11, latest block: 4")
 	tp.mockNet.ResetSentMessages(network.ProtocolLedgerReplicationResp)
 	// partition id is valid, but does not match
 	tp.mockNet.Receive(&replication.LedgerReplicationRequest{
@@ -1345,12 +1346,14 @@ func createBlock(t *testing.T, tp *SingleNodePartition, txs txsystem.Transaction
 	// simulate new block's state
 	require.NoError(t, txs.BeginBlock(newRound))
 
+	sumOfEarnedFees := uint64(0)
 	for i, txr := range txrs {
 		transactions[i] = txr
 		tx, err := txr.GetTransactionOrderV1()
 		require.NoError(t, err)
-		_, err = txs.Execute(tx)
+		txr, err = txs.Execute(tx)
 		require.NoError(t, err)
+		sumOfEarnedFees += txr.GetActualFee()
 	}
 	state, err := txs.EndBlock()
 	require.NoError(t, err)
@@ -1359,22 +1362,24 @@ func createBlock(t *testing.T, tp *SingleNodePartition, txs txsystem.Transaction
 		Version: 1,
 		TRHash:  make([]byte, 32),
 		InputRecord: &types.InputRecord{
-			Version:      1,
-			Epoch:        epoch,
-			RoundNumber:  newRound,
-			Hash:         state.Root(),
-			PreviousHash: uc.InputRecord.Hash,
-			SummaryValue: state.Summary(),
-			Timestamp:    uc.UnicitySeal.Timestamp,
+			Version:         1,
+			Epoch:           epoch,
+			RoundNumber:     newRound,
+			Hash:            state.Root(),
+			PreviousHash:    uc.InputRecord.Hash,
+			SummaryValue:    state.Summary(),
+			Timestamp:       uc.UnicitySeal.Timestamp,
+			SumOfEarnedFees: sumOfEarnedFees,
 		},
 	}).MarshalCBOR()
 	require.NoError(t, err)
+
 	newBlock := &types.Block{
 		Header: &types.Header{
 			Version:           1,
 			PartitionID:       tp.nodeConf.shardConf.PartitionID,
 			ShardID:           tp.nodeConf.shardConf.ShardID,
-			ProposerID:        "test",
+			ProposerID:        tp.nodeID(t).String(),
 			PreviousBlockHash: uc.InputRecord.BlockHash,
 		},
 		Transactions:       transactions,
@@ -1394,6 +1399,7 @@ func createBlock(t *testing.T, tp *SingleNodePartition, txs txsystem.Transaction
 	newBlock.UnicityCertificate, err = copyUC(t, newUC).MarshalCBOR()
 	require.NoError(t, err)
 	require.NoError(t, txs.Commit(newUC))
+
 	return newBlock, newUC
 }
 
@@ -1401,16 +1407,21 @@ func createBlock(t *testing.T, tp *SingleNodePartition, txs txsystem.Transaction
 // ledger replication request is sent
 // ledger replication request is received with invalid UC.IR.SumOfEarnedFees => recovery fails
 func TestNode_HandleLedgerReplicationResponse_SumOfEarnedFeesMismatch(t *testing.T) {
-	tp := runSingleValidatorNodePartition(t, &testtxsystem.CounterTxSystem{Fee: 1})
+	txs := &testtxsystem.CounterTxSystem{Fee: 5}
+	tp := runSingleValidatorNodePartition(t, txs)
 	tp.WaitHandshake(t)
 	uc0 := tp.GetCommittedUC(t)
 
 	// create a block with single tx with fee=1 but sumOfEarnedFees=0
-	system := &testtxsystem.CounterTxSystem{}
-	newBlock1, uc1 := createSameEpochBlock(t, tp, system, uc0, testtransaction.NewTransactionRecord(t))
+	txsCopy := txs.Clone()
+	txsCopy.Fee = 6
+	newBlock1, uc1 := createSameEpochBlock(t, tp, txsCopy, uc0, testtransaction.NewTransactionRecord(t))
 
 	// prepare proposal, send "newer" UC, revert state and start recovery
 	tp.SubmitT1Timeout(t)
+
+	// sum of earned fees is 0 in node (no transactions)
+	// sum of earned fees is 1 in uc (1 transaction)
 	tp.SubmitUnicityCertificate(t, uc1)
 
 	ContainsError(t, tp, ErrNodeDoesNotHaveLatestBlock.Error())
@@ -1429,7 +1440,7 @@ func TestNode_HandleLedgerReplicationResponse_SumOfEarnedFeesMismatch(t *testing
 		LastBlockNumber:  uc1.GetRoundNumber(),
 	})
 
-	// then recovery should fail
+	// then recovery should fail, because txs in node says the fee should be 5, but block has fee 6
 	testevent.ContainsEvent(t, tp.eh, event.StateReverted)
 
 	// and new replication request is sent

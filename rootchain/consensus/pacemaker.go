@@ -214,7 +214,7 @@ func (x *Pacemaker) AdvanceRoundQC(ctx context.Context, qc *types.QuorumCert) bo
 
 	x.lastRoundTC = nil
 	// only increment high committed round if QC commits a state
-	if qc.LedgerCommitInfo.Hash != nil {
+	if qc.LedgerCommitInfo.RootChainRoundNumber != 0 {
 		x.lastQcToCommitRound = qc.VoteInfo.RoundNumber
 	}
 	x.startNewRound(ctx, qc.VoteInfo.RoundNumber+1)

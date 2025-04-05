@@ -214,9 +214,10 @@ func TestCreateFungibleTokenType_CreateSingleType_Ok(t *testing.T) {
 	}
 	unitID := tokenid.NewFungibleTokenTypeID(t)
 	pdr := types.PartitionDescriptionRecord{
-		PartitionID: tokens.DefaultPartitionID,
-		UnitIDLen:   8 * 32,
-		TypeIDLen:   8,
+		PartitionID:     tokens.DefaultPartitionID,
+		PartitionTypeID: tokens.PartitionTypeID,
+		UnitIDLen:       8 * 32,
+		TypeIDLen:       8,
 	}
 
 	m, err := NewFungibleTokensModule(pdr, opts)
@@ -252,9 +253,10 @@ func TestCreateFungibleTokenType_CreateSingleType_Ok(t *testing.T) {
 func TestCreateFungibleTokenType_CreateTokenTypeChain_Ok(t *testing.T) {
 	opts := defaultOpts(t)
 	pdr := types.PartitionDescriptionRecord{
-		PartitionID: tokens.DefaultPartitionID,
-		UnitIDLen:   8 * 32,
-		TypeIDLen:   8,
+		PartitionID:     tokens.DefaultPartitionID,
+		PartitionTypeID: tokens.PartitionTypeID,
+		UnitIDLen:       8 * 32,
+		TypeIDLen:       8,
 	}
 
 	parentAttributes := &tokens.DefineFungibleTokenAttributes{
@@ -466,7 +468,7 @@ func TestMintFungibleToken_Ok(t *testing.T) {
 	}
 	tx := createTxOrder(t, nil, tokens.TransactionTypeMintFT, attributes)
 	tx.NetworkID = pdr.NetworkID
-	require.NoError(t, tokens.GenerateUnitID(tx, types.ShardID{}, &pdr))
+	require.NoError(t, tokens.GenerateUnitID(tx, &pdr))
 	m, err := NewFungibleTokensModule(pdr, opts)
 	require.NoError(t, err)
 	txExecutors := make(txtypes.TxExecutors)

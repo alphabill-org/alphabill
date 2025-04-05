@@ -7,6 +7,7 @@ import (
 
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/util"
+
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
 )
@@ -74,6 +75,14 @@ func (m *CounterTxSystem) StateSummary() (*txsystem.StateSummary, error) {
 	return txsystem.NewStateSummary(m.stateCountToHash(c), util.Uint64ToBytes(m.SummaryValue), nil), nil
 }
 
+func (m *CounterTxSystem) counter() uint64 {
+	var c = m.InitCount + m.ExecuteCount
+	if m.EndBlockChangesState {
+		c += m.EndBlockCount
+	}
+	return c
+}
+
 func (m *CounterTxSystem) BeginBlock(nr uint64) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -123,8 +132,13 @@ func (m *CounterTxSystem) Commit(uc *types.UnicityCertificate) error {
 func (m *CounterTxSystem) CommittedUC() *types.UnicityCertificate {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-
 	return m.committedUC
+}
+
+func (m *CounterTxSystem) SetCommittedUC(committedUC *types.UnicityCertificate) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.committedUC = committedUC
 }
 
 func (m *CounterTxSystem) SerializeState(w io.Writer) error {
@@ -142,15 +156,21 @@ func (m *CounterTxSystem) Execute(tx *types.TransactionOrder) (*types.Transactio
 		return nil, err
 	}
 
-	txr := &types.TransactionRecord{Version: 1, TransactionOrder: txBytes, ServerMetadata: &types.ServerMetadata{ActualFee: m.Fee}}
-
+	txr := &types.TransactionRecord{
+		Version: 1,
+		TransactionOrder: txBytes,
+		ServerMetadata: &types.ServerMetadata{
+			ActualFee: m.Fee,
+			TargetUnits: []types.UnitID{tx.UnitID},
+			SuccessIndicator: types.TxStatusSuccessful,
+		},
+	}
 	if m.ExecuteError != nil {
 		txr.ServerMetadata.SetError(m.ExecuteError)
 		return txr, nil
 	}
 
 	m.uncommitted = true
-
 	return txr, nil
 }
 
@@ -173,6 +193,18 @@ func (m *CounterTxSystem) stateCountToHash(stateCount uint64) []byte {
 	root := make([]byte, 32)
 	binary.LittleEndian.PutUint64(root, stateCount)
 	return root
+}
+
+// Returns a copy of the txSystem to be used for creating blocks without affecting the original
+func (m *CounterTxSystem) Clone() *CounterTxSystem {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return &CounterTxSystem{
+		InitCount: m.counter(),
+		FixedState: m.FixedState,
+		Fee: m.Fee,
+		EndBlockChangesState: m.EndBlockChangesState,
+	}
 }
 
 func (m *ErrorState) Serialize(writer io.Writer, committed bool, executedTransactions map[string]uint64) error {

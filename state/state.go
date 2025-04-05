@@ -69,7 +69,6 @@ func NewRecoveredState(stateData io.Reader, udc UnitDataConstructor, opts ...Opt
 	if udc == nil {
 		return nil, nil, fmt.Errorf("unit data constructor is nil")
 	}
-
 	return readState(stateData, udc, opts...)
 }
 
@@ -296,6 +295,8 @@ func (s *State) CalculateRoot() (uint64, []byte, error) {
 	return value.subTreeSummaryValue, value.subTreeSummaryHash, nil
 }
 
+// Returns true if state is clean and contains no uncommitted changes.
+// Does not care if the committed state is certified with an UC or not.
 func (s *State) IsCommitted() (bool, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
@@ -583,11 +584,7 @@ func (s *State) releaseToSavepoint(id int) {
 
 func (s *State) isCommitted() (bool, error) {
 	if len(s.savepoints) == 1 && s.savepoints[0].IsClean() {
-		cl, err := isRootClean(s.savepoints[0])
-		if err != nil {
-			return false, err
-		}
-		return cl && s.committedTreeUC != nil, nil
+		return isRootClean(s.savepoints[0])
 	}
 	return false, nil
 }

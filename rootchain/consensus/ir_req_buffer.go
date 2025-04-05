@@ -23,7 +23,7 @@ type (
 		Req         *drctypes.IRChangeReq
 	}
 	IrReqBuffer struct {
-		irChgReqBuffer map[types.PartitionID]*irChange
+		irChgReqBuffer map[types.PartitionShardID]*irChange
 		log            *slog.Logger
 	}
 
@@ -32,7 +32,7 @@ type (
 
 func NewIrReqBuffer(log *slog.Logger) *IrReqBuffer {
 	return &IrReqBuffer{
-		irChgReqBuffer: make(map[types.PartitionID]*irChange),
+		irChgReqBuffer: make(map[types.PartitionShardID]*irChange),
 		log:            log,
 	}
 }
@@ -51,53 +51,60 @@ func (x *IrReqBuffer) Add(round uint64, irChReq *drctypes.IRChangeReq, ver IRCha
 	if err != nil {
 		return fmt.Errorf("ir change request verification failed, %w", err)
 	}
-	partitionID := irChReq.Partition
+
+	psID := types.PartitionShardID{PartitionID: irChReq.Partition, ShardID: irChReq.Shard.Key()}
+
 	// verify and extract proposed IR, NB! in this case we set the age to 0 as
 	// currently no request can be received to request timeout
 	newIrChReq := &irChange{InputRecord: irData.IR, Reason: irChReq.CertReason, Req: irChReq}
-	if irChangeReq, found := x.irChgReqBuffer[partitionID]; found {
+	if irChangeReq, found := x.irChgReqBuffer[psID]; found {
 		if irChangeReq.Reason != newIrChReq.Reason {
-			return fmt.Errorf("equivocating request for partition %s, reason has changed", partitionID)
+			return fmt.Errorf("equivocating request for partition %s, reason has changed", psID.PartitionID)
 		}
 		if b, err := types.EqualIR(irChangeReq.InputRecord, newIrChReq.InputRecord); b || err != nil {
 			if err != nil {
 				return fmt.Errorf("failed to compare IRs, %w", err)
 			}
 			// duplicate already stored
-			x.log.Debug("duplicate IR change request, ignored", logger.Shard(partitionID, irChReq.Shard))
+			x.log.Debug("duplicate IR change request, ignored", logger.Shard(psID.PartitionID, irChReq.Shard))
 			return nil
 		}
 		// At this point it is not possible to cast blame, so just return error and ignore
-		return fmt.Errorf("equivocating request for partition %s", partitionID)
+		return fmt.Errorf("equivocating request for partition %s", psID.PartitionID)
 	}
 	// Insert first valid request received and compare the others received against it
-	x.irChgReqBuffer[partitionID] = newIrChReq
+	x.irChgReqBuffer[psID] = newIrChReq
 	return nil
 }
 
 // IsChangeInBuffer returns true if there is a request for IR change from the partition
 // in the buffer
-func (x *IrReqBuffer) IsChangeInBuffer(id types.PartitionID) bool {
-	_, found := x.irChgReqBuffer[id]
+func (x *IrReqBuffer) IsChangeInBuffer(partitionID types.PartitionID, shardID types.ShardID) bool {
+	psID := types.PartitionShardID{PartitionID: partitionID, ShardID: shardID.Key()}
+	_, found := x.irChgReqBuffer[psID]
 	return found
 }
 
 // GeneratePayload generates new proposal payload from buffered IR change requests.
-func (x *IrReqBuffer) GeneratePayload(round uint64, timeouts []types.PartitionID, inProgress InProgressFn) *drctypes.Payload {
+func (x *IrReqBuffer) GeneratePayload(round uint64, timeouts []*types.UnicityCertificate, inProgress InProgressFn) *drctypes.Payload {
 	payload := &drctypes.Payload{
 		Requests: make([]*drctypes.IRChangeReq, 0, len(x.irChgReqBuffer)+len(timeouts)),
 	}
 	// first add timeout requests
-	for _, id := range timeouts {
+	for _, uc  := range timeouts {
+		pID := uc.GetPartitionID()
+		sID := uc.GetShardID()
 		// if there is a request for the same partition (same id) in buffer (prefer progress to timeout) or
 		// if there is a change already in the pipeline for this partition id
-		if x.IsChangeInBuffer(id) || inProgress(id, types.ShardID{}) != nil {
-			x.log.Debug(fmt.Sprintf("T2 timeout request ignored, partition %s has pending change in progress", id), logger.Shard(id, types.ShardID{}))
+		if x.IsChangeInBuffer(pID, sID) || inProgress(pID, sID) != nil {
+			x.log.Debug(fmt.Sprintf("T2 timeout request ignored, partition %s has pending change in progress", pID),
+				logger.Shard(pID, sID))
 			continue
 		}
-		x.log.Debug(fmt.Sprintf("partition %s request T2 timeout", id), logger.Shard(id, types.ShardID{}))
+		x.log.Debug(fmt.Sprintf("partition %s request T2 timeout", pID), logger.Shard(pID, sID))
 		payload.Requests = append(payload.Requests, &drctypes.IRChangeReq{
-			Partition:  id,
+			Partition:  pID,
+			Shard:      sID,
 			CertReason: drctypes.T2Timeout,
 		})
 	}

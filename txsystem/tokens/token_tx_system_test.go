@@ -48,25 +48,26 @@ var (
 
 func TestNewTokenTxSystem(t *testing.T) {
 	pdr := types.PartitionDescriptionRecord{
-		Version:     1,
-		NetworkID:   5,
-		PartitionID: tokens.DefaultPartitionID,
-		TypeIDLen:   8,
-		UnitIDLen:   256,
-		T2Timeout:   2000 * time.Millisecond,
+		Version:         1,
+		NetworkID:       5,
+		PartitionID:     tokens.DefaultPartitionID,
+		PartitionTypeID: tokens.PartitionTypeID,
+		TypeIDLen:       8,
+		UnitIDLen:       256,
+		T2Timeout:       2000 * time.Millisecond,
 	}
 	observe := observability.Default(t)
 
 	t.Run("invalid PartitionID", func(t *testing.T) {
 		invalidPDR := pdr
 		invalidPDR.PartitionID = 0
-		txs, err := NewTxSystem(invalidPDR, types.ShardID{}, observe, WithState(state.NewEmptyState()))
+		txs, err := NewTxSystem(invalidPDR, observe, WithState(state.NewEmptyState()))
 		require.ErrorContains(t, err, `failed to load permissionless fee credit module: invalid fee credit module configuration: invalid PDR: invalid partition identifier: 00000000`)
 		require.Nil(t, txs)
 	})
 
 	t.Run("state is nil", func(t *testing.T) {
-		txs, err := NewTxSystem(pdr, types.ShardID{}, observe, WithState(nil))
+		txs, err := NewTxSystem(pdr, observe, WithState(nil))
 		require.ErrorContains(t, err, ErrStrStateIsNil)
 		require.Nil(t, txs)
 	})
@@ -628,7 +629,7 @@ func TestMintNFT_Ok(t *testing.T) {
 		testtransaction.WithClientMetadata(createClientMetadata()),
 		testtransaction.WithFeeProof(nil),
 	)
-	require.NoError(t, tokens.GenerateUnitID(tx, types.ShardID{}, &pdr))
+	require.NoError(t, tokens.GenerateUnitID(tx, &pdr))
 
 	// set minting predicate
 	ownerProof := testsig.NewAuthProofSignature(t, tx, mintingSigner)
@@ -737,7 +738,7 @@ func TestMintNFT_AlreadyExists(t *testing.T) {
 		testtransaction.WithClientMetadata(createClientMetadata()),
 		testtransaction.WithFeeProof(nil),
 	)
-	require.NoError(t, tokens.GenerateUnitID(tx, types.ShardID{}, &pdr))
+	require.NoError(t, tokens.GenerateUnitID(tx, &pdr))
 
 	err = s.Apply(state.AddUnit(tx.UnitID, tokens.NewNonFungibleTokenData(nftTypeID2, &tokens.MintNonFungibleTokenAttributes{})))
 	require.NoError(t, err)
@@ -763,7 +764,7 @@ func TestMintNFT_NameLengthIsInvalid(t *testing.T) {
 		testtransaction.WithClientMetadata(createClientMetadata()),
 		testtransaction.WithFeeProof(nil),
 	)
-	require.NoError(t, tokens.GenerateUnitID(tx, types.ShardID{}, &pdr))
+	require.NoError(t, tokens.GenerateUnitID(tx, &pdr))
 	txr, err := txs.Execute(tx)
 	require.NoError(t, err)
 	require.NotNil(t, txr)
@@ -785,7 +786,7 @@ func TestMintNFT_URILengthIsInvalid(t *testing.T) {
 		testtransaction.WithAuthProof(&tokens.MintNonFungibleTokenAuthProof{}),
 		testtransaction.WithFeeProof(nil),
 	)
-	require.NoError(t, tokens.GenerateUnitID(tx, types.ShardID{}, &pdr))
+	require.NoError(t, tokens.GenerateUnitID(tx, &pdr))
 	txr, err := txs.Execute(tx)
 	require.NoError(t, err)
 	require.NotNil(t, txr)
@@ -807,7 +808,7 @@ func TestMintNFT_URIFormatIsInvalid(t *testing.T) {
 		testtransaction.WithClientMetadata(createClientMetadata()),
 		testtransaction.WithFeeProof(nil),
 	)
-	require.NoError(t, tokens.GenerateUnitID(tx, types.ShardID{}, &pdr))
+	require.NoError(t, tokens.GenerateUnitID(tx, &pdr))
 	txr, err := txs.Execute(tx)
 	require.NoError(t, err)
 	require.NotNil(t, txr)
@@ -831,7 +832,7 @@ func TestMintNFT_DataLengthIsInvalid(t *testing.T) {
 		testtransaction.WithClientMetadata(createClientMetadata()),
 		testtransaction.WithFeeProof(nil),
 	)
-	require.NoError(t, tokens.GenerateUnitID(tx, types.ShardID{}, &pdr))
+	require.NoError(t, tokens.GenerateUnitID(tx, &pdr))
 	txr, err := txs.Execute(tx)
 	require.NoError(t, err)
 	require.NotNil(t, txr)
@@ -857,7 +858,7 @@ func TestMintNFT_NFTTypeDoesNotExist(t *testing.T) {
 		testtransaction.WithClientMetadata(createClientMetadata()),
 		testtransaction.WithFeeProof(nil),
 	)
-	require.NoError(t, tokens.GenerateUnitID(tx, types.ShardID{}, &pdr))
+	require.NoError(t, tokens.GenerateUnitID(tx, &pdr))
 	txr, err := txs.Execute(tx)
 	require.NoError(t, err)
 	require.NotNil(t, txr)
@@ -1376,7 +1377,7 @@ func TestUpdateNFT_InvalidSignature(t *testing.T) {
 		}),
 		testtransaction.WithFeeProof(nil),
 	)
-	require.NoError(t, tokens.GenerateUnitID(tx, types.ShardID{}, &pdr))
+	require.NoError(t, tokens.GenerateUnitID(tx, &pdr))
 	nftID := tx.UnitID
 
 	txr, err = txs.Execute(tx)
@@ -1546,7 +1547,7 @@ func defineNFTAndMintToken(t *testing.T, txs *txsystem.GenericTxSystem, pdr *typ
 		}),
 		testtransaction.WithFeeProof(nil),
 	)
-	require.NoError(t, tokens.GenerateUnitID(tx, types.ShardID{}, pdr))
+	require.NoError(t, tokens.GenerateUnitID(tx, pdr))
 	txr, err = txs.Execute(tx)
 	require.NoError(t, err)
 	require.NotNil(t, txr)
@@ -1615,18 +1616,18 @@ func newTokenTxSystem(t *testing.T, opts ...Option) (*txsystem.GenericTxSystem, 
 		SummaryValue: util.Uint64ToBytes(summaryValue),
 	}}))
 	pdr := types.PartitionDescriptionRecord{
-		Version:     1,
-		NetworkID:   5,
-		PartitionID: tokens.DefaultPartitionID,
-		TypeIDLen:   8,
-		UnitIDLen:   256,
-		T2Timeout:   2000 * time.Millisecond,
+		Version:         1,
+		NetworkID:       5,
+		PartitionID:     tokens.DefaultPartitionID,
+		PartitionTypeID: tokens.PartitionTypeID,
+		TypeIDLen:       8,
+		UnitIDLen:       256,
+		T2Timeout:       2000 * time.Millisecond,
 	}
 
 	opts = append(opts, WithTrustBase(testtb.NewTrustBase(t, verifier)), WithState(s))
 	txs, err := NewTxSystem(
 		pdr,
-		types.ShardID{},
 		observability.Default(t),
 		opts...,
 	)

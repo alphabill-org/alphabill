@@ -23,7 +23,6 @@ import (
 	testtxsystem "github.com/alphabill-org/alphabill/internal/testutils/txsystem"
 	"github.com/alphabill-org/alphabill/network"
 	"github.com/alphabill-org/alphabill/partition"
-	"github.com/alphabill-org/alphabill/rootchain/partitions"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -174,7 +173,7 @@ func TestGetUnits(t *testing.T) {
 		UnitIDLen:   8 * 32,
 		T2Timeout:   2500 * time.Millisecond,
 	}
-	api := NewStateAPI(node, observe, WithGetUnits(true), WithPDR(pdr))
+	api := NewStateAPI(node, observe, WithGetUnits(true), WithShardConf(pdr))
 
 	t.Run("ok", func(t *testing.T) {
 		unitIDs, err := api.GetUnits(nil)
@@ -182,7 +181,7 @@ func TestGetUnits(t *testing.T) {
 		require.Len(t, unitIDs, 5)
 	})
 	t.Run("api disabled", func(t *testing.T) {
-		api := NewStateAPI(node, observe, WithGetUnits(false), WithPDR(pdr))
+		api := NewStateAPI(node, observe, WithGetUnits(false), WithShardConf(pdr))
 		typeID := uint32(3)
 		unitIDs, err := api.GetUnits(&typeID)
 		require.ErrorContains(t, err, "state_getUnits is disabled")
@@ -284,7 +283,7 @@ func TestGetTrustBase(t *testing.T) {
 
 	t.Run("ok", func(t *testing.T) {
 		_, verifier := testsig.CreateSignerAndVerifier(t)
-		trustBase, err := types.NewTrustBaseGenesis([]*types.NodeInfo{trustbase.NewNodeInfoFromVerifier(t, "1", 1, verifier)}, []byte{1})
+		trustBase, err := types.NewTrustBaseGenesis(types.NetworkMainNet, []*types.NodeInfo{trustbase.NewNodeInfoFromVerifier(t, "1", verifier)})
 		require.NoError(t, err)
 		node.trustBase = trustBase
 
@@ -447,10 +446,6 @@ func (mn *MockNode) Validators() peer.IDSlice {
 	return []peer.ID{}
 }
 
-func (mn *MockNode) RegisterValidatorAssignmentRecord(v *partitions.ValidatorAssignmentRecord) error {
-	return nil
-}
-
 func (mn *MockNode) SerializeState(writer io.Writer) error {
 	return mn.TransactionSystemState().Serialize(writer, true, nil)
 }
@@ -468,6 +463,10 @@ func (mn *MockNode) IsPermissionedMode() bool {
 
 func (mn *MockNode) IsFeelessMode() bool {
 	return false
+}
+
+func (mn *MockNode) RegisterShardConf(shardConf *types.PartitionDescriptionRecord) error {
+	return nil
 }
 
 func (mn *MockOwnerIndex) GetOwnerUnits(ownerID []byte) ([]types.UnitID, error) {

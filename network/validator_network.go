@@ -409,7 +409,7 @@ func (n *validatorNetwork) handleBlocks(ctx context.Context) {
 	for {
 		msg, err := n.gsSubscriptionBlock.Next(ctx)
 		if err != nil {
-			if err := ctx.Err(); err == nil {
+			if cErr := ctx.Err(); cErr == nil {
 				n.log.DebugContext(ctx, "failed to get next block", logger.Error(err))
 			}
 			return

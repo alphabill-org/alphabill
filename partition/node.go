@@ -1015,7 +1015,6 @@ func (n *Node) handleUnicityCertificate(ctx context.Context, uc *types.UnicityCe
 			return fmt.Errorf("recovery needed, failed to get transaction system state: %w", err)
 		}
 		// if state hash does not match - start recovery
-		// state hash is nil before the genesis state is certified
 		if !bytes.Equal(uc.GetStateHash(), state.Root()) {
 			n.startRecovery(ctx)
 			return ErrNodeDoesNotHaveLatestBlock
@@ -1391,7 +1390,7 @@ func (n *Node) handleBlock(ctx context.Context, b *types.Block) error {
 	if err != nil {
 		return fmt.Errorf("error reading current state, %w", err)
 	}
-	if blockUC.GetPreviousStateHash() != nil && !bytes.Equal(blockUC.InputRecord.PreviousHash, state.Root()) {
+	if !bytes.Equal(blockUC.InputRecord.PreviousHash, state.Root()) {
 		return fmt.Errorf("block does not extend current state, expected state hash: %X, actual state hash: %X",
 			blockUC.InputRecord.PreviousHash, state.Root())
 	}

@@ -349,9 +349,9 @@ func (r *RootChain) start(t *testing.T, ctx context.Context) error {
 
 		// start root node
 		rn.done = make(chan error, 1)
-		go func(ec chan error) {
+		go func(ctx context.Context, ec chan error) {
 			ec <- node.Run(ctx)
-		}(rn.done)
+		}(ctx, rn.done)
 	}
 	return nil
 }

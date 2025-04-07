@@ -401,7 +401,7 @@ func Test_BlockStore_StateRoundtrip(t *testing.T) {
 	db, err := memorydb.New()
 	require.NoError(t, err)
 	// state msg is used to init "shard info registry", the orchestration provides data which is not part of state msg
-	storeB, err := NewFromState(gocrypto.SHA256, state, db, storeA.orchestration)
+	storeB, err := NewFromState(gocrypto.SHA256, state, db, storeA.orchestration, storeA.log)
 	require.NoError(t, err)
 	require.NotNil(t, storeB)
 

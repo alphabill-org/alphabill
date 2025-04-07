@@ -60,7 +60,7 @@ func New(hashAlgo crypto.Hash, db keyvaluedb.KeyValueDB, orchestration Orchestra
 	}, nil
 }
 
-func NewFromState(hash crypto.Hash, stateMsg *abdrc.StateMsg, db keyvaluedb.KeyValueDB, orchestration Orchestration) (*BlockStore, error) {
+func NewFromState(hash crypto.Hash, stateMsg *abdrc.StateMsg, db keyvaluedb.KeyValueDB, orchestration Orchestration, log *slog.Logger) (*BlockStore, error) {
 	if db == nil {
 		return nil, errors.New("storage is nil")
 	}
@@ -79,6 +79,7 @@ func NewFromState(hash crypto.Hash, stateMsg *abdrc.StateMsg, db keyvaluedb.KeyV
 		blockTree:     blTree,
 		storage:       db,
 		orchestration: orchestration,
+		log:           log,
 	}, nil
 }
 

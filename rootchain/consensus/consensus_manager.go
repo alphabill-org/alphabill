@@ -956,7 +956,7 @@ func (x *ConsensusManager) onStateResponse(ctx context.Context, rsp *abdrc.State
 	slices.SortFunc(rsp.BlockData, func(a, b *drctypes.BlockData) int {
 		return cmp.Compare(a.GetRound(), b.GetRound())
 	})
-	blockStore, err := storage.NewFromState(x.params.HashAlgorithm, rsp, x.blockStore.GetDB(), x.orchestration)
+	blockStore, err := storage.NewFromState(x.params.HashAlgorithm, rsp, x.blockStore.GetDB(), x.orchestration, x.log)
 	if err != nil {
 		return fmt.Errorf("recovery, new block store init failed: %w", err)
 	}

@@ -138,7 +138,7 @@ func TestGetUnitsByOwnerID(t *testing.T) {
 		ownerID := []byte{1}
 		ownerIndex.ownerUnits[string(ownerID)] = []types.UnitID{[]byte{0}, []byte{1}}
 
-		unitIds, err := api.GetUnitsByOwnerID(ownerID)
+		unitIds, err := api.GetUnitsByOwnerID(ownerID, nil, nil)
 		require.NoError(t, err)
 		require.Len(t, unitIds, 2)
 		require.EqualValues(t, []byte{0}, unitIds[0])
@@ -148,9 +148,52 @@ func TestGetUnitsByOwnerID(t *testing.T) {
 		ownerID := []byte{1}
 		ownerIndex.err = errors.New("some error")
 
-		unitIds, err := api.GetUnitsByOwnerID(ownerID)
+		unitIds, err := api.GetUnitsByOwnerID(ownerID, nil, nil)
 		require.ErrorContains(t, err, "some error")
 		require.Nil(t, unitIds)
+		ownerIndex.err = nil
+	})
+	t.Run("pagination", func(t *testing.T) {
+		ownerID := []byte{1}
+		ownerIndex.ownerUnits[string(ownerID)] = []types.UnitID{[]byte{0}, []byte{1}, []byte{2}, []byte{3}, []byte{4}}
+
+		limit := 2
+		unitIds, err := api.GetUnitsByOwnerID(ownerID, nil, &limit)
+		require.NoError(t, err)
+		require.Len(t, unitIds, 2)
+		require.EqualValues(t, []byte{0}, unitIds[0])
+		require.EqualValues(t, []byte{1}, unitIds[1])
+
+		unitIds, err = api.GetUnitsByOwnerID(ownerID, &unitIds[1], &limit)
+		require.NoError(t, err)
+		require.Len(t, unitIds, 2)
+		require.EqualValues(t, []byte{2}, unitIds[0])
+		require.EqualValues(t, []byte{3}, unitIds[1])
+
+		unitIds, err = api.GetUnitsByOwnerID(ownerID, &unitIds[1], &limit)
+		require.NoError(t, err)
+		require.Len(t, unitIds, 1)
+		require.EqualValues(t, []byte{4}, unitIds[0])
+
+		unitIds, err = api.GetUnitsByOwnerID(ownerID, &unitIds[0], &limit)
+		require.NoError(t, err)
+		require.Len(t, unitIds, 0)
+	})
+	t.Run("limit", func(t *testing.T) {
+		ownerID := []byte{1}
+		ownerIndex.ownerUnits[string(ownerID)] = []types.UnitID{[]byte{0}, []byte{1}}
+		apiWithLimit := NewStateAPI(node, observe, WithOwnerIndex(ownerIndex), WithResponseItemLimit(1))
+
+		unitIds, err := apiWithLimit.GetUnitsByOwnerID(ownerID, nil, nil)
+		require.NoError(t, err)
+		require.Len(t, unitIds, 1)
+		require.EqualValues(t, []byte{0}, unitIds[0])
+
+		limit := 2
+		unitIds, err = apiWithLimit.GetUnitsByOwnerID(ownerID, nil, &limit)
+		require.NoError(t, err)
+		require.Len(t, unitIds, 1)
+		require.EqualValues(t, []byte{0}, unitIds[0])
 	})
 }
 
@@ -177,16 +220,53 @@ func TestGetUnits(t *testing.T) {
 	api := NewStateAPI(node, observe, WithGetUnits(true), WithPDR(pdr))
 
 	t.Run("ok", func(t *testing.T) {
-		unitIDs, err := api.GetUnits(nil)
+		unitIDs, err := api.GetUnits(nil, nil, nil)
 		require.NoError(t, err)
 		require.Len(t, unitIDs, 5)
 	})
 	t.Run("api disabled", func(t *testing.T) {
 		api := NewStateAPI(node, observe, WithGetUnits(false), WithPDR(pdr))
 		typeID := uint32(3)
-		unitIDs, err := api.GetUnits(&typeID)
+		unitIDs, err := api.GetUnits(&typeID, nil, nil)
 		require.ErrorContains(t, err, "state_getUnits is disabled")
 		require.Nil(t, unitIDs)
+	})
+	t.Run("pagination", func(t *testing.T) {
+		limit := 2
+		unitIDs, err := api.GetUnits(nil, nil, &limit)
+		require.NoError(t, err)
+		require.Len(t, unitIDs, 2)
+		require.EqualValues(t, unitID1, unitIDs[0])
+		require.EqualValues(t, unitID2, unitIDs[1])
+
+		unitIDs, err = api.GetUnits(nil, &unitIDs[1], &limit)
+		require.NoError(t, err)
+		require.Len(t, unitIDs, 2)
+		require.EqualValues(t, unitID3, unitIDs[0])
+		require.EqualValues(t, unitID4, unitIDs[1])
+
+		unitIDs, err = api.GetUnits(nil, &unitIDs[1], &limit)
+		require.NoError(t, err)
+		require.Len(t, unitIDs, 1)
+		require.EqualValues(t, unitID5, unitIDs[0])
+
+		unitIDs, err = api.GetUnits(nil, &unitIDs[0], &limit)
+		require.NoError(t, err)
+		require.Len(t, unitIDs, 0)
+	})
+	t.Run("limit", func(t *testing.T) {
+		api := NewStateAPI(node, observe, WithGetUnits(true), WithPDR(pdr), WithResponseItemLimit(1))
+
+		unitIDs, err := api.GetUnits(nil, nil, nil)
+		require.NoError(t, err)
+		require.Len(t, unitIDs, 1)
+		require.EqualValues(t, unitID1, unitIDs[0])
+
+		limit := 2
+		unitIDs, err = api.GetUnits(nil, nil, &limit)
+		require.NoError(t, err)
+		require.Len(t, unitIDs, 1)
+		require.EqualValues(t, unitID1, unitIDs[0])
 	})
 }
 

@@ -14,7 +14,6 @@ import (
 	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 
-	"github.com/alphabill-org/alphabill-go-base/hash"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/evm"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
@@ -254,7 +253,7 @@ func createTransferTx(t *testing.T, from []byte, to []byte) *types.TransactionOr
 		Payload: types.Payload{
 			NetworkID:      networkID,
 			PartitionID:    partitionID,
-			UnitID:         hash.Sum256(test.RandomBytes(32)),
+			UnitID:         test.RandomBytes(32),
 			Type:           evm.TransactionTypeEVMCall,
 			Attributes:     attrBytes,
 			ClientMetadata: &types.ClientMetadata{Timeout: 100},
@@ -281,7 +280,7 @@ func createCallContractTx(from []byte, addr common.Address, methodID []byte, non
 		Payload: types.Payload{
 			NetworkID:      networkID,
 			PartitionID:    partitionID,
-			UnitID:         hash.Sum256(test.RandomBytes(32)),
+			UnitID:         test.RandomBytes(32),
 			Type:           evm.TransactionTypeEVMCall,
 			Attributes:     attrBytes,
 			ClientMetadata: &types.ClientMetadata{Timeout: 100},
@@ -307,7 +306,7 @@ func createDeployContractTx(t *testing.T, from []byte) *types.TransactionOrder {
 		Payload: types.Payload{
 			NetworkID:      networkID,
 			PartitionID:    partitionID,
-			UnitID:         hash.Sum256(test.RandomBytes(32)),
+			UnitID:         test.RandomBytes(32),
 			Type:           evm.TransactionTypeEVMCall,
 			Attributes:     attrBytes,
 			ClientMetadata: &types.ClientMetadata{Timeout: 100},

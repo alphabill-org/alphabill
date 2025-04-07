@@ -1,11 +1,10 @@
 package consensus
 
 import (
-	"bytes"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 
-	abhash "github.com/alphabill-org/alphabill-go-base/hash"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	"github.com/alphabill-org/alphabill/network/protocol/abdrc"
@@ -26,22 +25,25 @@ type (
 
 	VoteRegister struct {
 		// Hash of ConsensusInfo to signatures/votes for it
-		hashToSignatures map[string]*ConsensusWithSignatures
+		hashToSignatures map[voteID]*ConsensusWithSignatures
 		// Tracks all timeout votes for this round
 		// if 2f+1 or threshold votes, then TC is formed
 		timeoutCert *drctypes.TimeoutCert
 		// Helper, to avoid duplicate votes
-		authorToVote map[string]hex.Bytes
+		authorToVote map[string]voteID
 	}
+
+	// sha256 hash is used to create ID for a vote
+	voteID = [sha256.Size]byte
 )
 
 var ErrVoteIsNil = errors.New("vote is nil")
 
 func NewVoteRegister() *VoteRegister {
 	return &VoteRegister{
-		hashToSignatures: make(map[string]*ConsensusWithSignatures),
+		hashToSignatures: make(map[voteID]*ConsensusWithSignatures),
 		timeoutCert:      nil,
-		authorToVote:     make(map[string]hex.Bytes),
+		authorToVote:     make(map[string]voteID),
 	}
 }
 
@@ -55,12 +57,12 @@ func (v *VoteRegister) InsertVote(vote *abdrc.VoteMsg, quorumInfo QuorumInfo) (*
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal unicity seal: %w", err)
 	}
-	commitInfoHash := abhash.Sum256(bs)
+	commitInfoHash := sha256.Sum256(bs)
 
 	// has the author already voted in this round?
 	if prevVoteHash, voted := v.authorToVote[vote.Author]; voted {
 		// Check if vote has changed
-		if !bytes.Equal(commitInfoHash, prevVoteHash) {
+		if commitInfoHash != prevVoteHash {
 			// new equivocating vote, this is a security event
 			return nil, fmt.Errorf("equivocating vote, previous %X, new %X", prevVoteHash, commitInfoHash)
 		}
@@ -70,15 +72,15 @@ func (v *VoteRegister) InsertVote(vote *abdrc.VoteMsg, quorumInfo QuorumInfo) (*
 	v.authorToVote[vote.Author] = commitInfoHash
 	// register commit hash
 	// Create new entry if not present
-	if _, present := v.hashToSignatures[string(commitInfoHash)]; !present {
-		v.hashToSignatures[string(commitInfoHash)] = &ConsensusWithSignatures{
+	if _, present := v.hashToSignatures[commitInfoHash]; !present {
+		v.hashToSignatures[commitInfoHash] = &ConsensusWithSignatures{
 			commitInfo: vote.LedgerCommitInfo,
 			voteInfo:   vote.VoteInfo,
 			signatures: make(map[string]hex.Bytes),
 		}
 	}
 	// Add signature from vote
-	quorum := v.hashToSignatures[string(commitInfoHash)]
+	quorum := v.hashToSignatures[commitInfoHash]
 	quorum.signatures[vote.Author] = vote.Signature
 	// Check QC
 	if uint64(len(quorum.signatures)) >= quorumInfo.GetQuorumThreshold() {

@@ -3,7 +3,6 @@ package money
 import (
 	"fmt"
 
-	"github.com/alphabill-org/alphabill-go-base/hash"
 	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
 	"github.com/alphabill-org/alphabill-go-base/types"
@@ -19,7 +18,7 @@ var (
 	DustCollectorMoneySupplyID = append(make(types.UnitID, 32), money.BillUnitType)
 
 	// Dust collector predicate
-	DustCollectorPredicate = templates.NewP2pkh256BytesFromKeyHash(hash.Sum256([]byte("dust collector")))
+	DustCollectorPredicate = templates.NewP2pkh256BytesFromKey([]byte("dust collector"))
 )
 
 type DustCollector struct {

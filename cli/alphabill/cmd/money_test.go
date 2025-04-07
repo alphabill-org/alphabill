@@ -262,6 +262,7 @@ func defaultMoneyNodeConfiguration() *moneyNodeConfiguration {
 			BlockSubscriptionTimeoutMs:      3000,
 			WithOwnerIndex:                  true,
 			StateRpcRateLimit:               20,
+			StateRpcResponseItemLimit:       1000,
 		},
 		rpcServer: &rpc.ServerConfiguration{
 			Address:                "",

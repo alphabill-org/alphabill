@@ -1390,7 +1390,8 @@ func (n *Node) handleBlock(ctx context.Context, b *types.Block) error {
 	if err != nil {
 		return fmt.Errorf("error reading current state, %w", err)
 	}
-	if !bytes.Equal(blockUC.InputRecord.PreviousHash, state.Root()) {
+	// Block must extend current state unless it's applied on uncertified genesis state
+	if committedUC != nil && !bytes.Equal(blockUC.InputRecord.PreviousHash, state.Root()) {
 		return fmt.Errorf("block does not extend current state, expected state hash: %X, actual state hash: %X",
 			blockUC.InputRecord.PreviousHash, state.Root())
 	}

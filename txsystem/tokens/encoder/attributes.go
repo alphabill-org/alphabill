@@ -27,8 +27,6 @@ func RegisterTxAttributeEncoders(reg func(id encoder.PartitionTxType, enc encode
 		reg(key(tokens.TransactionTypeSplitFT), txaSplitFungibleTokenAttributes),
 		reg(key(tokens.TransactionTypeBurnFT), txaBurnFungibleTokenAttributes),
 		reg(key(tokens.TransactionTypeJoinFT), txaJoinFungibleTokenAttributes),
-		reg(key(tokens.TransactionTypeLockToken), txaLockTokenAttributes),
-		reg(key(tokens.TransactionTypeUnlockToken), txaUnlockTokenAttributes),
 	)
 }
 
@@ -158,26 +156,5 @@ func txaJoinFungibleTokenAttributes(txo *types.TransactionOrder, ver uint32) ([]
 	}
 	buf := encoder.TVEnc{}
 	// register and then return handles of the txR and proofs?
-	return buf.Bytes()
-}
-
-func txaLockTokenAttributes(txo *types.TransactionOrder, ver uint32) ([]byte, error) {
-	attr := &tokens.LockTokenAttributes{}
-	if err := txo.UnmarshalAttributes(attr); err != nil {
-		return nil, fmt.Errorf("reading transaction attributes: %w", err)
-	}
-	buf := encoder.TVEnc{}
-	buf.EncodeTagged(1, attr.Counter)
-	buf.EncodeTagged(2, attr.LockStatus)
-	return buf.Bytes()
-}
-
-func txaUnlockTokenAttributes(txo *types.TransactionOrder, ver uint32) ([]byte, error) {
-	attr := &tokens.UnlockTokenAttributes{}
-	if err := txo.UnmarshalAttributes(attr); err != nil {
-		return nil, fmt.Errorf("reading transaction attributes: %w", err)
-	}
-	buf := encoder.TVEnc{}
-	buf.EncodeTagged(1, attr.Counter)
 	return buf.Bytes()
 }

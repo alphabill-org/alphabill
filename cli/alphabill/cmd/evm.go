@@ -69,7 +69,7 @@ func runEvmNode(ctx context.Context, cfg *evmConfiguration) error {
 	if stateFilePath == "" {
 		stateFilePath = filepath.Join(cfg.Base.HomeDir, evmDir, evmGenesisStateFileName)
 	}
-	state, err := loadStateFile(stateFilePath, evm.NewUnitData)
+	state, header, err := loadStateFile(stateFilePath, evm.NewUnitData)
 	if err != nil {
 		return fmt.Errorf("loading state (file %s): %w", cfg.Node.StateFile, err)
 	}
@@ -123,6 +123,7 @@ func runEvmNode(ctx context.Context, cfg *evmConfiguration) error {
 		evm.WithBlockDB(blockStore),
 		evm.WithTrustBase(trustBase),
 		evm.WithState(state),
+		evm.WithExecutedTransactions(header.ExecutedTransactions),
 	)
 	if err != nil {
 		return fmt.Errorf("evm transaction system init failed: %w", err)
@@ -142,5 +143,5 @@ func runEvmNode(ctx context.Context, cfg *evmConfiguration) error {
 		params.GasUnitPrice,
 		log,
 	)
-	return run(ctx, node, cfg.RPCServer, ownerIndexer, cfg.Node.WithGetUnits, pg.PartitionDescription, obs)
+	return run(ctx, node, cfg.RPCServer, ownerIndexer, cfg.Node.WithGetUnits, pg.PartitionDescription, obs, cfg.Node.StateRpcRateLimit)
 }

@@ -2,13 +2,13 @@ package templates
 
 import (
 	"context"
+	"crypto/sha256"
 	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill-go-base/crypto"
-	"github.com/alphabill-org/alphabill-go-base/hash"
 	sdkpredicates "github.com/alphabill-org/alphabill-go-base/predicates"
 	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
 	"github.com/alphabill-org/alphabill-go-base/types"
@@ -237,7 +237,8 @@ func TestP2pkh256_Execute(t *testing.T) {
 	require.NoError(t, err)
 	pubKey, err := verifier.MarshalPublicKey()
 	require.NoError(t, err)
-	pubKeyHash := hash.Sum256(pubKey)
+	h := sha256.Sum256(pubKey)
+	pubKeyHash := h[:]
 
 	validTxOrder := &types.TransactionOrder{
 		Version: 1,
@@ -306,7 +307,8 @@ func TestP2pkh256_Execute(t *testing.T) {
 		signature = templates.P2pkh256Signature{Sig: make([]byte, 65), PubKey: make([]byte, 33)}
 		ownerProof, err = types.Cbor.Marshal(signature)
 		require.NoError(t, err)
-		res, err = executeP2PKH256(hash.Sum256(signature.PubKey), ownerProof, execEnv)
+		pkh := sha256.Sum256(signature.PubKey)
+		res, err = executeP2PKH256(pkh[:], ownerProof, execEnv)
 		require.EqualError(t, err, `failed to create verifier: public key decompress failed`)
 		require.False(t, res)
 	})
@@ -349,7 +351,8 @@ func Benchmark_templateExecute(b *testing.B) {
 		if err != nil {
 			b.Error(err.Error())
 		}
-		pubKeyHash := hash.Sum256(pk)
+		pkh := sha256.Sum256(pk)
+		pubKeyHash := pkh[:]
 		execEnv := &mockTxContext{
 			spendGas:   func(gas uint64) error { return nil },
 			exArgument: func() ([]byte, error) { return payload, nil },

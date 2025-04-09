@@ -121,10 +121,10 @@ func TestNewTxSystem_RecoveredState(t *testing.T) {
 	// Commit and serialize the state
 	require.NoError(t, originalTxs.Commit(createUC(originalSummaryRound1, 1)))
 	buf := &bytes.Buffer{}
-	require.NoError(t, originalTxs.State().Serialize(buf, true))
+	require.NoError(t, originalTxs.State().Serialize(buf, true, nil))
 
 	// Create a recovered state and txSystem from the serialized state
-	recoveredState, err := state.NewRecoveredState(buf, func(ui types.UnitID) (types.UnitData, error) { return money.NewUnitData(ui, sdrs[0]) }, state.WithHashAlgorithm(crypto.SHA256))
+	recoveredState, _, err := state.NewRecoveredState(buf, func(ui types.UnitID) (types.UnitData, error) { return money.NewUnitData(ui, sdrs[0]) }, state.WithHashAlgorithm(crypto.SHA256))
 	require.NoError(t, err)
 	recoveredTxs, err := NewTxSystem(
 		*sdrs[0],
@@ -217,9 +217,6 @@ func TestExecute_Split2WayOk(t *testing.T) {
 	require.NotEqual(t, initBillData.Value, initBillDataAfterUpdate.Value)
 	require.Equal(t, remaining, initBillDataAfterUpdate.Value)
 
-	// and bill was not locked
-	require.EqualValues(t, 0, initBillDataAfterUpdate.Locked)
-
 	// total value was not changed
 	total, _, err := rmaTree.CalculateRoot()
 	require.NoError(t, err)
@@ -237,7 +234,6 @@ func TestExecute_Split2WayOk(t *testing.T) {
 	require.Equal(t, amount, newBillData.Value)
 	require.EqualValues(t, 0, newBillData.Counter)
 	require.EqualValues(t, splitAttr.TargetUnits[0].OwnerPredicate, newBillData.OwnerPredicate)
-	require.EqualValues(t, 0, newBillData.Locked)
 }
 
 func TestExecute_SplitNWayOk(t *testing.T) {
@@ -354,6 +350,7 @@ func TestExecute_SwapOk(t *testing.T) {
 	counter := initBillData.Counter
 	splitOk, _, _ := createSplit(t, initialBill.ID, fcrID, []*money.TargetUnit{{Amount: amount, OwnerPredicate: templates.AlwaysTrueBytes()}}, counter)
 	splitOk.NetworkID = pdrs[0].NetworkID
+	counter++
 
 	err := txSystem.BeginBlock(roundNumber)
 	require.NoError(t, err)
@@ -365,24 +362,6 @@ func TestExecute_SwapOk(t *testing.T) {
 	require.Equal(t, types.TxStatusSuccessful, txr.ServerMetadata.SuccessIndicator)
 	require.Equal(t, []types.UnitID{splitOk.UnitID, splitBillID, fcrID}, txr.TargetUnits())
 	require.True(t, txr.ServerMetadata.ActualFee > 0)
-	// execute lock transaction to verify swap unlocks locked unit
-	counter += 1
-	lockTx, _, _ := createLockTx(t, initialBill.ID, fcrID, counter)
-	lockTx.NetworkID = pdrs[0].NetworkID
-	txr, err = txSystem.Execute(lockTx)
-	require.NoError(t, err)
-	require.NotNil(t, txr)
-	require.Equal(t, types.TxStatusSuccessful, txr.ServerMetadata.SuccessIndicator)
-	require.Equal(t, []types.UnitID{lockTx.UnitID, fcrID}, txr.TargetUnits())
-	require.True(t, txr.ServerMetadata.ActualFee > 0)
-
-	// verify bill got locked
-	_, billData := getBill(t, s, initialBill.ID)
-	require.EqualValues(t, 1, billData.Locked)
-
-	// and counter was updated
-	counter += 1
-	require.Equal(t, counter, billData.Counter)
 
 	dcTransferProofs, swapTx := createDCTransferAndSwapTxs(t, []types.UnitID{splitBillID}, fcrID, initialBill.ID, counter, s, signer)
 	for _, dcTransferProof := range dcTransferProofs {
@@ -420,11 +399,10 @@ func TestExecute_SwapOk(t *testing.T) {
 	require.EqualValues(t, []types.UnitID{swapTx.UnitID, DustCollectorMoneySupplyID, fcrID}, txr.TargetUnits())
 	require.True(t, txr.ServerMetadata.ActualFee > 0)
 
-	_, billData = getBill(t, s, swapTx.UnitID)
+	_, billData := getBill(t, s, swapTx.UnitID)
 	require.Equal(t, initialBill.Value, billData.Value) // initial bill value is the same after swap
 	counter += 1
 	require.EqualValues(t, counter, billData.Counter)
-	require.EqualValues(t, 0, billData.Locked) // verify bill got unlocked
 
 	_, dcBillData = getBill(t, s, DustCollectorMoneySupplyID)
 	require.Equal(t, initialDustCollectorMoneyAmount, dcBillData.Value) // dust collector money supply is the same after swap
@@ -444,60 +422,6 @@ func TestExecute_SwapOk(t *testing.T) {
 	require.Equal(t, 1, len(u.Logs()))
 }
 
-func TestExecute_LockAndUnlockOk(t *testing.T) {
-	pdrs := createPDRs(t)
-	rmaTree, txSystem, _ := createStateAndTxSystem(t, pdrs)
-	fcrID := testutils.NewFeeCreditRecordIDAlwaysTrue(t)
-	lockTx, _, _ := createLockTx(t, initialBill.ID, fcrID, 0)
-
-	roundNumber := uint64(10)
-	err := txSystem.BeginBlock(roundNumber)
-	require.NoError(t, err)
-	txr, err := txSystem.Execute(lockTx)
-	require.NoError(t, err)
-	require.NotNil(t, txr)
-	require.Equal(t, types.TxStatusSuccessful, txr.ServerMetadata.SuccessIndicator)
-	require.Equal(t, []types.UnitID{lockTx.UnitID, fcrID}, txr.TargetUnits())
-	require.True(t, txr.ServerMetadata.ActualFee > 0)
-
-	stateSummary, err := txSystem.EndBlock()
-	require.NoError(t, err)
-	require.NotNil(t, txr)
-	require.True(t, txr.ServerMetadata.ActualFee > 0)
-	require.Len(t, txr.TargetUnits(), 2)
-	require.Equal(t, lockTx.UnitID, txr.ServerMetadata.TargetUnits[0])
-	require.NoError(t, txSystem.Commit(createUC(stateSummary, 1)))
-
-	_, bd := getBill(t, rmaTree, initialBill.ID)
-	require.EqualValues(t, 1, bd.Locked)                // bill is locked
-	require.EqualValues(t, 1, bd.Counter)               // counter updated
-	require.EqualValues(t, 110, bd.SummaryValueInput()) // value not changed
-
-	unlockTx, _, _ := createUnlockTx(t, initialBill.ID, fcrID, 1)
-	roundNumber += 1
-	err = txSystem.BeginBlock(roundNumber)
-	require.NoError(t, err)
-	txr, err = txSystem.Execute(unlockTx)
-	require.NoError(t, err)
-	require.NotNil(t, txr)
-	require.Equal(t, types.TxStatusSuccessful, txr.ServerMetadata.SuccessIndicator)
-	require.Equal(t, []types.UnitID{unlockTx.UnitID, fcrID}, txr.TargetUnits())
-	require.True(t, txr.ServerMetadata.ActualFee > 0)
-
-	stateSummary, err = txSystem.EndBlock()
-	require.NoError(t, err)
-	require.NotNil(t, txr)
-	require.True(t, txr.ServerMetadata.ActualFee > 0)
-	require.Len(t, txr.TargetUnits(), 2)
-	require.Equal(t, unlockTx.UnitID, txr.ServerMetadata.TargetUnits[0])
-	require.NoError(t, txSystem.Commit(createUC(stateSummary, 1)))
-
-	_, bd = getBill(t, rmaTree, initialBill.ID)
-	require.EqualValues(t, 0, bd.Locked)                // bill is unlocked
-	require.EqualValues(t, 110, bd.SummaryValueInput()) // value not changed
-	require.EqualValues(t, 2, bd.Counter)               // counter updated
-}
-
 func TestBillData_Value(t *testing.T) {
 	bd := &money.BillData{
 		Value:   10,
@@ -513,7 +437,6 @@ func TestBillData_AddToHasher(t *testing.T) {
 		Version: 1,
 		Value:   10,
 		Counter: 0,
-		Locked:  1,
 	}
 
 	hasher := crypto.SHA256.New()
@@ -813,34 +736,12 @@ func TestExecute_FeeCreditSequence_OK(t *testing.T) {
 	require.True(t, ok)
 	require.EqualValues(t, remainingValue, fcrUnitData.Balance)
 
-	// lock target unit
-	lockTx, _, _ := createLockTx(t, initialBillID, fcrID, 1)
-	lockTx.FeeProof = testsig.NewFeeProofSignature(t, lockTx, signer)
-
-	// execute lock transaction
-	txr, err = txSystem.Execute(lockTx)
-	require.NoError(t, err)
-	require.NotNil(t, txr)
-	require.Equal(t, types.TxStatusSuccessful, txr.ServerMetadata.SuccessIndicator)
-	require.True(t, txr.ServerMetadata.ActualFee > 0)
-	remainingValue -= txr.ServerMetadata.ActualFee
-
-	// verify target got locked
-	ib, err = rmaTree.GetUnit(initialBill.ID, false)
-	require.NoError(t, err)
-	bd, ok := ib.Data().(*money.BillData)
-	require.True(t, ok)
-	require.EqualValues(t, 1, bd.Locked)
-
-	// verify counter was incremented
-	require.EqualValues(t, 2, bd.Counter)
-
 	// send closeFC
 	closeFC := testutils.NewCloseFC(t, signer,
 		testutils.NewCloseFCAttr(
 			testutils.WithCloseFCAmount(remainingValue),
 			testutils.WithCloseFCTargetUnitID(initialBillID),
-			testutils.WithCloseFCTargetUnitCounter(2),
+			testutils.WithCloseFCTargetUnitCounter(1),
 		),
 		testtransaction.WithUnitID(fcrID),
 		testtransaction.WithPartition(moneyPDR),
@@ -887,58 +788,10 @@ func TestExecute_FeeCreditSequence_OK(t *testing.T) {
 	require.True(t, ok)
 	require.EqualValues(t, initialBill.Value-totalFeeCost, ib.Data().SummaryValueInput())
 
-	// and initial bill got unlocked
-	bd, ok = ib.Data().(*money.BillData)
+	// and initial bill counter was incremented
+	bd, ok := ib.Data().(*money.BillData)
 	require.True(t, ok)
-	require.EqualValues(t, 0, bd.Locked)
-
-	// and counter was incremented
-	require.EqualValues(t, 3, bd.Counter)
-}
-
-// Test LockFC -> UnlockFC
-func TestExecute_AddFeeCreditWithLocking_OK(t *testing.T) {
-	pdrs := createPDRs(t)
-	rmaTree, txSystem, _ := createStateAndTxSystem(t, pdrs)
-	err := txSystem.BeginBlock(1)
-	require.NoError(t, err)
-	signer, _ := testsig.CreateSignerAndVerifier(t)
-	fcrID := testutils.NewFeeCreditRecordIDAlwaysTrue(t)
-
-	// lock fee credit record
-	lockFCAttr := testutils.NewLockFCAttr(testutils.WithLockFCCounter(0))
-	lockFC := testutils.NewLockFC(t, signer, lockFCAttr,
-		testtransaction.WithUnitID(fcrID),
-		testtransaction.WithPartition(pdrs[0]),
-	)
-	txr, err := txSystem.Execute(lockFC)
-	require.NoError(t, err)
-	require.NotNil(t, txr)
-	require.Equal(t, types.TxStatusSuccessful, txr.ServerMetadata.SuccessIndicator)
-	require.Equal(t, []types.UnitID{lockFC.UnitID}, txr.TargetUnits())
-	require.True(t, txr.ServerMetadata.ActualFee > 0)
-	// verify unit was locked
-	u, err := rmaTree.GetUnit(fcrID, false)
-	require.NoError(t, err)
-	fcr, ok := u.Data().(*fcsdk.FeeCreditRecord)
-	require.True(t, ok)
-	require.True(t, fcr.IsLocked())
-
-	// unlock fee credit record
-	unlockFCAttr := testutils.NewUnlockFCAttr(testutils.WithUnlockFCCounter(1))
-	unlockFC := testutils.NewUnlockFC(t, signer, unlockFCAttr, testtransaction.WithUnitID(fcrID), testtransaction.WithPartition(pdrs[0]))
-	txr, err = txSystem.Execute(unlockFC)
-	require.NoError(t, err)
-	require.NotNil(t, txr)
-	require.Equal(t, types.TxStatusSuccessful, txr.ServerMetadata.SuccessIndicator)
-	require.Equal(t, []types.UnitID{unlockFC.UnitID}, txr.TargetUnits())
-	require.True(t, txr.ServerMetadata.ActualFee > 0)
-	// verify unit was unlocked
-	fcrUnit, err := rmaTree.GetUnit(fcrID, false)
-	require.NoError(t, err)
-	fcr, ok = fcrUnit.Data().(*fcsdk.FeeCreditRecord)
-	require.True(t, ok)
-	require.False(t, fcr.IsLocked())
+	require.EqualValues(t, 2, bd.Counter)
 }
 
 func getBill(t *testing.T, s *state.State, billID types.UnitID) (state.Unit, *money.BillData) {
@@ -960,33 +813,6 @@ func createBillTransfer(t *testing.T, fromID types.UnitID, fcrID types.UnitID, v
 	require.NoError(t, tx.SetAttributes(attr))
 
 	authProof := &money.TransferAuthProof{OwnerProof: nil}
-	require.NoError(t, tx.SetAuthProof(authProof))
-
-	return tx, attr, authProof
-}
-
-func createLockTx(t *testing.T, fromID types.UnitID, fcrID types.UnitID, counter uint64) (*types.TransactionOrder, *money.LockAttributes, *money.LockAuthProof) {
-	tx := createTx(fromID, fcrID, money.TransactionTypeLock)
-	attr := &money.LockAttributes{
-		LockStatus: 1,
-		Counter:    counter,
-	}
-	require.NoError(t, tx.SetAttributes(attr))
-
-	authProof := &money.LockAuthProof{OwnerProof: nil}
-	require.NoError(t, tx.SetAuthProof(authProof))
-
-	return tx, attr, authProof
-}
-
-func createUnlockTx(t *testing.T, fromID types.UnitID, fcrID types.UnitID, counter uint64) (*types.TransactionOrder, *money.UnlockAttributes, *money.UnlockAuthProof) {
-	tx := createTx(fromID, fcrID, money.TransactionTypeUnlock)
-	attr := &money.UnlockAttributes{
-		Counter: counter,
-	}
-	require.NoError(t, tx.SetAttributes(attr))
-
-	authProof := &money.UnlockAuthProof{OwnerProof: nil}
 	require.NoError(t, tx.SetAuthProof(authProof))
 
 	return tx, attr, authProof
@@ -1190,7 +1016,7 @@ func createPDRs(t *testing.T) []*types.PartitionDescriptionRecord {
 	}}
 }
 
-func createUC(s txsystem.StateSummary, roundNumber uint64) *types.UnicityCertificate {
+func createUC(s *txsystem.StateSummary, roundNumber uint64) *types.UnicityCertificate {
 	return &types.UnicityCertificate{Version: 1, InputRecord: &types.InputRecord{
 		Version:      1,
 		RoundNumber:  roundNumber,
@@ -1204,6 +1030,12 @@ type moneyModuleOption func(m *Module) error
 func withStateUnit(unitID []byte, data types.UnitData) moneyModuleOption {
 	return func(m *Module) error {
 		return m.state.Apply(state.AddUnit(unitID, data))
+	}
+}
+
+func withDummyUnit(unitID []byte) moneyModuleOption {
+	return func(m *Module) error {
+		return m.state.Apply(state.AddDummyUnit(unitID))
 	}
 }
 

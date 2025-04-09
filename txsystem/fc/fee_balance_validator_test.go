@@ -27,7 +27,7 @@ func TestCheckFeeCreditBalance(t *testing.T) {
 	require.NoError(t, err)
 	recordID, err := pdr.ComposeUnitID(types.ShardID{}, 0xFC, moneyid.Random)
 	require.NoError(t, err)
-	existingFCR := &fc.FeeCreditRecord{Balance: 10, Counter: 0, Locked: 1, OwnerPredicate: ownerPredicate}
+	existingFCR := &fc.FeeCreditRecord{Balance: 10, Counter: 0, OwnerPredicate: ownerPredicate}
 
 	sharedState := state.NewEmptyState()
 	require.NoError(t, sharedState.Apply(state.AddUnit(recordID, existingFCR)))

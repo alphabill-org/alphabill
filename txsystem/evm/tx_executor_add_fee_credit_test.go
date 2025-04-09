@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
-	"github.com/alphabill-org/alphabill-go-base/hash"
 	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/evm"
 	fcsdk "github.com/alphabill-org/alphabill-go-base/txsystem/fc"
@@ -449,7 +448,8 @@ func Test_addFeeCreditTxAndUpdate(t *testing.T) {
 	trustBase := testtb.NewTrustBase(t, verifier)
 	pubKeyBytes, err := verifier.MarshalPublicKey()
 	require.NoError(t, err)
-	pubHash := hash.Sum256(pubKeyBytes)
+	h := sha256.Sum256(pubKeyBytes)
+	pubHash := h[:]
 	privKeyHash := hashOfPrivateKey(t, signer)
 	feeCreditModule := newTestFeeModule(t, trustBase)
 	transFcRecord := &types.TransactionRecord{

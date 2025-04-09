@@ -12,13 +12,14 @@ import (
 )
 
 type Options struct {
-	hashAlgorithm       crypto.Hash
-	state               *state.State
-	beginBlockFunctions []func(blockNumber uint64) error
-	endBlockFunctions   []func(blockNumber uint64) error
-	predicateRunner     predicates.PredicateRunner
-	feeCredit           txtypes.FeeCreditModule
-	observe             Observability
+	hashAlgorithm        crypto.Hash
+	state                *state.State
+	executedTransactions map[string]uint64
+	beginBlockFunctions  []func(blockNumber uint64) error
+	endBlockFunctions    []func(blockNumber uint64) error
+	predicateRunner      predicates.PredicateRunner
+	feeCredit            txtypes.FeeCreditModule
+	observe              Observability
 }
 
 type Option func(*Options) error
@@ -59,6 +60,13 @@ func WithState(s *state.State) Option {
 		// re-init predicate runner
 		_, err := g.initPredicateRunner(g.observe)
 		return err
+	}
+}
+
+func WithExecutedTransactions(executedTransactions map[string]uint64) Option {
+	return func(g *Options) error {
+		g.executedTransactions = executedTransactions
+		return nil
 	}
 }
 

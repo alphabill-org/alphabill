@@ -47,9 +47,6 @@ func (m *Module) validateTrans(tx *types.TransactionOrder, attr *money.TransferA
 	if !ok {
 		return errors.New("invalid unit data type")
 	}
-	if unitData.IsLocked() {
-		return errors.New("the bill is locked")
-	}
 	if unitData.Counter != attr.Counter {
 		return errors.New("the transaction counter is not equal to the bill counter")
 	}

@@ -53,9 +53,19 @@ type startNodeConfiguration struct {
 	LedgerReplicationTimeoutMs      uint64
 	BlockSubscriptionTimeoutMs      uint64
 	BootStrapAddresses              []string // boot strap addresses (libp2p multiaddress format)
+	StateRpcRateLimit               int
 }
 
-func run(ctx context.Context, node *partition.Node, rpcServerConf *rpc.ServerConfiguration, ownerIndexer *partition.OwnerIndexer, withGetUnits bool, pdr *types.PartitionDescriptionRecord, obs Observability) error {
+func run(
+	ctx context.Context,
+	node *partition.Node,
+	rpcServerConf *rpc.ServerConfiguration,
+	ownerIndexer *partition.OwnerIndexer,
+	withGetUnits bool,
+	pdr *types.PartitionDescriptionRecord,
+	obs Observability,
+	stateRpcRateLimit int,
+) error {
 	log := obs.Logger()
 	name := partitionTypeIDToName(node.PartitionTypeID())
 	log.InfoContext(ctx, fmt.Sprintf("starting %s node: BuildInfo=%s", name, debug.ReadBuildInfo()))
@@ -77,7 +87,14 @@ func run(ctx context.Context, node *partition.Node, rpcServerConf *rpc.ServerCon
 		rpcServerConf.APIs = []rpc.API{
 			{
 				Namespace: "state",
-				Service:   rpc.NewStateAPI(node, obs, rpc.WithOwnerIndex(ownerIndexer), rpc.WithGetUnits(withGetUnits), rpc.WithPDR(pdr)),
+				Service: rpc.NewStateAPI(
+					node,
+					obs,
+					rpc.WithOwnerIndex(ownerIndexer),
+					rpc.WithGetUnits(withGetUnits),
+					rpc.WithPDR(pdr),
+					rpc.WithRateLimit(stateRpcRateLimit),
+				),
 			},
 			{
 				Namespace: "admin",
@@ -203,22 +220,22 @@ func loadPartitionGenesis(genesisPath string) (*genesis.PartitionGenesis, error)
 	return pg, nil
 }
 
-func loadStateFile(stateFilePath string, unitDataConstructor state.UnitDataConstructor) (*state.State, error) {
+func loadStateFile(stateFilePath string, unitDataConstructor state.UnitDataConstructor) (*state.State, *state.Header, error) {
 	if !util.FileExists(stateFilePath) {
-		return nil, fmt.Errorf("state file '%s' not found", stateFilePath)
+		return nil, nil, fmt.Errorf("state file '%s' not found", stateFilePath)
 	}
 
 	stateFile, err := os.Open(filepath.Clean(stateFilePath))
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer stateFile.Close()
 
-	s, err := state.NewRecoveredState(stateFile, unitDataConstructor)
+	s, header, err := state.NewRecoveredState(stateFile, unitDataConstructor)
 	if err != nil {
-		return nil, fmt.Errorf("failed to build state tree from state file: %w", err)
+		return nil, nil, fmt.Errorf("failed to build state tree from state file: %w", err)
 	}
-	return s, nil
+	return s, header, nil
 }
 
 func addCommonNodeConfigurationFlags(nodeCmd *cobra.Command, config *startNodeConfiguration, partitionSuffix string) {
@@ -239,6 +256,7 @@ func addCommonNodeConfigurationFlags(nodeCmd *cobra.Command, config *startNodeCo
 	nodeCmd.Flags().Uint32Var(&config.LedgerReplicationMaxTx, "ledger-replication-max-transactions", 10000, "maximum number of transactions to return in a single replication response")
 	nodeCmd.Flags().Uint64Var(&config.LedgerReplicationTimeoutMs, "ledger-replication-timeout", 1500, "time since last received replication response when to trigger another request (in ms)")
 	nodeCmd.Flags().Uint64Var(&config.BlockSubscriptionTimeoutMs, "block-subscription-timeout", 3000, "time since last received block when when to trigger recovery (in ms) for non-validating nodes")
+	nodeCmd.Flags().IntVar(&config.StateRpcRateLimit, "state-rpc-rate-limit", 20, "number of costliest state rpc requests allowed in a second")
 }
 
 func addRPCServerConfigurationFlags(cmd *cobra.Command, c *rpc.ServerConfiguration) {

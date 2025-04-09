@@ -276,5 +276,5 @@ func writeStateFile(path string, s *state.State) error {
 	if err != nil {
 		return err
 	}
-	return s.Serialize(stateFile, false)
+	return s.Serialize(stateFile, false, nil)
 }

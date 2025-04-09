@@ -3,16 +3,14 @@ package tokens
 import (
 	"testing"
 
-	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
-	"github.com/alphabill-org/alphabill/state"
 	"github.com/stretchr/testify/require"
 
-	"github.com/alphabill-org/alphabill-go-base/hash"
 	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/tokens"
 	"github.com/alphabill-org/alphabill-go-base/types"
-
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
+	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
 	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
 )
@@ -31,7 +29,7 @@ func TestTransferNFT_StateLock(t *testing.T) {
 		testtransaction.WithPartitionID(tokens.DefaultPartitionID),
 		testtransaction.WithAttributes(&tokens.TransferNonFungibleTokenAttributes{
 			TypeID:            nftTypeID2,
-			NewOwnerPredicate: templates.NewP2pkh256BytesFromKeyHash(hash.Sum256(w1PubKey)),
+			NewOwnerPredicate: templates.NewP2pkh256BytesFromKey(w1PubKey),
 			Counter:           0,
 		}),
 		testtransaction.WithAuthProof(tokens.TransferNonFungibleTokenAuthProof{
@@ -114,5 +112,5 @@ func TestTransferNFT_StateLock(t *testing.T) {
 	require.Equal(t, nftTypeID2, d.TypeID)
 	require.EqualValues(t, attr.Data, d.Data)
 	require.Equal(t, uint64(2), d.Counter)
-	require.EqualValues(t, templates.NewP2pkh256BytesFromKeyHash(hash.Sum256(w1PubKey)), d.Owner())
+	require.EqualValues(t, templates.NewP2pkh256BytesFromKey(w1PubKey), d.Owner())
 }

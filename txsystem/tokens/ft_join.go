@@ -24,7 +24,6 @@ func (m *FungibleTokensModule) executeJoinFT(tx *types.TransactionOrder, _ *toke
 					return nil, fmt.Errorf("unit %v does not contain fungible token data", unitID)
 				}
 				tokenData.Value = sum
-				tokenData.Locked = 0
 				tokenData.Counter += 1
 				return tokenData, nil
 			},
@@ -36,6 +35,9 @@ func (m *FungibleTokensModule) executeJoinFT(tx *types.TransactionOrder, _ *toke
 }
 
 func (m *FungibleTokensModule) validateJoinFT(tx *types.TransactionOrder, attr *tokens.JoinFungibleTokenAttributes, authProof *tokens.JoinFungibleTokenAuthProof, exeCtx txtypes.ExecutionContext) error {
+	if tx.HasStateLock() {
+		return errors.New("joinFT transaction cannot contain state lock")
+	}
 	tokenData, err := m.getFungibleTokenData(tx.UnitID)
 	if err != nil {
 		return err

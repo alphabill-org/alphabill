@@ -3,6 +3,7 @@ package templates
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"time"
@@ -11,7 +12,6 @@ import (
 	"go.opentelemetry.io/otel/metric"
 
 	"github.com/alphabill-org/alphabill-go-base/crypto"
-	"github.com/alphabill-org/alphabill-go-base/hash"
 	sdkpredicates "github.com/alphabill-org/alphabill-go-base/predicates"
 	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
 	"github.com/alphabill-org/alphabill-go-base/types"
@@ -118,7 +118,7 @@ func executeP2PKH256(pubKeyHash, args []byte, env predicates.TxContext) (bool, e
 	if len(p2pkh256Signature.PubKey) != 33 {
 		return false, fmt.Errorf("invalid pubkey size: expected 33, got %d (%X)", len(p2pkh256Signature.PubKey), p2pkh256Signature.PubKey)
 	}
-	if !bytes.Equal(pubKeyHash, hash.Sum256(p2pkh256Signature.PubKey)) {
+	if pkh := sha256.Sum256(p2pkh256Signature.PubKey); !bytes.Equal(pubKeyHash, pkh[:]) {
 		return false, nil
 	}
 

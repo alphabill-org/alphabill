@@ -8,7 +8,6 @@ import (
 	"io"
 	"sync"
 
-	abhash "github.com/alphabill-org/alphabill-go-base/hash"
 	"github.com/alphabill-org/alphabill-go-base/tree/mt"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/util"
@@ -63,12 +62,12 @@ func NewEmptyState(opts ...Option) *State {
 	}
 }
 
-func NewRecoveredState(stateData io.Reader, udc UnitDataConstructor, opts ...Option) (*State, error) {
+func NewRecoveredState(stateData io.Reader, udc UnitDataConstructor, opts ...Option) (*State, *Header, error) {
 	if stateData == nil {
-		return nil, fmt.Errorf("reader is nil")
+		return nil, nil, fmt.Errorf("reader is nil")
 	}
 	if udc == nil {
-		return nil, fmt.Errorf("unit data constructor is nil")
+		return nil, nil, fmt.Errorf("unit data constructor is nil")
 	}
 
 	return readState(stateData, udc, opts...)
@@ -163,35 +162,21 @@ func (s *State) GetUnit(id types.UnitID, committed bool) (Unit, error) {
 	return u.Clone(), nil
 }
 
-func (s *State) AddUnitLog(id types.UnitID, transactionRecordHash []byte) error {
+func (s *State) AddUnitLog(id types.UnitID, txrHash []byte) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
 	u, err := s.latestSavepoint().Get(id)
 	if err != nil {
-		return fmt.Errorf("unable to add unit log for unit %v: %w", id, err)
+		return fmt.Errorf("unable to find unit: %w", err)
 	}
 	unit, err := ToUnitV1(u.Clone())
 	if err != nil {
 		return fmt.Errorf("add log failed for unit %v: %w", id, err)
 	}
-	logsCount := len(unit.logs)
-	l := &Log{
-		TxRecordHash:   transactionRecordHash,
-		NewUnitData:    copyData(unit.data),
-		NewStateLockTx: bytes.Clone(unit.stateLockTx),
+	if err := unit.AddUnitLog(s.hashAlgorithm, txrHash); err != nil {
+		return fmt.Errorf("failed to add unit log: %w", err)
 	}
-	if logsCount == 0 {
-		// newly created unit
-		l.UnitLedgerHeadHash, err = abhash.HashValues(s.hashAlgorithm, nil, transactionRecordHash)
-	} else {
-		// a pre-existing unit
-		l.UnitLedgerHeadHash, err = abhash.HashValues(s.hashAlgorithm, unit.logs[logsCount-1].UnitLedgerHeadHash, transactionRecordHash)
-	}
-	if err != nil {
-		return fmt.Errorf("unable to hash unit ledger head: %w", err)
-	}
-	unit.logs = append(unit.logs, l)
 	return s.latestSavepoint().Update(id, unit)
 }
 
@@ -335,14 +320,17 @@ func (s *State) Size() (uint64, error) {
 
 // Serialize writes the current committed state to the given writer.
 // Not concurrency safe. Should clone the state before calling this.
-func (s *State) Serialize(writer io.Writer, committed bool) error {
+func (s *State) Serialize(writer io.Writer, committed bool, executedTransactions map[string]uint64) error {
 	crc32Writer := NewCRC32Writer(writer)
 	encoder, err := types.Cbor.GetEncoder(crc32Writer)
 	if err != nil {
 		return fmt.Errorf("unable to get encoder: %w", err)
 	}
 
-	header := &header{Version: 1}
+	header := &Header{
+		Version:              1,
+		ExecutedTransactions: executedTransactions,
+	}
 
 	var tree *tree
 	if committed {
@@ -440,26 +428,34 @@ func (s *State) Traverse(traverser avl.Traverser[types.UnitID, Unit]) error {
 	return s.committedTree.Traverse(traverser)
 }
 
-func (s *State) GetUnits(unitTypeID *uint32, pdr *types.PartitionDescriptionRecord) ([]types.UnitID, error) {
-	if pdr == nil && unitTypeID != nil {
-		return nil, errors.New("partition description record is nil")
+func (s *State) GetUnits(unitTypeIDPtr *uint32, pdr *types.PartitionDescriptionRecord) ([]types.UnitID, error) {
+	var unitTypeID uint32
+	if unitTypeIDPtr != nil {
+		if pdr == nil {
+			return nil, errors.New("partition description record is nil")
+		}
+		unitTypeID = *unitTypeIDPtr
 	}
-	traverser := NewFilter(func(unitID types.UnitID, unit Unit) (bool, error) {
-		// get all units if no unit type is provided
-		if unitTypeID == nil {
-			return true, nil
-		}
+	var unitIDs []types.UnitID
+	err := s.Traverse(NewInorderTraverser(func(unitID types.UnitID, unit Unit) error {
 		// filter by type if unit type is provided
-		unitIDType, err := pdr.ExtractUnitType(unitID)
-		if err != nil {
-			return false, fmt.Errorf("extracting unit type from unit ID: %w", err)
+		if unitTypeIDPtr != nil {
+			unitIDType, err := pdr.ExtractUnitType(unitID)
+			if err != nil {
+				return fmt.Errorf("extracting unit type from unit ID: %w", err)
+			}
+			if unitIDType == unitTypeID {
+				unitIDs = append(unitIDs, unitID)
+			}
+		} else {
+			unitIDs = append(unitIDs, unitID)
 		}
-		return unitIDType == *unitTypeID, nil
-	})
-	if err := s.Traverse(traverser); err != nil {
+		return nil
+	}))
+	if err != nil {
 		return nil, fmt.Errorf("failed to traverse state: %w", err)
 	}
-	return traverser.filteredUnitIDs, nil
+	return unitIDs, nil
 }
 
 func (s *State) createUnitTreeCert(unit *UnitV1, logIndex int) (*types.UnitTreeCert, error) {
@@ -472,15 +468,18 @@ func (s *State) createUnitTreeCert(unit *UnitV1, logIndex int) (*types.UnitTreeC
 		return nil, err
 	}
 	l := unit.logs[logIndex]
-	dataHasher := abhash.New(s.hashAlgorithm.New())
-	l.NewUnitData.Write(dataHasher)
-	h, err := dataHasher.Sum()
+
+	unitState, err := l.UnitState()
 	if err != nil {
-		return nil, fmt.Errorf("unable to hash unit data: %w", err)
+		return nil, fmt.Errorf("failed to create unit state: %w", err)
+	}
+	unitStateHash, err := unitState.Hash(s.hashAlgorithm)
+	if err != nil {
+		return nil, fmt.Errorf("failed to hash unit state: %w", err)
 	}
 	return &types.UnitTreeCert{
 		TransactionRecordHash: l.TxRecordHash,
-		UnitDataHash:          h,
+		UnitStateHash:         unitStateHash,
 		Path:                  path,
 	}, nil
 }

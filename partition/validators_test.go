@@ -26,7 +26,6 @@ var shardConf = &types.PartitionDescriptionRecord{
 }
 
 func TestNewDefaultUnicityCertificateValidator_NotOk(t *testing.T) {
-	_, v := testsig.CreateSignerAndVerifier(t)
 	type args struct {
 		shardConf     *types.PartitionDescriptionRecord
 		rootTrustBase types.RootTrustBase
@@ -37,15 +36,6 @@ func TestNewDefaultUnicityCertificateValidator_NotOk(t *testing.T) {
 		args    args
 		wantErr error
 	}{
-		{
-			name: "system description record is nil",
-			args: args{
-				shardConf:     nil,
-				rootTrustBase: trustbase.NewTrustBase(t, v),
-				algorithm:     gocrypto.SHA256,
-			},
-			wantErr: types.ErrSystemDescriptionIsNil,
-		},
 		{
 			name: "trust base is nil",
 			args: args{
@@ -58,7 +48,8 @@ func TestNewDefaultUnicityCertificateValidator_NotOk(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := NewDefaultUnicityCertificateValidator(tt.args.shardConf, tt.args.rootTrustBase, tt.args.algorithm)
+			got, err := NewDefaultUnicityCertificateValidator(
+				tt.args.shardConf.PartitionID, tt.args.shardConf.ShardID, tt.args.rootTrustBase, tt.args.algorithm)
 			require.ErrorIs(t, err, tt.wantErr)
 			require.Nil(t, got)
 		})
@@ -68,15 +59,15 @@ func TestNewDefaultUnicityCertificateValidator_NotOk(t *testing.T) {
 func TestDefaultUnicityCertificateValidator_ValidateNotOk(t *testing.T) {
 	_, verifier := testsig.CreateSignerAndVerifier(t)
 	rootTrust := trustbase.NewTrustBase(t, verifier)
-	v, err := NewDefaultUnicityCertificateValidator(shardConf, rootTrust, gocrypto.SHA256)
+	v, err := NewDefaultUnicityCertificateValidator(shardConf.PartitionID, shardConf.ShardID, rootTrust, gocrypto.SHA256)
 	require.NoError(t, err)
-	require.ErrorIs(t, v.Validate(nil), types.ErrUnicityCertificateIsNil)
+	require.ErrorIs(t, v.Validate(nil, nil), types.ErrUnicityCertificateIsNil)
 }
 
 func TestDefaultUnicityCertificateValidator_ValidateOk(t *testing.T) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	rootTrust := trustbase.NewTrustBase(t, verifier)
-	v, err := NewDefaultUnicityCertificateValidator(shardConf, rootTrust, gocrypto.SHA256)
+	v, err := NewDefaultUnicityCertificateValidator(shardConf.PartitionID, shardConf.ShardID, rootTrust, gocrypto.SHA256)
 	require.NoError(t, err)
 	ir := &types.InputRecord{
 		Version:      1,
@@ -96,13 +87,14 @@ func TestDefaultUnicityCertificateValidator_ValidateOk(t *testing.T) {
 		make([]byte, 32),
 		make([]byte, 32),
 	)
-	require.NoError(t, v.Validate(uc))
+	shardConfHash, err := shardConf.Hash(gocrypto.SHA256)
+	require.NoError(t, err)
+	require.NoError(t, v.Validate(uc, shardConfHash))
 }
 
 func TestNewDefaultBlockProposalValidator_NotOk(t *testing.T) {
-	_, v := testsig.CreateSignerAndVerifier(t)
 	type args struct {
-		systemDescription *types.PartitionDescriptionRecord
+		shardConf *types.PartitionDescriptionRecord
 		trustBase         types.RootTrustBase
 		algorithm         gocrypto.Hash
 	}
@@ -112,18 +104,9 @@ func TestNewDefaultBlockProposalValidator_NotOk(t *testing.T) {
 		wantErr error
 	}{
 		{
-			name: "system description record is nil",
-			args: args{
-				systemDescription: nil,
-				trustBase:         trustbase.NewTrustBase(t, v),
-				algorithm:         gocrypto.SHA256,
-			},
-			wantErr: types.ErrSystemDescriptionIsNil,
-		},
-		{
 			name: "trust base is nil",
 			args: args{
-				systemDescription: shardConf,
+				shardConf: shardConf,
 				trustBase:         nil,
 				algorithm:         gocrypto.SHA256,
 			},
@@ -132,7 +115,8 @@ func TestNewDefaultBlockProposalValidator_NotOk(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := NewDefaultBlockProposalValidator(tt.args.systemDescription, tt.args.trustBase, tt.args.algorithm)
+			got, err := NewDefaultBlockProposalValidator(
+				tt.args.shardConf.PartitionID, tt.args.shardConf.ShardID, tt.args.trustBase, tt.args.algorithm)
 			require.ErrorIs(t, err, tt.wantErr)
 			require.Nil(t, got)
 		})
@@ -142,16 +126,16 @@ func TestNewDefaultBlockProposalValidator_NotOk(t *testing.T) {
 func TestDefaultNewDefaultBlockProposalValidator_ValidateNotOk(t *testing.T) {
 	_, verifier := testsig.CreateSignerAndVerifier(t)
 	rootTrust := trustbase.NewTrustBase(t, verifier)
-	v, err := NewDefaultBlockProposalValidator(shardConf, rootTrust, gocrypto.SHA256)
+	v, err := NewDefaultBlockProposalValidator(shardConf.PartitionID, shardConf.ShardID, rootTrust, gocrypto.SHA256)
 	require.NoError(t, err)
-	require.ErrorIs(t, v.Validate(nil, nil), blockproposal.ErrBlockProposalIsNil)
+	require.ErrorIs(t, v.Validate(nil, nil, nil), blockproposal.ErrBlockProposalIsNil)
 }
 
 func TestDefaultNewDefaultBlockProposalValidator_ValidateOk(t *testing.T) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	nodeSigner, nodeVerifier := testsig.CreateSignerAndVerifier(t)
 	rootTrust := trustbase.NewTrustBase(t, verifier)
-	v, err := NewDefaultBlockProposalValidator(shardConf, rootTrust, gocrypto.SHA256)
+	v, err := NewDefaultBlockProposalValidator(shardConf.PartitionID, shardConf.ShardID, rootTrust, gocrypto.SHA256)
 	require.NoError(t, err)
 	ir := &types.InputRecord{
 		Version:      1,
@@ -195,9 +179,11 @@ func TestDefaultNewDefaultBlockProposalValidator_ValidateOk(t *testing.T) {
 			},
 		},
 	}
+	shardConfHash, err := shardConf.Hash(gocrypto.SHA256)
+	require.NoError(t, err)
 	err = bp.Sign(gocrypto.SHA256, nodeSigner)
 	require.NoError(t, err)
-	require.NoError(t, v.Validate(bp, nodeVerifier))
+	require.NoError(t, v.Validate(bp, nodeVerifier, shardConfHash))
 }
 
 func TestDefaultTxValidator_ValidateNotOk(t *testing.T) {

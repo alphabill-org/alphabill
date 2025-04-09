@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill/logger"
 	bolt "go.etcd.io/bbolt"
 )
 
@@ -141,7 +142,7 @@ func (o *Orchestration) AddShardConfig(shardConf *types.PartitionDescriptionReco
 	if shardConf.NetworkID != o.networkID {
 		return fmt.Errorf("invalid networkID %d, expected %d", shardConf.NetworkID, o.networkID)
 	}
-	return o.db.Update(func(tx *bolt.Tx) error {
+	err := o.db.Update(func(tx *bolt.Tx) error {
 		if err := verifyShardConf(tx, shardConf); err != nil {
 			return fmt.Errorf("verify shard conf: %w", err)
 		}
@@ -150,6 +151,14 @@ func (o *Orchestration) AddShardConfig(shardConf *types.PartitionDescriptionReco
 		}
 		return nil
 	})
+	if err != nil {
+		o.log.Error(fmt.Sprintf("Failed to add shard config for partition %d, epoch %d",
+			shardConf.PartitionID, shardConf.Epoch), logger.Error(err))
+		return err
+	}
+	o.log.Info(fmt.Sprintf("Added shard config for partition %d, epoch %d, epoch start %d",
+		shardConf.PartitionID, shardConf.Epoch, shardConf.EpochStart), logger.Error(err))
+	return err
 }
 
 func (o *Orchestration) Close() error {

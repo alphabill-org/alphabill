@@ -24,7 +24,7 @@ import (
 
 type AlwaysValidCertificateValidator struct{}
 
-func (c *AlwaysValidCertificateValidator) Validate(_ *types.UnicityCertificate) error {
+func (c *AlwaysValidCertificateValidator) Validate(_ *types.UnicityCertificate, _ []byte) error {
 	return nil
 }
 
@@ -236,8 +236,8 @@ func TestNode_SubsequentEmptyBlocksNotPersisted(t *testing.T) {
 func TestNode_InvalidCertificateResponse(t *testing.T) {
 	tp := runSingleValidatorNodePartition(t, &testtxsystem.CounterTxSystem{})
 	cr := &certification.CertificationResponse{
-		Partition: tp.nodeConf.GetPartitionID(),
-		Shard:     tp.nodeConf.shardConf.ShardID,
+		Partition: tp.nodeConf.PartitionID(),
+		Shard:     tp.nodeConf.ShardID(),
 	}
 	tp.mockNet.Receive(cr)
 	ContainsError(t, tp, "invalid CertificationResponse: UnicityTreeCertificate is unassigned")
@@ -259,7 +259,7 @@ func TestNode_HandleStaleCertificationResponse(t *testing.T) {
 
 func TestNode_StartNodeBehindRootchain_OK(t *testing.T) {
 	tp := runSingleValidatorNodePartition(t, &testtxsystem.CounterTxSystem{})
-	luc, found := tp.certs[tp.nodeConf.GetPartitionID()]
+	luc, found := tp.certs[tp.nodeConf.PartitionID()]
 	require.True(t, found)
 	// Mock and skip some root rounds
 	tp.eh.Reset()
@@ -420,7 +420,7 @@ func TestNode_HandleUnicityCertificate_SumOfEarnedFeesMismatch_1(t *testing.T) {
 	tp.WaitHandshake(t)
 
 	// skip UC validation
-	tp.node.unicityCertificateValidator = &AlwaysValidCertificateValidator{}
+	tp.node.conf.ucValidator = &AlwaysValidCertificateValidator{}
 
 	// create the first block
 	tp.CreateBlock(t)
@@ -522,9 +522,10 @@ func TestBlockProposal_InvalidBlockProposal(t *testing.T) {
 	verifier, err := tp.rootSigner.Verifier()
 	require.NoError(t, err)
 	rootTrust := trustbase.NewTrustBase(t, verifier)
-	val, err := NewDefaultBlockProposalValidator(tp.nodeConf.shardConf, rootTrust, gocrypto.SHA256)
+	val, err := NewDefaultBlockProposalValidator(
+		tp.nodeConf.PartitionID(), tp.nodeConf.ShardID(), rootTrust, gocrypto.SHA256)
 	require.NoError(t, err)
-	tp.node.blockProposalValidator = val
+	tp.node.conf.bpValidator = val
 
 	tp.SubmitBlockProposal(&blockproposal.BlockProposal{
 		NodeID:             tp.nodeID(t),
@@ -546,7 +547,8 @@ func TestBlockProposal_HandleOldBlockProposal(t *testing.T) {
 
 	tp.SubmitBlockProposal(&blockproposal.BlockProposal{
 		NodeID:             tp.nodeID(t),
-		PartitionID:        tp.nodeConf.GetPartitionID(),
+		PartitionID:        tp.nodeConf.PartitionID(),
+		ShardID:            tp.nodeConf.ShardID(),
 		UnicityCertificate: uc,
 	})
 
@@ -674,13 +676,13 @@ func TestNode_GetTransactionRecord_OK(t *testing.T) {
 	tp.WaitHandshake(t)
 	require.NoError(t, tp.node.startNewRound(context.Background()))
 	txo := testtransaction.NewTransactionOrder(t, testtransaction.WithTransactionType(21))
-	hash, err := txo.Hash(tp.node.configuration.hashAlgorithm)
+	hash, err := txo.Hash(tp.node.conf.hashAlgorithm)
 	require.NoError(t, err)
 	require.NoError(t, tp.SubmitTx(txo))
 	testevent.ContainsEvent(t, tp.eh, event.TransactionProcessed)
 
 	txo2 := testtransaction.NewTransactionOrder(t, testtransaction.WithTransactionType(22))
-	hash2, err := txo2.Hash(tp.node.configuration.hashAlgorithm)
+	hash2, err := txo2.Hash(tp.node.conf.hashAlgorithm)
 	require.NoError(t, err)
 	require.NoError(t, tp.SubmitTxFromRPC(txo2))
 	testevent.ContainsEvent(t, tp.eh, event.TransactionProcessed)

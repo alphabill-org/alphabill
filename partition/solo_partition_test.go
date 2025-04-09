@@ -55,11 +55,11 @@ type partitionStartupDependencies struct {
 	nodeOptions []NodeOption
 }
 
-func (t *AlwaysValidTransactionValidator) Validate(_ *types.TransactionOrder, _ uint64) error {
+func (t *AlwaysValidTransactionValidator) Validate(*types.TransactionOrder, uint64) error {
 	return nil
 }
 
-func (t *AlwaysValidBlockProposalValidator) Validate(*blockproposal.BlockProposal, crypto.Verifier) error {
+func (t *AlwaysValidBlockProposalValidator) Validate(*blockproposal.BlockProposal, crypto.Verifier, []byte) error {
 	return nil
 }
 
@@ -210,8 +210,8 @@ func (sn *SingleNodePartition) ReceiveCertResponse(t *testing.T, ir *types.Input
 	}
 
 	sn.mockNet.Receive(&certification.CertificationResponse{
-		Partition: sn.nodeConf.GetPartitionID(),
-		Shard:     sn.nodeConf.shardConf.ShardID,
+		Partition: sn.nodeConf.PartitionID(),
+		Shard:     sn.nodeConf.ShardID(),
 		Technical: tr,
 		UC:        *uc,
 	})
@@ -222,8 +222,8 @@ SubmitUnicityCertificate wraps the UC into CertificationResponse and sends it to
 */
 func (sn *SingleNodePartition) SubmitUnicityCertificate(t *testing.T, uc *types.UnicityCertificate) {
 	cr := &certification.CertificationResponse{
-		Partition: sn.nodeConf.GetPartitionID(),
-		Shard:     sn.nodeConf.shardConf.ShardID,
+		Partition: sn.nodeConf.PartitionID(),
+		Shard:     sn.nodeConf.ShardID(),
 		UC:        *uc,
 	}
 	tr := technicalRecord(t, uc.InputRecord, []string{sn.node.peer.ID().String()})
@@ -271,11 +271,6 @@ func (sn *SingleNodePartition) CreateUnicityCertificate(t *testing.T, ir *types.
 		return nil, nil, fmt.Errorf("calculating TechnicalRecord hash: %w", err)
 	}
 
-	shardConf := sn.nodeConf.shardConf
-	shardConfHash, err := shardConf.Hash(gocrypto.SHA256)
-	if err != nil {
-		return nil, nil, fmt.Errorf("calculating PDR hash: %w", err)
-	}
 	sTree, err := types.CreateShardTree(nil, []types.ShardTreeInput{{Shard: types.ShardID{}, IR: ir, TRHash: trHash}}, gocrypto.SHA256)
 	if err != nil {
 		return nil, nil, fmt.Errorf("creating shard tree: %w", err)
@@ -285,8 +280,16 @@ func (sn *SingleNodePartition) CreateUnicityCertificate(t *testing.T, ir *types.
 		return nil, nil, fmt.Errorf("creating shard tree certificate: %w", err)
 	}
 
+	var shardConfHash []byte
+	if sn.node != nil {
+		shardConfHash = sn.node.shardStore.ShardConfHash()
+	} else {
+		shardConfHash, err = sn.nodeConf.shardConf.Hash(gocrypto.SHA256)
+		require.NoError(t, err)
+	}
+
 	data := []*types.UnicityTreeData{{
-		Partition:     shardConf.PartitionID,
+		Partition:     sn.nodeConf.PartitionID(),
 		ShardTreeRoot: sTree.RootHash(),
 		PDRHash:       shardConfHash,
 	}}
@@ -299,7 +302,7 @@ func (sn *SingleNodePartition) CreateUnicityCertificate(t *testing.T, ir *types.
 	if err != nil {
 		return nil, nil, err
 	}
-	cert, err := ut.Certificate(shardConf.PartitionID)
+	cert, err := ut.Certificate(sn.nodeConf.PartitionID())
 	if err != nil {
 		return nil, nil, fmt.Errorf("creating UnicityTreeCertificate: %w", err)
 	}
@@ -322,11 +325,6 @@ func (sn *SingleNodePartition) CreateUnicityCertificateTR(t *testing.T, ir *type
 		return nil, tr, fmt.Errorf("calculating TechnicalRecord hash: %w", err)
 	}
 
-	shardConf := sn.nodeConf.shardConf
-	shardConfHash, err := shardConf.Hash(gocrypto.SHA256)
-	if err != nil {
-		return nil, tr, fmt.Errorf("calculating PDR hash: %w", err)
-	}
 	sTree, err := types.CreateShardTree(
 		nil,
 		[]types.ShardTreeInput{{Shard: types.ShardID{}, IR: ir, TRHash: trHash}}, gocrypto.SHA256)
@@ -339,9 +337,9 @@ func (sn *SingleNodePartition) CreateUnicityCertificateTR(t *testing.T, ir *type
 	}
 
 	data := []*types.UnicityTreeData{{
-		Partition:     shardConf.PartitionID,
+		Partition:     sn.node.PartitionID(),
 		ShardTreeRoot: sTree.RootHash(),
-		PDRHash:       shardConfHash,
+		PDRHash:       sn.node.shardStore.ShardConfHash(),
 	}}
 	ut, err := types.NewUnicityTree(gocrypto.SHA256, data)
 	if err != nil {
@@ -352,7 +350,7 @@ func (sn *SingleNodePartition) CreateUnicityCertificateTR(t *testing.T, ir *type
 	if err != nil {
 		return nil, tr, err
 	}
-	cert, err := ut.Certificate(shardConf.PartitionID)
+	cert, err := ut.Certificate(sn.node.PartitionID())
 	if err != nil {
 		return nil, tr, fmt.Errorf("creating UnicityTreeCertificate: %w", err)
 	}

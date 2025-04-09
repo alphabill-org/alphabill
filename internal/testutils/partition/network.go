@@ -282,7 +282,8 @@ func (a *AlphabillNetwork) GetValidator(psID types.PartitionShardID) (partition.
 	if !f {
 		return nil, fmt.Errorf("unknown shard %s", psID)
 	}
-	return partition.NewDefaultUnicityCertificateValidator(shard.shardConf, a.RootChain.TrustBase, crypto.SHA256)
+	sc := shard.shardConf
+	return partition.NewDefaultUnicityCertificateValidator(sc.PartitionID, sc.ShardID, a.RootChain.TrustBase, crypto.SHA256)
 }
 
 func (r *RootChain) start(t *testing.T, ctx context.Context) error {

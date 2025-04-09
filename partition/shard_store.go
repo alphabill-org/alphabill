@@ -1,6 +1,7 @@
 package partition
 
 import (
+	gocrypto "crypto"
 	"encoding/binary"
 	"fmt"
 	"log/slog"
@@ -23,6 +24,7 @@ type shardStore struct {
 	mu              sync.RWMutex
 	epoch           uint64
 	epochValidators map[peer.ID]crypto.Verifier
+	shardConfHash   []byte
 }
 
 func newShardStore(db keyvaluedb.KeyValueDB, log *slog.Logger) *shardStore {
@@ -52,13 +54,16 @@ func (s *shardStore) StoreShardConf(shardConf *types.PartitionDescriptionRecord)
 }
 
 func (s *shardStore) LoadEpoch(epoch uint64) error {
-	s.log.Info(fmt.Sprintf("Loading shard conf for epoch %d", epoch))
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	shardConf, err := s.loadShardConf(epoch)
 	if err != nil {
 		return fmt.Errorf("failed to load shard conf for epoch %d: %w", epoch, err)
+	}
+	shardConfHash, err := shardConf.Hash(gocrypto.SHA256)
+	if err != nil {
+		return fmt.Errorf("failed to calculate shard conf hash: %w", err)
 	}
 
 	validators := make(map[peer.ID]crypto.Verifier, len(shardConf.Validators))
@@ -76,6 +81,8 @@ func (s *shardStore) LoadEpoch(epoch uint64) error {
 	}
 	s.epoch = shardConf.Epoch
 	s.epochValidators = validators
+	s.shardConfHash = shardConfHash
+	s.log.Debug(fmt.Sprintf("Loaded shard configuration for epoch %d with hash %x", epoch, shardConfHash))
 	return nil
 }
 
@@ -108,6 +115,12 @@ func (s *shardStore) Verifier(validator peer.ID) crypto.Verifier {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.epochValidators[validator]
+}
+
+func (s *shardStore) ShardConfHash() []byte {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.shardConfHash
 }
 
 func (s *shardStore) loadShardConf(epoch uint64) (*types.PartitionDescriptionRecord, error) {

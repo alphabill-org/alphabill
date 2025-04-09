@@ -1219,7 +1219,7 @@ func TestNode_RespondToReplicationRequest(t *testing.T) {
 	tp.mockNet.Receive(&replication.LedgerReplicationRequest{
 		NodeID:           tp.nodeID(t).String(),
 		BeginBlockNumber: genesisBlockNumber + 1,
-		PartitionID:      tp.nodeConf.GetPartitionID(),
+		PartitionID:      tp.nodeConf.PartitionID(),
 	})
 
 	testevent.ContainsEvent(t, tp.eh, event.ReplicationResponseSent)
@@ -1233,12 +1233,12 @@ func TestNode_RespondToReplicationRequest(t *testing.T) {
 
 	tp.eh.Reset()
 	tp.mockNet.ResetSentMessages(network.ProtocolLedgerReplicationResp)
-	tp.node.configuration.replicationConfig.maxReturnBlocks = 1
+	tp.node.conf.replicationConfig.maxReturnBlocks = 1
 	//send replication request, it will hit block replication limit
 	tp.mockNet.Receive(&replication.LedgerReplicationRequest{
 		NodeID:           tp.nodeID(t).String(),
 		BeginBlockNumber: genesisBlockNumber + 1,
-		PartitionID:      tp.nodeConf.GetPartitionID(),
+		PartitionID:      tp.nodeConf.PartitionID(),
 	})
 	testevent.ContainsEvent(t, tp.eh, event.ReplicationResponseSent)
 	resp = WaitNodeRequestReceived(t, tp, network.ProtocolLedgerReplicationResp)
@@ -1283,7 +1283,7 @@ func TestNode_RespondToInvalidReplicationRequest(t *testing.T) {
 	tp.mockNet.Receive(&replication.LedgerReplicationRequest{
 		NodeID:           tp.nodeID(t).String(),
 		BeginBlockNumber: 11,
-		PartitionID:      tp.nodeConf.GetPartitionID(),
+		PartitionID:      tp.nodeConf.PartitionID(),
 	})
 	testevent.ContainsEvent(t, tp.eh, event.ReplicationResponseSent)
 	//make sure response is sent
@@ -1320,14 +1320,14 @@ func TestNode_RespondToInvalidReplicationRequest(t *testing.T) {
 		NodeID:           tp.nodeID(t).String(),
 		BeginBlockNumber: 5,
 		EndBlockNumber:   3,
-		PartitionID:      tp.nodeConf.GetPartitionID(),
+		PartitionID:      tp.nodeConf.PartitionID(),
 	}
 	require.ErrorContains(t, tp.node.handleLedgerReplicationRequest(context.Background(), req), "invalid request, invalid block request range from 5 to 3")
 	// unknown node identifier
 	req = &replication.LedgerReplicationRequest{
 		NodeID:           "",
 		BeginBlockNumber: 2,
-		PartitionID:      tp.nodeConf.GetPartitionID(),
+		PartitionID:      tp.nodeConf.PartitionID(),
 	}
 	require.ErrorContains(t, tp.node.handleLedgerReplicationRequest(context.Background(), req), "invalid request, node identifier is missing")
 }

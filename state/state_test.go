@@ -585,7 +585,7 @@ func TestCreateAndVerifyStateProofs_UpdateAndPruneUnits(t *testing.T) {
 
 type alwaysValid struct{}
 
-func (a *alwaysValid) Validate(*types.UnicityCertificate) error {
+func (a *alwaysValid) Validate(*types.UnicityCertificate, []byte) error {
 	return nil
 }
 
@@ -600,7 +600,7 @@ func TestCreateAndVerifyStateProofs_CreateUnitProof(t *testing.T) {
 		require.NoError(t, err)
 		data, err := types.NewUnitState(unit.data, 0, nil)
 		require.NoError(t, err)
-		require.NoError(t, proof.Verify(crypto.SHA256, data, &alwaysValid{}))
+		require.NoError(t, proof.Verify(crypto.SHA256, data, &alwaysValid{}, nil))
 	})
 	t.Run("unit not found", func(t *testing.T) {
 		s, _, _ := prepareState(t)

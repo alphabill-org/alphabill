@@ -19,32 +19,31 @@ type (
 
 	// UnicityCertificateValidator is used to validate certificates.UnicityCertificate.
 	UnicityCertificateValidator interface {
-		// Validate validates the given certificates.UnicityCertificate. Returns an error if given unicity certificate
-		// is not valid.
-		Validate(uc *types.UnicityCertificate) error
+		// Validate validates the given UC. Returns an error if UC is not valid.
+		Validate(uc *types.UnicityCertificate, shardConfHash []byte) error
 	}
 
 	// BlockProposalValidator is used to validate block proposals.
 	BlockProposalValidator interface {
 		// Validate validates the given blockproposal.BlockProposal. Returns an error if given block proposal
 		// is not valid.
-		Validate(bp *blockproposal.BlockProposal, nodeSignatureVerifier crypto.Verifier) error
+		Validate(bp *blockproposal.BlockProposal, sigVerifier crypto.Verifier, shardConfHash []byte) error
 	}
 
 	// DefaultUnicityCertificateValidator is a default implementation of UnicityCertificateValidator.
 	DefaultUnicityCertificateValidator struct {
-		partitionID           types.PartitionID
-		systemDescriptionHash []byte
-		rootTrustBase         types.RootTrustBase
-		algorithm             gocrypto.Hash
+		partitionID types.PartitionID
+		shardID     types.ShardID
+		trustBase   types.RootTrustBase
+		hashAlg     gocrypto.Hash
 	}
 
 	// DefaultBlockProposalValidator is a default implementation of UnicityCertificateValidator.
 	DefaultBlockProposalValidator struct {
-		partitionID           types.PartitionID
-		systemDescriptionHash []byte
-		rootTrustBase         types.RootTrustBase
-		algorithm             gocrypto.Hash
+		partitionID types.PartitionID
+		shardID     types.ShardID
+		trustBase   types.RootTrustBase
+		hashAlg     gocrypto.Hash
 	}
 
 	DefaultTxValidator struct {
@@ -88,62 +87,50 @@ func (dtv *DefaultTxValidator) Validate(tx *types.TransactionOrder, currentRound
 
 // NewDefaultUnicityCertificateValidator creates a new instance of default UnicityCertificateValidator.
 func NewDefaultUnicityCertificateValidator(
-	pdr *types.PartitionDescriptionRecord,
+	partitionID types.PartitionID,
+	shardID types.ShardID,
 	trustBase types.RootTrustBase,
-	algorithm gocrypto.Hash,
+	hashAlg gocrypto.Hash,
 ) (UnicityCertificateValidator, error) {
-	if err := pdr.IsValid(); err != nil {
-		return nil, err
-	}
 	if trustBase == nil {
 		return nil, types.ErrRootValidatorInfoMissing
 	}
-	h, err := pdr.Hash(algorithm)
-	if err != nil {
-		return nil, fmt.Errorf("failed to hash partition description: %w", err)
-	}
 	return &DefaultUnicityCertificateValidator{
-		partitionID:           pdr.PartitionID,
-		rootTrustBase:         trustBase,
-		systemDescriptionHash: h,
-		algorithm:             algorithm,
+		partitionID: partitionID,
+		shardID:     shardID,
+		trustBase:   trustBase,
+		hashAlg:     hashAlg,
 	}, nil
 }
 
-func (ucv *DefaultUnicityCertificateValidator) Validate(uc *types.UnicityCertificate) error {
-	return uc.Verify(ucv.rootTrustBase, ucv.algorithm, ucv.partitionID, ucv.systemDescriptionHash)
+func (ucv *DefaultUnicityCertificateValidator) Validate(uc *types.UnicityCertificate, shardConfHash []byte) error {
+	return uc.Verify(ucv.trustBase, ucv.hashAlg, ucv.partitionID, shardConfHash)
 }
 
 // NewDefaultBlockProposalValidator creates a new instance of default BlockProposalValidator.
 func NewDefaultBlockProposalValidator(
-	pdr *types.PartitionDescriptionRecord,
-	rootTrust types.RootTrustBase,
-	algorithm gocrypto.Hash,
+	partitionID types.PartitionID,
+	shardID types.ShardID,
+	trustBase types.RootTrustBase,
+	hashAlg gocrypto.Hash,
 ) (BlockProposalValidator, error) {
-	if err := pdr.IsValid(); err != nil {
-		return nil, err
-	}
-	if rootTrust == nil {
+	if trustBase == nil {
 		return nil, types.ErrRootValidatorInfoMissing
 	}
-	h, err := pdr.Hash(algorithm)
-	if err != nil {
-		return nil, fmt.Errorf("failed to hash partition description: %w", err)
-	}
 	return &DefaultBlockProposalValidator{
-		partitionID:           pdr.PartitionID,
-		rootTrustBase:         rootTrust,
-		systemDescriptionHash: h,
-		algorithm:             algorithm,
+		partitionID: partitionID,
+		shardID:     shardID,
+		trustBase:   trustBase,
+		hashAlg:     hashAlg,
 	}, nil
 }
 
-func (bpv *DefaultBlockProposalValidator) Validate(bp *blockproposal.BlockProposal, nodeSignatureVerifier crypto.Verifier) error {
+func (bpv *DefaultBlockProposalValidator) Validate(bp *blockproposal.BlockProposal, nodeSignatureVerifier crypto.Verifier, shardConfHash []byte) error {
 	return bp.IsValid(
 		nodeSignatureVerifier,
-		bpv.rootTrustBase,
-		bpv.algorithm,
+		bpv.trustBase,
+		bpv.hashAlg,
 		bpv.partitionID,
-		bpv.systemDescriptionHash,
+		shardConfHash,
 	)
 }

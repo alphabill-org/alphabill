@@ -49,8 +49,8 @@ type (
 		signer                      abcrypto.Signer
 		hashAlgorithm               crypto.Hash   // make hash algorithm configurable in the future. currently it is using SHA-256.
 		txValidator                 TxValidator
-		unicityCertificateValidator UnicityCertificateValidator
-		blockProposalValidator      BlockProposalValidator
+		ucValidator                 UnicityCertificateValidator
+		bpValidator                 BlockProposalValidator
 		blockStore                  keyvaluedb.KeyValueDB
 		shardStore                  keyvaluedb.KeyValueDB
 		proofIndexConfig            proofIndexConfig
@@ -174,13 +174,13 @@ func WithReplicationParams(maxFetchBlocks, maxReturnBlocks uint64, maxTx uint32,
 
 func WithUnicityCertificateValidator(unicityCertificateValidator UnicityCertificateValidator) NodeOption {
 	return func(c *NodeConf) {
-		c.unicityCertificateValidator = unicityCertificateValidator
+		c.ucValidator = unicityCertificateValidator
 	}
 }
 
 func WithBlockProposalValidator(blockProposalValidator BlockProposalValidator) NodeOption {
 	return func(c *NodeConf) {
-		c.blockProposalValidator = blockProposalValidator
+		c.bpValidator = blockProposalValidator
 	}
 }
 
@@ -259,20 +259,22 @@ func (c *NodeConf) initMissingDefaults() error {
 		}
 	}
 
-	if c.blockProposalValidator == nil {
-		c.blockProposalValidator, err = NewDefaultBlockProposalValidator(c.shardConf, c.trustBase, c.hashAlgorithm)
+	if c.bpValidator == nil {
+		c.bpValidator, err = NewDefaultBlockProposalValidator(
+			c.shardConf.PartitionID, c.shardConf.ShardID, c.trustBase, c.hashAlgorithm)
 		if err != nil {
 			return fmt.Errorf("initializing block proposal validator: %w", err)
 		}
 	}
-	if c.unicityCertificateValidator == nil {
-		c.unicityCertificateValidator, err = NewDefaultUnicityCertificateValidator(c.shardConf, c.trustBase, c.hashAlgorithm)
+	if c.ucValidator == nil {
+		c.ucValidator, err = NewDefaultUnicityCertificateValidator(
+			c.shardConf.PartitionID, c.shardConf.ShardID, c.trustBase, c.hashAlgorithm)
 		if err != nil {
 			return fmt.Errorf("initializing unicity certificate validator: %w", err)
 		}
 	}
 	if c.txValidator == nil {
-		c.txValidator, err = NewDefaultTxValidator(c.GetPartitionID())
+		c.txValidator, err = NewDefaultTxValidator(c.PartitionID())
 		if err != nil {
 			return err
 		}
@@ -295,12 +297,16 @@ func (c *NodeConf) initMissingDefaults() error {
 	return nil
 }
 
-func (c *NodeConf) GetNetworkID() types.NetworkID {
+func (c *NodeConf) NetworkID() types.NetworkID {
 	return c.shardConf.NetworkID
 }
 
-func (c *NodeConf) GetPartitionID() types.PartitionID {
+func (c *NodeConf) PartitionID() types.PartitionID {
 	return c.shardConf.PartitionID
+}
+
+func (c *NodeConf) ShardID() types.ShardID {
+	return c.shardConf.ShardID
 }
 
 func (c *NodeConf) GetT2Timeout() time.Duration {

@@ -210,3 +210,30 @@ func (m *CounterTxSystem) Clone() *CounterTxSystem {
 func (m *ErrorState) Serialize(writer io.Writer, committed bool, executedTransactions map[string]uint64) error {
 	return m.Err
 }
+
+type MockState struct {
+	Err error
+}
+
+func (m MockState) GetUnit(id types.UnitID, committed bool) (state.Unit, error) {
+	if m.Err != nil {
+		return nil, m.Err
+	}
+	return &state.UnitV1{}, nil
+}
+
+func (m MockState) CreateUnitStateProof(id types.UnitID, logIndex int) (*types.UnitStateProof, error) {
+	return &types.UnitStateProof{}, nil
+}
+
+func (m MockState) CreateIndex(state.KeyExtractor[string]) (state.Index[string], error) {
+	return nil, nil
+}
+
+func (m MockState) Serialize(writer io.Writer, committed bool, executedTransactions map[string]uint64) error {
+	return nil
+}
+
+func (m MockState) GetUnits(unitTypeID *uint32, pdr *types.PartitionDescriptionRecord) ([]types.UnitID, error) {
+	return nil, nil
+}

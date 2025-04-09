@@ -172,7 +172,6 @@ func (a *AlphabillNetwork) AddShard(t *testing.T, shardConf *types.PartitionDesc
 			partition.WithBootstrapAddresses([]string{bootstrapAddress}),
 			partition.WithEventHandler(eventHandler.HandleEvent, 100),
 			partition.WithT1Timeout(partition.DefaultT1Timeout/speedFactor),
-			partition.WithOwnerIndex(partition.NewOwnerIndexer(obs.Logger())),
 		)
 		require.NoError(t, err)
 

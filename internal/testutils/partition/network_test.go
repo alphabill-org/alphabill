@@ -32,7 +32,7 @@ func TestNewNetwork_Ok(t *testing.T) {
 	defer abNetwork.WaitClose(t)
 
 	abNetwork.AddShard(t, shardConf, 3, func(tb types.RootTrustBase) txsystem.TransactionSystem {
-		return &testtxsystem.CounterTxSystem{InitCount: 1}
+		return &testtxsystem.CounterTxSystem{FixedState: testtxsystem.MockState{}}
 	})
 
 	require.Len(t, abNetwork.RootChain.nodes, 3)

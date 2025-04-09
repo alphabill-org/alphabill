@@ -65,7 +65,7 @@ func TestNode_NodeStartTest(t *testing.T) {
 
 func TestNode_NodeStartWithRecoverStateFromDB(t *testing.T) {
 	// used to generate test blocks
-	txs := &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}}
+	txs := &testtxsystem.CounterTxSystem{FixedState: testtxsystem.MockState{}}
 	tp := newSingleValidatorNodePartition(t, txs)
 
 	// Replace blockStore before node is run
@@ -119,7 +119,7 @@ func TestNode_NodeStartWithRecoverStateFromDB(t *testing.T) {
 }
 
 func TestNode_CreateBlocks(t *testing.T) {
-	tp := runSingleValidatorNodePartition(t, &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}})
+	tp := runSingleValidatorNodePartition(t, &testtxsystem.CounterTxSystem{FixedState: testtxsystem.MockState{}})
 	tp.WaitHandshake(t)
 
 	transfer := testtransaction.NewTransactionOrder(t)
@@ -319,7 +319,7 @@ func TestNode_HandleEquivocatingUnicityCertificate_SameRoundDifferentIRHashes(t 
 }
 
 func TestNode_HandleEquivocatingUnicityCertificate_SameIRPreviousHashDifferentIRHash(t *testing.T) {
-	txs := &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}}
+	txs := &testtxsystem.CounterTxSystem{FixedState: testtxsystem.MockState{}}
 	tp := runSingleValidatorNodePartition(t, txs)
 	tp.WaitHandshake(t)
 
@@ -341,7 +341,7 @@ func TestNode_HandleEquivocatingUnicityCertificate_SameIRPreviousHashDifferentIR
 
 // state does not change in case of no transactions
 func TestNode_HandleUnicityCertificate_SameIR_DifferentBlockHash_StateReverted(t *testing.T) {
-	txs := &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}}
+	txs := &testtxsystem.CounterTxSystem{FixedState: testtxsystem.MockState{}}
 	tp := runSingleValidatorNodePartition(t, txs)
 	tp.WaitHandshake(t)
 
@@ -667,7 +667,7 @@ func TestBlockProposal_TxSystemStateIsDifferent_newUC(t *testing.T) {
 }
 
 func TestNode_GetTransactionRecord_OK(t *testing.T) {
-	system := &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}}
+	system := &testtxsystem.CounterTxSystem{FixedState: testtxsystem.MockState{}}
 	indexDB, err := memorydb.New()
 	require.NoError(t, err)
 	tp := runSingleValidatorNodePartition(t, system, WithProofIndex(indexDB, 0))

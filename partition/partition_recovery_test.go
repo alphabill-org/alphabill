@@ -136,7 +136,7 @@ func TestNode_RecoverToOlderRootRound(t *testing.T) {
 	uc1 := tp.GetCommittedUC(t)
 
 	// create a new block with a new UC which node does not know about
-	uc2Block, uc2 := createSameEpochBlock(t, tp, &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}}, uc1, testtransaction.NewTransactionRecord(t))
+	uc2Block, uc2 := createSameEpochBlock(t, tp, &testtxsystem.CounterTxSystem{FixedState: testtxsystem.MockState{}}, uc1, testtransaction.NewTransactionRecord(t))
 
 	// submit repeat UC so that node starts recovery
 	tp.ReceiveCertResponseSameEpoch(t, uc2.InputRecord.NewRepeatIR(), uc2.UnicitySeal.RootChainRoundNumber+1)
@@ -208,7 +208,7 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withPendingProposa
 
 func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withPendingProposal_sameIR_butDifferentBlocks(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-	tp := newSingleValidatorNodePartition(t, &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}})
+	tp := newSingleValidatorNodePartition(t, &testtxsystem.CounterTxSystem{FixedState: testtxsystem.MockState{}})
 	done := tp.start(ctx, t)
 	tp.WaitHandshake(t)
 
@@ -449,11 +449,11 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withNoProposal(t *
 }
 
 func TestNode_RecoverBlocks(t *testing.T) {
-	tp := runSingleValidatorNodePartition(t, &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}})
+	tp := runSingleValidatorNodePartition(t, &testtxsystem.CounterTxSystem{FixedState: testtxsystem.MockState{}})
 	tp.WaitHandshake(t)
 	uc0 := tp.GetCommittedUC(t)
 
-	system := &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}}
+	system := &testtxsystem.CounterTxSystem{FixedState: testtxsystem.MockState{}}
 	newBlock1, uc1 := createSameEpochBlock(t, tp, system, uc0, testtransaction.NewTransactionRecord(t))
 	newBlock2, uc2 := createSameEpochBlock(t, tp, system, uc1, testtransaction.NewTransactionRecord(t))
 	newBlock3, uc3 := createSameEpochBlock(t, tp, system, uc2, testtransaction.NewTransactionRecord(t))
@@ -515,11 +515,11 @@ func TestNode_RecoverBlocks(t *testing.T) {
 }
 
 func TestNode_RecoverBlocks_NewerUCIsReceivedDuringRecovery(t *testing.T) {
-	tp := runSingleValidatorNodePartition(t, &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}})
+	tp := runSingleValidatorNodePartition(t, &testtxsystem.CounterTxSystem{FixedState: testtxsystem.MockState{}})
 	tp.WaitHandshake(t)
 	uc0 := tp.GetCommittedUC(t)
 
-	system := &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}}
+	system := &testtxsystem.CounterTxSystem{FixedState: testtxsystem.MockState{}}
 	newBlock1, uc1 := createSameEpochBlock(t, tp, system, uc0, testtransaction.NewTransactionRecord(t))
 	newBlock2, uc2 := createSameEpochBlock(t, tp, system, uc1, testtransaction.NewTransactionRecord(t))
 	newBlock3, uc3 := createSameEpochBlock(t, tp, system, uc2, testtransaction.NewTransactionRecord(t))
@@ -554,11 +554,11 @@ func TestNode_RecoverBlocks_NewerUCIsReceivedDuringRecovery(t *testing.T) {
 }
 
 func TestNode_RecoverBlocks_withEmptyBlocksChangingState(t *testing.T) {
-	tp := runSingleValidatorNodePartition(t, &testtxsystem.CounterTxSystem{EndBlockChangesState: true, FixedState: mockStateStoreOK{}})
+	tp := runSingleValidatorNodePartition(t, &testtxsystem.CounterTxSystem{EndBlockChangesState: true, FixedState: testtxsystem.MockState{}})
 	tp.WaitHandshake(t)
 	uc0 := tp.GetCommittedUC(t)
 
-	system := &testtxsystem.CounterTxSystem{EndBlockChangesState: true, FixedState: mockStateStoreOK{}}
+	system := &testtxsystem.CounterTxSystem{EndBlockChangesState: true, FixedState: testtxsystem.MockState{}}
 	newBlock1, uc1 := createSameEpochBlock(t, tp, system, uc0, testtransaction.NewTransactionRecord(t))
 	newBlock2, uc2 := createSameEpochBlock(t, tp, system, uc1, testtransaction.NewTransactionRecord(t))
 	newBlock3empty, uc3 := createSameEpochBlock(t, tp, system, uc2)
@@ -685,11 +685,11 @@ func TestNode_RecoverSkipsRequiredBlock(t *testing.T) {
 }
 
 func TestNode_RecoverSkipsBlocksAndSendMixedBlocks(t *testing.T) {
-	tp := runSingleValidatorNodePartition(t, &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}})
+	tp := runSingleValidatorNodePartition(t, &testtxsystem.CounterTxSystem{FixedState: testtxsystem.MockState{}})
 	tp.WaitHandshake(t)
 	uc0 := tp.GetCommittedUC(t)
 
-	system := &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}}
+	system := &testtxsystem.CounterTxSystem{FixedState: testtxsystem.MockState{}}
 	newBlock1, uc1 := createSameEpochBlock(t, tp, system, uc0, testtransaction.NewTransactionRecord(t))
 	newBlock2, uc2 := createSameEpochBlock(t, tp, system, uc1, testtransaction.NewTransactionRecord(t))
 	newBlock3, uc3 := createSameEpochBlock(t, tp, system, uc2, testtransaction.NewTransactionRecord(t))
@@ -748,11 +748,11 @@ func TestNode_RecoverSkipsBlocksAndSendMixedBlocks(t *testing.T) {
 }
 
 func TestNode_RecoverReceivesInvalidBlock(t *testing.T) {
-	tp := runSingleValidatorNodePartition(t, &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}})
+	tp := runSingleValidatorNodePartition(t, &testtxsystem.CounterTxSystem{FixedState: testtxsystem.MockState{}})
 	tp.WaitHandshake(t)
 	uc0 := tp.GetCommittedUC(t)
 
-	system := &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}}
+	system := &testtxsystem.CounterTxSystem{FixedState: testtxsystem.MockState{}}
 	newBlock1, uc1 := createSameEpochBlock(t, tp, system, uc0, testtransaction.NewTransactionRecord(t))
 	newBlock2, uc2 := createSameEpochBlock(t, tp, system, uc1, testtransaction.NewTransactionRecord(t))
 
@@ -798,7 +798,7 @@ func TestNode_RecoverReceivesInvalidBlock(t *testing.T) {
 }
 
 func TestNode_RecoverReceivesInvalidBlockNoBlockProposerId(t *testing.T) {
-	tp := newSingleValidatorNodePartition(t, &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}})
+	tp := newSingleValidatorNodePartition(t, &testtxsystem.CounterTxSystem{FixedState: testtxsystem.MockState{}})
 	ctx, cancel := context.WithCancel(context.Background())
 	done := tp.start(ctx, t)
 	tp.WaitHandshake(t)
@@ -811,7 +811,7 @@ func TestNode_RecoverReceivesInvalidBlockNoBlockProposerId(t *testing.T) {
 		}
 	})
 	uc0 := tp.GetCommittedUC(t)
-	system := &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}}
+	system := &testtxsystem.CounterTxSystem{FixedState: testtxsystem.MockState{}}
 	newBlock1, uc1 := createSameEpochBlock(t, tp, system, uc0, testtransaction.NewTransactionRecord(t))
 	newBlock2, uc2 := createSameEpochBlock(t, tp, system, uc1, testtransaction.NewTransactionRecord(t))
 	altBlock2 := copyBlock(t, newBlock2)
@@ -864,8 +864,8 @@ func TestNode_RecoverySimulateStorageFailsOnRecovery(t *testing.T) {
 	db, err := memorydb.New()
 	require.NoError(t, err)
 	// used to generate test blocks
-	system := &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}}
-	tp := newSingleValidatorNodePartition(t, &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}}, WithBlockStore(db))
+	system := &testtxsystem.CounterTxSystem{FixedState: testtxsystem.MockState{}}
+	tp := newSingleValidatorNodePartition(t, &testtxsystem.CounterTxSystem{FixedState: testtxsystem.MockState{}}, WithBlockStore(db))
 	ctx, cancel := context.WithCancel(context.Background())
 	done := tp.start(ctx, t)
 	t.Cleanup(func() {
@@ -940,7 +940,7 @@ func TestNode_RecoverySimulateStorageFailsOnRecovery(t *testing.T) {
 }
 
 func TestNode_RecoverySimulateStorageFailsDuringBlockFinalizationOnUC(t *testing.T) {
-	txs := &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}, Fee: 1}
+	txs := &testtxsystem.CounterTxSystem{FixedState: testtxsystem.MockState{}, Fee: 1}
 	tp := newSingleValidatorNodePartition(t, txs)
 
 	// Replace blockStore before node is run
@@ -1027,7 +1027,7 @@ func TestNode_RecoverySimulateStorageFailsDuringBlockFinalizationOnUC(t *testing
 }
 
 func TestNode_CertificationRequestNotSentWhenProposalStoreFails(t *testing.T) {
-	txs := &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}, Fee: 1}
+	txs := &testtxsystem.CounterTxSystem{FixedState: testtxsystem.MockState{}, Fee: 1}
 	tp := newSingleValidatorNodePartition(t, txs)
 
 	// Replace blockStore before node is run
@@ -1112,11 +1112,11 @@ func TestNode_CertificationRequestNotSentWhenProposalStoreFails(t *testing.T) {
 }
 
 func TestNode_RecoverySendInvalidLedgerReplicationReplies(t *testing.T) {
-	tp := runSingleValidatorNodePartition(t, &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}})
+	tp := runSingleValidatorNodePartition(t, &testtxsystem.CounterTxSystem{FixedState: testtxsystem.MockState{}})
 	tp.WaitHandshake(t)
 	uc0 := tp.GetCommittedUC(t)
 
-	system := &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}}
+	system := &testtxsystem.CounterTxSystem{FixedState: testtxsystem.MockState{}}
 	newBlock1, uc1 := createSameEpochBlock(t, tp, system, uc0, testtransaction.NewTransactionRecord(t))
 	newBlock2, uc2 := createSameEpochBlock(t, tp, system, uc1, testtransaction.NewTransactionRecord(t))
 	newBlock3, uc3 := createSameEpochBlock(t, tp, system, uc2, testtransaction.NewTransactionRecord(t))
@@ -1185,7 +1185,7 @@ func TestNode_RecoverySendInvalidLedgerReplicationReplies(t *testing.T) {
 }
 
 func TestNode_RespondToReplicationRequest(t *testing.T) {
-	tp := runSingleValidatorNodePartition(t, &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}}, WithReplicationParams(3, 3, 5, 1000))
+	tp := runSingleValidatorNodePartition(t, &testtxsystem.CounterTxSystem{FixedState: testtxsystem.MockState{}}, WithReplicationParams(3, 3, 5, 1000))
 	tp.WaitHandshake(t)
 
 	genesisBlockNumber := tp.GetCommittedUC(t).GetRoundNumber()
@@ -1250,7 +1250,7 @@ func TestNode_RespondToReplicationRequest(t *testing.T) {
 }
 
 func TestNode_RespondToInvalidReplicationRequest(t *testing.T) {
-	tp := runSingleValidatorNodePartition(t, &testtxsystem.CounterTxSystem{FixedState: mockStateStoreOK{}}, WithReplicationParams(3, 3, 5, 1000))
+	tp := runSingleValidatorNodePartition(t, &testtxsystem.CounterTxSystem{FixedState: testtxsystem.MockState{}}, WithReplicationParams(3, 3, 5, 1000))
 	tp.WaitHandshake(t)
 
 	genesisBlockNumber := tp.GetCommittedUC(t).GetRoundNumber()

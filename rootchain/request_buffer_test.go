@@ -5,6 +5,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill-go-base/crypto"
@@ -24,51 +25,121 @@ var req1 = &certification.BlockCertificationRequest{
 	InputRecord: ir1,
 }
 
-// Test internals
-func Test_requestStore_add(t *testing.T) {
-	rs := newRequestStore()
-	trustBase := partitions.NewPartitionTrustBase(map[string]crypto.Verifier{"1": nil, "2": nil})
-	res, proof, err := rs.add(&certification.BlockCertificationRequest{NodeID: "1", InputRecord: ir1}, trustBase)
-	require.NoError(t, err)
-	require.Equal(t, QuorumInProgress, res)
-	require.Nil(t, proof)
-	res, proof, err = rs.add(&certification.BlockCertificationRequest{NodeID: "1", InputRecord: ir1}, trustBase)
-	require.ErrorContains(t, err, "request of the node in this round already stored")
-	require.Equal(t, QuorumUnknown, res)
-	require.Nil(t, proof)
-	// try to store a different IR
-	res, proof, err = rs.add(&certification.BlockCertificationRequest{NodeID: "1", InputRecord: ir2}, trustBase)
-	require.ErrorContains(t, err, "request of the node in this round already stored")
-	require.Equal(t, QuorumUnknown, res)
-	require.Nil(t, proof)
-	// node 2 request
-	res, proof, err = rs.add(&certification.BlockCertificationRequest{NodeID: "2", InputRecord: ir1}, trustBase)
-	require.NoError(t, err)
-	require.Equal(t, QuorumAchieved, res)
-	require.Len(t, proof, 2)
-	require.Equal(t, 2, len(rs.nodeRequest))
-	require.Equal(t, 1, len(rs.requests))
-	_, res = rs.isConsensusReceived(trustBase)
-	require.Equal(t, QuorumAchieved, res)
-	for _, certReq := range rs.requests {
-		require.Len(t, certReq, 2)
-	}
-}
+func Test_requestBuffer_add(t *testing.T) {
+	nodeIdA := generateNodeID(t).String()
+	nodeIdB := generateNodeID(t).String()
 
-func Test_requestStore_QuorumNotPossibleWith2Nodes(t *testing.T) {
-	rs := newRequestStore()
-	trustBase := partitions.NewPartitionTrustBase(map[string]crypto.Verifier{"1": nil, "2": nil})
-	res, proof, err := rs.add(&certification.BlockCertificationRequest{NodeID: "1", InputRecord: ir1}, trustBase)
-	require.NoError(t, err)
-	require.Equal(t, QuorumInProgress, res)
-	require.Nil(t, proof)
-	res, proof, err = rs.add(&certification.BlockCertificationRequest{NodeID: "2", InputRecord: ir2}, trustBase)
-	require.NoError(t, err)
-	require.Equal(t, QuorumNotPossible, res)
-	require.Len(t, proof, 2)
-	proof, res = rs.isConsensusReceived(trustBase)
-	require.Equal(t, QuorumNotPossible, res)
-	require.NotNil(t, proof)
+	ir1 := &types.InputRecord{
+		Version:     1,
+		RoundNumber: 39846,
+		Epoch:       38,
+		Hash:        []byte{1},
+	}
+	ir2 := ir1.NewRepeatIR()
+	ir2.RoundNumber++
+
+	// trust base is used only for quorum info, no verification
+	tb := mockQuorumInfo{nodeCount: 2, quorum: 2}
+
+	t.Run("already voted", func(t *testing.T) {
+		rs := newRequestStore()
+		bcr := certification.BlockCertificationRequest{NodeID: nodeIdA, InputRecord: ir1}
+
+		// first request
+		qs, r, err := rs.add(&bcr, tb)
+		require.NoError(t, err)
+		assert.Nil(t, r)
+		assert.Equal(t, QuorumInProgress, qs)
+
+		// same request again
+		qs, r, err = rs.add(&bcr, tb)
+		require.EqualError(t, err, `request of the node in this round already stored`)
+		assert.Nil(t, r)
+		assert.Equal(t, QuorumUnknown, qs)
+		assert.Equal(t, 1, len(rs.nodeRequest))
+		assert.Equal(t, 1, len(rs.requests))
+
+		// different request but from the same node
+		bcr2 := bcr
+		bcr2.BlockSize++
+		qs, r, err = rs.add(&bcr2, tb)
+		require.EqualError(t, err, `request of the node in this round already stored`)
+		assert.Nil(t, r)
+		assert.Equal(t, QuorumUnknown, qs)
+		assert.Equal(t, 1, len(rs.nodeRequest))
+		assert.Equal(t, 1, len(rs.requests))
+	})
+
+	t.Run("different IR", func(t *testing.T) {
+		// two nodes, request have different InputRecords
+		rs := newRequestStore()
+		// request from node A
+		bcr := certification.BlockCertificationRequest{NodeID: nodeIdA, InputRecord: ir1}
+		qs, r, err := rs.add(&bcr, tb)
+		require.NoError(t, err)
+		assert.Nil(t, r)
+		assert.Equal(t, QuorumInProgress, qs)
+
+		// same request from node B
+		bcrB := certification.BlockCertificationRequest{NodeID: nodeIdB, InputRecord: ir2}
+		qs, r, err = rs.add(&bcrB, tb)
+		require.NoError(t, err)
+		assert.ElementsMatch(t, []*certification.BlockCertificationRequest{&bcr, &bcrB}, r)
+		assert.Equal(t, QuorumNotPossible, qs)
+	})
+
+	t.Run("different BlockSize", func(t *testing.T) {
+		// two nodes, request have same InputRecord but BlockSize differs
+		rs := newRequestStore()
+		// request from node A
+		bcrA := certification.BlockCertificationRequest{NodeID: nodeIdA, InputRecord: ir1}
+		qs, r, err := rs.add(&bcrA, tb)
+		require.NoError(t, err)
+		assert.Nil(t, r)
+		assert.Equal(t, QuorumInProgress, qs)
+
+		// same request from node B but different BlockSize
+		bcrB := certification.BlockCertificationRequest{NodeID: nodeIdB, InputRecord: ir1, BlockSize: bcrA.BlockSize + 1}
+		qs, r, err = rs.add(&bcrB, tb)
+		require.NoError(t, err)
+		assert.ElementsMatch(t, []*certification.BlockCertificationRequest{&bcrA, &bcrB}, r)
+		assert.Equal(t, QuorumNotPossible, qs)
+	})
+
+	t.Run("different StateSize", func(t *testing.T) {
+		// two nodes, request have same InputRecord but StateSize differs
+		rs := newRequestStore()
+		// request from node A
+		bcrA := certification.BlockCertificationRequest{NodeID: nodeIdA, InputRecord: ir1}
+		qs, r, err := rs.add(&bcrA, tb)
+		require.NoError(t, err)
+		assert.Nil(t, r)
+		assert.Equal(t, QuorumInProgress, qs)
+
+		// same request from node B but different BlockSize
+		bcrB := certification.BlockCertificationRequest{NodeID: nodeIdB, InputRecord: ir1, StateSize: bcrA.StateSize + 1}
+		qs, r, err = rs.add(&bcrB, tb)
+		require.NoError(t, err)
+		assert.ElementsMatch(t, []*certification.BlockCertificationRequest{&bcrA, &bcrB}, r)
+		assert.Equal(t, QuorumNotPossible, qs)
+	})
+
+	t.Run("quorum", func(t *testing.T) {
+		rs := newRequestStore()
+		// request from node A
+		bcrA := certification.BlockCertificationRequest{NodeID: nodeIdA, InputRecord: ir1}
+		qs, r, err := rs.add(&bcrA, tb)
+		require.NoError(t, err)
+		assert.Nil(t, r)
+		assert.Equal(t, QuorumInProgress, qs)
+
+		// request from node B
+		bcrA.NodeID = nodeIdB
+		qs, r, err = rs.add(&bcrA, tb)
+		require.NoError(t, err)
+		assert.ElementsMatch(t, []*certification.BlockCertificationRequest{&bcrA, &bcrA}, r)
+		assert.Equal(t, QuorumAchieved, qs)
+	})
 }
 
 func TestRequestStore_isConsensusReceived_SingleNode(t *testing.T) {
@@ -293,4 +364,12 @@ func TestCertRequestStore_EmptyStore(t *testing.T) {
 	require.NotPanics(t, func() { cs.Clear(context.Background(), part2, shard) })
 	require.Equal(t, QuorumInProgress, cs.IsConsensusReceived(sysID1, shard, trustBase))
 	require.Equal(t, QuorumInProgress, cs.IsConsensusReceived(part2, shard, trustBase))
+}
+
+func Test_QuorumStatus_String(t *testing.T) {
+	assert.Equal(t, "QuorumUnknown", QuorumUnknown.String())
+	assert.Equal(t, "QuorumInProgress", QuorumInProgress.String())
+	assert.Equal(t, "QuorumAchieved", QuorumAchieved.String())
+	assert.Equal(t, "QuorumNotPossible", QuorumNotPossible.String())
+	assert.Equal(t, "QuorumStatus(4)", (QuorumNotPossible + 1).String())
 }

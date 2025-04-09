@@ -726,9 +726,7 @@ func Test_onBlockCertificationRequest(t *testing.T) {
 
 		// send different cert request, should make it impossible to get quorum
 		cr := validCertRequest
-		//cr.BlockSize++ // wont make it different request! AB-1928
-		cr.InputRecord = cr.InputRecord.NewRepeatIR()
-		cr.InputRecord.SumOfEarnedFees++
+		cr.BlockSize++
 		cr.NodeID = nodeID2
 		require.NoError(t, cr.Sign(signer))
 		err = node.onBlockCertificationRequest(t.Context(), &cr)

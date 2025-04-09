@@ -165,10 +165,10 @@ func TestExecuteDefineNFT_InheritanceChainWithP2PKHPredicates(t *testing.T) {
 	childSigner, childPublicKey := createSigner(t)
 
 	// only parent2 can create subtypes from parent1
-	parent1SubTypeCreationPredicate := templates.NewP2pkh256BytesFromKeyHash(abhash.Sum256(parent2PubKey))
+	parent1SubTypeCreationPredicate := templates.NewP2pkh256BytesFromKey(parent2PubKey)
 
 	// parent2 and child together can create a subtype because SubTypeCreationPredicate are concatenated (ownerProof must contain both signatures)
-	parent2SubTypeCreationPredicate := templates.NewP2pkh256BytesFromKeyHash(abhash.Sum256(childPublicKey))
+	parent2SubTypeCreationPredicate := templates.NewP2pkh256BytesFromKey(childPublicKey)
 
 	txs, _, _ := newTokenTxSystem(t)
 

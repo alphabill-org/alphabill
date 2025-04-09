@@ -2,6 +2,7 @@ package rootchain
 
 import (
 	"context"
+	"crypto"
 	"crypto/sha256"
 	"errors"
 	"fmt"
@@ -11,6 +12,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 
+	"github.com/alphabill-org/alphabill-go-base/hash"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/observability"
@@ -186,13 +188,14 @@ func (rs *requestBuffer) add(req *certification.BlockCertificationRequest, tb Qu
 		rs.start = time.Now()
 	}
 
-	irBytes, err := req.InputRecord.Bytes()
+	h, err := hash.HashValues(crypto.SHA256, req.InputRecord, req.BlockSize, req.StateSize)
 	if err != nil {
-		return QuorumUnknown, nil, fmt.Errorf("reading input record bytes: %w", err)
+		return QuorumUnknown, nil, fmt.Errorf("creating id for the request: %w", err)
 	}
-	hash := sha256.Sum256(irBytes)
+	reqID := sha256Hash(h)
+
 	rs.nodeRequest[req.NodeID] = struct{}{}
-	rs.requests[hash] = append(rs.requests[hash], req)
+	rs.requests[reqID] = append(rs.requests[reqID], req)
 	proof, res := rs.isConsensusReceived(tb)
 	return res, proof, nil
 }

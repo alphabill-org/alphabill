@@ -9,10 +9,10 @@ import (
 	"github.com/alphabill-org/alphabill/predicates/wasm/wvm/encoder"
 )
 
-func RegisterAuthProof(reg func(id encoder.PartitionTxType, enc encoder.AuthProof) error) error {
+func RegisterAuthProof(partition types.PartitionID, reg func(id encoder.PartitionTxType, enc encoder.AuthProof) error) error {
 	key := func(txType uint16) encoder.PartitionTxType {
 		return encoder.PartitionTxType{
-			Partition: tokens.DefaultPartitionID,
+			Partition: partition,
 			TxType:    txType,
 		}
 	}

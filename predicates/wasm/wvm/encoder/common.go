@@ -34,20 +34,20 @@ type TXSystemEncoder struct {
 	auth    map[PartitionTxType]AuthProof
 }
 
-func New(f ...any) (TXSystemEncoder, error) {
+func New(partition types.PartitionID, f ...any) (TXSystemEncoder, error) {
 	enc := TXSystemEncoder{}
 	for x, v := range f {
 		switch rf := v.(type) {
-		case func(func(id PartitionTxType, enc TxAttributesEncoder) error) error:
-			if err := rf(enc.RegisterAttrEncoder); err != nil {
+		case func(types.PartitionID, func(id PartitionTxType, enc TxAttributesEncoder) error) error:
+			if err := rf(partition, enc.RegisterAttrEncoder); err != nil {
 				return enc, fmt.Errorf("registering attribute encoder [%d]: %w", x, err)
 			}
 		case func(func(ud any, encoder UnitDataEncoder) error) error:
 			if err := rf(enc.RegisterUnitDataEncoder); err != nil {
 				return enc, fmt.Errorf("registering unit-data encoder [%d]: %w", x, err)
 			}
-		case func(reg func(id PartitionTxType, enc AuthProof) error) error:
-			if err := rf(enc.RegisterAuthProof); err != nil {
+		case func(types.PartitionID, func(id PartitionTxType, enc AuthProof) error) error:
+			if err := rf(partition, enc.RegisterAuthProof); err != nil {
 				return enc, fmt.Errorf("registering auth proof handlers [%d]: %w", x, err)
 			}
 		default:

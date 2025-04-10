@@ -119,7 +119,7 @@ func runTokensNode(ctx context.Context, cfg *tokensConfiguration) error {
 	}
 
 	// register all unit- and attribute types from token tx system
-	enc, err := encoder.New(tokenc.RegisterTxAttributeEncoders, tokenc.RegisterUnitDataEncoders, tokenc.RegisterAuthProof)
+	enc, err := encoder.New(pg.PartitionDescription.PartitionID, tokenc.RegisterTxAttributeEncoders, tokenc.RegisterUnitDataEncoders, tokenc.RegisterAuthProof)
 	if err != nil {
 		return fmt.Errorf("creating encoders for WASM predicate engine: %w", err)
 	}

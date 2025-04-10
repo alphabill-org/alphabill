@@ -13,7 +13,7 @@ import (
 
 func Test_AuthProof(t *testing.T) {
 	t.Run("not CBOR", func(t *testing.T) {
-		enc, err := encoder.New(RegisterAuthProof)
+		enc, err := encoder.New(tokens.DefaultPartitionID, RegisterAuthProof)
 		require.NoError(t, err)
 		require.NotNil(t, enc)
 
@@ -31,7 +31,7 @@ func Test_AuthProof(t *testing.T) {
 	})
 
 	t.Run("incorrect CBOR", func(t *testing.T) {
-		enc, err := encoder.New(RegisterAuthProof)
+		enc, err := encoder.New(tokens.DefaultPartitionID, RegisterAuthProof)
 		require.NoError(t, err)
 		require.NotNil(t, enc)
 
@@ -81,7 +81,7 @@ func Test_AuthProof(t *testing.T) {
 			},
 		}
 
-		enc, err := encoder.New(RegisterAuthProof)
+		enc, err := encoder.New(tokens.DefaultPartitionID, RegisterAuthProof)
 		require.NoError(t, err)
 		require.NotNil(t, enc)
 

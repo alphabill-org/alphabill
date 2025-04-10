@@ -370,6 +370,15 @@ func (s *State) Serialize(writer io.Writer, committed bool, executedTransactions
 func (s *State) CreateUnitStateProof(id types.UnitID, logIndex int) (*types.UnitStateProof, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
+
+	if s.committedTreeUC == nil {
+		return nil, fmt.Errorf("missing unicity certificate")
+	}
+	ucBytes, err := s.committedTreeUC.MarshalCBOR()
+	if err != nil {
+		return nil, fmt.Errorf("unable to marshal unicity certificate: %w", err)
+	}
+
 	u, err := s.committedTree.Get(id)
 	if err != nil {
 		return nil, fmt.Errorf("unable to get unit %v: %w", id, err)
@@ -405,10 +414,6 @@ func (s *State) CreateUnitStateProof(id types.UnitID, logIndex int) (*types.Unit
 	}
 
 	// TODO verify proof before returning
-	ucBytes, err := s.committedTreeUC.MarshalCBOR()
-	if err != nil {
-		return nil, fmt.Errorf("unable to marshal unicity certificate: %w", err)
-	}
 	return &types.UnitStateProof{
 		UnitID:             id,
 		UnitLedgerHash:     unitLedgerHeadHash,

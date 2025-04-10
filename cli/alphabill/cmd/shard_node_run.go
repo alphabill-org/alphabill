@@ -21,10 +21,6 @@ import (
 	"github.com/alphabill-org/alphabill/observability"
 	"github.com/alphabill-org/alphabill/partition"
 	"github.com/alphabill-org/alphabill/rpc"
-	"github.com/alphabill-org/alphabill/txsystem/evm"
-	"github.com/alphabill-org/alphabill/txsystem/money"
-	"github.com/alphabill-org/alphabill/txsystem/orchestration"
-	"github.com/alphabill-org/alphabill/txsystem/tokens"
 )
 
 const (
@@ -264,14 +260,14 @@ func (f *shardNodeRunFlags) loadTrustBase() (ret *types.RootTrustBaseV1, err err
 func partitionTypeIDToString(partitionTypeID types.PartitionTypeID) string {
 	switch partitionTypeID {
 	case moneysdk.PartitionTypeID:
-		return money.PartitionType
+		return "money"
 	case tokenssdk.PartitionTypeID:
-		return tokens.PartitionType
+		return "tokens"
 	case evmsdk.PartitionTypeID:
-		return evm.PartitionType
+		return "evm"
 	case orchestrationsdk.PartitionTypeID:
-		return orchestration.PartitionType
+		return "orchestration"
 	default:
-		return "unknown"
+		return fmt.Sprintf("partition type %d", partitionTypeID)
 	}
 }

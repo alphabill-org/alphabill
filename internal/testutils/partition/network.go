@@ -192,7 +192,6 @@ func (a *AlphabillNetwork) AddShard(t *testing.T, shardConf *types.PartitionDesc
 			ctxCancel:    ctxCancel,
 		}
 	}
-
 	
 	a.Shards[shard.PartitionShardID()] = shard
 
@@ -202,11 +201,6 @@ func (a *AlphabillNetwork) AddShard(t *testing.T, shardConf *types.PartitionDesc
 		go func() {
 			n.done <- n.Run(n.ctx)
 		}()
-
-		// make sure node network (to other nodes and root nodes) is initiated
-		// require.Eventually(t, func() bool {
-		// 	return len(nd.Peer().Network().Peers()) >= len(shard.Nodes)
-		// }, 2*time.Second, 100*time.Millisecond)
 	}
 }
 

@@ -10,8 +10,6 @@ import (
 	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 )
 
-const PartitionType = "money"
-
 func NewTxSystem(shardConf *basetypes.PartitionDescriptionRecord, observe txsystem.Observability, opts ...Option) (*txsystem.GenericTxSystem, error) {
 	options, err := defaultOptions(observe)
 	if err != nil {

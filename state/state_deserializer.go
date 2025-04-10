@@ -48,7 +48,6 @@ func readState(stateData io.Reader, udc UnitDataConstructor, opts ...Option) (*S
 		}
 	} else {
 		// Must be genesis state, save it as committed tree, so it's never reverted.
-		// TODO: unitProof generation should not be attempted from a committedTree when committedTreeUC is missing
 		state.committedTree = t
 	}
 

@@ -13,8 +13,6 @@ import (
 )
 
 const (
-	PartitionType = "tokens"
-
 	zeroSummaryValue  uint64 = 0
 	uriMaxSize               = 4 * 1024
 	dataMaxSize              = 64 * 1024

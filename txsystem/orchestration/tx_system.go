@@ -8,8 +8,6 @@ import (
 	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 )
 
-const PartitionType = "orchestration"
-
 func NewTxSystem(shardConf types.PartitionDescriptionRecord, observe txsystem.Observability, opts ...Option) (*txsystem.GenericTxSystem, error) {
 	options, err := defaultOptions(observe)
 	if err != nil {

@@ -57,7 +57,7 @@ func (data InputRecords) Update(newInputData *InputData) {
 
 func (data InputRecords) Find(partitionID types.PartitionID, shardID types.ShardID) *InputData {
 	for _, d := range data {
-		if d.Partition == partitionID && d.Shard.Key() == shardID.Key() {
+		if d.Partition == partitionID && d.Shard.Equal(shardID) {
 			return d
 		}
 	}
@@ -366,18 +366,6 @@ func (ss *ShardSet) UnmarshalCBOR(data []byte) error {
 }
 
 func NewShardInputData(si *ShardInfo, hashAlgo crypto.Hash) (*InputData, error) {
-	ir := &types.InputRecord{
-		Version:         1,
-		RoundNumber:     0,
-		Epoch:           0,
-		PreviousHash:    nil,
-		Hash:            nil,
-		SummaryValue:    nil,
-		Timestamp:       0,
-		BlockHash:       nil,
-		SumOfEarnedFees: 0,
-	}
-
 	tr, err := newShardTechnicalRecord(si.nodeIDs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create technical record for shard %d-%s: %w", si.PartitionID, si.ShardID, err)
@@ -386,7 +374,7 @@ func NewShardInputData(si *ShardInfo, hashAlgo crypto.Hash) (*InputData, error) 
 	return &InputData{
 		Partition:     si.PartitionID,
 		Shard:         si.ShardID,
-		IR:            ir,
+		IR:            &types.InputRecord{Version: 1},
 		ShardConfHash: si.ShardConfHash,
 		Technical:     *tr,
 	}, nil

@@ -137,7 +137,7 @@ func TestStateMsg_Verify(t *testing.T) {
 		Timestamp:       types.NewTimestamp(),
 	}
 
-	pdr := types.PartitionDescriptionRecord{
+	shardConf := types.PartitionDescriptionRecord{
 		PartitionID: 1,
 	}
 
@@ -147,7 +147,7 @@ func TestStateMsg_Verify(t *testing.T) {
 		t,
 		signer,
 		headIR,
-		&pdr,
+		&shardConf,
 		1,
 		make([]byte, 32),
 		make([]byte, 32),
@@ -177,7 +177,7 @@ func TestStateMsg_Verify(t *testing.T) {
 						FeeHash:  []byte{0xF, 0xE, 0xE},
 					},
 					IR:      headIR,
-					ShardConfHash: test.DoHash(t, &pdr),
+					ShardConfHash: test.DoHash(t, &shardConf),
 				}},
 				Block: &rctypes.BlockData{
 					Round:   5,

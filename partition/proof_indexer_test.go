@@ -6,7 +6,6 @@ import (
 	"crypto"
 	"errors"
 	"fmt"
-	"io"
 	"path/filepath"
 	"testing"
 	"time"
@@ -16,10 +15,10 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/util"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	testtxsystem "github.com/alphabill-org/alphabill/internal/testutils/txsystem"
 	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/alphabill-org/alphabill/keyvaluedb/boltdb"
 	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
-	"github.com/alphabill-org/alphabill/state"
 )
 
 func TestNewProofIndexer_history_2(t *testing.T) {
@@ -185,7 +184,7 @@ func TestNewProofIndexer_RunLoop(t *testing.T) {
 		}(done)
 		unitID := make([]byte, 32)
 		blockRound1 := simulateInput(1, unitID)
-		stateMock := mockStateStoreOK{}
+		stateMock := testtxsystem.MockState{}
 		indexer.Handle(nctx, blockRound1.Block, stateMock)
 		blockRound2 := simulateInput(2, unitID)
 		indexer.Handle(nctx, blockRound2.Block, stateMock)
@@ -232,7 +231,7 @@ func TestNewProofIndexer_RunLoop(t *testing.T) {
 		}(done)
 		unitID := make([]byte, 32)
 		blockRound1 := simulateInput(1, unitID)
-		stateMock := mockStateStoreOK{}
+		stateMock := testtxsystem.MockState{}
 		indexer.Handle(nctx, blockRound1.Block, stateMock)
 		blockRound2 := simulateInput(2, unitID)
 		indexer.Handle(nctx, blockRound2.Block, stateMock)
@@ -275,7 +274,7 @@ func TestProofIndexer_BoltDBTx(t *testing.T) {
 	// simulate error when indexing a block
 	ctx := context.Background()
 	bas := simulateInput(1, []byte{1})
-	bas.State = mockStateStoreOK{err: errors.New("some error")}
+	bas.State = testtxsystem.MockState{Err: errors.New("some error")}
 
 	err = indexer.create(ctx, bas.Block, 1, bas.State)
 	require.ErrorContains(t, err, "some error")
@@ -286,33 +285,6 @@ func TestProofIndexer_BoltDBTx(t *testing.T) {
 		_ = dbIt.Close()
 	})
 	require.False(t, dbIt.Valid())
-}
-
-type mockStateStoreOK struct {
-	err error
-}
-
-func (m mockStateStoreOK) GetUnit(id types.UnitID, committed bool) (state.Unit, error) {
-	if m.err != nil {
-		return nil, m.err
-	}
-	return &state.UnitV1{}, nil
-}
-
-func (m mockStateStoreOK) CreateUnitStateProof(id types.UnitID, logIndex int) (*types.UnitStateProof, error) {
-	return &types.UnitStateProof{}, nil
-}
-
-func (m mockStateStoreOK) CreateIndex(state.KeyExtractor[string]) (state.Index[string], error) {
-	return nil, nil
-}
-
-func (m mockStateStoreOK) Serialize(writer io.Writer, committed bool, executedTransactions map[string]uint64) error {
-	return nil
-}
-
-func (m mockStateStoreOK) GetUnits(unitTypeID *uint32, pdr *types.PartitionDescriptionRecord) ([]types.UnitID, error) {
-	return nil, nil
 }
 
 func simulateInput(round uint64, unitID []byte) *BlockAndState {
@@ -333,7 +305,7 @@ func simulateInput(round uint64, unitID []byte) *BlockAndState {
 	}
 	return &BlockAndState{
 		Block: block,
-		State: mockStateStoreOK{},
+		State: testtxsystem.MockState{},
 	}
 }
 
@@ -349,6 +321,6 @@ func simulateEmptyInput(round uint64) *BlockAndState {
 	}
 	return &BlockAndState{
 		Block: block,
-		State: mockStateStoreOK{},
+		State: testtxsystem.MockState{},
 	}
 }

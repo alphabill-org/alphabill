@@ -62,12 +62,12 @@ type (
 
 // New creates a new instance of the root chain node
 func New(
-	p *network.Peer,
+	peer *network.Peer,
 	pNet PartitionNet,
 	cm ConsensusManager,
 	observe Observability,
 ) (*Node, error) {
-	if p == nil {
+	if peer == nil {
 		return nil, fmt.Errorf("partition listener is nil")
 	}
 	if pNet == nil {
@@ -84,7 +84,7 @@ func New(
 		return nil, fmt.Errorf("creating subscribers list: %w", err)
 	}
 	node := &Node{
-		peer:             p,
+		peer:             peer,
 		incomingRequests: reqBuf,
 		subscription:     subs,
 		net:              pNet,
@@ -194,6 +194,13 @@ func (v *Node) onHandshake(ctx context.Context, req *handshake.Handshake) error 
 	if err != nil {
 		return fmt.Errorf("reading partition %s certificate: %w", req.PartitionID, err)
 	}
+	if si.LastCR.UC.GetRoundNumber() == 0 {
+		// Make sure shard nodes get CertificationResponses even
+		// before they send the first BlockCertificationRequests
+		if err := v.subscription.Subscribe(req.PartitionID, req.ShardID, req.NodeID); err != nil {
+			return fmt.Errorf("subscribing the sender: %w", err)
+		}
+	}
 	if err = v.sendResponse(ctx, req.NodeID, si.LastCR); err != nil {
 		return fmt.Errorf("failed to send response: %w", err)
 	}
@@ -201,8 +208,8 @@ func (v *Node) onHandshake(ctx context.Context, req *handshake.Handshake) error 
 }
 
 /*
-onBlockCertificationRequest handles Certification Request from partition nodes.
-Partition nodes can only extend the stored/certified state.
+onBlockCertificationRequest handles Certification Request from shard nodes.
+Shard nodes can only extend the stored/certified state.
 */
 func (v *Node) onBlockCertificationRequest(ctx context.Context, req *certification.BlockCertificationRequest) (rErr error) {
 	ctx, span := v.tracer.Start(ctx, "node.onBlockCertificationRequest")

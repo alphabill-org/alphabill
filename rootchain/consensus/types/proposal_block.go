@@ -70,6 +70,11 @@ func (x *BlockData) IsValid() error {
 		return fmt.Errorf("invalid payload: %w", err)
 	}
 	if x.Qc == nil {
+		if x.Round == GenesisRootRound {
+			// Genesis block does not have previous Qc,
+			// skip following Qc validation
+			return nil
+		}
 		return errMissingQuorumCertificate
 	}
 	if err := x.Qc.IsValid(); err != nil {

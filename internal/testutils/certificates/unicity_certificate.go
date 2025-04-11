@@ -6,7 +6,9 @@ import (
 
 	"github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill/internal/testutils"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
+	p2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
 )
 
@@ -14,13 +16,16 @@ func CreateUnicityCertificate(
 	t *testing.T,
 	signer crypto.Signer,
 	ir *types.InputRecord,
-	pdr *types.PartitionDescriptionRecord,
-	roundNumber uint64,
-	previousRoundRootHash []byte,
+	shardConf *types.PartitionDescriptionRecord,
+	rootRound uint64,
+	previousHash []byte,
 	trHash []byte,
 ) *types.UnicityCertificate {
 	t.Helper()
-	sTree, err := types.CreateShardTree(pdr.Shards, []types.ShardTreeInput{{Shard: types.ShardID{}, IR: ir, TRHash: trHash}}, gocrypto.SHA256)
+	shardConfHash := test.DoHash(t, shardConf)
+	sTree, err := types.CreateShardTree(types.ShardingScheme{}, []types.ShardTreeInput{
+		{Shard: types.ShardID{}, IR: ir, TRHash: trHash, ShardConfHash: shardConfHash},
+	}, gocrypto.SHA256)
 	if err != nil {
 		t.Errorf("creating shard tree: %v", err)
 		return nil
@@ -31,21 +36,25 @@ func CreateUnicityCertificate(
 		return nil
 	}
 	data := []*types.UnicityTreeData{{
-		Partition:     pdr.PartitionID,
+		Partition:     shardConf.PartitionID,
 		ShardTreeRoot: sTree.RootHash(),
-		PDRHash:       test.DoHash(t, pdr),
 	}}
 	ut, err := types.NewUnicityTree(gocrypto.SHA256, data)
 	if err != nil {
 		t.Error(err)
 	}
 	rootHash := ut.RootHash()
-	unicitySeal := createUnicitySeal(rootHash, roundNumber, previousRoundRootHash)
-	err = unicitySeal.Sign("test", signer)
+	unicitySeal := createUnicitySeal(rootHash, rootRound, previousHash)
+
+	verifier, err := signer.Verifier()
+	require.NoError(t, err)
+	nodeID := nodeIDFromVerifier(t, verifier).String()
+
+	err = unicitySeal.Sign(nodeID, signer)
 	if err != nil {
 		t.Error(err)
 	}
-	cert, err := ut.Certificate(pdr.PartitionID)
+	cert, err := ut.Certificate(shardConf.PartitionID)
 	if err != nil {
 		t.Error(err)
 	}
@@ -53,20 +62,31 @@ func CreateUnicityCertificate(
 		Version:                1,
 		InputRecord:            ir,
 		TRHash:                 trHash,
+		ShardConfHash:          shardConfHash,
 		ShardTreeCertificate:   stCert,
 		UnicityTreeCertificate: cert,
 		UnicitySeal:            unicitySeal,
 	}
 }
 
-func createUnicitySeal(rootHash []byte, roundNumber uint64, previousRoundRootHash []byte) *types.UnicitySeal {
+func createUnicitySeal(rootHash []byte, roundNumber uint64, previousHash []byte) *types.UnicitySeal {
 	return &types.UnicitySeal{
 		Version:              1,
 		RootChainRoundNumber: roundNumber,
 		Timestamp:            types.NewTimestamp(),
-		PreviousHash:         previousRoundRootHash,
+		PreviousHash:         previousHash,
 		Hash:                 rootHash,
 	}
+}
+
+func nodeIDFromVerifier(t *testing.T, v crypto.Verifier) peer.ID {
+	pubKeyBytes, err := v.MarshalPublicKey()
+	require.NoError(t, err)
+	pubKey, err := p2pcrypto.UnmarshalSecp256k1PublicKey(pubKeyBytes)
+	require.NoError(t, err)
+	peerID, err := peer.IDFromPublicKey(pubKey)
+	require.NoError(t, err)
+	return peerID
 }
 
 func UnicitySealBytes(t *testing.T, unicitySeal *types.UnicitySeal) []byte {

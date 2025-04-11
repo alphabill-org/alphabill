@@ -45,28 +45,30 @@ func TestPartition_Ok(t *testing.T) {
 		Owner: templates.AlwaysTrueBytes(),
 	}
 	pdrs := createPDRs(t)
-	moneyPDR := *pdrs[0]
+	shardConf := *pdrs[0]
+
 	s := genesisState(t, ib, pdrs)
-	moneyPrt, err := testpartition.NewPartition(t, 3, func(tb types.RootTrustBase) txsystem.TransactionSystem {
+	abNet := testpartition.NewAlphabillNetwork(t, 1)
+	require.NoError(t, abNet.Start(t))
+	defer abNet.WaitClose(t)
+	abNet.AddShard(t, &shardConf, 3, func(tb types.RootTrustBase) txsystem.TransactionSystem {
 		s = s.Clone()
 		system, err := NewTxSystem(
-			moneyPDR,
-			types.ShardID{},
+			&shardConf,
 			observability.Default(t),
 			WithState(s),
 			WithHashAlgorithm(crypto.SHA256),
-			WithPartitionDescriptionRecords(pdrs),
 			WithTrustBase(tb),
 		)
 		require.NoError(t, err)
 		return system
-	}, moneyPDR, s)
+	})
+	// AddShard modfied the shardConf by adding Validators, calculate hash after
+	shardConfHash, err := shardConf.Hash(crypto.SHA256)
 	require.NoError(t, err)
-	abNet, err := testpartition.NewAlphabillPartition(t, []*testpartition.NodePartition{moneyPrt})
 
+	moneyPrt, err := abNet.GetShard(types.PartitionShardID{PartitionID: shardConf.PartitionID, ShardID: shardConf.ShardID.Key()})
 	require.NoError(t, err)
-	require.NoError(t, abNet.Start(t))
-	defer abNet.WaitClose(t)
 
 	// create fee credit for initial bill transfer
 	signer, _ := testsig.CreateSignerAndVerifier(t)
@@ -79,7 +81,7 @@ func TestPartition_Ok(t *testing.T) {
 		),
 		testtransaction.WithUnitID(ib.ID),
 		testtransaction.WithTransactionType(fcsdk.TransactionTypeTransferFeeCredit),
-		testtransaction.WithPartition(&moneyPDR),
+		testtransaction.WithPartition(&shardConf),
 	)
 	require.NoError(t, moneyPrt.SubmitTx(transferFC))
 	transferFCProof, err := testpartition.WaitTxProof(t, moneyPrt, transferFC)
@@ -91,9 +93,9 @@ func TestPartition_Ok(t *testing.T) {
 	require.Equal(t, moneyInvariant-fcrAmount, billState.Value)
 
 	// verify proof
-	ucv, err := abNet.GetValidator(moneyPDR.PartitionID)
+	ucv, err := abNet.GetValidator(types.PartitionShardID{PartitionID: shardConf.PartitionID, ShardID: shardConf.ShardID.Key()})
 	require.NoError(t, err)
-	require.NoError(t, unitAndProof.Proof.Verify(crypto.SHA256, unitAndProof.State, ucv))
+	require.NoError(t, unitAndProof.Proof.Verify(crypto.SHA256, unitAndProof.State, ucv, shardConfHash))
 
 	// send addFC
 	addFC := testutils.NewAddFC(t, signer,
@@ -102,7 +104,7 @@ func TestPartition_Ok(t *testing.T) {
 			testutils.WithFeeCreditOwnerPredicate(templates.AlwaysTrueBytes()),
 		),
 		testtransaction.WithUnitID(fcrID),
-		testtransaction.WithPartition(&moneyPDR),
+		testtransaction.WithPartition(&shardConf),
 		testtransaction.WithTransactionType(fcsdk.TransactionTypeAddFeeCredit),
 	)
 	require.NoError(t, moneyPrt.SubmitTx(addFC))
@@ -112,7 +114,7 @@ func TestPartition_Ok(t *testing.T) {
 	require.NoError(t, err, "add fee credit transaction failed")
 	unitAndProof, err = testpartition.WaitUnitProof(t, moneyPrt, fcrID, addFC)
 	require.NoError(t, err)
-	require.NoError(t, unitAndProof.Proof.Verify(crypto.SHA256, unitAndProof.State, ucv))
+	require.NoError(t, unitAndProof.Proof.Verify(crypto.SHA256, unitAndProof.State, ucv, shardConfHash))
 
 	// verify that frc bill is created and its balance is equal to frcAmount - "transfer transaction cost" - "add transaction cost"
 	var feeBillState fcsdk.FeeCreditRecord
@@ -127,7 +129,7 @@ func TestPartition_Ok(t *testing.T) {
 	require.NoError(t, err, "transfer initial bill failed")
 	unitAndProof, err = testpartition.WaitUnitProof(t, moneyPrt, fcrID, transferInitialBillTx)
 	require.NoError(t, err)
-	require.NoError(t, unitAndProof.Proof.Verify(crypto.SHA256, unitAndProof.State, ucv))
+	require.NoError(t, unitAndProof.Proof.Verify(crypto.SHA256, unitAndProof.State, ucv, shardConfHash))
 	require.NoError(t, unitAndProof.UnmarshalUnitData(&feeBillState))
 	remainingFeeBalance = remainingFeeBalance - txRecordProof.ActualFee()
 	require.Equal(t, remainingFeeBalance, feeBillState.Balance)
@@ -141,7 +143,7 @@ func TestPartition_Ok(t *testing.T) {
 	require.NoError(t, err, "money split transaction failed")
 	unitAndProof, err = testpartition.WaitUnitProof(t, moneyPrt, fcrID, tx)
 	require.NoError(t, err)
-	require.NoError(t, unitAndProof.Proof.Verify(crypto.SHA256, unitAndProof.State, ucv))
+	require.NoError(t, unitAndProof.Proof.Verify(crypto.SHA256, unitAndProof.State, ucv, shardConfHash))
 	require.NoError(t, unitAndProof.UnmarshalUnitData(&feeBillState))
 	remainingFeeBalance = remainingFeeBalance - txRecordProof.ActualFee()
 	require.EqualValues(t, remainingFeeBalance, feeBillState.Balance)
@@ -176,25 +178,23 @@ func TestPartition_SwapDCOk(t *testing.T) {
 	require.NoError(t, err)
 	total := moneyInvariant
 	txsState := genesisState(t, initialBill, pdrs)
-	moneyPrt, err := testpartition.NewPartition(t, 3, func(tb types.RootTrustBase) txsystem.TransactionSystem {
+	abNet := testpartition.NewAlphabillNetwork(t, 1)
+	require.NoError(t, abNet.Start(t))
+	defer abNet.WaitClose(t)
+	abNet.AddShard(t, &moneyPDR, 3, func(tb types.RootTrustBase) txsystem.TransactionSystem {
 		txsState = txsState.Clone()
 		system, err := NewTxSystem(
-			moneyPDR,
-			types.ShardID{},
+			&moneyPDR,
 			observability.Default(t),
 			WithHashAlgorithm(crypto.SHA256),
-			WithPartitionDescriptionRecords(pdrs),
 			WithTrustBase(tb),
 			WithState(txsState),
 		)
 		require.NoError(t, err)
 		return system
-	}, moneyPDR, txsState)
+	})
+	moneyPrt, err := abNet.GetShard(types.PartitionShardID{PartitionID: moneyPDR.PartitionID, ShardID: moneyPDR.ShardID.Key()})
 	require.NoError(t, err)
-	abNet, err := testpartition.NewAlphabillPartition(t, []*testpartition.NodePartition{moneyPrt})
-	require.NoError(t, err)
-	require.NoError(t, abNet.Start(t))
-	defer abNet.WaitClose(t)
 
 	// create fee credit for initial bill transfer
 	signer, _ := testsig.CreateSignerAndVerifier(t)
@@ -318,6 +318,7 @@ func TestPartition_SwapDCOk(t *testing.T) {
 	require.NoError(t, moneyPrt.SubmitTx(swapTx))
 	_, err = testpartition.WaitTxProof(t, moneyPrt, swapTx)
 	require.NoError(t, err)
+
 	for _, n := range moneyPrt.Nodes {
 		testevent.NotContainsEvent(t, n.EventHandler, event.RecoveryStarted)
 	}

@@ -54,18 +54,22 @@ const partitionID types.PartitionID = 0x00000402
 
 func TestEVMPartition_DeployAndCallContract(t *testing.T) {
 	pdr := types.PartitionDescriptionRecord{
-		Version:     1,
-		NetworkID:   networkID,
-		PartitionID: 0x00000402,
-		TypeIDLen:   8,
-		UnitIDLen:   256,
-		T2Timeout:   2000 * time.Millisecond,
+		Version:         1,
+		NetworkID:       networkID,
+		PartitionID:     0x00000402,
+		PartitionTypeID: evm.PartitionTypeID,
+		TypeIDLen:       8,
+		UnitIDLen:       256,
+		T2Timeout:       2000 * time.Millisecond,
 	}
 	from := test.RandomBytes(20)
 	genesisState := newGenesisState(t, from, big.NewInt(oneEth))
 	blockDB, err := memorydb.New()
 	require.NoError(t, err)
-	evmPartition, err := testpartition.NewPartition(t, 3, func(trustBase types.RootTrustBase) txsystem.TransactionSystem {
+	network := testpartition.NewAlphabillNetwork(t, 1)
+	require.NoError(t, network.Start(t))
+	defer network.WaitClose(t)
+	network.AddShard(t, &pdr, 3, func(trustBase types.RootTrustBase) txsystem.TransactionSystem {
 		genesisState = genesisState.Clone()
 		system, err := NewEVMTxSystem(
 			pdr.NetworkID,
@@ -76,13 +80,9 @@ func TestEVMPartition_DeployAndCallContract(t *testing.T) {
 		) // 1 ETH
 		require.NoError(t, err)
 		return system
-	}, pdr, genesisState)
+	})
+	evmPartition, err := network.GetShard(types.PartitionShardID{PartitionID: pdr.PartitionID, ShardID: pdr.ShardID.Key()})
 	require.NoError(t, err)
-
-	network, err := testpartition.NewAlphabillPartition(t, []*testpartition.NodePartition{evmPartition})
-	require.NoError(t, err)
-	require.NoError(t, network.Start(t))
-	defer network.WaitClose(t)
 
 	// transfer
 	to := test.RandomBytes(20)

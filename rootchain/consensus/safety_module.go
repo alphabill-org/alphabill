@@ -133,9 +133,7 @@ func (s *SafetyModule) MakeVote(block *drctypes.BlockData, execStateID []byte, h
 	}
 	s.updateHighestQcRound(qcRound)
 	s.increaseHighestVoteRound(votingRound)
-	if execStateID == nil {
-		return nil, fmt.Errorf("invalid vote, state hash is nil")
-	}
+
 	// create vote info
 	voteInfo := &drctypes.RoundInfo{
 		RoundNumber:       block.Round,

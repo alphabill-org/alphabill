@@ -2,6 +2,7 @@ package consensus
 
 import (
 	"context"
+	"crypto"
 	"errors"
 	"fmt"
 	"sync"
@@ -10,19 +11,20 @@ import (
 	"time"
 
 	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
-	abtypes "github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/types/hex"
+	testlogger "github.com/alphabill-org/alphabill/internal/testutils/logger"
 	testobservability "github.com/alphabill-org/alphabill/internal/testutils/observability"
+	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/logger"
 	"github.com/alphabill-org/alphabill/network"
 	"github.com/alphabill-org/alphabill/network/protocol/abdrc"
-	"github.com/alphabill-org/alphabill/network/protocol/certification"
-	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/observability"
 	"github.com/alphabill-org/alphabill/rootchain/consensus/leader"
+	"github.com/alphabill-org/alphabill/rootchain/consensus/storage"
 	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
-	rootgenesis "github.com/alphabill-org/alphabill/rootchain/genesis"
 	testpartition "github.com/alphabill-org/alphabill/rootchain/partitions/testutils"
+	"github.com/alphabill-org/alphabill/rootchain/testutils"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
 )
@@ -275,15 +277,13 @@ func Test_recoverState(t *testing.T) {
 		}
 	}
 
-	nodes := createPartitionNodes(t, partitionID, partitionInputRecord, 2)
-
 	t.Run("late joiner catches up", func(t *testing.T) {
 		t.Parallel()
 		// test scenario requires to be able to have quorum while "stopping" exactly one manager
 		// for quorum we need ⅔+1 validators to be healthy thus with 4 nodes one can be unhealthy
 		var cmCount atomic.Int32
 		cmCount.Store(4)
-		cms, rootNet, _ := createConsensusManagers(t, int(cmCount.Load()), nodes)
+		cms, rootNet := createConsensusManagers(t, int(cmCount.Load()), nil)
 
 		// tweak configurations - use "constant leader" to take leader selection out of test
 		cmLeader := cms[0]
@@ -344,7 +344,7 @@ func Test_recoverState(t *testing.T) {
 		// for quorum we need ⅔+1 validators to be healthy thus with 4 nodes one can be unhealthy
 		var cmCount atomic.Int32
 		cmCount.Store(4)
-		cms, rootNet, _ := createConsensusManagers(t, int(cmCount.Load()), nodes)
+		cms, rootNet := createConsensusManagers(t, int(cmCount.Load()), nil)
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer func() {
@@ -385,7 +385,7 @@ func Test_recoverState(t *testing.T) {
 		// for quorum we need ⅔+1 validators to be healthy thus with 4 nodes one can be unhealthy
 		var cmCount atomic.Int32
 		cmCount.Store(4)
-		cms, rootNet, _ := createConsensusManagers(t, int(cmCount.Load()), nodes)
+		cms, rootNet := createConsensusManagers(t, int(cmCount.Load()), nil)
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer func() {
@@ -442,7 +442,7 @@ func Test_recoverState(t *testing.T) {
 		// for quorum we need ⅔+1 validators to be healthy thus with 4 nodes one can be unhealthy
 		var cmCount atomic.Int32
 		cmCount.Store(4)
-		cms, rootNet, _ := createConsensusManagers(t, int(cmCount.Load()), nodes)
+		cms, rootNet := createConsensusManagers(t, int(cmCount.Load()), nil)
 		deadID := cms[1].id
 		rootNet.SetFirewall(func(from, to peer.ID, msg any) bool {
 			return from == deadID || to == deadID
@@ -485,7 +485,7 @@ func Test_recoverState(t *testing.T) {
 		// for quorum we need ⅔+1 validators to be healthy thus with 4 nodes one can be unhealthy
 		var cmCount atomic.Int32
 		cmCount.Store(4)
-		cms, rootNet, _ := createConsensusManagers(t, int(cmCount.Load()), nodes)
+		cms, rootNet := createConsensusManagers(t, int(cmCount.Load()), nil)
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer func() {
@@ -547,7 +547,7 @@ func Test_recoverState(t *testing.T) {
 		// for quorum we need ⅔+1 validators to be healthy thus with 4 nodes one can be unhealthy
 		var cmCount atomic.Int32
 		cmCount.Store(4)
-		cms, rootNet, _ := createConsensusManagers(t, int(cmCount.Load()), nodes)
+		cms, rootNet := createConsensusManagers(t, int(cmCount.Load()), nil)
 		// round-robin leader in the order nodes are in the cms slice. system is starting
 		// with round 2 and leader will be: 2, 3, 0, 1, 2, 3, 0, 1,...
 		rootNodes := make([]peer.ID, 0, len(cms))
@@ -617,7 +617,7 @@ func Test_recoverState(t *testing.T) {
 		// for quorum we need ⅔+1 validators to be healthy thus with 4 nodes one can be unhealthy
 		var cmCount atomic.Int32
 		cmCount.Store(4)
-		cms, rootNet, _ := createConsensusManagers(t, int(cmCount.Load()), nodes)
+		cms, rootNet := createConsensusManagers(t, int(cmCount.Load()), nil)
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer func() {
@@ -653,7 +653,7 @@ func Test_recoverState(t *testing.T) {
 		// for quorum we need ⅔+1 validators to be healthy thus with 4 nodes one can be unhealthy
 		var cmCount atomic.Int32
 		cmCount.Store(4)
-		cms, rootNet, _ := createConsensusManagers(t, int(cmCount.Load()), nodes)
+		cms, rootNet := createConsensusManagers(t, int(cmCount.Load()), nil)
 
 		ctx, cancel := context.WithCancel(context.Background())
 		defer func() {
@@ -700,7 +700,7 @@ func Test_recoverState(t *testing.T) {
 		// timeout rounds (ie node doesn't get quorum for latest round so stays in previous TO round)
 		var cmCount atomic.Int32
 		cmCount.Store(3)
-		cms, rootNet, _ := createConsensusManagers(t, int(cmCount.Load()), nodes)
+		cms, rootNet := createConsensusManagers(t, int(cmCount.Load()), nil)
 
 		// set filter so that one node (slowID) does not see any messages and only sends TO votes
 		slowID := cms[0].id
@@ -745,75 +745,71 @@ func Test_recoverState(t *testing.T) {
 	})
 }
 
-func createConsensusManagers(t *testing.T, count int, nodes []*genesis.PartitionNode) ([]*ConsensusManager, *mockNetwork, *genesis.RootGenesis) {
+func createConsensusManagers(t *testing.T, count int, shardNodes []*types.NodeInfo) ([]*ConsensusManager, *mockNetwork) {
 	t.Helper()
-
 	observe := testobservability.Default(t)
-	signers := map[string]abcrypto.Signer{}
-	var rgr []*genesis.RootGenesis
+
+	rootNodes, rootNodeInfos := testutils.CreateTestNodes(t, count)
+	rootSigners := make(map[string]abcrypto.Signer, count)
 	for i := 0; i < count; i++ {
-		nodeID, signer, _, _ := generatePeerData(t)
-		rootG, _, err := rootgenesis.NewRootGenesis(nodeID.String(), signer, nodes, rootgenesis.WithTotalNodes(uint32(count)), rootgenesis.WithBlockRate(500), rootgenesis.WithConsensusTimeout(2500))
-		require.NoError(t, err, "failed to create root genesis")
-		require.NotNil(t, rootG)
-		rgr = append(rgr, rootG)
-		signers[nodeID.String()] = signer
+		rootSigners[rootNodes[i].PeerConf.ID.String()] = rootNodes[i].Signer
 	}
 
-	rootG, partG, err := rootgenesis.MergeRootGenesisFiles(rgr)
-	require.NoError(t, err, "failed to merge root genesis records")
-	require.NotNil(t, partG)
-	require.NotNil(t, rootG)
-
-	trustBase, err := rootG.GenerateTrustBase()
+	trustBase, err := types.NewTrustBaseGenesis(5, rootNodeInfos)
 	require.NoError(t, err)
 
-	nw := newMockNetwork(t)
-	cms := make([]*ConsensusManager, 0, len(rootG.Root.RootValidators))
-	for _, v := range rootG.Root.RootValidators {
+	if shardNodes == nil {
+		_, shardNodes = testutils.CreateTestNodes(t, 1)
+	}
+
+	shardConf := &types.PartitionDescriptionRecord{
+		Version:         1,
+		NetworkID:       5,
+		PartitionID:     partitionID,
+		ShardID:         shardID,
+		PartitionTypeID: 999,
+		TypeIDLen:       8,
+		UnitIDLen:       256,
+		T2Timeout:       2500 * time.Millisecond,
+		Validators:      shardNodes,
+		Epoch:           0,
+		EpochStart:      1,
+	}
+
+	// Let the rounds advance 10x faster in tests
+	consensusParams := NewConsensusParams()
+	consensusParams.BlockRate = 90 * time.Millisecond
+	consensusParams.LocalTimeout = 1000 * time.Millisecond
+
+	rootNet := newMockNetwork(t)
+	cms := make([]*ConsensusManager, 0, len(trustBase.GetRootNodes()))
+	for _, v := range trustBase.GetRootNodes() {
 		nodeID, err := peer.Decode(v.NodeID)
 		require.NoError(t, err)
 
-		cm, err := NewConsensusManager(nodeID, rootG, trustBase, testpartition.NewOrchestration(t, rootG), nw.Connect(nodeID), signers[v.NodeID], observability.WithLogger(observe, observe.Logger().With(logger.NodeID(nodeID))))
+		orchestration := testpartition.NewOrchestration(t, testlogger.New(t))
+		require.NoError(t, orchestration.AddShardConfig(shardConf))
+
+		opts := []Option{
+			WithStorage(createStorage(t, shardConf, rootSigners)),
+			WithConsensusParams(*consensusParams),
+		}
+
+		obs := observability.WithLogger(observe, observe.Logger().With(logger.NodeID(nodeID)))
+		cm, err := NewConsensusManager(
+			nodeID,
+			trustBase,
+			orchestration,
+			rootNet.Connect(nodeID),
+			rootSigners[v.NodeID],
+			obs,
+			opts...
+		)
 		require.NoError(t, err)
 		cms = append(cms, cm)
 	}
 
-	return cms, nw, rootG
-}
-
-func createPartitionNodes(t *testing.T, partitionID abtypes.PartitionID, ir *abtypes.InputRecord, nrOfValidators int) []*genesis.PartitionNode {
-	t.Helper()
-	pdr := abtypes.PartitionDescriptionRecord{
-		Version:     1,
-		NetworkID:   5,
-		PartitionID: partitionID,
-		TypeIDLen:   8,
-		UnitIDLen:   256,
-		T2Timeout:   2500 * time.Millisecond,
-	}
-
-	nodes := make([]*genesis.PartitionNode, nrOfValidators)
-	for i := 0; i < nrOfValidators; i++ {
-		nodeID, authSigner, _, authKey := generatePeerData(t)
-
-		req := &certification.BlockCertificationRequest{
-			PartitionID: partitionID,
-			NodeID:      nodeID.String(),
-			InputRecord: ir,
-		}
-		require.NoError(t, req.Sign(authSigner))
-
-		nodes[i] = &genesis.PartitionNode{
-			Version:                    1,
-			NodeID:                     nodeID.String(),
-			SigKey:                     authKey,
-			BlockCertificationRequest:  req,
-			PartitionDescriptionRecord: pdr,
-		}
-	}
-
-	return nodes
+	return cms, rootNet
 }
 
 func generatePeerData(t *testing.T) (peer.ID, abcrypto.Signer, abcrypto.Verifier, []byte) {
@@ -848,4 +844,101 @@ func (cl constLeader) GetNodes() []peer.ID { return cl.nodes }
 
 func (cl constLeader) Update(qc *drctypes.QuorumCert, currentRound uint64, b leader.BlockLoader) error {
 	return nil
+}
+
+func createStorage(t *testing.T, shardConf *types.PartitionDescriptionRecord, signers map[string]abcrypto.Signer) *memorydb.MemoryDB {
+	db, err := memorydb.New()
+	require.NoError(t, err)
+	genesisBlock := newTestGenesisBlock(t, shardConf, signers)
+	require.NoError(t, storage.WriteBlock(db, genesisBlock))
+	return db
+}
+
+func newTestGenesisBlock(t *testing.T, shardConf *types.PartitionDescriptionRecord, signers map[string]abcrypto.Signer) *storage.ExecutedBlock {
+	hashAlgo := crypto.SHA256
+	genesisBlock := &drctypes.BlockData{
+		Version:   1,
+		Author:    "testgenesis",
+		Round:     drctypes.GenesisRootRound,
+		Epoch:     drctypes.GenesisRootEpoch,
+		Timestamp: types.GenesisTime,
+		Payload:   &drctypes.Payload{
+			// no shards -> no IR change requests
+			Requests: make([]*drctypes.IRChangeReq, 0),
+		},
+		Qc:        nil, // no parent QC
+	}
+
+	si, err := storage.NewShardInfo(shardConf, hashAlgo)
+	require.NoError(t, err)
+
+	ir, err := storage.NewShardInputData(si, hashAlgo)
+	require.NoError(t, err)
+
+	irs := storage.InputRecords{ir}
+	ut, _, err := irs.UnicityTree(hashAlgo)
+	require.NoError(t, err)
+
+	psID := types.PartitionShardID{PartitionID: si.PartitionID, ShardID: si.ShardID.Key()}
+	commitQc := createCommitQc(t, genesisBlock, ut.RootHash(), hashAlgo, signers)
+	executedBlock := &storage.ExecutedBlock{
+		BlockData: genesisBlock,
+		HashAlgo:  hashAlgo,
+		CurrentIR: irs,
+		Changed:   map[types.PartitionShardID]struct{}{psID: struct{}{}},
+		ShardInfo: map[types.PartitionShardID]*storage.ShardInfo{psID: si},
+
+		// the same QC accepts the genesis block and commits it, usually commit comes later
+		Qc:        commitQc,
+		CommitQc:  commitQc,
+		RootHash:  commitQc.LedgerCommitInfo.Hash,
+	}
+
+	crs, err := executedBlock.GenerateCertificates(commitQc)
+	require.NoError(t, err)
+	require.Len(t, crs, 1)
+	require.NotNil(t, si.LastCR)
+	require.NotNil(t, si.LastCR.UC)
+
+	// Changed set was necessary to generate certificates with GenerateCertificates,
+	// set it to nil so that certificates won't be generated again when CM is run
+	executedBlock.Changed = nil
+	return executedBlock
+}
+
+func createCommitQc(t *testing.T, genesisBlock *drctypes.BlockData, rootHash []byte, hashAlgo crypto.Hash, signers map[string]abcrypto.Signer) *drctypes.QuorumCert {
+	// Info about the round that commits the genesis block.
+	// GenesisRootRound "produced" the genesis block and also commits it.
+	commitRoundInfo := &drctypes.RoundInfo{
+		Version:           1,
+		RoundNumber:       genesisBlock.Round,
+		Epoch:             genesisBlock.Epoch,
+		Timestamp:         genesisBlock.Timestamp,
+		ParentRoundNumber: 0, // no parent block
+		CurrentRootHash:   rootHash,
+	}
+	commitRoundInfoHash, err := commitRoundInfo.Hash(hashAlgo)
+	require.NoError(t, err)
+
+	// QC that commits the genesis block
+	commitQc := &drctypes.QuorumCert{
+		VoteInfo: commitRoundInfo,
+		LedgerCommitInfo: &types.UnicitySeal{
+			Version:              1,
+			NetworkID:            5,
+			// Usually the round that gets committed is different from
+			// the round that commits, but for genesis block they are the same.
+			RootChainRoundNumber: commitRoundInfo.RoundNumber,
+			Epoch:                commitRoundInfo.Epoch,
+			Timestamp:            commitRoundInfo.Timestamp,
+			Hash:                 commitRoundInfo.CurrentRootHash,
+			PreviousHash:         commitRoundInfoHash,
+		},
+	}
+
+	for nodeID, signer := range signers {
+		require.NoError(t, commitQc.LedgerCommitInfo.Sign(nodeID, signer))
+	}
+	commitQc.Signatures = commitQc.LedgerCommitInfo.Signatures
+	return commitQc
 }

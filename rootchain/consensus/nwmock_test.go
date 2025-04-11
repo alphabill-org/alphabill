@@ -151,7 +151,9 @@ func (nc *mockNwConnection) Send(_ context.Context, msg any, receivers ...peer.I
 	return errors.Join(errs...)
 }
 
-func (nc *mockNwConnection) ReceivedChannel() <-chan any { return nc.rcv }
+func (nc *mockNwConnection) ReceivedChannel() <-chan any {
+	return nc.rcv
+}
 
 /*
 ForwardMsgs returns a function which can be used as firewall in mockNetwork (ie used

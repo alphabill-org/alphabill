@@ -46,6 +46,9 @@ func readState(stateData io.Reader, udc UnitDataConstructor, opts ...Option) (*S
 		if err := state.Commit(header.UnicityCertificate); err != nil {
 			return nil, nil, fmt.Errorf("unable to commit recovered state: %w", err)
 		}
+	} else {
+		// Must be genesis state, save it as committed tree, so it's never reverted.
+		state.committedTree = t
 	}
 
 	return state, &header, nil

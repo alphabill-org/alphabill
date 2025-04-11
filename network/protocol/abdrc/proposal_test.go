@@ -192,7 +192,7 @@ func TestProposalMsg_Verify(t *testing.T) {
 	validProposal := func(t *testing.T) *ProposalMsg {
 		t.Helper()
 		voteInfo := testutils.NewDummyRootRoundInfo(9)
-		lastRoundQc, err := drctypes.NewQuorumCertificate(voteInfo, nil)
+		lastRoundQc, err := newQuorumCertificate(t, voteInfo, nil)
 		require.NoError(t, err)
 		addQCSignature(t, lastRoundQc, "1", s1)
 		addQCSignature(t, lastRoundQc, "2", s2)
@@ -286,4 +286,14 @@ func TestProposalMsg_Verify_OkWithTc(t *testing.T) {
 	}
 	require.NoError(t, proposeMsg.Sign(s1))
 	require.NoError(t, proposeMsg.Verify(rootTrust))
+}
+
+func newQuorumCertificate(t *testing.T, voteInfo *drctypes.RoundInfo, commitHash []byte) (*drctypes.QuorumCert, error) {
+	ph, err := voteInfo.Hash(gocrypto.SHA256)
+	require.NoError(t, err)
+	return &drctypes.QuorumCert{
+		VoteInfo:         voteInfo,
+		LedgerCommitInfo: &types.UnicitySeal{Version: 1, PreviousHash: ph, Hash: commitHash},
+		Signatures:       map[string]hex.Bytes{},
+	}, nil
 }

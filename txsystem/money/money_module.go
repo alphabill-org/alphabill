@@ -40,7 +40,7 @@ func NewMoneyModule(pdr types.PartitionDescriptionRecord, options *Options) (*Mo
 		pdr:                 pdr,
 		trustBase:           options.trustBase,
 		hashAlgorithm:       options.hashAlgorithm,
-		feeCreditTxRecorder: newFeeCreditTxRecorder(options.state, pdr.PartitionID, options.partitionDescriptionRecords),
+		feeCreditTxRecorder: newFeeCreditTxRecorder(options.state, pdr.PartitionID, nil),
 		dustCollector:       NewDustCollector(options.state),
 		execPredicate:       predicates.NewPredicateRunner(options.exec),
 	}
@@ -77,8 +77,10 @@ func (m *Module) EndBlockFuncs() []func(blockNumber uint64) error {
 	return []func(blockNumber uint64) error{
 		// m.dustCollector.consolidateDust TODO AB-1133
 		// TODO AB-1133 delete bills from owner index (partition/proof_indexer.go)
-		func(blockNr uint64) error {
-			return m.feeCreditTxRecorder.consolidateFees()
-		},
+
+		// TODO: FCB-s will be gone, no need to consolidate then
+		// func(blockNr uint64) error {
+		// 	return m.feeCreditTxRecorder.consolidateFees()
+		// },
 	}
 }

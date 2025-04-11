@@ -29,8 +29,8 @@ func TestTrustBaseStore(t *testing.T) {
 	verifier, err := signer.Verifier()
 	require.NoError(t, err)
 	tb, err = types.NewTrustBaseGenesis(
-		[]*types.NodeInfo{trustbase.NewNodeInfoFromVerifier(t, "test", 1, verifier)},
-		[]byte{100},
+		5,
+		[]*types.NodeInfo{trustbase.NewNodeInfoFromVerifier(t, "test", verifier)},
 	)
 	require.NoError(t, err)
 

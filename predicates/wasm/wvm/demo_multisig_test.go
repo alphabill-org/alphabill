@@ -36,7 +36,7 @@ func Test_multisig(t *testing.T) {
 
 	// tx system unit/attribute encoder
 	txsEnc := encoder.TXSystemEncoder{}
-	require.NoError(t, tokenenc.RegisterTxAttributeEncoders(txsEnc.RegisterAttrEncoder))
+	require.NoError(t, tokenenc.RegisterTxAttributeEncoders(tokens.DefaultPartitionID, txsEnc.RegisterAttrEncoder))
 
 	engine := func(t *testing.T) (*WasmVM, *mockTxContext) {
 		t.Helper()

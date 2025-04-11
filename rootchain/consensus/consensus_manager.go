@@ -1114,6 +1114,10 @@ func (x *ConsensusManager) updateQCMetrics(ctx context.Context, qc *drctypes.Quo
 	}
 }
 
+func (x *ConsensusManager) GetState() (*abdrc.StateMsg, error) {
+	return x.blockStore.GetState()
+}
+
 // "constant" (ie without variable part) attribute sets for observability
 var (
 	attrSetQCVoteStale = metric.WithAttributeSet(attribute.NewSet(attribute.String("reason", "stale")))

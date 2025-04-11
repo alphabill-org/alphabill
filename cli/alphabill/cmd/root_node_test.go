@@ -20,6 +20,8 @@ import (
 	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	testtime "github.com/alphabill-org/alphabill/internal/testutils/time"
 	"github.com/alphabill-org/alphabill/network"
+	"github.com/alphabill-org/alphabill/network/protocol/abdrc"
+	rctypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/stretchr/testify/require"
@@ -60,7 +62,7 @@ func TestRootValidator_OK(t *testing.T) {
 		"trust-base", "generate",
 		"--home", rootHome1,
 		"--node-info", filepath.Join(rootHome1, nodeInfoFileName),
-	        "--node-info", filepath.Join(rootHome2, nodeInfoFileName),
+		"--node-info", filepath.Join(rootHome2, nodeInfoFileName),
 	})
 	require.NoError(t, cmd.Execute(context.Background()))
 
@@ -270,4 +272,64 @@ func Test_cfgHandler(t *testing.T) {
 		require.Empty(t, body)
 		require.True(t, cbCall, "add configuration callback has not been called")
 	})
+}
+
+func Test_roundInfoHandler(t *testing.T) {
+	t.Run("state provider error", func(t *testing.T) {
+		hf := getRoundInfoHandler(func() (*abdrc.StateMsg, error) {
+			return nil, fmt.Errorf("some error")
+		}, observability.Default(t))
+		res, body := doRequest(t, hf, http.MethodGet, "/api/v1/roundInfo")
+		require.EqualValues(t, http.StatusInternalServerError, res.StatusCode)
+		require.Equal(t, "failed to load state\n", string(body))
+		require.Equal(t, "text/plain; charset=utf-8", res.Header.Get("Content-Type"))
+	})
+
+	t.Run("ok", func(t *testing.T) {
+		hf := getRoundInfoHandler(func() (*abdrc.StateMsg, error) {
+			return &abdrc.StateMsg{
+				CommittedHead: &abdrc.CommittedBlock{
+					ShardInfo: []abdrc.ShardInfo{
+						{
+							Partition: 1,
+							Shard:     types.ShardID{},
+							IR:        &types.InputRecord{RoundNumber: 11, Epoch: 1},
+						},
+					},
+					Block: &rctypes.BlockData{Round: 12, Epoch: 2},
+				},
+			}, nil
+		}, observability.Default(t))
+		res, body := doRequest(t, hf, http.MethodGet, "/api/v1/roundInfo")
+		require.EqualValues(t, http.StatusOK, res.StatusCode)
+		require.EqualValues(t, "application/json", res.Header.Get("Content-Type"))
+
+		var actual roundInfoResponse
+		require.NoError(t, json.Unmarshal(body, &actual))
+
+		expected := roundInfoResponse{
+			RoundNumber: 12,
+			EpochNumber: 2,
+			PartitionShards: []shardInfo{
+				{
+					PartitionID: 1,
+					ShardID:     types.ShardID{},
+					RoundNumber: 11,
+					EpochNumber: 1,
+				},
+			},
+		}
+		require.Equal(t, expected, actual)
+	})
+}
+
+func doRequest(t *testing.T, hf http.HandlerFunc, method, path string) (*http.Response, []byte) {
+	req := httptest.NewRequest(method, path, nil)
+	rec := httptest.NewRecorder()
+	hf(rec, req)
+	res := rec.Result()
+	defer res.Body.Close()
+	responseBody, err := io.ReadAll(res.Body)
+	require.NoError(t, err)
+	return res, responseBody
 }

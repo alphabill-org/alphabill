@@ -2,7 +2,6 @@ package testcertificates
 
 import (
 	gocrypto "crypto"
-	"fmt"
 	"testing"
 
 	"github.com/alphabill-org/alphabill-go-base/crypto"

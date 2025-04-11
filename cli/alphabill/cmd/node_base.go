@@ -54,6 +54,7 @@ type startNodeConfiguration struct {
 	BlockSubscriptionTimeoutMs      uint64
 	BootStrapAddresses              []string // boot strap addresses (libp2p multiaddress format)
 	StateRpcRateLimit               int
+	StateRpcResponseItemLimit       int
 }
 
 func run(
@@ -65,6 +66,7 @@ func run(
 	pdr *types.PartitionDescriptionRecord,
 	obs Observability,
 	stateRpcRateLimit int,
+	stateRpcResponseItemLimit int,
 ) error {
 	log := obs.Logger()
 	name := partitionTypeIDToName(node.PartitionTypeID())
@@ -94,6 +96,7 @@ func run(
 					rpc.WithGetUnits(withGetUnits),
 					rpc.WithPDR(pdr),
 					rpc.WithRateLimit(stateRpcRateLimit),
+					rpc.WithResponseItemLimit(stateRpcResponseItemLimit),
 				),
 			},
 			{
@@ -257,6 +260,7 @@ func addCommonNodeConfigurationFlags(nodeCmd *cobra.Command, config *startNodeCo
 	nodeCmd.Flags().Uint64Var(&config.LedgerReplicationTimeoutMs, "ledger-replication-timeout", 1500, "time since last received replication response when to trigger another request (in ms)")
 	nodeCmd.Flags().Uint64Var(&config.BlockSubscriptionTimeoutMs, "block-subscription-timeout", 3000, "time since last received block when when to trigger recovery (in ms) for non-validating nodes")
 	nodeCmd.Flags().IntVar(&config.StateRpcRateLimit, "state-rpc-rate-limit", 20, "number of costliest state rpc requests allowed in a second")
+	nodeCmd.Flags().IntVar(&config.StateRpcResponseItemLimit, "state-rpc-response-item-limit", 1000, "maximum number of items in a state rpc response")
 }
 
 func addRPCServerConfigurationFlags(cmd *cobra.Command, c *rpc.ServerConfiguration) {

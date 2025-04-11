@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 	"time"
 
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -26,7 +27,8 @@ type (
 		pdr          *types.PartitionDescriptionRecord
 		withGetUnits bool
 
-		requestLimiter *RequestLimiter
+		requestLimiter    *RequestLimiter
+		responseItemLimit int
 
 		updMetrics    func(ctx context.Context, method string, start time.Time, apiErr error)
 		updTxReceived func(ctx context.Context, txType uint16, apiErr error)
@@ -89,13 +91,14 @@ func NewStateAPI(node partitionNode, obs Observability, opts ...StateAPIOption) 
 	)
 
 	return &StateAPI{
-		node:           node,
-		ownerIndex:     options.ownerIndex,
-		pdr:            options.pdr,
-		withGetUnits:   options.withGetUnits,
-		updMetrics:     metricsUpdater(m, node, log),
-		updTxReceived:  metricsUpdaterTxReceived(m, node, log),
-		requestLimiter: requestLimiter,
+		node:              node,
+		ownerIndex:        options.ownerIndex,
+		pdr:               options.pdr,
+		withGetUnits:      options.withGetUnits,
+		updMetrics:        metricsUpdater(m, node, log),
+		updTxReceived:     metricsUpdaterTxReceived(m, node, log),
+		requestLimiter:    requestLimiter,
+		responseItemLimit: options.responseItemLimit,
 	}
 }
 
@@ -153,7 +156,7 @@ func (s *StateAPI) GetUnit(unitID types.UnitID, includeStateProof bool) (_ *Unit
 }
 
 // GetUnitsByOwnerID returns list of unit identifiers that belong to the given owner.
-func (s *StateAPI) GetUnitsByOwnerID(ownerID hex.Bytes) (_ []types.UnitID, retErr error) {
+func (s *StateAPI) GetUnitsByOwnerID(ownerID hex.Bytes, sinceUnitID *types.UnitID, limit *int) (_ []types.UnitID, retErr error) {
 	defer func(start time.Time) { s.updMetrics(context.Background(), "getUnitsByOwnerID", start, retErr) }(time.Now())
 	if s.ownerIndex == nil {
 		return nil, errors.New("owner indexer is disabled")
@@ -162,15 +165,26 @@ func (s *StateAPI) GetUnitsByOwnerID(ownerID hex.Bytes) (_ []types.UnitID, retEr
 		return nil, fmt.Errorf("request not allowed: %w", err)
 	}
 
-	unitIds, err := s.ownerIndex.GetOwnerUnits(ownerID)
+	ownerUnitIDs, err := s.ownerIndex.GetOwnerUnits(ownerID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load owner units: %w", err)
 	}
-	return unitIds, nil
+	slices.SortFunc(ownerUnitIDs, func(i, j types.UnitID) int {
+		return i.Compare(j)
+	})
+	startIndex := startIndex(sinceUnitID, ownerUnitIDs)
+	if startIndex > len(ownerUnitIDs) {
+		return []types.UnitID{}, nil
+	}
+	endIndex := endIndex(startIndex, limit, ownerUnitIDs)
+	if s.responseItemLimit != 0 && s.responseItemLimit < endIndex {
+		endIndex = s.responseItemLimit
+	}
+	return ownerUnitIDs[startIndex:endIndex], nil
 }
 
 // GetUnits returns list of unit identifiers, optionally filtered by the given unit type identifier.
-func (s *StateAPI) GetUnits(unitTypeID *uint32) (_ []types.UnitID, retErr error) {
+func (s *StateAPI) GetUnits(unitTypeID *uint32, sinceUnitID *types.UnitID, limit *int) (_ []types.UnitID, retErr error) {
 	defer func(start time.Time) { s.updMetrics(context.Background(), "getUnits", start, retErr) }(time.Now())
 	if !s.withGetUnits {
 		return nil, errors.New("state_getUnits is disabled")
@@ -182,7 +196,18 @@ func (s *StateAPI) GetUnits(unitTypeID *uint32) (_ []types.UnitID, retErr error)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get units: %w", err)
 	}
-	return units, nil
+	slices.SortFunc(units, func(i, j types.UnitID) int {
+		return i.Compare(j)
+	})
+	startIndex := startIndex(sinceUnitID, units)
+	if startIndex > len(units) {
+		return []types.UnitID{}, nil
+	}
+	endIndex := endIndex(startIndex, limit, units)
+	if s.responseItemLimit != 0 && s.responseItemLimit < endIndex {
+		endIndex = s.responseItemLimit
+	}
+	return units[startIndex:endIndex], nil
 }
 
 // SendTransaction broadcasts the given transaction to the network, returns the submitted transaction hash.
@@ -258,4 +283,32 @@ func (s *StateAPI) GetTrustBase(epochNumber hex.Uint64) (_ types.RootTrustBase, 
 		return nil, fmt.Errorf("failed to load trust base: %w", err)
 	}
 	return trustBase, nil
+}
+
+// startIndex returns next index from sinceUnitID or closest index if direct one is not found.
+func startIndex(sinceUnitID *types.UnitID, ownerUnitIDs []types.UnitID) int {
+	if sinceUnitID == nil /* || sinceUnitID.Eq(types.UnitID{}) */ {
+		return 0
+	}
+	closestIndex := -1
+searchIndexLoop:
+	for i, u := range ownerUnitIDs {
+		switch u.Compare(*sinceUnitID) {
+		case -1:
+			closestIndex = i
+		case 0:
+			return i + 1
+		default:
+			break searchIndexLoop
+		}
+	}
+	return closestIndex + 1
+}
+
+func endIndex(startIndex int, limit *int, ownerUnitIDs []types.UnitID) int {
+	if limit == nil || *limit == 0 {
+		return len(ownerUnitIDs)
+	}
+	endIndex := min(startIndex+*limit, len(ownerUnitIDs))
+	return endIndex
 }

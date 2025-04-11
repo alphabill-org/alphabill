@@ -140,5 +140,5 @@ func runMoneyNode(ctx context.Context, cfg *moneyNodeConfiguration) error {
 	if err != nil {
 		return fmt.Errorf("creating node: %w", err)
 	}
-	return run(ctx, node, cfg.rpcServer, ownerIndexer, cfg.Node.WithGetUnits, pg.PartitionDescription, obs, cfg.Node.StateRpcRateLimit)
+	return run(ctx, node, cfg.rpcServer, ownerIndexer, cfg.Node.WithGetUnits, pg.PartitionDescription, obs, cfg.Node.StateRpcRateLimit, cfg.Node.StateRpcResponseItemLimit)
 }

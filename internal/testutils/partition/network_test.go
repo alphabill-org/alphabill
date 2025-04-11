@@ -22,14 +22,14 @@ func TestNewNetwork_Ok(t *testing.T) {
 		ShardID:         types.ShardID{},
 		TypeIDLen:       8,
 		UnitIDLen:       256,
-		T2Timeout:       800 * time.Millisecond,
+		T2Timeout:       2500 * time.Millisecond,
 		Epoch:           0,
 		EpochStart:      0,
 	}
 
 	abNetwork := NewAlphabillNetwork(t, 3)
 	require.NoError(t, abNetwork.Start(t))
-	defer abNetwork.WaitClose(t)
+	t.Cleanup(func() { abNetwork.WaitClose(t) })
 
 	abNetwork.AddShard(t, shardConf, 3, func(tb types.RootTrustBase) txsystem.TransactionSystem {
 		return &testtxsystem.CounterTxSystem{FixedState: testtxsystem.MockState{}}

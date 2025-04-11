@@ -136,6 +136,10 @@ func Test_ConsensusManager_onPartitionIRChangeReq(t *testing.T) {
 	defer ctxCancel()
 	go func() { require.ErrorIs(t, cm.Run(ctx), context.Canceled) }()
 
+	require.Eventually(t, func() bool {
+		return cm.pacemaker.GetCurrentRound() > 0
+	}, test.WaitDuration, test.WaitShortTick)
+
 	si, err := cm.ShardInfo(partitionID, shardID)
 	require.NoError(t, err)
 

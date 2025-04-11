@@ -2,7 +2,7 @@ name: docker
 
 on:
   push:
-    branches: ["main", "AB-1717"]
+    branches: ["main", "AB-1717", "AB-1717-shardconfhash-in-uc"]
     tags: ["*"]
   pull_request:
     branches: ["main"]

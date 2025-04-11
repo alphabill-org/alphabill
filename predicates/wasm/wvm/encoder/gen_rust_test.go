@@ -21,8 +21,9 @@ func Test_TXSystemEncoder_trigger(t *testing.T) {
 		other tests here to generate tests for Rust SDK.
 	*/
 
+	const partitionID types.PartitionID = 7
 	// encoder is stateless, can be shared between tests
-	enc, err := New()
+	enc, err := New(partitionID)
 	require.NoError(t, err)
 
 	t.Run("txRecord", func(t *testing.T) {
@@ -42,7 +43,7 @@ func Test_TXSystemEncoder_trigger(t *testing.T) {
 		txo := &types.TransactionOrder{
 			Version: 1,
 			Payload: types.Payload{
-				PartitionID: 7,
+				PartitionID: partitionID,
 				Type:        22,
 				UnitID:      []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10},
 				ClientMetadata: &types.ClientMetadata{
@@ -83,7 +84,8 @@ func Test_generate_TXSTestsData(t *testing.T) {
 	var hid atomic.Uint32
 	getHandle := func(obj any) uint32 { return hid.Add(1) }
 	// encoder is stateless, can be shared between tests
-	enc, err := New()
+	const partitionID types.PartitionID = 7
+	enc, err := New(partitionID)
 	require.NoError(t, err)
 
 	t.Run("txOrder", func(t *testing.T) {
@@ -91,7 +93,7 @@ func Test_generate_TXSTestsData(t *testing.T) {
 			Version: 1,
 			Payload: types.Payload{
 				NetworkID:   1,
-				PartitionID: 7,
+				PartitionID: partitionID,
 				Type:        22,
 				UnitID:      []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10},
 				ClientMetadata: &types.ClientMetadata{

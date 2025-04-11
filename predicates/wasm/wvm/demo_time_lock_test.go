@@ -36,7 +36,7 @@ func Test_time_lock(t *testing.T) {
 
 	// tx system unit/attribute encoder
 	txsEnc := encoder.TXSystemEncoder{}
-	require.NoError(t, tokenenc.RegisterTxAttributeEncoders(txsEnc.RegisterAttrEncoder))
+	require.NoError(t, tokenenc.RegisterTxAttributeEncoders(tokens.DefaultPartitionID, txsEnc.RegisterAttrEncoder))
 	// checking P2PKH template is delegated to template engine
 	tmpPred, err := templates.New(obs)
 	require.NoError(t, err)

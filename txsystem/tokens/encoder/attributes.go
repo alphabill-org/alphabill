@@ -9,10 +9,10 @@ import (
 	"github.com/alphabill-org/alphabill/predicates/wasm/wvm/encoder"
 )
 
-func RegisterTxAttributeEncoders(reg func(id encoder.PartitionTxType, enc encoder.TxAttributesEncoder) error) error {
+func RegisterTxAttributeEncoders(partition types.PartitionID, reg func(id encoder.PartitionTxType, enc encoder.TxAttributesEncoder) error) error {
 	key := func(attrID uint16) encoder.PartitionTxType {
 		return encoder.PartitionTxType{
-			Partition: tokens.DefaultPartitionID,
+			Partition: partition,
 			TxType:    attrID,
 		}
 	}

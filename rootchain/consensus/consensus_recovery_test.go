@@ -876,7 +876,7 @@ func newTestGenesisBlock(t *testing.T, shardConf *types.PartitionDescriptionReco
 	require.NoError(t, err)
 
 	irs := storage.InputRecords{ir}
-	ut, err := irs.UnicityTree(hashAlgo)
+	ut, _, err := irs.UnicityTree(hashAlgo)
 	require.NoError(t, err)
 
 	psID := types.PartitionShardID{PartitionID: si.PartitionID, ShardID: si.ShardID.Key()}

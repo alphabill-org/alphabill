@@ -6,7 +6,7 @@ import (
 
 	"github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill/internal/testutils"
+	test "github.com/alphabill-org/alphabill/internal/testutils"
 	p2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
@@ -16,13 +16,16 @@ func CreateUnicityCertificate(
 	t *testing.T,
 	signer crypto.Signer,
 	ir *types.InputRecord,
-	pdr *types.PartitionDescriptionRecord,
+	shardConf *types.PartitionDescriptionRecord,
 	rootRound uint64,
 	previousHash []byte,
 	trHash []byte,
 ) *types.UnicityCertificate {
 	t.Helper()
-	sTree, err := types.CreateShardTree(types.ShardingScheme{}, []types.ShardTreeInput{{Shard: types.ShardID{}, IR: ir, TRHash: trHash}}, gocrypto.SHA256)
+	shardConfHash := test.DoHash(t, shardConf)
+	sTree, err := types.CreateShardTree(types.ShardingScheme{}, []types.ShardTreeInput{
+		{Shard: types.ShardID{}, IR: ir, TRHash: trHash, ShardConfHash: shardConfHash},
+	}, gocrypto.SHA256)
 	if err != nil {
 		t.Errorf("creating shard tree: %v", err)
 		return nil
@@ -33,9 +36,8 @@ func CreateUnicityCertificate(
 		return nil
 	}
 	data := []*types.UnicityTreeData{{
-		Partition:     pdr.PartitionID,
+		Partition:     shardConf.PartitionID,
 		ShardTreeRoot: sTree.RootHash(),
-		PDRHash:       test.DoHash(t, pdr),
 	}}
 	ut, err := types.NewUnicityTree(gocrypto.SHA256, data)
 	if err != nil {
@@ -52,7 +54,7 @@ func CreateUnicityCertificate(
 	if err != nil {
 		t.Error(err)
 	}
-	cert, err := ut.Certificate(pdr.PartitionID)
+	cert, err := ut.Certificate(shardConf.PartitionID)
 	if err != nil {
 		t.Error(err)
 	}
@@ -60,6 +62,7 @@ func CreateUnicityCertificate(
 		Version:                1,
 		InputRecord:            ir,
 		TRHash:                 trHash,
+		ShardConfHash:          shardConfHash,
 		ShardTreeCertificate:   stCert,
 		UnicityTreeCertificate: cert,
 		UnicitySeal:            unicitySeal,

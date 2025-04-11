@@ -975,10 +975,10 @@ func Test_ConsensusManager_sendCertificates(t *testing.T) {
 				Shard:     shardID,
 				UC: types.UnicityCertificate{
 					Version: 1,
+					ShardConfHash: test.RandomBytes(32),
 					UnicityTreeCertificate: &types.UnicityTreeCertificate{
 						Version:   1,
 						Partition: id,
-						PDRHash:   test.RandomBytes(32),
 					},
 				},
 			}

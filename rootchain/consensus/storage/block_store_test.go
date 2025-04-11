@@ -43,10 +43,10 @@ func (m *MockAlwaysOkBlockVerifier) VerifyIRChangeReq(_ uint64, irChReq *drctype
 	switch irChReq.CertReason {
 	case drctypes.Quorum:
 		// NB! there was at least one request, otherwise we would not be here
-		return &InputData{IR: irChReq.Requests[0].InputRecord, ShardConfHash: luc.UC.UnicityTreeCertificate.PDRHash}, nil
+		return &InputData{IR: irChReq.Requests[0].InputRecord, ShardConfHash: luc.UC.ShardConfHash}, nil
 	case drctypes.QuorumNotPossible:
 	case drctypes.T2Timeout:
-		return &InputData{Partition: irChReq.Partition, IR: luc.UC.InputRecord, ShardConfHash: luc.UC.UnicityTreeCertificate.PDRHash}, nil
+		return &InputData{Partition: irChReq.Partition, IR: luc.UC.InputRecord, ShardConfHash: luc.UC.ShardConfHash}, nil
 	}
 	return nil, fmt.Errorf("unknown certification reason %v", irChReq.CertReason)
 }
@@ -512,7 +512,7 @@ func genesisBlockWithShard(t *testing.T, shardConf *types.PartitionDescriptionRe
 	require.NoError(t, err)
 
 	irs := InputRecords{ir}
-	ut, err := irs.UnicityTree(hashAlgo)
+	ut, _, err := irs.UnicityTree(hashAlgo)
 	require.NoError(t, err)
 
 	psID := types.PartitionShardID{PartitionID: si.PartitionID, ShardID: si.ShardID.Key()}

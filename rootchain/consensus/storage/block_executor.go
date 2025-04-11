@@ -67,25 +67,36 @@ func (data InputRecords) Find(partitionID types.PartitionID, shardID types.Shard
 /*
 unicityTree builds the unicity tree based on the InputData slice.
 */
-func (data InputRecords) UnicityTree(algo crypto.Hash) (*types.UnicityTree, error) {
+func (data InputRecords) UnicityTree(algo crypto.Hash) (*types.UnicityTree, map[types.PartitionShardID]*types.ShardTree, error) {
+	// Construct UnicityTreeData for each partition (should group shards by partition first)
 	// TODO: supports just single shard partitions, ie each element in the data slice is the sole shard of the partition!
 	utData := make([]*types.UnicityTreeData, 0, len(data))
+	shardTrees := make(map[types.PartitionShardID]*types.ShardTree)
 	for _, d := range data {
+		psID := types.PartitionShardID{PartitionID: d.Partition, ShardID: d.Shard.Key()}
 		trHash, err := d.Technical.Hash()
 		if err != nil {
-			return nil, fmt.Errorf("calculating TR hash: %w", err)
+			return nil, nil, fmt.Errorf("calculating TR hash: %w", err)
 		}
-		sTree, err := types.CreateShardTree(types.ShardingScheme{}, []types.ShardTreeInput{{Shard: d.Shard, IR: d.IR, TRHash: trHash}}, algo)
+		shardTree, err := types.CreateShardTree(
+			types.ShardingScheme{},
+			[]types.ShardTreeInput{
+				{Shard: d.Shard, IR: d.IR, TRHash: trHash, ShardConfHash: d.ShardConfHash},
+			}, algo)
 		if err != nil {
-			return nil, fmt.Errorf("creating shard tree: %w", err)
+			return nil, nil, fmt.Errorf("creating shard tree: %w", err)
 		}
+		shardTrees[psID] = &shardTree
 		utData = append(utData, &types.UnicityTreeData{
 			Partition:     d.Partition,
-			ShardTreeRoot: sTree.RootHash(),
-			PDRHash:       d.ShardConfHash,
+			ShardTreeRoot: shardTree.RootHash(),
 		})
 	}
-	return types.NewUnicityTree(algo, utData)
+	ut, err := types.NewUnicityTree(algo, utData)
+	if err != nil {
+		return nil, nil, err
+	}
+	return ut, shardTrees, nil
 }
 
 /*
@@ -93,44 +104,49 @@ certificationResponses builds the unicity tree and certification responses based
 CertificationResponse will be generated only for shards listed in the "changed" argument. The UnicityCertificates
 in the response are not complete, they miss the UnicityTreeCertificate and UnicitySeal.
 */
-func (data InputRecords) certificationResponses(changed map[types.PartitionShardID]struct{}, algo crypto.Hash) ([]*certification.CertificationResponse, *types.UnicityTree, error) {
-	crs := []*certification.CertificationResponse{}
-	utData := make([]*types.UnicityTreeData, 0, len(data))
-	for _, d := range data {
-		trHash, err := d.Technical.Hash()
-		if err != nil {
-			return nil, nil, fmt.Errorf("calculating TR hash: %w", err)
-		}
-		sTree, err := types.CreateShardTree(types.ShardingScheme{}, []types.ShardTreeInput{{Shard: d.Shard, IR: d.IR, TRHash: trHash}}, algo)
-		if err != nil {
-			return nil, nil, fmt.Errorf("creating shard tree: %w", err)
-		}
-		utData = append(utData, &types.UnicityTreeData{
-			Partition:     d.Partition,
-			ShardTreeRoot: sTree.RootHash(),
-			PDRHash:       d.ShardConfHash,
-		})
+func (data InputRecords) certificationResponses(changed map[types.PartitionShardID]struct{}, algo crypto.Hash) ([]*certification.CertificationResponse, []byte, error) {
+	ut, shardTrees, err := data.UnicityTree(algo)
+	if err != nil {
+		return nil, nil, fmt.Errorf("creating unicity tree: %w", err)
+	}
 
-		if _, ok := changed[types.PartitionShardID{PartitionID: d.Partition, ShardID: d.Shard.Key()}]; ok {
-			stCert, err := sTree.Certificate(d.Shard)
+	crs := []*certification.CertificationResponse{}
+	// Generate an UC for each shard
+	for _, d := range data {
+		psID := types.PartitionShardID{PartitionID: d.Partition, ShardID: d.Shard.Key()}
+		if _, ok := changed[psID]; ok {
+			stCert, err := shardTrees[psID].Certificate(d.Shard)
 			if err != nil {
 				return nil, nil, fmt.Errorf("creating shard tree certificate: %w", err)
 			}
+
+			utCert, err := ut.Certificate(d.Partition)
+			if err != nil {
+				return nil, nil, fmt.Errorf("creating unicity tree certificate: %w", err)
+			}
+
+			trHash, err := d.Technical.Hash()
+			if err != nil {
+				return nil, nil, fmt.Errorf("calculating TR hash: %w", err)
+			}
+
 			crs = append(crs, &certification.CertificationResponse{
 				Partition: d.Partition,
 				Shard:     d.Shard,
 				Technical: d.Technical,
 				UC: types.UnicityCertificate{
-					Version:              1,
-					InputRecord:          d.IR,
-					TRHash:               trHash,
-					ShardTreeCertificate: stCert,
+					Version:                1,
+					InputRecord:            d.IR,
+					TRHash:                 trHash,
+					ShardConfHash:          d.ShardConfHash,
+					UnicityTreeCertificate: utCert,
+					ShardTreeCertificate:   stCert,
 				},
 			})
 		}
 	}
-	ut, err := types.NewUnicityTree(algo, utData)
-	return crs, ut, err
+
+	return crs, ut.RootHash(), err
 }
 
 func NewRootBlock(hash crypto.Hash, block *abdrc.CommittedBlock, orchestration Orchestration) (*ExecutedBlock, error) {
@@ -191,7 +207,7 @@ func NewRootBlock(hash crypto.Hash, block *abdrc.CommittedBlock, orchestration O
 		shardInfo[types.PartitionShardID{PartitionID: d.Partition, ShardID: d.Shard.Key()}] = si
 	}
 
-	ut, err := irState.UnicityTree(hash)
+	ut, _, err := irState.UnicityTree(hash)
 	if err != nil {
 		return nil, err
 	}
@@ -257,7 +273,7 @@ func (x *ExecutedBlock) Extend(hash crypto.Hash, newBlock *rctypes.BlockData, ve
 		changes[types.PartitionShardID{PartitionID: irChReq.Partition, ShardID: irChReq.Shard.Key()}] = struct{}{}
 	}
 
-	ut, err := irState.UnicityTree(hash)
+	ut, _, err := irState.UnicityTree(hash)
 	if err != nil {
 		return nil, fmt.Errorf("creating UnicityTree: %w", err)
 	}
@@ -272,11 +288,10 @@ func (x *ExecutedBlock) Extend(hash crypto.Hash, newBlock *rctypes.BlockData, ve
 }
 
 func (x *ExecutedBlock) GenerateCertificates(commitQc *rctypes.QuorumCert) ([]*certification.CertificationResponse, error) {
-	crs, ut, err := x.CurrentIR.certificationResponses(x.Changed, x.HashAlgo)
+	crs, rootHash, err := x.CurrentIR.certificationResponses(x.Changed, x.HashAlgo)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate unicity tree: %w", err)
 	}
-	rootHash := ut.RootHash()
 	// sanity check, data must not have changed, hence the root hash must still be the same
 	if !bytes.Equal(rootHash, x.RootHash) {
 		return nil, fmt.Errorf("root hash does not match previously calculated root hash")
@@ -298,11 +313,9 @@ func (x *ExecutedBlock) GenerateCertificates(commitQc *rctypes.QuorumCert) ([]*c
 	}
 	ucs := []*certification.CertificationResponse{}
 	for _, cr := range crs {
-		if cr.UC.UnicityTreeCertificate, err = ut.Certificate(cr.Partition); err != nil {
-			return nil, fmt.Errorf("create unicity tree certificate for partition %s - %s: %w", cr.Partition, cr.Shard, err)
-		}
 		cr.UC.UnicitySeal = uSeal
 		ucs = append(ucs, cr)
+
 		if si, ok := x.ShardInfo[types.PartitionShardID{PartitionID: cr.Partition, ShardID: cr.Shard.Key()}]; ok {
 			si.LastCR = cr
 		} else {

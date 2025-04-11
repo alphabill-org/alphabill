@@ -257,7 +257,7 @@ func (m *TxSystem) TypeID() types.PartitionTypeID {
 }
 
 func (m *TxSystem) SerializeState(w io.Writer) error {
-	return nil
+	return m.State().Serialize(w, true, nil)
 }
 
 func (vc *TxValidationContext) GetUnit(id types.UnitID, committed bool) (state.Unit, error) {

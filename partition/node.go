@@ -783,12 +783,14 @@ func (n *Node) updateLUC(ctx context.Context, uc *types.UnicityCertificate, tr *
 		return fmt.Errorf("unicity certificate is nil")
 	}
 
+	// Only verify shardConfHash if we have received a supposedly current UC (with TR) _and_
+	// UC epoch matches the loaded epoch. If loaded epoch doesn't match then shardConfHashes can't match either,
+	// but we still need to process the UC to trigger epoch change.
 	var shardConfHash []byte
-	if tr != nil {
-		// Only verify shardConfHash if we have received
-		// a supposedly current UC together with a TR.
+	if tr != nil && n.shardStore.LoadedEpoch() == uc.InputRecord.Epoch {
 		shardConfHash = n.shardStore.ShardConfHash()
 	}
+
 	// UC is validated cryptographically.
 	// TR has already been validated to match the hash in UC
 	// when receiving a CertificationResponse or a BlockProposal.

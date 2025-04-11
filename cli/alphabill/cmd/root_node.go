@@ -22,6 +22,7 @@ import (
 	"github.com/alphabill-org/alphabill/keyvaluedb"
 	"github.com/alphabill-org/alphabill/logger"
 	"github.com/alphabill-org/alphabill/network"
+	"github.com/alphabill-org/alphabill/network/protocol/abdrc"
 	"github.com/alphabill-org/alphabill/observability"
 	"github.com/alphabill-org/alphabill/partition"
 	"github.com/alphabill-org/alphabill/rootchain"
@@ -44,9 +45,9 @@ type (
 		trustBaseFlags
 		p2pFlags
 
-		RootStoreFile    string   // path to Bolt storage file
-		MaxRequests      uint     // validator partition certification request channel capacity
-		RPCServerAddress string   // address on which http server is exposed with metrics endpoint
+		RootStoreFile    string // path to Bolt storage file
+		MaxRequests      uint   // validator partition certification request channel capacity
+		RPCServerAddress string // address on which http server is exposed with metrics endpoint
 	}
 )
 
@@ -210,6 +211,7 @@ func rootNodeRun(ctx context.Context, flags *rootNodeRunFlags) error {
 			mux.Handle("/api/v1/metrics", promhttp.HandlerFor(pr.(prometheus.Gatherer), promhttp.HandlerOpts{MaxRequestsInFlight: 1}))
 		}
 		mux.HandleFunc("PUT /api/v1/configurations", putShardConfigHandler(orchestration.AddShardConfig))
+		mux.HandleFunc("GET /api/v1/roundInfo", getRoundInfoHandler(cm.GetState, obs))
 		return httpsrv.Run(ctx,
 			&http.Server{
 				Addr:              flags.RPCServerAddress,
@@ -313,4 +315,48 @@ func parseShardConf(r io.ReadCloser) (*types.PartitionDescriptionRecord, error) 
 		return nil, fmt.Errorf("decoding shard conf json: %w", err)
 	}
 	return shardConf, nil
+}
+
+type (
+	shardInfo struct {
+		PartitionID types.PartitionID `json:"partitionId"`
+		ShardID     types.ShardID     `json:"shardId"`
+		RoundNumber uint64            `json:"roundNumber,string"`
+		EpochNumber uint64            `json:"epochNumber,string"`
+	}
+	roundInfoResponse struct {
+		RoundNumber     uint64      `json:"roundNumber,string"`
+		EpochNumber     uint64      `json:"epochNumber,string"`
+		PartitionShards []shardInfo `json:"partitionShards"`
+	}
+)
+
+func getRoundInfoHandler(getState func() (*abdrc.StateMsg, error), obs Observability) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		state, err := getState()
+		if err != nil {
+			obs.Logger().Warn(fmt.Sprintf("GET roundInfo request: failed to load state: %v", err))
+			http.Error(w, "failed to load state", http.StatusInternalServerError)
+			return
+		}
+
+		partitionShards := make([]shardInfo, 0, len(state.CommittedHead.ShardInfo))
+		for _, si := range state.CommittedHead.ShardInfo {
+			partitionShards = append(partitionShards, shardInfo{
+				PartitionID: si.Partition,
+				ShardID:     si.Shard,
+				RoundNumber: si.IR.RoundNumber,
+				EpochNumber: si.IR.Epoch,
+			})
+		}
+		response := roundInfoResponse{
+			RoundNumber:     state.CommittedHead.Block.Round,
+			EpochNumber:     state.CommittedHead.Block.Epoch,
+			PartitionShards: partitionShards,
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if err := json.NewEncoder(w).Encode(response); err != nil {
+			obs.Logger().Warn(fmt.Sprintf("GET roundInfo request: failed to write response: %v", err))
+		}
+	}
 }

@@ -8,17 +8,11 @@ function stop() {
     all)
       program="build/alphabill"
       ;;
-    money)
-      program="build/alphabill money"
-      ;;
-    tokens)
-      program="build/alphabill tokens"
-      ;;
-    evm)
-      program="build/alphabill evm"
+    shard)
+      program="build/alphabill shard-node"
       ;;
     root)
-      program="build/alphabill root"
+      program="build/alphabill root-node"
       ;;
     *)
       echo "error: unknown argument $1" >&2
@@ -35,13 +29,13 @@ function stop() {
   echo "program not running"
 }
 
-usage() { echo "Usage: $0 [-h usage] [-a stop all] [-r stop root] [-p stop partition: money, tokens, evm]"; exit 0; }
+usage() { echo "Usage: $0 [-h usage] [-a stop all] [-r stop root] [-s stop shards]"; exit 0; }
 
-# stop requires an argument either -a for stop all or -p to stop a specific partition
+# stop requires an argument either -a for stop all or -s to stop a all shard nodes
 [ $# -eq 0 ] && usage
 
 # handle arguments
-while getopts "harp:" o; do
+while getopts "hars" o; do
   case "${o}" in
   a) #kill all
     stop "all"
@@ -49,8 +43,8 @@ while getopts "harp:" o; do
   r)
     stop "root"
     ;;
-  p)
-    stop "${OPTARG}"
+  s)
+    stop "shard"
     ;;
   h | *) # help.
     usage && exit 0

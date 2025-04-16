@@ -828,7 +828,6 @@ func TestState_GetUnits(t *testing.T) {
 	t.Run("ok with type id 1", func(t *testing.T) {
 		typeID := uint32(1)
 		unitIDs, err := s.GetUnits(&typeID, pdr)
-		fmt.Println(unitIDs)
 		require.NoError(t, err)
 		require.Len(t, unitIDs, 3)
 		require.EqualValues(t, unitID1, unitIDs[0])

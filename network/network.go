@@ -133,20 +133,6 @@ func (n *LibP2PNetwork) SendMsgs(ctx context.Context, messages MsgQueue, receive
 			if err != nil {
 				return fmt.Errorf("opening p2p stream %w", err)
 			}
-			defer func() {
-				if err = stream.Close(); err != nil {
-					resErr = errors.Join(resErr, fmt.Errorf("closing p2p stream: %w", err))
-				}
-			}()
-			// set stream write timeout from protocol or ctx timeout, whichever is earliest
-			// assume serialization overhead is small and set stream timeout once
-			deadline := time.Now().Add(p.timeout * time.Duration(messages.Len()))
-			if dl, ok := ctx.Deadline(); ok && dl.Before(deadline) {
-				deadline = dl
-			}
-			if err = stream.SetWriteDeadline(deadline); err != nil {
-				return fmt.Errorf("error setting write deadline: %w", err)
-			}
 		}
 		var data []byte
 		data, err = serializeMsg(msg)
@@ -159,7 +145,7 @@ func (n *LibP2PNetwork) SendMsgs(ctx context.Context, messages MsgQueue, receive
 		// write message
 		if _, err = stream.Write(data); err != nil {
 			// return error on stream write error; it is unlikely that the other side is still able to process messages
-			return errors.Join(resErr, fmt.Errorf("stream write error %w", err))
+			return errors.Join(resErr, fmt.Errorf("stream write error: %w", err))
 		}
 	}
 	return nil

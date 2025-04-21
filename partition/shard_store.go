@@ -1,6 +1,7 @@
 package partition
 
 import (
+	gocrypto "crypto"
 	"encoding/binary"
 	"fmt"
 	"log/slog"
@@ -9,9 +10,9 @@ import (
 	"sync"
 
 	"github.com/alphabill-org/alphabill-go-base/crypto"
+	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/keyvaluedb"
 	"github.com/alphabill-org/alphabill/logger"
-	"github.com/alphabill-org/alphabill/rootchain/partitions"
 	"github.com/libp2p/go-libp2p/core/peer"
 )
 
@@ -23,6 +24,7 @@ type shardStore struct {
 	mu              sync.RWMutex
 	epoch           uint64
 	epochValidators map[peer.ID]crypto.Verifier
+	shardConfHash   []byte
 }
 
 func newShardStore(db keyvaluedb.KeyValueDB, log *slog.Logger) *shardStore {
@@ -32,37 +34,40 @@ func newShardStore(db keyvaluedb.KeyValueDB, log *slog.Logger) *shardStore {
 	}
 }
 
-func (s *shardStore) StoreValidatorAssignmentRecord(v *partitions.ValidatorAssignmentRecord) error {
-	var prevVAR *partitions.ValidatorAssignmentRecord
-	if v.EpochNumber > 0 {
-		prevEpoch := v.EpochNumber-1
+func (s *shardStore) StoreShardConf(shardConf *types.PartitionDescriptionRecord) error {
+	var prevShardConf *types.PartitionDescriptionRecord
+	if shardConf.Epoch > 0 {
+		prevEpoch := shardConf.Epoch-1
 		var err error
-		prevVAR, err = s.loadVAR(prevEpoch)
+		prevShardConf, err = s.loadShardConf(prevEpoch)
 		if err != nil {
-			return fmt.Errorf("failed to load VAR for previous epoch %d: %w", prevEpoch, err)
+			return fmt.Errorf("failed to load shard conf for previous epoch %d: %w", prevEpoch, err)
 		}
 	}
-	if err := v.Verify(prevVAR); err != nil {
-		return fmt.Errorf("failed to verify VAR for epoch %d: %w", v.EpochNumber, err)
+	if err := shardConf.Verify(prevShardConf); err != nil {
+		return fmt.Errorf("failed to verify shard conf for epoch %d: %w", shardConf.Epoch, err)
 	}
-	if err := s.db.Write(epochToKey(v.EpochNumber), v); err != nil {
-		return fmt.Errorf("saving VAR for epoch %d: %w", v.EpochNumber, err)
+	if err := s.db.Write(epochToKey(shardConf.Epoch), shardConf); err != nil {
+		return fmt.Errorf("saving shard conf for epoch %d: %w", shardConf.Epoch, err)
 	}
 	return nil
 }
 
 func (s *shardStore) LoadEpoch(epoch uint64) error {
-	s.log.Info(fmt.Sprintf("Loading VAR for epoch %d", epoch))
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	vaRecord, err := s.loadVAR(epoch)
+	shardConf, err := s.loadShardConf(epoch)
 	if err != nil {
-		return fmt.Errorf("failed to load VAR for epoch %d: %w", epoch, err)
+		return fmt.Errorf("failed to load shard conf for epoch %d: %w", epoch, err)
+	}
+	shardConfHash, err := shardConf.Hash(gocrypto.SHA256)
+	if err != nil {
+		return fmt.Errorf("failed to calculate shard conf hash: %w", err)
 	}
 
-	validators := make(map[peer.ID]crypto.Verifier, len(vaRecord.Nodes))
-	for _, vi := range vaRecord.Nodes {
+	validators := make(map[peer.ID]crypto.Verifier, len(shardConf.Validators))
+	for _, vi := range shardConf.Validators {
 		nodeID, err := peer.Decode(vi.NodeID)
 		if err != nil {
 			return fmt.Errorf("failed to decode nodeID %s: %w", vi.NodeID, err)
@@ -74,8 +79,10 @@ func (s *shardStore) LoadEpoch(epoch uint64) error {
 		}
 		validators[nodeID] = verifier
 	}
-	s.epoch = vaRecord.EpochNumber
+	s.epoch = shardConf.Epoch
 	s.epochValidators = validators
+	s.shardConfHash = shardConfHash
+	s.log.Debug(fmt.Sprintf("Loaded shard configuration for epoch %d with hash %x", epoch, shardConfHash))
 	return nil
 }
 
@@ -110,14 +117,20 @@ func (s *shardStore) Verifier(validator peer.ID) crypto.Verifier {
 	return s.epochValidators[validator]
 }
 
-func (s *shardStore) loadVAR(epoch uint64) (*partitions.ValidatorAssignmentRecord, error) {
-	v := &partitions.ValidatorAssignmentRecord{}
+func (s *shardStore) ShardConfHash() []byte {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.shardConfHash
+}
+
+func (s *shardStore) loadShardConf(epoch uint64) (*types.PartitionDescriptionRecord, error) {
+	v := &types.PartitionDescriptionRecord{}
 	found, err := s.db.Read(epochToKey(epoch), v)
 	if err != nil {
-		return nil, fmt.Errorf("reading VAR: %w", err)
+		return nil, fmt.Errorf("reading shard conf: %w", err)
 	}
 	if !found {
-		return nil, fmt.Errorf("VAR not found")
+		return nil, fmt.Errorf("shard conf not found")
 	}
 	return v, nil
 }

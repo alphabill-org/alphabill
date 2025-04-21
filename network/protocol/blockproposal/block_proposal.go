@@ -32,7 +32,7 @@ type BlockProposal struct {
 	Signature          []byte
 }
 
-func (x *BlockProposal) IsValid(nodeSignatureVerifier crypto.Verifier, tb types.RootTrustBase, algorithm gocrypto.Hash, partitionID types.PartitionID, systemDescriptionHash []byte) error {
+func (x *BlockProposal) IsValid(nodeSignatureVerifier crypto.Verifier, tb types.RootTrustBase, algorithm gocrypto.Hash, partitionID types.PartitionID, shardConfHash []byte) error {
 	if x == nil {
 		return ErrBlockProposalIsNil
 	}
@@ -48,7 +48,7 @@ func (x *BlockProposal) IsValid(nodeSignatureVerifier crypto.Verifier, tb types.
 	if partitionID != x.PartitionID {
 		return fmt.Errorf("%w, expected %s, got %s", ErrInvalidPartitionID, partitionID, x.PartitionID)
 	}
-	if err := x.UnicityCertificate.Verify(tb, algorithm, partitionID, systemDescriptionHash); err != nil {
+	if err := x.UnicityCertificate.Verify(tb, algorithm, partitionID, shardConfHash); err != nil {
 		return err
 	}
 	if err := x.Technical.IsValid(); err != nil {

@@ -12,7 +12,6 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	"github.com/alphabill-org/alphabill/partition"
-	"github.com/alphabill-org/alphabill/rootchain/partitions"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/tree/avl"
 	"github.com/alphabill-org/alphabill/txsystem"
@@ -45,7 +44,7 @@ type (
 		TransactionSystemState() txsystem.StateReader
 		SerializeState(w io.Writer) error
 		Validators() peer.IDSlice
-		RegisterValidatorAssignmentRecord(v *partitions.ValidatorAssignmentRecord) error
+		RegisterShardConf(shardConf *types.PartitionDescriptionRecord) error
 		GetTrustBase(epochNumber uint64) (types.RootTrustBase, error)
 		IsPermissionedMode() bool
 		IsFeelessMode() bool
@@ -91,7 +90,7 @@ func NewStateAPI(node partitionNode, obs Observability, opts ...StateAPIOption) 
 	return &StateAPI{
 		node:           node,
 		ownerIndex:     options.ownerIndex,
-		pdr:            options.pdr,
+		pdr:            options.shardConf,
 		withGetUnits:   options.withGetUnits,
 		updMetrics:     metricsUpdater(m, node, log),
 		updTxReceived:  metricsUpdaterTxReceived(m, node, log),

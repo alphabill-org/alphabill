@@ -70,7 +70,7 @@ func (x *IRChangeReq) IsValid() error {
 	return nil
 }
 
-func (x *IRChangeReq) Verify(tb RequestVerifier, luc *types.UnicityCertificate, round, t2InRounds uint64) (*types.InputRecord, error) {
+func (x *IRChangeReq) Verify(tb RequestVerifier, luc *types.UnicityCertificate, rootRound, t2InRounds uint64) (*types.InputRecord, error) {
 	if tb == nil {
 		return nil, errors.New("RequestVerifier is unassigned")
 	}
@@ -145,11 +145,12 @@ func (x *IRChangeReq) Verify(tb RequestVerifier, luc *types.UnicityCertificate, 
 		if len(x.Requests) != 0 {
 			return nil, fmt.Errorf("invalid partition %s timeout proof: proof contains requests", x.Partition)
 		}
+
 		// validate timeout against LUC age
-		lucAge := round - luc.UnicitySeal.RootChainRoundNumber
-		if lucAge < t2InRounds {
+		idleRounds := rootRound - luc.GetRootRoundNumber()
+		if idleRounds < t2InRounds {
 			return nil, fmt.Errorf("invalid partition %s timeout proof: time from latest UC %v, timeout in rounds %v",
-				x.Partition, lucAge, t2InRounds)
+				x.Partition, idleRounds, t2InRounds)
 		}
 		// initiate repeat UC
 		return luc.InputRecord.NewRepeatIR(), nil

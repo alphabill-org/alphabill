@@ -61,7 +61,7 @@ func TestNewEmptyState(t *testing.T) {
 	require.Equal(t, crypto.SHA256, s.hashAlgorithm)
 	committed, err := s.IsCommitted()
 	require.NoError(t, err)
-	require.False(t, committed)
+	require.True(t, committed)
 }
 
 func TestNewStateWithSHA512(t *testing.T) {
@@ -109,7 +109,7 @@ func TestState_Commit_OK(t *testing.T) {
 	require.NoError(t, err)
 	committed, err := s.IsCommitted()
 	require.NoError(t, err)
-	require.False(t, committed)
+	require.True(t, committed)
 	require.Nil(t, s.CommittedUC())
 
 	require.NoError(t, s.Commit(createUC(t, s, summaryValue, summaryHash)))
@@ -150,11 +150,11 @@ func TestState_Commit_InvalidUC(t *testing.T) {
 	require.ErrorContains(t, s.Commit(createUC(t, s, summaryValue, nil)), "state summary hash is not equal to the summary hash in UC")
 	committed, err := s.IsCommitted()
 	require.NoError(t, err)
-	require.False(t, committed)
+	require.True(t, committed)
 	require.ErrorContains(t, s.Commit(createUC(t, s, 0, summaryHash)), "state summary value is not equal to the summary value in UC")
 	committed, err = s.IsCommitted()
 	require.NoError(t, err)
-	require.False(t, committed)
+	require.True(t, committed)
 	require.Nil(t, s.CommittedUC())
 }
 
@@ -585,7 +585,7 @@ func TestCreateAndVerifyStateProofs_UpdateAndPruneUnits(t *testing.T) {
 
 type alwaysValid struct{}
 
-func (a *alwaysValid) Validate(*types.UnicityCertificate) error {
+func (a *alwaysValid) Validate(*types.UnicityCertificate, []byte) error {
 	return nil
 }
 
@@ -600,7 +600,7 @@ func TestCreateAndVerifyStateProofs_CreateUnitProof(t *testing.T) {
 		require.NoError(t, err)
 		data, err := types.NewUnitState(unit.data, 0, nil)
 		require.NoError(t, err)
-		require.NoError(t, proof.Verify(crypto.SHA256, data, &alwaysValid{}))
+		require.NoError(t, proof.Verify(crypto.SHA256, data, &alwaysValid{}, nil))
 	})
 	t.Run("unit not found", func(t *testing.T) {
 		s, _, _ := prepareState(t)
@@ -757,7 +757,7 @@ func TestSerialize_EmptyStateUncommitted(t *testing.T) {
 	require.NoError(t, err)
 	committed, err := state.IsCommitted()
 	require.NoError(t, err)
-	require.False(t, committed)
+	require.True(t, committed)
 }
 
 func TestSerialize_EmptyStateCommitted(t *testing.T) {

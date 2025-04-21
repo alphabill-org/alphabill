@@ -39,7 +39,7 @@ while getopts "hm:i:t:k:" o; do
 done
 
 if [ ! -z "${partitionType}" ]; then
-  start_non_validator_partition_nodes $partitionType $nodeCount "$extraFlags"
+  start_non_validator_shard_nodes $partitionType $nodeCount "$extraFlags"
 else
   usage && exit 0
 fi

@@ -2,7 +2,6 @@ package testutils
 
 import (
 	"testing"
-	"time"
 
 	"github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
@@ -12,7 +11,7 @@ import (
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/network"
 	"github.com/alphabill-org/alphabill/network/protocol/certification"
-	"github.com/alphabill-org/alphabill/network/protocol/genesis"
+	"github.com/alphabill-org/alphabill/partition"
 	libp2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
@@ -31,59 +30,53 @@ func NewTestNode(t *testing.T) *TestNode {
 	return node
 }
 
-// TODO: weird return
-func CreatePartitionNodes(t *testing.T, ir *types.InputRecord, partitionID types.PartitionID, nrOfValidators int) (peers []*TestNode, nodes []*genesis.PartitionNode) {
+func (n *TestNode) NodeInfo(t *testing.T) *types.NodeInfo {
+	sigKey, err := n.Verifier.MarshalPublicKey()
+	require.NoError(t, err)
+	return &types.NodeInfo{
+		NodeID: n.PeerConf.ID.String(),
+		SigKey: sigKey,
+		Stake:  1,
+	}
+}
+
+func (n *TestNode) KeyConf(t *testing.T) *partition.KeyConf {
+	sigPrivKeyBytes, err := n.Signer.MarshalPrivateKey()
+	require.NoError(t, err)
+	return &partition.KeyConf{
+		SigKey: partition.Key{
+			Algorithm:  "secp256k1",
+			PrivateKey: sigPrivKeyBytes,
+		},
+		AuthKey: partition.Key{
+			Algorithm:  "secp256k1",
+			PrivateKey: n.PeerConf.KeyPair.PrivateKey,
+		},
+	}
+}
+
+func CreateTestNodes(t *testing.T, nrOfValidators int) ([]*TestNode, []*types.NodeInfo) {
 	t.Helper()
-	pdr := types.PartitionDescriptionRecord{
-		Version:     1,
-		NetworkID:   5,
-		PartitionID: partitionID,
-		TypeIDLen:   8,
-		UnitIDLen:   256,
-		T2Timeout:   2500 * time.Millisecond,
-	}
+	var testNodes []*TestNode
+	var nodeInfos []*types.NodeInfo
 	for i := 0; i < nrOfValidators; i++ {
-		testNode := NewTestNode(t)
-		sigKey, err := testNode.Verifier.MarshalPublicKey()
-		require.NoError(t, err)
-
-		req := &certification.BlockCertificationRequest{
-			PartitionID: partitionID,
-			NodeID:      testNode.PeerConf.ID.String(),
-			InputRecord: ir,
-		}
-		err = req.Sign(testNode.Signer)
-		require.NoError(t, err)
-
-		nodes = append(nodes, &genesis.PartitionNode{
-			Version:                    1,
-			NodeID:                     testNode.PeerConf.ID.String(),
-			SigKey:                     sigKey,
-			BlockCertificationRequest:  req,
-			PartitionDescriptionRecord: pdr,
-		})
-
-		peers = append(peers, testNode)
+		tn := NewTestNode(t)
+		testNodes = append(testNodes, tn)
+		nodeInfos = append(nodeInfos, tn.NodeInfo(t))
 	}
-	return peers, nodes
+	return testNodes, nodeInfos
 }
 
 func CreateBlockCertificationRequest(t *testing.T, ir *types.InputRecord, partitionID types.PartitionID, node *TestNode) *certification.BlockCertificationRequest {
 	t.Helper()
 	r1 := &certification.BlockCertificationRequest{
 		PartitionID: partitionID,
+		ShardID:     types.ShardID{},
 		NodeID:      node.PeerConf.ID.String(),
 		InputRecord: ir,
 	}
 	require.NoError(t, r1.Sign(node.Signer))
 	return r1
-}
-
-func MockValidatorNetReceives(t *testing.T, net *testnetwork.MockNet, id peer.ID, msgType string, msg any) {
-	t.Helper()
-	net.Receive(msg)
-	// wait for message to be consumed
-	require.Eventually(t, func() bool { return len(net.MessageCh) == 0 }, 1*time.Second, 10*time.Millisecond)
 }
 
 func MockAwaitMessage[T any](t *testing.T, net *testnetwork.MockNet, msgType string) T {
@@ -96,7 +89,7 @@ func MockAwaitMessage[T any](t *testing.T, net *testnetwork.MockNet, msgType str
 			return true
 		}
 		return false
-	}, test.WaitDuration, test.WaitTick)
+	}, test.WaitDuration*3, test.WaitShortTick)
 	// cleat the queue
 	net.ResetSentMessages(msgType)
 	return msg.(T)

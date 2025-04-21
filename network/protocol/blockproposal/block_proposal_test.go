@@ -20,7 +20,7 @@ const partitionID types.PartitionID = 1
 
 func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 	_, nodeVerifier := testsig.CreateSignerAndVerifier(t)
-	ucSigner, trustBase := testsig.CreateSignerAndVerifier(t)
+	ucSigner, ucVerifier := testsig.CreateSignerAndVerifier(t)
 	type fields struct {
 		PartitionID         types.PartitionID
 		NodeID              peer.ID
@@ -62,7 +62,7 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 			},
 			args: args{
 				nodeSignatureVerifier: nil,
-				ucTrustBase:           trustbase.NewTrustBaseFromVerifiers(t, map[string]crypto.Verifier{"1": trustBase}),
+				ucTrustBase:           trustbase.NewTrustBaseFromVerifiers(t, map[string]crypto.Verifier{"1": ucVerifier}),
 				algorithm:             gocrypto.SHA256,
 				partitionID:           partitionID,
 				systemDescriptionHash: test.RandomBytes(32),
@@ -94,7 +94,7 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 			},
 			args: args{
 				nodeSignatureVerifier: nodeVerifier,
-				ucTrustBase:           trustbase.NewTrustBaseFromVerifiers(t, map[string]crypto.Verifier{"1": trustBase}),
+				ucTrustBase:           trustbase.NewTrustBaseFromVerifiers(t, map[string]crypto.Verifier{"1": ucVerifier}),
 				algorithm:             gocrypto.SHA256,
 				partitionID:           2,
 				systemDescriptionHash: test.RandomBytes(32),
@@ -109,7 +109,7 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 			},
 			args: args{
 				nodeSignatureVerifier: nodeVerifier,
-				ucTrustBase:           trustbase.NewTrustBaseFromVerifiers(t, map[string]crypto.Verifier{"1": trustBase}),
+				ucTrustBase:           trustbase.NewTrustBaseFromVerifiers(t, map[string]crypto.Verifier{"1": ucVerifier}),
 				algorithm:             gocrypto.SHA256,
 				partitionID:   partitionID,
 				systemDescriptionHash: test.RandomBytes(32),
@@ -126,7 +126,7 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 			},
 			args: args{
 				nodeSignatureVerifier: nodeVerifier,
-				ucTrustBase:           trustbase.NewTrustBaseFromVerifiers(t, map[string]crypto.Verifier{"1": trustBase}),
+				ucTrustBase:           trustbase.NewTrustBaseFromVerifiers(t, map[string]crypto.Verifier{"1": ucVerifier}),
 				algorithm:             gocrypto.SHA256,
 				partitionID:   partitionID,
 				systemDescriptionHash: test.RandomBytes(32),
@@ -152,7 +152,7 @@ func TestBlockProposal_IsValid_NotOk(t *testing.T) {
 			},
 			args: args{
 				nodeSignatureVerifier: nodeVerifier,
-				ucTrustBase:           trustbase.NewTrustBaseFromVerifiers(t, map[string]crypto.Verifier{"test": trustBase}),
+				ucTrustBase:           trustbase.NewTrustBase(t, ucVerifier),
 				algorithm:             gocrypto.SHA256,
 				partitionID:   partitionID,
 				systemDescriptionHash: test.DoHash(t, pdr),
@@ -219,11 +219,11 @@ func TestBlockProposal_SignAndVerify(t *testing.T) {
 				BlockHash:    test.RandomBytes(32),
 				SummaryValue: test.RandomBytes(32),
 			},
+			ShardConfHash: sdrHash,
 			UnicityTreeCertificate: &types.UnicityTreeCertificate{
 				Version:   1,
 				Partition: partitionID,
 				HashSteps: []*types.PathItem{{Key: types.PartitionID(test.RandomUint32()), Hash: test.RandomBytes(32)}},
-				PDRHash:   sdrHash,
 			},
 			UnicitySeal: seal,
 		},
@@ -275,11 +275,11 @@ func TestBlockProposal_InvalidSignature(t *testing.T) {
 				BlockHash:    test.RandomBytes(32),
 				SummaryValue: test.RandomBytes(32),
 			},
+			ShardConfHash: sdrHash,
 			UnicityTreeCertificate: &types.UnicityTreeCertificate{
 				Version:   1,
 				Partition: partitionID,
 				HashSteps: []*types.PathItem{{Key: types.PartitionID(test.RandomUint32()), Hash: test.RandomBytes(32)}},
-				PDRHash:   sdrHash,
 			},
 			UnicitySeal: seal,
 		},

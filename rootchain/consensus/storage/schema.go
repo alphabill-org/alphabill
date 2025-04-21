@@ -33,6 +33,10 @@ func blockKey(round uint64) []byte {
 	return append([]byte(blockPrefix), util.Uint64ToBytes(round)...)
 }
 
+func WriteBlock(db keyvaluedb.KeyValueDB, block *ExecutedBlock) error {
+	return db.Write(blockKey(block.GetRound()), block)
+}
+
 func WriteVote(db keyvaluedb.KeyValueDB, vote any) error {
 	var voteType VoteType
 	switch vote.(type) {

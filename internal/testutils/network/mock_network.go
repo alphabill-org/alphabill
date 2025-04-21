@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
@@ -125,6 +126,31 @@ func (m *MockNet) ResetSentMessages(protocol string) {
 
 func (m *MockNet) Receive(msg any) {
 	m.MessageCh <- msg
+}
+
+func (m *MockNet) WaitReceive(t *testing.T, msg any) {
+	m.Receive(msg)
+	require.Eventually(t, func() bool {
+		return len(m.MessageCh) == 0
+	}, 1*time.Second, 10*time.Millisecond)
+}
+
+func waitSend[T any](t *testing.T, mockNet *MockNet, protocol string) T {
+	var msg any
+	require.Eventually(t, func() bool {
+		messages := mockNet.SentMessages(protocol)
+		if len(messages) > 0 {
+			msg = messages[0].Message
+			return true
+		}
+		return false
+	}, 1*time.Second, 10*time.Millisecond)
+	mockNet.ResetSentMessages(protocol)
+	return msg.(T)
+}
+
+func (m *MockNet) WaitRootProposal(t *testing.T) *abdrc.ProposalMsg {
+	return waitSend[*abdrc.ProposalMsg](t, m, network.ProtocolRootProposal)
 }
 
 func (m *MockNet) ReceivedChannel() <-chan any {

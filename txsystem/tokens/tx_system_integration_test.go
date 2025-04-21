@@ -35,24 +35,25 @@ var (
 
 func TestInitPartitionAndDefineNFT_Ok(t *testing.T) {
 	pdr := types.PartitionDescriptionRecord{
-		Version:     1,
-		NetworkID:   5,
-		PartitionID: tokens.DefaultPartitionID,
-		TypeIDLen:   8,
-		UnitIDLen:   256,
-		T2Timeout:   2000 * time.Millisecond,
+		Version:         1,
+		NetworkID:       5,
+		PartitionID:     tokens.DefaultPartitionID,
+		PartitionTypeID: tokens.PartitionTypeID,
+		TypeIDLen:       8,
+		UnitIDLen:       256,
+		T2Timeout:       2000 * time.Millisecond,
 	}
 	genesisState := newStateWithFeeCredit(t, feeCreditID)
-	tokenPrt, err := testpartition.NewPartition(t, 3, func(trustBase types.RootTrustBase) txsystem.TransactionSystem {
-		system, err := NewTxSystem(pdr, types.ShardID{}, observability.Default(t), WithTrustBase(trustBase), WithState(genesisState.Clone()))
-		require.NoError(t, err)
-		return system
-	}, pdr, genesisState)
-	require.NoError(t, err)
-	abNet, err := testpartition.NewAlphabillPartition(t, []*testpartition.NodePartition{tokenPrt})
-	require.NoError(t, err)
+	abNet := testpartition.NewAlphabillNetwork(t, 1)
 	require.NoError(t, abNet.Start(t))
 	defer abNet.WaitClose(t)
+	abNet.AddShard(t, &pdr, 3, func(trustBase types.RootTrustBase) txsystem.TransactionSystem {
+		system, err := NewTxSystem(pdr, observability.Default(t), WithTrustBase(trustBase), WithState(genesisState.Clone()))
+		require.NoError(t, err)
+		return system
+	})
+	tokenPrt, err := abNet.GetShard(types.PartitionShardID{PartitionID: pdr.PartitionID, ShardID: pdr.ShardID.Key()})
+	require.NoError(t, err)
 
 	tx := testtransaction.NewTransactionOrder(t,
 		testtransaction.WithTransactionType(tokens.TransactionTypeDefineNFT),
@@ -88,32 +89,33 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		trustBase           types.RootTrustBase
 	)
 	pdr := types.PartitionDescriptionRecord{
-		Version:     1,
-		NetworkID:   5,
-		PartitionID: tokens.DefaultPartitionID,
-		TypeIDLen:   8,
-		UnitIDLen:   256,
-		T2Timeout:   2000 * time.Millisecond,
+		Version:         1,
+		NetworkID:       5,
+		PartitionID:     tokens.DefaultPartitionID,
+		PartitionTypeID: tokens.PartitionTypeID,
+		TypeIDLen:       8,
+		UnitIDLen:       256,
+		T2Timeout:       2000 * time.Millisecond,
 	}
 
 	// setup network
 	genesisState := newStateWithFeeCredit(t, feeCreditID)
-	tokenPrt, err := testpartition.NewPartition(t, 1, func(tb types.RootTrustBase) txsystem.TransactionSystem {
-		trustBase = tb
-		genesisState = genesisState.Clone()
-		system, err := NewTxSystem(pdr, types.ShardID{}, observability.Default(t), WithState(genesisState), WithTrustBase(tb))
-		require.NoError(t, err)
-		states = append(states, genesisState)
-		return system
-	}, pdr, genesisState)
-	require.NoError(t, err)
 	// the tx system lambda is called once for node genesis, but this is not interesting so clear the states before node
 	// is started
 	states = []*state.State{}
-	abNet, err := testpartition.NewAlphabillPartition(t, []*testpartition.NodePartition{tokenPrt})
-	require.NoError(t, err)
+	abNet := testpartition.NewAlphabillNetwork(t, 1)
 	require.NoError(t, abNet.Start(t))
 	defer abNet.WaitClose(t)
+	abNet.AddShard(t, &pdr, 3, func(tb types.RootTrustBase) txsystem.TransactionSystem {
+		trustBase = tb
+		genesisState = genesisState.Clone()
+		system, err := NewTxSystem(pdr, observability.Default(t), WithState(genesisState), WithTrustBase(tb))
+		require.NoError(t, err)
+		states = append(states, genesisState)
+		return system
+	})
+	tokenPrt, err := abNet.GetShard(types.PartitionShardID{PartitionID: pdr.PartitionID, ShardID: pdr.ShardID.Key()})
+	require.NoError(t, err)
 
 	state0 := states[0]
 
@@ -168,7 +170,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		testtransaction.WithFeeProof(nil),
 		testtransaction.WithClientMetadata(createClientMetadata()),
 	)
-	require.NoError(t, tokens.GenerateUnitID(mintTx, types.ShardID{}, &pdr))
+	require.NoError(t, tokens.GenerateUnitID(mintTx, &pdr))
 	mintedTokenID := mintTx.UnitID
 	require.NoError(t, tokenPrt.BroadcastTx(mintTx))
 	minTxProof, err := testpartition.WaitTxProof(t, tokenPrt, mintTx)

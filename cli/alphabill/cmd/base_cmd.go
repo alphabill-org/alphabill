@@ -17,7 +17,7 @@ import (
 type (
 	alphabillApp struct {
 		baseCmd    *cobra.Command
-		baseConfig *baseConfiguration
+		baseConfig *baseFlags
 	}
 
 	Factory interface {
@@ -46,22 +46,15 @@ func (a *alphabillApp) Execute(ctx context.Context) (err error) {
 }
 
 func (a *alphabillApp) addSubcommands(opts []interface{}) {
-	a.baseCmd.AddCommand(newMoneyNodeCmd(a.baseConfig, convertOptsToRunnable(opts)))
-	a.baseCmd.AddCommand(newMoneyGenesisCmd(a.baseConfig))
-	a.baseCmd.AddCommand(newRootGenesisCmd(a.baseConfig))
 	a.baseCmd.AddCommand(newRootNodeCmd(a.baseConfig))
-	a.baseCmd.AddCommand(newNodeIDCmd())
-	a.baseCmd.AddCommand(newTokensNodeCmd(a.baseConfig))
-	a.baseCmd.AddCommand(newUserTokenGenesisCmd(a.baseConfig))
-	a.baseCmd.AddCommand(newEvmNodeCmd(a.baseConfig))
-	a.baseCmd.AddCommand(newEvmGenesisCmd(a.baseConfig))
-	a.baseCmd.AddCommand(newOrchestrationNodeCmd(a.baseConfig))
-	a.baseCmd.AddCommand(newOrchestrationGenesisCmd(a.baseConfig))
-	a.baseCmd.AddCommand(newVarCmd(a.baseConfig))
+	a.baseCmd.AddCommand(newTrustBaseCmd(a.baseConfig))
+	a.baseCmd.AddCommand(newShardNodeCmd(a.baseConfig, convertOptsToRunnable(opts)))
+	a.baseCmd.AddCommand(newShardConfCmd(a.baseConfig))
+	a.baseCmd.AddCommand(newNodeIDCmd(a.baseConfig))
 }
 
-func newBaseCmd(obsF Factory) (*cobra.Command, *baseConfiguration) {
-	config := &baseConfiguration{}
+func newBaseCmd(obsF Factory) (*cobra.Command, *baseFlags) {
+	config := &baseFlags{}
 	// baseCmd represents the base command when called without any subcommands
 	var baseCmd = &cobra.Command{
 		Use:           "alphabill",
@@ -78,12 +71,12 @@ func newBaseCmd(obsF Factory) (*cobra.Command, *baseConfiguration) {
 			return nil
 		},
 	}
-	config.addConfigurationFlags(baseCmd)
+	config.addBaseFlags(baseCmd)
 
 	return baseCmd, config
 }
 
-func initializeConfig(cmd *cobra.Command, config *baseConfiguration, obsF Factory) error {
+func initializeConfig(cmd *cobra.Command, config *baseFlags, obsF Factory) error {
 	var errs []error
 
 	if err := config.initializeConfig(cmd); err != nil {
@@ -115,7 +108,7 @@ func initializeConfig(cmd *cobra.Command, config *baseConfiguration, obsF Factor
 }
 
 // initializeConfig reads in config file and ENV variables if set.
-func (r *baseConfiguration) initializeConfig(cmd *cobra.Command) error {
+func (r *baseFlags) initializeConfig(cmd *cobra.Command) error {
 	v := viper.New()
 
 	r.initConfigFileLocation()

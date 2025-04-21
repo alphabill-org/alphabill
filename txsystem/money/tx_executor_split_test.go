@@ -97,7 +97,7 @@ func TestModule_validateSplitTx(t *testing.T) {
 		}, counter)
 		module := newTestMoneyModule(t, verifier, withStateUnit(unitID, &money.BillData{Value: billValue, Counter: counter, OwnerPredicate: templates.AlwaysTrueBytes()}))
 		exeCtx := testctx.NewMockExecutionContext()
-		require.EqualError(t, module.validateSplitTx(tx, attr, authProof, exeCtx), "split error: failed to add target unit amounts: uint64 sum overflow: [18446744073709551615 1]")
+		require.EqualError(t, module.validateSplitTx(tx, attr, authProof, exeCtx), "split error: overflow when summing target unit amounts")
 	})
 	t.Run("err - sum exceeds bill value", func(t *testing.T) {
 		unitID := moneyid.NewBillID(t)

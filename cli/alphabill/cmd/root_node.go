@@ -45,9 +45,11 @@ type (
 		trustBaseFlags
 		p2pFlags
 
-		RootStoreFile    string // path to Bolt storage file
-		MaxRequests      uint   // validator partition certification request channel capacity
-		RPCServerAddress string // address on which http server is exposed with metrics endpoint
+		RootStoreFile          string // path to Bolt storage file
+		TrustBaseStoreFile     string
+		OrchestrationStoreFile string
+		MaxRequests            uint   // validator partition certification request channel capacity
+		RPCServerAddress       string // address on which http server is exposed with metrics endpoint
 	}
 )
 
@@ -97,6 +99,10 @@ func rootNodeRunCmd(baseFlags *baseFlags) *cobra.Command {
 		`Specifies the TCP address for the RPC server to listen on, in the form "host:port". RPC server isn't initialised if address is empty.`)
 	cmd.Flags().StringVar(&flags.RootStoreFile, "root-db", "",
 		fmt.Sprintf("path to the root database (default: %s)", filepath.Join("$AB_HOME", rootStoreFileName)))
+	cmd.Flags().StringVar(&flags.TrustBaseStoreFile, "trust-base-db", "",
+		fmt.Sprintf("path to the trust base database (default: %s)", filepath.Join("$AB_HOME", trustBaseStoreFileName)))
+	cmd.Flags().StringVar(&flags.OrchestrationStoreFile, "orchestration-db", "",
+		fmt.Sprintf("path to the orchestration database (default: %s)", filepath.Join("$AB_HOME", orchestrationStoreFileName)))
 
 	return cmd
 }
@@ -139,7 +145,7 @@ func rootNodeRun(ctx context.Context, flags *rootNodeRunFlags) error {
 	if err != nil {
 		return err
 	}
-	trustBaseStore, err := flags.initStore("", trustBaseStoreFileName)
+	trustBaseStore, err := flags.initStore(flags.TrustBaseStoreFile, trustBaseStoreFileName)
 	if err != nil {
 		return err
 	}
@@ -167,7 +173,7 @@ func rootNodeRun(ctx context.Context, flags *rootNodeRunFlags) error {
 		return fmt.Errorf("failed initiate root network, %w", err)
 	}
 
-	orchestrationStorePath := flags.pathWithDefault("", orchestrationStoreFileName)
+	orchestrationStorePath := flags.pathWithDefault(flags.OrchestrationStoreFile, orchestrationStoreFileName)
 	orchestration, err := partitions.NewOrchestration(trustBase.GetNetworkID(), orchestrationStorePath, log)
 	if err != nil {
 		return fmt.Errorf("creating orchestration: %w", err)

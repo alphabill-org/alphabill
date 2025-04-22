@@ -254,7 +254,7 @@ func TestGetUnits(t *testing.T) {
 		require.Len(t, unitIDs, 0)
 	})
 	t.Run("limit", func(t *testing.T) {
-		api := NewStateAPI(node, observe, WithGetUnits(true), WithPDR(pdr), WithResponseItemLimit(1))
+		api := NewStateAPI(node, observe, WithGetUnits(true), WithShardConf(pdr), WithResponseItemLimit(1))
 
 		unitIDs, err := api.GetUnits(nil, nil, nil)
 		require.NoError(t, err)

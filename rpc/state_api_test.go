@@ -155,20 +155,20 @@ func TestGetUnitsByOwnerID(t *testing.T) {
 	})
 	t.Run("pagination", func(t *testing.T) {
 		ownerID := []byte{1}
-		ownerIndex.ownerUnits[string(ownerID)] = []types.UnitID{[]byte{0}, []byte{1}, []byte{2}, []byte{3}, []byte{4}}
+		ownerIndex.ownerUnits[string(ownerID)] = []types.UnitID{[]byte{3}, []byte{1}, []byte{2}, []byte{0}, []byte{4}}
 
 		limit := 2
 		unitIds, err := api.GetUnitsByOwnerID(ownerID, nil, &limit)
 		require.NoError(t, err)
 		require.Len(t, unitIds, 2)
-		require.EqualValues(t, []byte{0}, unitIds[0])
+		require.EqualValues(t, []byte{3}, unitIds[0])
 		require.EqualValues(t, []byte{1}, unitIds[1])
 
 		unitIds, err = api.GetUnitsByOwnerID(ownerID, &unitIds[1], &limit)
 		require.NoError(t, err)
 		require.Len(t, unitIds, 2)
 		require.EqualValues(t, []byte{2}, unitIds[0])
-		require.EqualValues(t, []byte{3}, unitIds[1])
+		require.EqualValues(t, []byte{0}, unitIds[1])
 
 		unitIds, err = api.GetUnitsByOwnerID(ownerID, &unitIds[1], &limit)
 		require.NoError(t, err)
@@ -550,11 +550,15 @@ func (mn *MockNode) IsFeelessMode() bool {
 	return false
 }
 
-func (mn *MockOwnerIndex) GetOwnerUnits(ownerID []byte) ([]types.UnitID, error) {
+func (mn *MockOwnerIndex) GetOwnerUnits(ownerID []byte, sinceUnitID *types.UnitID) ([]types.UnitID, error) {
 	if mn.err != nil {
 		return nil, mn.err
 	}
-	return mn.ownerUnits[string(ownerID)], nil
+	startIndex := startIndex(sinceUnitID, mn.ownerUnits[string(ownerID)])
+	if startIndex >= len(mn.ownerUnits[string(ownerID)]) {
+		return []types.UnitID{}, nil
+	}
+	return mn.ownerUnits[string(ownerID)][startIndex:], nil
 }
 
 func createTransactionOrder(t *testing.T, unitID types.UnitID) []byte {

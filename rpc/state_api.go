@@ -165,22 +165,14 @@ func (s *StateAPI) GetUnitsByOwnerID(ownerID hex.Bytes, sinceUnitID *types.UnitI
 		return nil, fmt.Errorf("request not allowed: %w", err)
 	}
 
-	ownerUnitIDs, err := s.ownerIndex.GetOwnerUnits(ownerID)
+	ownerUnitIDs, err := s.ownerIndex.GetOwnerUnits(ownerID, sinceUnitID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load owner units: %w", err)
 	}
-	slices.SortFunc(ownerUnitIDs, func(i, j types.UnitID) int {
-		return i.Compare(j)
-	})
-	startIndex := startIndex(sinceUnitID, ownerUnitIDs)
-	if startIndex > len(ownerUnitIDs) {
-		return []types.UnitID{}, nil
-	}
-	endIndex := endIndex(startIndex, limit, ownerUnitIDs)
-	if s.responseItemLimit != 0 && s.responseItemLimit < endIndex {
-		endIndex = s.responseItemLimit
-	}
-	return ownerUnitIDs[startIndex:endIndex], nil
+	responseLimit := s.responseLimit(limit)
+
+	endIndex := endIndex(0, responseLimit, ownerUnitIDs)
+	return ownerUnitIDs[:endIndex], nil
 }
 
 // GetUnits returns list of unit identifiers, optionally filtered by the given unit type identifier.
@@ -196,17 +188,13 @@ func (s *StateAPI) GetUnits(unitTypeID *uint32, sinceUnitID *types.UnitID, limit
 	if err != nil {
 		return nil, fmt.Errorf("failed to get units: %w", err)
 	}
-	slices.SortFunc(units, func(i, j types.UnitID) int {
-		return i.Compare(j)
-	})
 	startIndex := startIndex(sinceUnitID, units)
-	if startIndex > len(units) {
+	if startIndex >= len(units) {
 		return []types.UnitID{}, nil
 	}
-	endIndex := endIndex(startIndex, limit, units)
-	if s.responseItemLimit != 0 && s.responseItemLimit < endIndex {
-		endIndex = s.responseItemLimit
-	}
+	responseLimit := s.responseLimit(limit)
+	endIndex := endIndex(startIndex, responseLimit, units)
+
 	return units[startIndex:endIndex], nil
 }
 
@@ -285,30 +273,31 @@ func (s *StateAPI) GetTrustBase(epochNumber hex.Uint64) (_ types.RootTrustBase, 
 	return trustBase, nil
 }
 
-// startIndex returns next index from sinceUnitID or closest index if direct one is not found.
+// startIndex returns next index from sinceUnitID.
 func startIndex(sinceUnitID *types.UnitID, ownerUnitIDs []types.UnitID) int {
-	if sinceUnitID == nil /* || sinceUnitID.Eq(types.UnitID{}) */ {
+	if sinceUnitID == nil {
 		return 0
 	}
-	closestIndex := -1
-searchIndexLoop:
-	for i, u := range ownerUnitIDs {
-		switch u.Compare(*sinceUnitID) {
-		case -1:
-			closestIndex = i
-		case 0:
-			return i + 1
-		default:
-			break searchIndexLoop
-		}
-	}
-	return closestIndex + 1
+	index := slices.IndexFunc(ownerUnitIDs, func(n types.UnitID) bool {
+		return n.Compare(*sinceUnitID) == 0
+	})
+	return index + 1
 }
 
-func endIndex(startIndex int, limit *int, ownerUnitIDs []types.UnitID) int {
-	if limit == nil || *limit == 0 {
+func endIndex(startIndex int, limit int, ownerUnitIDs []types.UnitID) int {
+	if limit == 0 {
 		return len(ownerUnitIDs)
 	}
-	endIndex := min(startIndex+*limit, len(ownerUnitIDs))
+	endIndex := min(startIndex+limit, len(ownerUnitIDs))
 	return endIndex
+}
+
+func (s *StateAPI) responseLimit(limit *int) int {
+	if limit == nil || *limit == 0 {
+		return s.responseItemLimit
+	}
+	if s.responseItemLimit == 0 {
+		return *limit
+	}
+	return min(s.responseItemLimit, *limit)
 }

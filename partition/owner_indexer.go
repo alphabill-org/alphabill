@@ -30,7 +30,7 @@ type (
 	}
 
 	IndexReader interface {
-		GetOwnerUnits(ownerID []byte) ([]types.UnitID, error)
+		GetOwnerUnits(ownerID []byte, sinceUnitID *types.UnitID) ([]types.UnitID, error)
 	}
 
 	StateProvider interface {
@@ -45,11 +45,25 @@ func NewOwnerIndexer(l *slog.Logger) *OwnerIndexer {
 	}
 }
 
-// GetOwnerUnits returns all unit ids for given owner.
-func (o *OwnerIndexer) GetOwnerUnits(ownerID []byte) ([]types.UnitID, error) {
+// GetOwnerUnits returns all unit ids for given owner. If sinceUnitID is set, only units after sinceUnitID are returned
+func (o *OwnerIndexer) GetOwnerUnits(ownerID []byte, sinceUnitID *types.UnitID) ([]types.UnitID, error) {
 	o.mu.RLock()
 	defer o.mu.RUnlock()
-	return o.ownerUnits[string(ownerID)], nil
+	startIndex := startIndex(sinceUnitID, o.ownerUnits[string(ownerID)])
+	if startIndex >= len(o.ownerUnits[string(ownerID)]) {
+		return []types.UnitID{}, nil
+	}
+	return o.ownerUnits[string(ownerID)][startIndex:], nil
+}
+
+func startIndex(sinceUnitID *types.UnitID, ownerUnitIDs []types.UnitID) int {
+	if sinceUnitID == nil {
+		return 0
+	}
+	index := slices.IndexFunc(ownerUnitIDs, func(n types.UnitID) bool {
+		return n.Compare(*sinceUnitID) == 0
+	})
+	return index + 1
 }
 
 // LoadState fills the index from state.

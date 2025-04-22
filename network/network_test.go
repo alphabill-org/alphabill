@@ -247,12 +247,10 @@ func Test_LibP2PNetwork_SendMsgs(t *testing.T) {
 	t.Run("fails, receiver has room for only one message", func(t *testing.T) {
 		obs := observability.Default(t)
 		peer1 := createPeer(t)
-		defer func() { require.NoError(t, peer1.Close()) }()
 		nw1, err := newLibP2PNetwork(peer1, 1, obs)
 		require.NoError(t, err)
 
 		peer2 := createPeer(t)
-		defer func() { require.NoError(t, peer2.Close()) }()
 		nw2, err := newLibP2PNetwork(peer2, 1, obs)
 		require.NoError(t, err)
 		// need to init peerstore manually, otherwise peers can't dial each other
@@ -277,12 +275,10 @@ func Test_LibP2PNetwork_SendMsgs(t *testing.T) {
 	t.Run("fails, stream reset by receiver while still sending", func(t *testing.T) {
 		obs := observability.Default(t)
 		peer1 := createPeer(t)
-		defer func() { require.NoError(t, peer1.Close()) }()
 		nw1, err := newLibP2PNetwork(peer1, 1, obs)
 		require.NoError(t, err)
 
 		peer2 := createPeer(t)
-		defer func() { require.NoError(t, peer2.Close()) }()
 		nw2, err := newLibP2PNetwork(peer2, 1, obs)
 		require.NoError(t, err)
 		// need to init peerstore manually, otherwise peers can't dial each other
@@ -294,7 +290,7 @@ func Test_LibP2PNetwork_SendMsgs(t *testing.T) {
 		for i := 1; i <= 10000; i++ {
 			msgQueue.PushBack(&testStrMsg{Info: fmt.Sprintf("make a test message that is a bit longer to simulate real messages: test message %v", i)})
 		}
-		require.EqualError(t, nw1.SendMsgs(context.Background(), msgQueue, peer2.ID()), "stream write error stream reset\nclosing p2p stream: stream reset")
+		require.ErrorContains(t, nw1.SendMsgs(context.Background(), msgQueue, peer2.ID()), "stream write error: stream reset")
 	})
 	t.Run("unknown protocol type", func(t *testing.T) {
 		obs := observability.Default(t)

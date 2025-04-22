@@ -55,7 +55,7 @@ func newStructBuilder(t *testing.T, peerCnt int) *structBuilder {
 		nodes = append(nodes, &types.NodeInfo{NodeID: nodeID, SigKey: pubKey, Stake: 1})
 	}
 
-	tb, err := types.NewTrustBaseGenesis(nodes, []byte{1})
+	tb, err := types.NewTrustBaseGenesis(5, nodes)
 	if err != nil {
 		require.NoError(t, err)
 	}

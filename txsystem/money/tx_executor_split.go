@@ -17,6 +17,7 @@ func (m *Module) executeSplitTx(tx *types.TransactionOrder, attr *money.SplitAtt
 	// add new units
 	var actions []state.Action
 	var sum uint64
+	var ok bool
 	idGen := money.PrndSh(tx)
 	for _, targetUnit := range attr.TargetUnits {
 		newUnitID, err := m.pdr.ComposeUnitID(types.ShardID{}, money.BillUnitType, idGen)
@@ -26,9 +27,8 @@ func (m *Module) executeSplitTx(tx *types.TransactionOrder, attr *money.SplitAtt
 		targetUnitIDs = append(targetUnitIDs, newUnitID)
 		newUnitData := money.NewBillData(targetUnit.Amount, targetUnit.OwnerPredicate)
 		actions = append(actions, state.AddOrPromoteUnit(newUnitID, newUnitData))
-		sum, _, err = util.AddUint64(sum, targetUnit.Amount)
-		if err != nil {
-			return nil, fmt.Errorf("failed to add target unit amounts: %w", err)
+		if sum, ok = util.SafeAdd(sum, targetUnit.Amount); !ok {
+			return nil, errors.New("overflow when summing target unit amounts")
 		}
 	}
 	// update existing unit
@@ -101,10 +101,8 @@ func validateSplit(data types.UnitData, attr *money.SplitAttributes) error {
 		if len(targetUnit.OwnerPredicate) == 0 {
 			return fmt.Errorf("target unit owner predicate is empty at index %d", i)
 		}
-		var err error
-		sum, _, err = util.AddUint64(sum, targetUnit.Amount)
-		if err != nil {
-			return fmt.Errorf("failed to add target unit amounts: %w", err)
+		if sum, ok = util.SafeAdd(sum, targetUnit.Amount); !ok {
+			return errors.New("overflow when summing target unit amounts")
 		}
 	}
 	if sum >= bd.Value {

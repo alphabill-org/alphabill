@@ -3,6 +3,7 @@ package wvm
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"embed"
 	"fmt"
 	"slices"
@@ -13,7 +14,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
-	"github.com/alphabill-org/alphabill-go-base/hash"
 	predtempl "github.com/alphabill-org/alphabill-go-base/predicates/templates"
 	"github.com/alphabill-org/alphabill-go-base/predicates/wasm"
 	moneyid "github.com/alphabill-org/alphabill-go-base/testutils/money"
@@ -62,7 +62,7 @@ func Test_conference_tickets_v2(t *testing.T) {
 
 	// tx system unit/attribute encoder
 	txsEnc := encoder.TXSystemEncoder{}
-	require.NoError(t, tokenenc.RegisterTxAttributeEncoders(txsEnc.RegisterAttrEncoder))
+	require.NoError(t, tokenenc.RegisterTxAttributeEncoders(tokens.DefaultPartitionID, txsEnc.RegisterAttrEncoder))
 	require.NoError(t, tokenenc.RegisterUnitDataEncoders(txsEnc.RegisterUnitDataEncoder))
 
 	tmpPred, err := templates.New(observability.Default(t))
@@ -267,8 +267,8 @@ func Test_conference_tickets_v2(t *testing.T) {
 		// set the OwnerProof to BLOB containing the payment proof, token is "early-bird"
 		// attempt to eval p2pkh with OwnerProof as argument should fail (returns error) and
 		// predicate should carry on attempting to decode argument BLOB as proof of payment.
-		ownerProofAttendee = proofOfPayment(t, signerAttendee, organizerPKH,
-			earlyBirdPrice, hash.Sum256(slices.Concat([]byte{1}, txNFTTransfer.UnitID)))
+		refNo := sha256.Sum256(slices.Concat([]byte{1}, txNFTTransfer.UnitID))
+		ownerProofAttendee = proofOfPayment(t, signerAttendee, organizerPKH, earlyBirdPrice, refNo[:])
 		require.NoError(t, txNFTTransfer.SetAuthProof(&tokens.TransferNonFungibleTokenAuthProof{
 			OwnerProof: ownerProofAttendee,
 		}))
@@ -339,8 +339,10 @@ func Test_conference_tickets_v2(t *testing.T) {
 		checkSpentGas(t, 5212, curGas-env.GasRemaining)
 		require.EqualValues(t, 0, res)
 
-		// set the OwnerProof to BLOB containing the payment proof (user upgrades the ticket)
-		ownerProof := proofOfPayment(t, signerAttendee, organizerPKH, regularPrice-earlyBirdPrice, hash.Sum256(slices.Concat([]byte{2}, txNFTUpdate.UnitID)))
+		// when user "upgrades the ticket" the owner proof must be proof of money transfer to the
+		// conference organizer with reference number = sha256(2, unitID)
+		refNo := sha256.Sum256(slices.Concat([]byte{2}, txNFTUpdate.UnitID))
+		ownerProof := proofOfPayment(t, signerAttendee, organizerPKH, regularPrice-earlyBirdPrice, refNo[:])
 		require.NoError(t, txNFTUpdate.SetAuthProof(&tokens.UpdateNonFungibleTokenAuthProof{
 			TokenDataUpdateProof: ownerProof,
 		}))
@@ -353,7 +355,7 @@ func Test_conference_tickets_v2(t *testing.T) {
 		require.EqualValues(t, 0, res)
 
 		// user attempts to upgrade the ticket but the sum (amount of money transferred) in the payment proof is wrong
-		ownerProof = proofOfPayment(t, signerAttendee, organizerPKH, regularPrice-earlyBirdPrice-1, hash.Sum256(slices.Concat([]byte{2}, txNFTUpdate.UnitID)))
+		ownerProof = proofOfPayment(t, signerAttendee, organizerPKH, regularPrice-earlyBirdPrice-1, refNo[:])
 		require.NoError(t, txNFTUpdate.SetAuthProof(&tokens.UpdateNonFungibleTokenAuthProof{
 			TokenDataUpdateProof: ownerProof,
 		}))

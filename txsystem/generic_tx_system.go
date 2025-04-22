@@ -51,12 +51,9 @@ type (
 	}
 )
 
-func NewGenericTxSystem(pdr types.PartitionDescriptionRecord, shardID types.ShardID, trustBase types.RootTrustBase, modules []txtypes.Module, observe Observability, opts ...Option) (*GenericTxSystem, error) {
-	if err := pdr.IsValid(); err != nil {
+func NewGenericTxSystem(shardConf types.PartitionDescriptionRecord, trustBase types.RootTrustBase, modules []txtypes.Module, observe Observability, opts ...Option) (*GenericTxSystem, error) {
+	if err := shardConf.IsValid(); err != nil {
 		return nil, fmt.Errorf("invalid Partition Description: %w", err)
-	}
-	if err := pdr.IsValidShard(shardID); err != nil {
-		return nil, fmt.Errorf("invalid shard ID: %w", err)
 	}
 	if observe == nil {
 		return nil, errors.New("observability must not be nil")
@@ -73,11 +70,11 @@ func NewGenericTxSystem(pdr types.PartitionDescriptionRecord, shardID types.Shar
 	}
 
 	txs := &GenericTxSystem{
-		pdr:                 pdr,
+		pdr:                 shardConf,
 		hashAlgorithm:       options.hashAlgorithm,
 		state:               options.state,
 		trustBase:           trustBase,
-		unitIDValidator:     pdr.UnitIDValidator(shardID),
+		unitIDValidator:     shardConf.UnitIDValidator(shardConf.ShardID),
 		beginBlockFunctions: options.beginBlockFunctions,
 		endBlockFunctions:   options.endBlockFunctions,
 		handlers:            make(txtypes.TxExecutors),
@@ -100,7 +97,7 @@ func NewGenericTxSystem(pdr types.PartitionDescriptionRecord, shardID types.Shar
 		}
 
 	}
-	if err := txs.initMetrics(observe.Meter("txsystem"), shardID); err != nil {
+	if err := txs.initMetrics(observe.Meter("txsystem"), shardConf.ShardID); err != nil {
 		return nil, fmt.Errorf("initializing metrics: %w", err)
 	}
 

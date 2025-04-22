@@ -2,6 +2,7 @@ package rootchain
 
 import (
 	"context"
+	"crypto"
 	"errors"
 	"fmt"
 	"testing"
@@ -13,13 +14,11 @@ import (
 
 	"github.com/alphabill-org/alphabill-go-base/types"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
-	testcertificates "github.com/alphabill-org/alphabill/internal/testutils/certificates"
 	testobservability "github.com/alphabill-org/alphabill/internal/testutils/observability"
 	"github.com/alphabill-org/alphabill/internal/testutils/peer"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/network"
 	"github.com/alphabill-org/alphabill/network/protocol/certification"
-	"github.com/alphabill-org/alphabill/network/protocol/genesis"
 	"github.com/alphabill-org/alphabill/network/protocol/handshake"
 	"github.com/alphabill-org/alphabill/rootchain/consensus"
 	"github.com/alphabill-org/alphabill/rootchain/consensus/storage"
@@ -428,7 +427,7 @@ func Test_onBlockCertificationRequest(t *testing.T) {
 	nodeID2 := generateNodeID(t).String()
 
 	// create "valid looking" (ie satisfy the checks performed by the tests here) data
-	pdr := &types.PartitionDescriptionRecord{
+	shardConf := &types.PartitionDescriptionRecord{
 		Version:     1,
 		NetworkID:   5,
 		PartitionID: 1,
@@ -447,7 +446,7 @@ func Test_onBlockCertificationRequest(t *testing.T) {
 
 	// valid certification response
 	certResp := certification.CertificationResponse{
-		Partition: pdr.PartitionID,
+		Partition: shardConf.PartitionID,
 		Shard:     types.ShardID{},
 		UC: types.UnicityCertificate{
 			InputRecord: &types.InputRecord{
@@ -456,7 +455,7 @@ func Test_onBlockCertificationRequest(t *testing.T) {
 			},
 			UnicityTreeCertificate: &types.UnicityTreeCertificate{
 				Version:   1,
-				Partition: pdr.PartitionID,
+				Partition: shardConf.PartitionID,
 			},
 			UnicitySeal: &types.UnicitySeal{
 				Timestamp: types.NewTimestamp(),
@@ -473,26 +472,22 @@ func Test_onBlockCertificationRequest(t *testing.T) {
 		}))
 	require.NoError(t, certResp.IsValid())
 
-	// create ShardInfo for the partition
+	// create ShardInfo for the shard
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	sigKey, err := verifier.MarshalPublicKey()
 	require.NoError(t, err)
-	genesisPartitions := &genesis.GenesisPartitionRecord{
-		PartitionDescription: pdr,
-		Validators: []*genesis.PartitionNode{
-			{NodeID: nodeID, SigKey: sigKey, PartitionDescriptionRecord: *pdr},
-			{NodeID: nodeID2, SigKey: sigKey, PartitionDescriptionRecord: *pdr},
-		},
-		Certificate: testcertificates.CreateUnicityCertificate(t, signer, &partitionIR, pdr, 1, make([]byte, 32), make([]byte, 32)),
+	shardConf.Validators = []*types.NodeInfo{
+		{NodeID: nodeID, SigKey: sigKey},
+		{NodeID: nodeID2, SigKey: sigKey},
 	}
-	si, err := storage.NewShardInfoFromGenesis(genesisPartitions)
+	si, err := storage.NewShardInfo(shardConf, crypto.SHA256)
 	require.NoError(t, err)
 	si.LastCR = &certResp
 	require.NoError(t, si.IsValid())
 
 	// certification request which is valid for the ShardInfo
 	validCertRequest := certification.BlockCertificationRequest{
-		PartitionID: pdr.PartitionID,
+		PartitionID: shardConf.PartitionID,
 		ShardID:     types.ShardID{},
 		NodeID:      nodeID,
 		InputRecord: partitionIR.NewRepeatIR(),
@@ -726,9 +721,7 @@ func Test_onBlockCertificationRequest(t *testing.T) {
 
 		// send different cert request, should make it impossible to get quorum
 		cr := validCertRequest
-		//cr.BlockSize++ // wont make it different request! AB-1928
-		cr.InputRecord = cr.InputRecord.NewRepeatIR()
-		cr.InputRecord.SumOfEarnedFees++
+		cr.BlockSize++
 		cr.NodeID = nodeID2
 		require.NoError(t, cr.Sign(signer))
 		err = node.onBlockCertificationRequest(t.Context(), &cr)

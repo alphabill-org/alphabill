@@ -2,6 +2,7 @@ package wvm
 
 import (
 	"context"
+	"crypto/sha256"
 	_ "embed"
 	"testing"
 	"time"
@@ -10,7 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
-	"github.com/alphabill-org/alphabill-go-base/hash"
 	"github.com/alphabill-org/alphabill-go-base/predicates/wasm"
 	tokenid "github.com/alphabill-org/alphabill-go-base/testutils/tokens"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/tokens"
@@ -36,7 +36,7 @@ func Test_multisig(t *testing.T) {
 
 	// tx system unit/attribute encoder
 	txsEnc := encoder.TXSystemEncoder{}
-	require.NoError(t, tokenenc.RegisterTxAttributeEncoders(txsEnc.RegisterAttrEncoder))
+	require.NoError(t, tokenenc.RegisterTxAttributeEncoders(tokens.DefaultPartitionID, txsEnc.RegisterAttrEncoder))
 
 	engine := func(t *testing.T) (*WasmVM, *mockTxContext) {
 		t.Helper()
@@ -302,5 +302,6 @@ func signerAndPKH(t *testing.T) (*abcrypto.InMemorySecp256K1Signer, []byte) {
 	require.NoError(t, err)
 	pubKey, err := verifier.MarshalPublicKey()
 	require.NoError(t, err)
-	return signer, hash.Sum256(pubKey)
+	h := sha256.Sum256(pubKey)
+	return signer, h[:]
 }

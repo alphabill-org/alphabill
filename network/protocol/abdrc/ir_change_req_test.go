@@ -22,7 +22,7 @@ func TestIrChangeReqMsg_SignAndVerifyOK(t *testing.T) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	require.NoError(t, msg.Sign(signer))
 	require.NotEmpty(t, msg.Signature)
-	rootTrust := testtb.NewTrustBase(t, verifier)
+	rootTrust := testtb.NewTrustBaseFromVerifiers(t, map[string]crypto.Verifier{"test": verifier})
 	require.NoError(t, msg.Verify(rootTrust))
 }
 
@@ -149,7 +149,7 @@ func TestIrChangeReqMsg_Sign_Errors(t *testing.T) {
 
 func TestIrChangeReqMsg_Verify(t *testing.T) {
 	_, verifier := testsig.CreateSignerAndVerifier(t)
-	tb := testtb.NewTrustBase(t, verifier)
+	tb := testtb.NewTrustBaseFromVerifiers(t, map[string]crypto.Verifier{"test": verifier})
 
 	type fields struct {
 		Author      string

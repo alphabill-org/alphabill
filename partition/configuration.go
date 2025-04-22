@@ -7,17 +7,20 @@ import (
 	"time"
 
 	"github.com/libp2p/go-libp2p/core/peer"
+	p2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 
 	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	"github.com/alphabill-org/alphabill/keyvaluedb"
 	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
-	"github.com/alphabill-org/alphabill/network/protocol/genesis"
+	"github.com/alphabill-org/alphabill/network"
 	"github.com/alphabill-org/alphabill/partition/event"
-	"github.com/alphabill-org/alphabill/txsystem"
 )
 
 const (
+	KeyAlgorithmSecp256k1 = "secp256k1"
+
 	DefaultT1Timeout                       = 750 * time.Millisecond
 	DefaultReplicationMaxBlocks     uint64 = 1000
 	DefaultReplicationMaxTx         uint32 = 10000
@@ -26,33 +29,51 @@ const (
 )
 
 var (
-	ErrTxSystemIsNil  = errors.New("transaction system is nil")
-	ErrGenesisIsNil   = errors.New("genesis is nil")
+	ErrShardConfIsNil = errors.New("shard configuration is nil")
+	ErrKeyConfIsNil   = errors.New("key configuration is nil")
 	ErrTrustBaseIsNil = errors.New("trust base is nil")
 )
 
 type (
-	configuration struct {
-		shardID                     types.ShardID
+	NodeConf struct {
+		keyConf                     *KeyConf
+		shardConf                   *types.PartitionDescriptionRecord
+		trustBase                   types.RootTrustBase
+		observability               Observability
+
+		address                     string
+		announceAddresses           []string
+		bootstrapAddresses          []string
+		validatorNetwork            ValidatorNetwork
+
+		signer                      abcrypto.Signer
+		hashAlgorithm               crypto.Hash   // make hash algorithm configurable in the future. currently it is using SHA-256.
 		txValidator                 TxValidator
-		unicityCertificateValidator UnicityCertificateValidator
-		blockProposalValidator      BlockProposalValidator
+		ucValidator                 UnicityCertificateValidator
+		bpValidator                 BlockProposalValidator
 		blockStore                  keyvaluedb.KeyValueDB
 		shardStore                  keyvaluedb.KeyValueDB
 		proofIndexConfig            proofIndexConfig
 		ownerIndexer                *OwnerIndexer
 		t1Timeout                   time.Duration // T1 timeout of the node. Time to wait before node creates a new block proposal.
-		hashAlgorithm               crypto.Hash   // make hash algorithm configurable in the future. currently it is using SHA-256.
-		signer                      abcrypto.Signer
-		genesis                     *genesis.PartitionGenesis
-		trustBase                   types.RootTrustBase
+
 		eventHandler                event.Handler
 		eventChCapacity             int
 		replicationConfig           ledgerReplicationConfig
 		blockSubscriptionTimeout    time.Duration // time since last block when to start recovery on non-validating node
 	}
 
-	NodeOption func(c *configuration)
+	NodeOption func(c *NodeConf)
+
+	KeyConf struct {
+		SigKey  Key `json:"sigKey"`
+		AuthKey Key `json:"authKey"`
+	}
+
+	Key struct {
+		Algorithm  string    `json:"algorithm"`
+		PrivateKey hex.Bytes `json:"privateKey"`
+	}
 
 	// proofIndexConfig proof indexer config
 	// store - type of store, either a memory DB or bolt DB
@@ -72,98 +93,37 @@ type (
 	}
 )
 
-func WithReplicationParams(maxFetchBlocks, maxReturnBlocks uint64, maxTx uint32, timeout time.Duration) NodeOption {
-	return func(c *configuration) {
-		c.replicationConfig.maxFetchBlocks = maxFetchBlocks
-		c.replicationConfig.maxReturnBlocks = maxReturnBlocks
-		c.replicationConfig.maxTx = maxTx
-		c.replicationConfig.timeout = timeout
+func NewNodeConf(
+	keyConf   *KeyConf,
+	shardConf *types.PartitionDescriptionRecord,
+	trustBase types.RootTrustBase,
+	observability Observability,
+	nodeOptions ...NodeOption,
+) (*NodeConf, error) {
+	if keyConf == nil {
+		return nil, ErrKeyConfIsNil
 	}
-}
-
-func WithUnicityCertificateValidator(unicityCertificateValidator UnicityCertificateValidator) NodeOption {
-	return func(c *configuration) {
-		c.unicityCertificateValidator = unicityCertificateValidator
-	}
-}
-
-func WithBlockProposalValidator(blockProposalValidator BlockProposalValidator) NodeOption {
-	return func(c *configuration) {
-		c.blockProposalValidator = blockProposalValidator
-	}
-}
-
-func WithBlockStore(blockStore keyvaluedb.KeyValueDB) NodeOption {
-	return func(c *configuration) {
-		c.blockStore = blockStore
-	}
-}
-
-func WithShardStore(shardStore keyvaluedb.KeyValueDB) NodeOption {
-	return func(c *configuration) {
-		c.shardStore = shardStore
-	}
-}
-
-func WithProofIndex(db keyvaluedb.KeyValueDB, history uint64) NodeOption {
-	return func(c *configuration) {
-		c.proofIndexConfig.store = db
-		c.proofIndexConfig.historyLen = history
-	}
-}
-
-func WithOwnerIndex(ownerIndexer *OwnerIndexer) NodeOption {
-	return func(c *configuration) {
-		c.ownerIndexer = ownerIndexer
-	}
-}
-
-func WithT1Timeout(t1Timeout time.Duration) NodeOption {
-	return func(c *configuration) {
-		c.t1Timeout = t1Timeout
-	}
-}
-
-func WithEventHandler(eh event.Handler, eventChCapacity int) NodeOption {
-	return func(c *configuration) {
-		c.eventHandler = eh
-		c.eventChCapacity = eventChCapacity
-	}
-}
-
-func WithTxValidator(txValidator TxValidator) NodeOption {
-	return func(c *configuration) {
-		c.txValidator = txValidator
-	}
-}
-
-func WithBlockSubscriptionTimeout(t time.Duration) NodeOption {
-	return func(c *configuration) {
-		c.blockSubscriptionTimeout = t
-	}
-}
-
-func loadAndValidateConfiguration(signer abcrypto.Signer, genesis *genesis.PartitionGenesis, trustBase types.RootTrustBase, txs txsystem.TransactionSystem, nodeOptions ...NodeOption) (*configuration, error) {
-	if signer == nil {
-		return nil, ErrSignerIsNil
-	}
-	if genesis == nil {
-		return nil, ErrGenesisIsNil
+	if shardConf == nil {
+		return nil, ErrShardConfIsNil
 	}
 	if trustBase == nil {
 		return nil, ErrTrustBaseIsNil
 	}
-	if txs == nil {
-		return nil, ErrTxSystemIsNil
+	signer, err := keyConf.Signer()
+	if err != nil {
+		return nil, err
 	}
-	c := &configuration{
+
+	c := &NodeConf{
+		keyConf:       keyConf,
+		shardConf:     shardConf,
+		trustBase:     trustBase,
 		signer:        signer,
-		genesis:       genesis,
 		hashAlgorithm: crypto.SHA256,
 		proofIndexConfig: proofIndexConfig{
 			historyLen: 20,
 		},
-		trustBase: trustBase,
+		observability: observability,
 	}
 	for _, option := range nodeOptions {
 		option(c)
@@ -172,15 +132,110 @@ func loadAndValidateConfiguration(signer abcrypto.Signer, genesis *genesis.Parti
 	if err := c.initMissingDefaults(); err != nil {
 		return nil, fmt.Errorf("initializing missing configuration to default values: %w", err)
 	}
-	if err := c.genesis.IsValid(c.trustBase, c.hashAlgorithm); err != nil {
-		return nil, fmt.Errorf("invalid genesis: %w", err)
+	if err := c.shardConf.IsValid(); err != nil {
+		return nil, fmt.Errorf("invalid shard configuration: %w", err)
 	}
 
 	return c, nil
 }
 
+func WithAddress(address string) NodeOption {
+	return func(c *NodeConf) {
+		c.address = address
+	}
+}
+
+func WithAnnounceAddresses(announceAddresses []string) NodeOption {
+	return func(c *NodeConf) {
+		c.announceAddresses = announceAddresses
+	}
+}
+
+func WithBootstrapAddresses(bootstrapAddresses []string) NodeOption {
+	return func(c *NodeConf) {
+		c.bootstrapAddresses = bootstrapAddresses
+	}
+}
+
+func WithValidatorNetwork(validatorNetwork ValidatorNetwork) NodeOption {
+	return func(c *NodeConf) {
+		c.validatorNetwork = validatorNetwork
+	}
+}
+
+func WithReplicationParams(maxFetchBlocks, maxReturnBlocks uint64, maxTx uint32, timeout time.Duration) NodeOption {
+	return func(c *NodeConf) {
+		c.replicationConfig.maxFetchBlocks = maxFetchBlocks
+		c.replicationConfig.maxReturnBlocks = maxReturnBlocks
+		c.replicationConfig.maxTx = maxTx
+		c.replicationConfig.timeout = timeout
+	}
+}
+
+func WithUnicityCertificateValidator(unicityCertificateValidator UnicityCertificateValidator) NodeOption {
+	return func(c *NodeConf) {
+		c.ucValidator = unicityCertificateValidator
+	}
+}
+
+func WithBlockProposalValidator(blockProposalValidator BlockProposalValidator) NodeOption {
+	return func(c *NodeConf) {
+		c.bpValidator = blockProposalValidator
+	}
+}
+
+func WithBlockStore(blockStore keyvaluedb.KeyValueDB) NodeOption {
+	return func(c *NodeConf) {
+		c.blockStore = blockStore
+	}
+}
+
+func WithShardStore(shardStore keyvaluedb.KeyValueDB) NodeOption {
+	return func(c *NodeConf) {
+		c.shardStore = shardStore
+	}
+}
+
+func WithProofIndex(db keyvaluedb.KeyValueDB, history uint64) NodeOption {
+	return func(c *NodeConf) {
+		c.proofIndexConfig.store = db
+		c.proofIndexConfig.historyLen = history
+	}
+}
+
+func WithOwnerIndex(ownerIndexer *OwnerIndexer) NodeOption {
+	return func(c *NodeConf) {
+		c.ownerIndexer = ownerIndexer
+	}
+}
+
+func WithT1Timeout(t1Timeout time.Duration) NodeOption {
+	return func(c *NodeConf) {
+		c.t1Timeout = t1Timeout
+	}
+}
+
+func WithEventHandler(eh event.Handler, eventChCapacity int) NodeOption {
+	return func(c *NodeConf) {
+		c.eventHandler = eh
+		c.eventChCapacity = eventChCapacity
+	}
+}
+
+func WithTxValidator(txValidator TxValidator) NodeOption {
+	return func(c *NodeConf) {
+		c.txValidator = txValidator
+	}
+}
+
+func WithBlockSubscriptionTimeout(t time.Duration) NodeOption {
+	return func(c *NodeConf) {
+		c.blockSubscriptionTimeout = t
+	}
+}
+
 // initMissingDefaults loads missing default configuration.
-func (c *configuration) initMissingDefaults() error {
+func (c *NodeConf) initMissingDefaults() error {
 	if c.t1Timeout == 0 {
 		c.t1Timeout = DefaultT1Timeout
 	}
@@ -204,20 +259,22 @@ func (c *configuration) initMissingDefaults() error {
 		}
 	}
 
-	if c.blockProposalValidator == nil {
-		c.blockProposalValidator, err = NewDefaultBlockProposalValidator(c.genesis.PartitionDescription, c.trustBase, c.hashAlgorithm)
+	if c.bpValidator == nil {
+		c.bpValidator, err = NewDefaultBlockProposalValidator(
+			c.shardConf.PartitionID, c.shardConf.ShardID, c.trustBase, c.hashAlgorithm)
 		if err != nil {
 			return fmt.Errorf("initializing block proposal validator: %w", err)
 		}
 	}
-	if c.unicityCertificateValidator == nil {
-		c.unicityCertificateValidator, err = NewDefaultUnicityCertificateValidator(c.genesis.PartitionDescription, c.trustBase, c.hashAlgorithm)
+	if c.ucValidator == nil {
+		c.ucValidator, err = NewDefaultUnicityCertificateValidator(
+			c.shardConf.PartitionID, c.shardConf.ShardID, c.trustBase, c.hashAlgorithm)
 		if err != nil {
 			return fmt.Errorf("initializing unicity certificate validator: %w", err)
 		}
 	}
 	if c.txValidator == nil {
-		c.txValidator, err = NewDefaultTxValidator(c.GetPartitionID())
+		c.txValidator, err = NewDefaultTxValidator(c.PartitionID())
 		if err != nil {
 			return err
 		}
@@ -240,19 +297,69 @@ func (c *configuration) initMissingDefaults() error {
 	return nil
 }
 
-func (c *configuration) GetNetworkID() types.NetworkID {
-	return c.genesis.PartitionDescription.NetworkID
+func (c *NodeConf) NetworkID() types.NetworkID {
+	return c.shardConf.NetworkID
 }
 
-func (c *configuration) GetPartitionID() types.PartitionID {
-	return c.genesis.PartitionDescription.PartitionID
+func (c *NodeConf) PartitionID() types.PartitionID {
+	return c.shardConf.PartitionID
 }
 
-func (c *configuration) GetT2Timeout() time.Duration {
-	return c.genesis.PartitionDescription.T2Timeout
+func (c *NodeConf) ShardID() types.ShardID {
+	return c.shardConf.ShardID
 }
 
-func (c *configuration) getRootNodes() (peer.IDSlice, error) {
+func (c *NodeConf) GetT2Timeout() time.Duration {
+	return c.shardConf.T2Timeout
+}
+
+func (c *NodeConf) ShardConf() *types.PartitionDescriptionRecord {
+	return c.shardConf
+}
+
+func (c *NodeConf) TrustBase() types.RootTrustBase {
+	return c.trustBase
+}
+
+func (c *NodeConf) Observability() Observability {
+	return c.observability
+}
+
+func (c *NodeConf) HashAlgorithm() crypto.Hash {
+	return c.hashAlgorithm
+}
+
+func (c *NodeConf) BlockStore() keyvaluedb.KeyValueDB {
+	return c.blockStore
+}
+
+func (c *NodeConf) ProofStore() keyvaluedb.KeyValueDB {
+	return c.proofIndexConfig.store
+}
+
+func (c *NodeConf) PeerConf() (*network.PeerConfiguration, error) {
+	authKeyPair, err := c.keyConf.AuthKeyPair()
+	if err != nil {
+		return nil, fmt.Errorf("invalid authentication key: %w", err)
+	}
+
+	bootNodes := make([]peer.AddrInfo, len(c.bootstrapAddresses))
+	for i, addr := range c.bootstrapAddresses {
+		addrInfo, err := peer.AddrInfoFromString(addr)
+		if err != nil {
+			return nil, fmt.Errorf("invalid bootstrap address: %w", err)
+		}
+		bootNodes[i] = *addrInfo
+	}
+
+	return network.NewPeerConfiguration(c.address, c.announceAddresses, authKeyPair, bootNodes)
+}
+
+func (c *NodeConf) OwnerIndexer() *OwnerIndexer {
+	return c.ownerIndexer
+}
+
+func (c *NodeConf) getRootNodes() (peer.IDSlice, error) {
 	nodes := c.trustBase.GetRootNodes()
 	idSlice := make(peer.IDSlice, len(nodes))
 	for i, node := range nodes {
@@ -263,4 +370,42 @@ func (c *configuration) getRootNodes() (peer.IDSlice, error) {
 		idSlice[i] = id
 	}
 	return idSlice, nil
+}
+
+func (c *KeyConf) NodeID() (peer.ID, error) {
+	authPrivKey, err := p2pcrypto.UnmarshalSecp256k1PrivateKey(c.AuthKey.PrivateKey)
+	if err != nil {
+		return "", fmt.Errorf("invalid authentication key: %w", err)
+	}
+	return peer.IDFromPrivateKey(authPrivKey)
+}
+
+func (c *KeyConf) Signer() (abcrypto.Signer, error) {
+	signer, err := abcrypto.NewInMemorySecp256K1SignerFromKey(c.SigKey.PrivateKey)
+	if err != nil {
+		return nil, fmt.Errorf("invalid signing key: %w", err)
+	}
+	return signer, nil
+}
+
+func (c *KeyConf) AuthKeyPair() (*network.PeerKeyPair, error) {
+	if c.AuthKey.Algorithm != KeyAlgorithmSecp256k1 {
+		return nil, fmt.Errorf("unsupported authentication key algorithm %v", c.AuthKey.Algorithm)
+	}
+	authPrivKey, err := p2pcrypto.UnmarshalSecp256k1PrivateKey(c.AuthKey.PrivateKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal authentication key: %w", err)
+	}
+	authPrivKeyBytes, err := authPrivKey.Raw()
+	if err != nil {
+		return nil, err
+	}
+	authPubKeyBytes, err := authPrivKey.GetPublic().Raw()
+	if err != nil {
+		return nil, err
+	}
+	return &network.PeerKeyPair{
+		PublicKey:  authPubKeyBytes,
+		PrivateKey: authPrivKeyBytes,
+	}, nil
 }

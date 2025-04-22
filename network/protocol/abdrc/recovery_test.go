@@ -137,7 +137,7 @@ func TestStateMsg_Verify(t *testing.T) {
 		Timestamp:       types.NewTimestamp(),
 	}
 
-	pdr := types.PartitionDescriptionRecord{
+	shardConf := types.PartitionDescriptionRecord{
 		PartitionID: 1,
 	}
 
@@ -147,7 +147,7 @@ func TestStateMsg_Verify(t *testing.T) {
 		t,
 		signer,
 		headIR,
-		&pdr,
+		&shardConf,
 		1,
 		make([]byte, 32),
 		make([]byte, 32),
@@ -168,8 +168,8 @@ func TestStateMsg_Verify(t *testing.T) {
 					PrevEpochFees: []byte{0xF, 0xE, 0xE, 5},
 					RootHash:      test.RandomBytes(32),
 					Fees:          map[string]uint64{"A": 0},
-					UC:            *uc,
-					TR: certification.TechnicalRecord{
+					UC:            uc,
+					TR: &certification.TechnicalRecord{
 						Round:    5,
 						Epoch:    1,
 						Leader:   "A",
@@ -177,7 +177,7 @@ func TestStateMsg_Verify(t *testing.T) {
 						FeeHash:  []byte{0xF, 0xE, 0xE},
 					},
 					IR:      headIR,
-					PDRHash: test.DoHash(t, &pdr),
+					ShardConfHash: test.DoHash(t, &shardConf),
 				}},
 				Block: &rctypes.BlockData{
 					Round:   5,
@@ -315,16 +315,16 @@ func TestRecoveryBlock_IsValid(t *testing.T) {
 				PrevEpochFees: []byte{0xF, 0xE, 0xE, 5},
 				RootHash:      test.RandomBytes(32),
 				Fees:          map[string]uint64{"A": 10},
-				UC:            *uc,
+				UC:            uc,
 				IR:            headIR,
-				TR: certification.TechnicalRecord{
+				TR: &certification.TechnicalRecord{
 					Round:    5,
 					Epoch:    1,
 					Leader:   "A",
 					StatHash: []byte{5},
 					FeeHash:  []byte{0xF, 0xE, 0xE},
 				},
-				PDRHash: test.DoHash(t, &pdr),
+				ShardConfHash: test.DoHash(t, &pdr),
 			}},
 			Qc:       &rctypes.QuorumCert{},
 			CommitQc: &rctypes.QuorumCert{},
@@ -333,12 +333,6 @@ func TestRecoveryBlock_IsValid(t *testing.T) {
 
 	b := validBlock()
 	require.NoError(t, b.IsValid())
-
-	t.Run("input record state is invalid", func(t *testing.T) {
-		r := validBlock()
-		r.ShardInfo = nil
-		require.ErrorContains(t, r.IsValid(), "missing ShardInfo")
-	})
 
 	t.Run("invalid ShardInfo", func(t *testing.T) {
 		r := validBlock()

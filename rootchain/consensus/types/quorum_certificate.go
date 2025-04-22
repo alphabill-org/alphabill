@@ -11,10 +11,15 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/types/hex"
 )
 
+const (
+	GenesisRootRound uint64 = 1
+	GenesisRootEpoch uint64 = 0
+)
+
 var (
 	errVoteInfoIsNil         = errors.New("vote info is nil")
 	errLedgerCommitInfoIsNil = errors.New("ledger commit info is nil")
-	errInvalidRoundInfoHash  = errors.New("round info has is missing")
+	errInvalidRoundInfoHash  = errors.New("round info hash is missing")
 )
 
 type QuorumCert struct {
@@ -32,18 +37,6 @@ func NewQuorumCertificateFromVote(voteInfo *RoundInfo, commitInfo *types.Unicity
 	}
 }
 
-func NewQuorumCertificate(voteInfo *RoundInfo, commitHash []byte) (*QuorumCert, error) {
-	ph, err := voteInfo.Hash(gocrypto.SHA256)
-	if err != nil {
-		return nil, fmt.Errorf("failed to hash vote info: %w", err)
-	}
-	return &QuorumCert{
-		VoteInfo:         voteInfo,
-		LedgerCommitInfo: &types.UnicitySeal{Version: 1, PreviousHash: ph, Hash: commitHash},
-		Signatures:       map[string]hex.Bytes{},
-	}, nil
-}
-
 func (x *QuorumCert) GetRound() uint64 {
 	if x != nil {
 		return x.VoteInfo.GetRound()
@@ -59,7 +52,7 @@ func (x *QuorumCert) GetParentRound() uint64 {
 }
 
 func (x *QuorumCert) GetCommitRound() uint64 {
-	if x.LedgerCommitInfo != nil && x.LedgerCommitInfo.Hash != nil {
+	if x != nil && x.LedgerCommitInfo != nil {
 		return x.LedgerCommitInfo.RootChainRoundNumber
 	}
 	return 0
@@ -103,6 +96,11 @@ func (x *QuorumCert) Verify(tb types.RootTrustBase) error {
 	if err := x.LedgerCommitInfo.Verify(rootTrust); err != nil {
 		return fmt.Errorf("invalid commit info: %w", err)
 	}*/
+
+	if x.GetRound() == GenesisRootRound {
+		// Skip signature verification for genesis round QC - it is hard-coded and not signed
+		return nil
+	}
 
 	bs, err := x.LedgerCommitInfo.SigBytes()
 	if err != nil {

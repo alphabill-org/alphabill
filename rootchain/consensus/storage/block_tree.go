@@ -75,11 +75,11 @@ func readBlocksFromDB(bDB keyvaluedb.KeyValueDB, orchestration Orchestration) (b
 			return nil, fmt.Errorf("read block %v from db: %w", itr.Key(), err)
 		}
 		for _, si := range b.ShardInfo {
-			rec, err := orchestration.ShardConfig(si.LastCR.Partition, si.LastCR.Shard, si.LastCR.Technical.Epoch)
+			shardConf, err := orchestration.ShardConfig(si.PartitionID, si.ShardID, si.EpochStart)
 			if err != nil {
 				return nil, fmt.Errorf("acquiring shard configuration: %w", err)
 			}
-			if err = si.resetTrustBase(rec); err != nil {
+			if err = si.resetTrustBase(shardConf); err != nil {
 				return nil, fmt.Errorf("init shard trustbase (%s - %s): %w", si.LastCR.Partition, si.LastCR.Shard, err)
 			}
 		}
@@ -443,21 +443,25 @@ func toRecoveryShardInfo(block *ExecutedBlock) ([]rcnet.ShardInfo, error) {
 	si := make([]rcnet.ShardInfo, len(block.ShardInfo))
 	idx := 0
 	for _, v := range block.ShardInfo {
-		si[idx].Partition = v.LastCR.Partition
-		si[idx].Shard = v.LastCR.Shard
+		si[idx].Partition = v.PartitionID
+		si[idx].Shard = v.ShardID
+		si[idx].EpochStart = v.EpochStart
+		si[idx].T2Timeout = v.T2Timeout
 		si[idx].RootHash = v.RootHash
 		si[idx].PrevEpochStat = v.PrevEpochStat
 		si[idx].Stat = v.Stat
 		si[idx].PrevEpochFees = v.PrevEpochFees
 		si[idx].Fees = maps.Clone(v.Fees)
-		si[idx].UC = v.LastCR.UC
-		si[idx].TR = v.LastCR.Technical
-		if ir := block.CurrentIR.Find(v.LastCR.Partition); ir != nil {
+		if v.LastCR != nil {
+			si[idx].UC = &v.LastCR.UC
+			si[idx].TR = &v.LastCR.Technical
+		}
+		if ir := block.CurrentIR.Find(v.PartitionID, v.ShardID); ir != nil {
 			si[idx].IR = ir.IR
 			si[idx].IRTR = ir.Technical
-			si[idx].PDRHash = ir.PDRHash
+			si[idx].ShardConfHash = ir.ShardConfHash
 		} else {
-			return nil, fmt.Errorf("no InputData for shard %s-%s", v.LastCR.Partition, v.LastCR.Shard)
+			return nil, fmt.Errorf("no InputData for shard %s-%s", v.PartitionID, v.ShardID)
 		}
 		idx++
 	}

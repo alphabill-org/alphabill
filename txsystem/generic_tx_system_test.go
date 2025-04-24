@@ -756,8 +756,9 @@ func newMockLockTx(t *testing.T, option ...transaction.Option) []byte {
 }
 
 type MockModule struct {
-	ValidateError error
-	Result        error
+	ValidateError      error
+	Result             error
+	SplitExecuteResult *types.ServerMetadata
 }
 
 func NewMockTxModule(wantErr error) *MockModule {
@@ -782,6 +783,9 @@ func (mm MockModule) mockValidateSplitTx(tx *types.TransactionOrder, _ *MockSpli
 func (mm MockModule) mockExecuteSplitTx(tx *types.TransactionOrder, _ *MockSplitTxAttributes, _ *MockTxAuthProof, _ txtypes.ExecutionContext) (*types.ServerMetadata, error) {
 	if mm.Result != nil {
 		return &types.ServerMetadata{SuccessIndicator: types.TxStatusFailed}, mm.Result
+	}
+	if mm.SplitExecuteResult != nil {
+		return mm.SplitExecuteResult, nil
 	}
 	return &types.ServerMetadata{ActualFee: 0, SuccessIndicator: types.TxStatusSuccessful}, nil
 }

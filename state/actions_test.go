@@ -243,10 +243,10 @@ func Test_RemoveStateLock(t *testing.T) {
 		require.ErrorContains(t, err, "failed to find unit")
 	})
 
-	t.Run("unit does not have a state lock", func(t *testing.T) {
+	t.Run("unit is already unlocked", func(t *testing.T) {
 		s := newStateWithUnits(t)
 		err := RemoveStateLock(unitID)(s.latestSavepoint(), crypto.SHA256)
-		require.EqualError(t, err, "unit does not have a state lock")
+		require.ErrorIs(t, err, ErrUnitAlreadyUnlocked)
 	})
 
 	t.Run("state lock removed successfully", func(t *testing.T) {

@@ -19,6 +19,7 @@ import (
 
 	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill-go-base/util"
 	"github.com/alphabill-org/alphabill/keyvaluedb"
 	"github.com/alphabill-org/alphabill/logger"
 	"github.com/alphabill-org/alphabill/network"
@@ -45,22 +46,25 @@ type (
 		trustBaseFlags
 		p2pFlags
 
-		RootStoreFile          string // path to Bolt storage file
+		RootStoreFile          string   // path to Bolt storage file
 		TrustBaseStoreFile     string
 		OrchestrationStoreFile string
-		MaxRequests            uint   // validator partition certification request channel capacity
-		RPCServerAddress       string // address on which http server is exposed with metrics endpoint
+		ShardConfFiles         []string // paths to shard conf files
+
+		BlockRate        uint
+		MaxRequests      uint   // validator partition certification request channel capacity
+		RPCServerAddress string // address on which http server is exposed with metrics endpoint
 	}
 )
 
-func newRootNodeCmd(baseConf *baseFlags) *cobra.Command {
+func newRootNodeCmd(baseFlags *baseFlags) *cobra.Command {
 	var cmd = &cobra.Command{
 		Use:   "root-node",
 		Short: "Tools to run a root node",
 	}
 
-	cmd.AddCommand(rootNodeInitCmd(baseConf))
-	cmd.AddCommand(rootNodeRunCmd(baseConf))
+	cmd.AddCommand(rootNodeInitCmd(baseFlags))
+	cmd.AddCommand(rootNodeRunCmd(baseFlags))
 	return cmd
 }
 
@@ -97,6 +101,7 @@ func rootNodeRunCmd(baseFlags *baseFlags) *cobra.Command {
 	cmd.Flags().UintVar(&flags.MaxRequests, "max-requests", 1000, "request buffer capacity")
 	cmd.Flags().StringVar(&flags.RPCServerAddress, "rpc-server-address", "",
 		`Specifies the TCP address for the RPC server to listen on, in the form "host:port". RPC server isn't initialised if address is empty.`)
+
 	cmd.Flags().StringVar(&flags.RootStoreFile, "root-db", "",
 		fmt.Sprintf("path to the root database (default: %s)", filepath.Join("$AB_HOME", rootStoreFileName)))
 	cmd.Flags().StringVar(&flags.TrustBaseStoreFile, "trust-base-db", "",
@@ -104,6 +109,10 @@ func rootNodeRunCmd(baseFlags *baseFlags) *cobra.Command {
 	cmd.Flags().StringVar(&flags.OrchestrationStoreFile, "orchestration-db", "",
 		fmt.Sprintf("path to the orchestration database (default: %s)", filepath.Join("$AB_HOME", orchestrationStoreFileName)))
 
+	cmd.Flags().StringSliceVarP(&flags.ShardConfFiles, "shard-conf", "", []string{}, "path to shard conf files")
+	cmd.Flags().UintVar(&flags.BlockRate, "block-rate", consensus.BlockRate, "block rate (consensus parameter)")
+
+	hideFlags(cmd, "block-rate")
 	return cmd
 }
 
@@ -178,6 +187,14 @@ func rootNodeRun(ctx context.Context, flags *rootNodeRunFlags) error {
 	if err != nil {
 		return fmt.Errorf("creating orchestration: %w", err)
 	}
+
+	if err := loadShardConfFiles(flags.ShardConfFiles, orchestration); err != nil {
+		return fmt.Errorf("failed to load shard conf files: %w", err)
+	}
+
+	consensusParams := consensus.NewConsensusParams()
+	consensusParams.BlockRate = time.Duration(flags.BlockRate) * time.Millisecond
+
 	cm, err := consensus.NewConsensusManager(
 		host.ID(),
 		trustBase,
@@ -186,6 +203,7 @@ func rootNodeRun(ctx context.Context, flags *rootNodeRunFlags) error {
 		signer,
 		obs,
 		consensus.WithStorage(rootStore),
+		consensus.WithConsensusParams(*consensusParams),
 	)
 	if err != nil {
 		return fmt.Errorf("failed initiate distributed consensus manager: %w", err)
@@ -336,6 +354,19 @@ type (
 		PartitionShards []shardInfo `json:"partitionShards"`
 	}
 )
+
+func loadShardConfFiles(paths []string, orchestration *partitions.Orchestration) error {
+	for _, p := range paths {
+		shardConf, err := util.ReadJsonFile(p, &types.PartitionDescriptionRecord{})
+		if err != nil {
+			return fmt.Errorf("failed to read shard conf from %q: %w", p, err)
+		}
+		if err := orchestration.AddShardConfig(shardConf); err != nil {
+			return fmt.Errorf("failed to add shard conf from %q: %w", p, err)
+		}
+	}
+	return nil
+}
 
 func getRoundInfoHandler(getState func() (*abdrc.StateMsg, error), obs Observability) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {

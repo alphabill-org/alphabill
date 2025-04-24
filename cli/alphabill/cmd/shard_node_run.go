@@ -50,6 +50,7 @@ type shardNodeRunFlags struct {
 	LedgerReplicationMaxTx          uint32
 	LedgerReplicationTimeoutMs      uint32
 	BlockSubscriptionTimeoutMs      uint32
+	T1TimeoutMs                     uint32
 }
 
 func shardNodeRunCmd(baseFlags *baseFlags, shardNodeRunFn nodeRunnable) *cobra.Command {
@@ -94,7 +95,9 @@ func shardNodeRunCmd(baseFlags *baseFlags, shardNodeRunFn nodeRunnable) *cobra.C
 		"time since last received replication response when to trigger another request (in ms)")
 	cmd.Flags().Uint32Var(&flags.BlockSubscriptionTimeoutMs, "block-subscription-timeout", 3000,
 		"time since last received block when when to trigger recovery (in ms) for non-validating nodes")
+	cmd.Flags().Uint32Var(&flags.T1TimeoutMs, "t1-timeout", partition.DefaultT1Timeout, "T1 timeout (consensus parameter)")
 
+	hideFlags(cmd, "t1-timeout")
 	return cmd
 }
 
@@ -233,6 +236,7 @@ func createNode(ctx context.Context, flags *shardNodeRunFlags) (*partition.Node,
 		partition.WithProofIndex(proofStore, 20),
 		partition.WithOwnerIndex(ownerIndexer),
 		partition.WithBlockSubscriptionTimeout(time.Duration(flags.BlockSubscriptionTimeoutMs) * time.Millisecond),
+		partition.WithT1Timeout(time.Duration(flags.T1TimeoutMs) * time.Millisecond),
 	)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create node configuration: %w", err)

@@ -21,7 +21,7 @@ import (
 const (
 	KeyAlgorithmSecp256k1 = "secp256k1"
 
-	DefaultT1Timeout                       = 750 * time.Millisecond
+	DefaultT1Timeout                       = 750
 	DefaultReplicationMaxBlocks     uint64 = 1000
 	DefaultReplicationMaxTx         uint32 = 10000
 	DefaultBlockSubscriptionTimeout        = 3000 * time.Millisecond
@@ -237,7 +237,7 @@ func WithBlockSubscriptionTimeout(t time.Duration) NodeOption {
 // initMissingDefaults loads missing default configuration.
 func (c *NodeConf) initMissingDefaults() error {
 	if c.t1Timeout == 0 {
-		c.t1Timeout = DefaultT1Timeout
+		c.t1Timeout = DefaultT1Timeout * time.Millisecond
 	}
 
 	var err error

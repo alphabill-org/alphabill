@@ -10,6 +10,10 @@ import (
 	"github.com/alphabill-org/alphabill/tree/avl"
 )
 
+var (
+	ErrUnitAlreadyUnlocked = errors.New("unit already unlocked")
+)
+
 type (
 	ShardState interface {
 		Add(id types.UnitID, u Unit) error
@@ -229,7 +233,7 @@ func RemoveStateLock(id types.UnitID) Action {
 			return fmt.Errorf("unable to parse unit: %w", err)
 		}
 		if unit.stateLockTx == nil {
-			return errors.New("unit does not have a state lock")
+			return ErrUnitAlreadyUnlocked
 		}
 		cloned, err := ToUnitV1(unit.Clone())
 		if err != nil {

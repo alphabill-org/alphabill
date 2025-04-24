@@ -92,9 +92,17 @@ func (m *GenericTxSystem) handleTxOnHold(tx *types.TransactionOrder, txOnHold *t
 	// unlock the existing target units
 	for _, targetUnit := range sm.TargetUnits {
 		if err = m.state.Apply(state.RemoveStateLock(targetUnit)); err != nil {
-			return nil, fmt.Errorf("failed to release state lock: %w", err)
+			if errors.Is(err, avl.ErrNotFound) {
+				m.log.Debug("not removing state lock, unit does not exist", logger.UnitID(targetUnit))
+				continue
+			}
+			if errors.Is(err, state.ErrUnitAlreadyUnlocked) {
+				m.log.Debug("not removing state lock, unit is already unlocked", logger.UnitID(targetUnit))
+				continue
+			}
+			return nil, fmt.Errorf("failed to release state lock for unit %s: %w", targetUnit, err)
 		}
-		m.log.Debug(fmt.Sprintf("unit %s state lock removed", targetUnit))
+		m.log.Debug("unit state lock removed", logger.UnitID(targetUnit))
 	}
 	return sm, nil
 }
@@ -117,7 +125,7 @@ func (m *GenericTxSystem) parseTxOnHold(unitID types.UnitID) (*types.Transaction
 		return nil, nil
 	}
 	// unit has a state lock, any transaction with locked unit must first unlock
-	m.log.Debug(fmt.Sprintf("unit %s has a state lock", unitID))
+	m.log.Debug("unit has a state lock", logger.UnitID(unitID))
 	txOnHold := &types.TransactionOrder{Version: 1}
 	if err = types.Cbor.Unmarshal(unit.StateLockTx(), txOnHold); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal state lock transaction: %w", err)

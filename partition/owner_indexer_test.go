@@ -195,6 +195,28 @@ func TestOwnerIndexer(t *testing.T) {
 		require.Len(t, ownerUnitIDs, 1)
 		require.Equal(t, unitID, ownerUnitIDs[0])
 	})
+	t.Run("dummy units are not indexed", func(t *testing.T) {
+		ownerIndexer := NewOwnerIndexer(testlogger.New(t))
+		unitID := types.UnitID{1}
+		ownerPredicate := templates.NewP2pkh256BytesFromKeyHash([]byte{0})
+
+		// create state with a dummy unit
+		s := state.NewEmptyState()
+		require.NoError(t, s.Apply(state.AddDummyUnit(unitID)))
+		require.NoError(t, s.AddUnitLog(unitID, test.RandomBytes(4)))
+		commitState(t, s)
+
+		// update index
+		b := &types.Block{Transactions: []*types.TransactionRecord{
+			testtransaction.NewTransactionRecord(t, testtransaction.WithUnitID(unitID)),
+		}}
+		require.NoError(t, ownerIndexer.IndexBlock(b, s))
+
+		// verify that unit is not indexed
+		ownerUnitIDs := ownerIndexer.ownerUnits[string(ownerPredicate)]
+		require.Len(t, ownerUnitIDs, 0)
+	})
+
 }
 
 type mockUnitData struct {

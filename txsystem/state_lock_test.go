@@ -246,7 +246,7 @@ func TestGenericTxSystem_handleUnlockUnitState(t *testing.T) {
 		require.EqualError(t, err, "failed to execute transaction that was on hold: unknown transaction type 1")
 		require.Nil(t, sm)
 	})
-	t.Run("ok - unlock and Tx succeed", func(t *testing.T) {
+	t.Run("ok - rollback with multiple units", func(t *testing.T) {
 		// create state with unit(unitID, lockedFor=pubKey1)
 		sig1, ver1 := testsig.CreateSignerAndVerifier(t)
 		pubKey1, err := ver1.MarshalPublicKey()
@@ -302,7 +302,7 @@ func TestGenericTxSystem_handleUnlockUnitState(t *testing.T) {
 			tt.WithAuthProof(&MockTxAuthProof{}),
 		)
 		stateUnlockProof := testsig.NewStateLockProofSignature(t, tx, sig1)
-		tx.StateUnlock = append([]byte{byte(StateUnlockRollback)}, stateUnlockProof...)
+		tx.AddStateUnlockRollbackProof(stateUnlockProof)
 
 		// execute the rollback tx
 		execCtx := txtypes.NewExecutionContext(txSys, abfc.NewNoFeeCreditModule(), nil, 10)
@@ -325,7 +325,7 @@ func TestGenericTxSystem_handleUnlockUnitState(t *testing.T) {
 		require.NotNil(t, dummyUnit1)
 		dummyUnit1V1, err := state.ToUnitV1(dummyUnit1)
 		require.NoError(t, err)
-		require.False(t, false, dummyUnit1V1.IsStateLocked())
+		require.False(t, dummyUnit1V1.IsStateLocked())
 		require.EqualValues(t, 1, dummyUnit1V1.DeletionRound())
 
 		dummyUnit2, err := txSys.GetUnit(dummyUnitID2, false)
@@ -333,8 +333,101 @@ func TestGenericTxSystem_handleUnlockUnitState(t *testing.T) {
 		dummyUnit2V1, err := state.ToUnitV1(dummyUnit2)
 		require.NoError(t, err)
 		require.NotNil(t, dummyUnit2V1)
-		require.False(t, false, dummyUnit2V1.IsStateLocked())
+		require.False(t, dummyUnit2V1.IsStateLocked())
 		require.EqualValues(t, 1, dummyUnit2V1.DeletionRound())
+	})
+	t.Run("ok - commit with multiple units", func(t *testing.T) {
+		// create state with unit(targetUnit1, lockedFor=pubKey1)
+		sig1, ver1 := testsig.CreateSignerAndVerifier(t)
+		pubKey1, err := ver1.MarshalPublicKey()
+		require.NoError(t, err)
+		targetUnit1 := moneyid.NewBillID(t)
+		targetUnit2 := moneyid.NewBillID(t)
+		targetUnit3 := moneyid.NewBillID(t)
+
+		// create "txOnHold" with 3 target units
+		// where targetUnit3 is already unlocked (simulate that the transaction execution already unlocked the unit)
+		targetUnits := []types.UnitID{targetUnit1, targetUnit2, targetUnit3}
+		txOnHold := tt.NewTransactionOrder(
+			t,
+			tt.WithTransactionType(mockSplitTxType),
+			tt.WithUnitID(targetUnit1),
+			tt.WithPartitionID(money.DefaultPartitionID),
+			tt.WithAttributes(&MockSplitTxAttributes{Value: 10, TargetUnits: targetUnits}),
+			tt.WithAuthProof(&MockTxAuthProof{}),
+			tt.WithStateLock(&types.StateLock{
+				ExecutionPredicate: basetemplates.NewP2pkh256BytesFromKey(pubKey1),
+				RollbackPredicate:  basetemplates.NewP2pkh256BytesFromKey(pubKey1)},
+			),
+		)
+		txOnHoldBytes, err := cbor.Marshal(txOnHold)
+		require.NoError(t, err)
+
+		// create mock tx system with unit(targetUnit1, txOnHold) and dummy target units
+		module := NewMockTxModule(nil)
+		module.SplitExecuteResult = &types.ServerMetadata{ActualFee: 0, SuccessIndicator: types.TxStatusSuccessful, TargetUnits: targetUnits}
+		txSys := NewTestGenericTxSystem(t,
+			[]txtypes.Module{module},
+			withStateUnit(
+				targetUnit1,
+				&money.BillData{Value: 1, Counter: 1, OwnerPredicate: basetemplates.AlwaysTrueBytes()},
+				txOnHoldBytes,
+			),
+			withStateUnit(
+				targetUnit2,
+				nil,
+				txOnHoldBytes,
+			),
+			withStateUnit(
+				targetUnit3,
+				&money.BillData{Value: 1, Counter: 1, OwnerPredicate: basetemplates.AlwaysTrueBytes()},
+				nil,
+			),
+		)
+
+		// create the commit tx
+		tx := tt.NewTransactionOrder(
+			t,
+			tt.WithTransactionType(mockTxType),
+			tt.WithUnitID(targetUnit1),
+			tt.WithPartitionID(money.DefaultPartitionID),
+			tt.WithAttributes(&MockTxAttributes{}),
+			tt.WithAuthProof(&MockTxAuthProof{}),
+		)
+		stateUnlockProof := testsig.NewStateLockProofSignature(t, tx, sig1)
+		tx.AddStateUnlockCommitProof(stateUnlockProof)
+
+		// execute the commit tx
+		execCtx := txtypes.NewExecutionContext(txSys, abfc.NewNoFeeCreditModule(), nil, 10)
+		sm, err := txSys.handleUnlockUnitState(tx, targetUnit1, execCtx)
+		require.NoError(t, err)
+		require.NotNil(t, sm)
+		require.Equal(t, targetUnit1, sm.TargetUnits[0])
+
+		// verify state lock was removed for all units
+		u, err := txSys.GetUnit(targetUnit1, false)
+		require.NoError(t, err)
+		unit, err := state.ToUnitV1(u)
+		require.NoError(t, err)
+		require.NotNil(t, unit)
+		require.False(t, unit.IsStateLocked())
+		require.Zero(t, unit.DeletionRound())
+
+		u2, err := txSys.GetUnit(targetUnit2, false)
+		require.NoError(t, err)
+		require.NotNil(t, u2)
+		unit2, err := state.ToUnitV1(u2)
+		require.NoError(t, err)
+		require.False(t, unit2.IsStateLocked())
+		require.Zero(t, unit.DeletionRound())
+
+		u3, err := txSys.GetUnit(targetUnit3, false)
+		require.NoError(t, err)
+		unit3, err := state.ToUnitV1(u3)
+		require.NoError(t, err)
+		require.NotNil(t, unit3)
+		require.False(t, unit3.IsStateLocked())
+		require.Zero(t, unit.DeletionRound())
 	})
 }
 

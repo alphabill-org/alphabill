@@ -51,7 +51,7 @@ type (
 		OrchestrationStoreFile string
 		ShardConfFiles         []string // paths to shard conf files
 
-		BlockRate        uint
+		BlockRate        uint32
 		MaxRequests      uint   // validator partition certification request channel capacity
 		RPCServerAddress string // address on which http server is exposed with metrics endpoint
 	}
@@ -110,7 +110,7 @@ func rootNodeRunCmd(baseFlags *baseFlags) *cobra.Command {
 		fmt.Sprintf("path to the orchestration database (default: %s)", filepath.Join("$AB_HOME", orchestrationStoreFileName)))
 
 	cmd.Flags().StringSliceVarP(&flags.ShardConfFiles, "shard-conf", "", []string{}, "path to shard conf files")
-	cmd.Flags().UintVar(&flags.BlockRate, "block-rate", consensus.BlockRate, "block rate (consensus parameter)")
+	cmd.Flags().Uint32Var(&flags.BlockRate, "block-rate", consensus.BlockRate, "block rate (consensus parameter)")
 
 	hideFlags(cmd, "block-rate")
 	return cmd

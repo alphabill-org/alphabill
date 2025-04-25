@@ -3,25 +3,22 @@ package consensus
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/network/protocol/certification"
-	"github.com/alphabill-org/alphabill/rootchain/consensus/storage"
 	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
-	"github.com/stretchr/testify/require"
 )
 
-type (
-	mockIRVerifier struct {
-	}
-)
+type mockIRVerifier struct{}
 
 func NewAlwaysTrueIRReqVerifier() *mockIRVerifier {
 	return &mockIRVerifier{}
 }
 
-func (x *mockIRVerifier) VerifyIRChangeReq(_ uint64, irChReq *drctypes.IRChangeReq) (*storage.InputData, error) {
-	return &storage.InputData{Partition: irChReq.Partition, IR: irChReq.Requests[0].InputRecord, ShardConfHash: []byte{0, 0, 0, 0, 1}}, nil
+func (x *mockIRVerifier) VerifyIRChangeReq(_ uint64, irChReq *drctypes.IRChangeReq) (*types.InputRecord, error) {
+	return irChReq.Requests[0].InputRecord, nil
 }
 
 const partitionID1 types.PartitionID = 1
@@ -108,7 +105,7 @@ func TestIrReqBuffer_Add(t *testing.T) {
 func TestIrReqBuffer_TimeoutReq(t *testing.T) {
 	reqBuffer := NewIrReqBuffer(logger.New(t))
 	timeouts := []*types.UnicityCertificate{emptyUC(partitionID1), emptyUC(partitionID2)}
-	
+
 	isPending := func(id types.PartitionID, _ types.ShardID) *types.InputRecord {
 		return nil
 	}
@@ -162,7 +159,6 @@ func TestIrReqBuffer_TimeoutAndReqButAChangeIsPending(t *testing.T) {
 		CertReason: drctypes.Quorum,
 		Requests:   []*certification.BlockCertificationRequest{req1},
 	}
-
 
 	timeouts := []*types.UnicityCertificate{emptyUC(partitionID1)}
 	isPending := func(id types.PartitionID, _ types.ShardID) *types.InputRecord {

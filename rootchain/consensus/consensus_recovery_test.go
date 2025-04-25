@@ -803,7 +803,7 @@ func createConsensusManagers(t *testing.T, count int, shardNodes []*types.NodeIn
 			rootNet.Connect(nodeID),
 			rootSigners[v.NodeID],
 			obs,
-			opts...
+			opts...,
 		)
 		require.NoError(t, err)
 		cms = append(cms, cm)
@@ -862,37 +862,29 @@ func newTestGenesisBlock(t *testing.T, shardConf *types.PartitionDescriptionReco
 		Round:     drctypes.GenesisRootRound,
 		Epoch:     drctypes.GenesisRootEpoch,
 		Timestamp: types.GenesisTime,
-		Payload:   &drctypes.Payload{
-			// no shards -> no IR change requests
-			Requests: make([]*drctypes.IRChangeReq, 0),
-		},
+		Payload:   &drctypes.Payload{},
 		Qc:        nil, // no parent QC
 	}
 
 	si, err := storage.NewShardInfo(shardConf, hashAlgo)
 	require.NoError(t, err)
 
-	ir, err := storage.NewShardInputData(si, hashAlgo)
-	require.NoError(t, err)
-
-	irs := storage.InputRecords{ir}
-	ut, _, err := irs.UnicityTree(hashAlgo)
-	require.NoError(t, err)
-
-	psID := types.PartitionShardID{PartitionID: si.PartitionID, ShardID: si.ShardID.Key()}
-	commitQc := createCommitQc(t, genesisBlock, ut.RootHash(), hashAlgo, signers)
+	psID := types.PartitionShardID{PartitionID: shardConf.PartitionID, ShardID: shardConf.ShardID.Key()}
 	executedBlock := &storage.ExecutedBlock{
 		BlockData: genesisBlock,
 		HashAlgo:  hashAlgo,
-		CurrentIR: irs,
-		Changed:   map[types.PartitionShardID]struct{}{psID: struct{}{}},
-		ShardInfo: map[types.PartitionShardID]*storage.ShardInfo{psID: si},
-
-		// the same QC accepts the genesis block and commits it, usually commit comes later
-		Qc:        commitQc,
-		CommitQc:  commitQc,
-		RootHash:  commitQc.LedgerCommitInfo.Hash,
+		ShardInfo: storage.ShardStates{
+			States:  map[types.PartitionShardID]*storage.ShardInfo{psID: si},
+			Changed: storage.ShardSet{psID: {}},
+		},
+		// as we get single config it must be single shard schema
+		Schemes: map[types.PartitionID]types.ShardingScheme{shardConf.PartitionID: {}},
 	}
+	ut, _, err := executedBlock.ShardInfo.UnicityTree(executedBlock.Schemes, hashAlgo)
+	require.NoError(t, err)
+	commitQc := createCommitQc(t, genesisBlock, ut.RootHash(), hashAlgo, signers)
+	// the same QC accepts the genesis block and commits it, usually commit comes later
+	executedBlock.Qc, executedBlock.CommitQc, executedBlock.RootHash = commitQc, commitQc, commitQc.LedgerCommitInfo.Hash
 
 	crs, err := executedBlock.GenerateCertificates(commitQc)
 	require.NoError(t, err)
@@ -901,8 +893,8 @@ func newTestGenesisBlock(t *testing.T, shardConf *types.PartitionDescriptionReco
 	require.NotNil(t, si.LastCR.UC)
 
 	// Changed set was necessary to generate certificates with GenerateCertificates,
-	// set it to nil so that certificates won't be generated again when CM is run
-	executedBlock.Changed = nil
+	// clear it so that certificates won't be generated again when CM is run
+	clear(executedBlock.ShardInfo.Changed)
 	return executedBlock
 }
 
@@ -924,8 +916,8 @@ func createCommitQc(t *testing.T, genesisBlock *drctypes.BlockData, rootHash []b
 	commitQc := &drctypes.QuorumCert{
 		VoteInfo: commitRoundInfo,
 		LedgerCommitInfo: &types.UnicitySeal{
-			Version:              1,
-			NetworkID:            5,
+			Version:   1,
+			NetworkID: 5,
 			// Usually the round that gets committed is different from
 			// the round that commits, but for genesis block they are the same.
 			RootChainRoundNumber: commitRoundInfo.RoundNumber,

@@ -171,7 +171,7 @@ func (a *AlphabillNetwork) AddShard(t *testing.T, shardConf *types.PartitionDesc
 			partition.WithAddress("/ip4/127.0.0.1/tcp/0"),
 			partition.WithBootstrapAddresses([]string{bootstrapAddress}),
 			partition.WithEventHandler(eventHandler.HandleEvent, 100),
-			partition.WithT1Timeout(partition.DefaultT1Timeout/speedFactor),
+			partition.WithT1Timeout(partition.DefaultT1Timeout*time.Millisecond/speedFactor),
 		)
 		require.NoError(t, err)
 

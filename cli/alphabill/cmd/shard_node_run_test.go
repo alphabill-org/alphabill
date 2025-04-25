@@ -28,6 +28,7 @@ import (
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	test "github.com/alphabill-org/alphabill/internal/testutils/time"
 	"github.com/alphabill-org/alphabill/internal/testutils/trustbase"
+	"github.com/alphabill-org/alphabill/partition"
 	"github.com/alphabill-org/alphabill/rpc"
 )
 
@@ -261,7 +262,7 @@ func defaultFlags() *shardNodeRunFlags {
 	flags.BatchItemLimit = rpc.DefaultBatchItemLimit
 	flags.BatchResponseSizeLimit = rpc.DefaultBatchResponseSizeLimit
 	flags.StateRpcRateLimit = 20
-
+	flags.T1TimeoutMs = partition.DefaultT1Timeout
 	return flags
 }
 

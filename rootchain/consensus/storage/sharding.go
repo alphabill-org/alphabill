@@ -5,6 +5,7 @@ import (
 	"crypto"
 	"errors"
 	"fmt"
+	"iter"
 	"maps"
 	"slices"
 	"time"
@@ -15,59 +16,146 @@ import (
 	"github.com/alphabill-org/alphabill/network/protocol/certification"
 )
 
-type shardStates map[types.PartitionShardID]*ShardInfo
+type ShardStates struct {
+	States  map[types.PartitionShardID]*ShardInfo
+	Changed ShardSet // shards whose state has changed
+}
 
 /*
-nextBlock returns shard states for the next block by "cloning" the current states.
+nextBlock returns shard states for the next block based on the configs of the round - if the
+shard was part of the current block it's state is cloned, otherwise new empty state is added.
 */
-func (ss shardStates) nextBlock(parentIRs InputRecords, orchestration Orchestration, rootRound uint64, hashAlg crypto.Hash) (shardStates, error) {
-	nextBlock := make(shardStates, len(ss))
-
-	shardConfs, err := orchestration.ShardConfigs(rootRound)
-	if err != nil {
-		return nil, fmt.Errorf("loading shard configurations for round %d: %w", rootRound, err)
-	}
-
-	for shardKey, prevSI := range ss {
-		parentIR := parentIRs.Find(prevSI.PartitionID, prevSI.ShardID)
-
-		// There should be a parent IR, unless it's a newly activated shard without an UC
-		if parentIR == nil && prevSI.LastCR != nil {
-			return nil, fmt.Errorf("no previous round data for shard %s - %s", prevSI.LastCR.Partition, prevSI.LastCR.Shard)
-		}
-
-		// parentIR.IR is the state in the shard when parentIR.Technical was created - so when the epoch
-		// is different this new block is in the new epoch
-		if parentIR != nil && parentIR.Technical.Epoch != parentIR.IR.Epoch {
-			shardConf, ok := shardConfs[shardKey]
-			if !ok {
-				return nil, fmt.Errorf("shard %s missing configuration", shardKey)
-			}
-			if nextBlock[shardKey], err = prevSI.nextEpoch(parentIR.Technical.Epoch, shardConf, hashAlg); err != nil {
-				return nil, fmt.Errorf("creating ShardInfo %s - %s of the next epoch: %w",
-					prevSI.LastCR.Partition, prevSI.LastCR.Shard, err)
+func (ss ShardStates) nextBlock(shardConfs map[types.PartitionShardID]*types.PartitionDescriptionRecord, hashAlg crypto.Hash) (nextBlock ShardStates, err error) {
+	nextBlock.States = make(map[types.PartitionShardID]*ShardInfo, len(shardConfs))
+	nextBlock.Changed = ShardSet{}
+	for k, pdr := range shardConfs {
+		if prevSI, ok := ss.States[k]; ok {
+			// prevSI.IR is the state in the shard when prevSI.TR was created - so when the epoch in the TR
+			// is different the previous round triggered epoch change in the shard and this round should
+			// switch the shard state into next epoch too
+			if prevSI.TR.Epoch != prevSI.IR.Epoch {
+				if nextBlock.States[k], err = prevSI.nextEpoch(pdr, hashAlg); err != nil {
+					return nextBlock, fmt.Errorf("creating ShardInfo %s - %s of the next epoch: %w",
+						prevSI.LastCR.Partition, prevSI.LastCR.Shard, err)
+				}
+			} else {
+				si := *prevSI
+				si.Fees = maps.Clone(si.Fees)
+				nextBlock.States[k] = &si
 			}
 		} else {
-			si := *prevSI
-			si.Fees = maps.Clone(si.Fees)
-			nextBlock[shardKey] = &si
+			// must be new shard activated in this round
+			if nextBlock.States[k], err = NewShardInfo(pdr, hashAlg); err != nil {
+				return nextBlock, fmt.Errorf("creating ShardInfo for %s: %w", k, err)
+			}
+			nextBlock.Changed[k] = struct{}{}
 		}
 	}
-
-	// Do we have new shards activated in this round?
-	for shardKey, shardConf := range shardConfs {
-		if _, ok := nextBlock[shardKey]; ok {
-			// not a new shard
-			continue
-		}
-		si, err := NewShardInfo(shardConf, hashAlg)
-		if err != nil {
-			return nil, fmt.Errorf("creating ShardInfo for partition %s: %w", shardConf.PartitionID, err)
-		}
-		nextBlock[shardKey] = si
-	}
-
 	return nextBlock, nil
+}
+
+/*
+UnicityTree builds the unicity tree based on the shard states.
+*/
+func (ss ShardStates) UnicityTree(schemes map[types.PartitionID]types.ShardingScheme, algo crypto.Hash) (*types.UnicityTree, map[types.PartitionID]types.ShardTree, error) {
+	utData := make([]*types.UnicityTreeData, 0, len(schemes))
+	shardTrees := make(map[types.PartitionID]types.ShardTree)
+	var si *ShardInfo
+	var ok bool
+	for partitionID, shards := range schemes {
+		sti := make([]types.ShardTreeInput, 0, len(shards))
+		for shardID := range shards.All() {
+			psID := types.PartitionShardID{PartitionID: partitionID, ShardID: shardID.Key()}
+			if si, ok = ss.States[psID]; !ok {
+				return nil, nil, fmt.Errorf("missing shard info for %s", psID.String())
+			}
+			trHash, err := si.TR.Hash()
+			if err != nil {
+				return nil, nil, fmt.Errorf("calculating TR hash: %w", err)
+			}
+			sti = append(sti, types.ShardTreeInput{
+				Shard:         shardID,
+				IR:            si.IR,
+				TRHash:        trHash,
+				ShardConfHash: si.ShardConfHash,
+			})
+		}
+		shardTree, err := types.CreateShardTree(shards, sti, algo)
+		if err != nil {
+			return nil, nil, fmt.Errorf("creating shard tree: %w", err)
+		}
+
+		shardTrees[partitionID] = shardTree
+		utData = append(utData, &types.UnicityTreeData{
+			Partition:     partitionID,
+			ShardTreeRoot: shardTree.RootHash(),
+		})
+	}
+
+	ut, err := types.NewUnicityTree(algo, utData)
+	if err != nil {
+		return nil, nil, err
+	}
+	return ut, shardTrees, nil
+}
+
+/*
+certificationResponses builds the unicity tree and certification responses based on the shard states.
+CertificationResponse will be generated only for shards marked as "changed".
+The UnicityCertificates in the response are not complete, they miss the UnicitySeal.
+*/
+func (ss ShardStates) certificationResponses(schemes map[types.PartitionID]types.ShardingScheme, algo crypto.Hash) ([]*certification.CertificationResponse, []byte, error) {
+	ut, shardTrees, err := ss.UnicityTree(schemes, algo)
+	if err != nil {
+		return nil, nil, fmt.Errorf("creating unicity tree: %w", err)
+	}
+
+	crs := make([]*certification.CertificationResponse, 0, len(ss.Changed))
+	for psID, si := range ss.changedShards() {
+		stCert, err := shardTrees[psID.PartitionID].Certificate(si.ShardID)
+		if err != nil {
+			return nil, nil, fmt.Errorf("creating shard tree certificate: %w", err)
+		}
+
+		utCert, err := ut.Certificate(si.PartitionID)
+		if err != nil {
+			return nil, nil, fmt.Errorf("creating unicity tree certificate: %w", err)
+		}
+
+		trHash, err := si.TR.Hash()
+		if err != nil {
+			return nil, nil, fmt.Errorf("calculating TR hash: %w", err)
+		}
+
+		crs = append(crs, &certification.CertificationResponse{
+			Partition: si.PartitionID,
+			Shard:     si.ShardID,
+			Technical: si.TR,
+			UC: types.UnicityCertificate{
+				Version:                1,
+				InputRecord:            si.IR,
+				TRHash:                 trHash,
+				ShardConfHash:          si.ShardConfHash,
+				UnicityTreeCertificate: utCert,
+				ShardTreeCertificate:   stCert,
+			},
+		})
+	}
+
+	return crs, ut.RootHash(), err
+}
+
+/*
+changedShards is iterator over shards which had ChangeRequest on the round.
+*/
+func (ss ShardStates) changedShards() iter.Seq2[types.PartitionShardID, *ShardInfo] {
+	return func(yield func(types.PartitionShardID, *ShardInfo) bool) {
+		for k := range ss.Changed {
+			if !yield(k, ss.States[k]) {
+				return
+			}
+		}
+	}
 }
 
 /*
@@ -78,15 +166,17 @@ type ssItems struct {
 	_       struct{} `cbor:",toarray"`
 	Version uint32
 	Data    []*ShardInfo
+	Changes ShardSet
 }
 
-func (ss shardStates) MarshalCBOR() ([]byte, error) {
+func (ss ShardStates) MarshalCBOR() ([]byte, error) {
 	d := ssItems{
 		Version: 1,
-		Data:    make([]*ShardInfo, len(ss)),
+		Data:    make([]*ShardInfo, len(ss.States)),
+		Changes: ss.Changed,
 	}
 	idx := 0
-	for _, si := range ss {
+	for _, si := range ss.States {
 		d.Data[idx] = si
 		idx++
 	}
@@ -97,7 +187,7 @@ func (ss shardStates) MarshalCBOR() ([]byte, error) {
 	return buf, nil
 }
 
-func (ss *shardStates) UnmarshalCBOR(data []byte) error {
+func (ss *ShardStates) UnmarshalCBOR(data []byte) error {
 	var d ssItems
 	if err := types.Cbor.Unmarshal(data, &d); err != nil {
 		return fmt.Errorf("decoding shard states: %w", err)
@@ -105,9 +195,12 @@ func (ss *shardStates) UnmarshalCBOR(data []byte) error {
 	if d.Version != 1 {
 		return fmt.Errorf("unsupported shard data version %d", d.Version)
 	}
-	ssn := make(shardStates, len(d.Data))
+	ssn := ShardStates{
+		States:  make(map[types.PartitionShardID]*ShardInfo, len(d.Data)),
+		Changed: d.Changes,
+	}
 	for _, itm := range d.Data {
-		ssn[types.PartitionShardID{PartitionID: itm.PartitionID, ShardID: itm.ShardID.Key()}] = itm
+		ssn.States[types.PartitionShardID{PartitionID: itm.PartitionID, ShardID: itm.ShardID.Key()}] = itm
 	}
 	*ss = ssn
 	return nil
@@ -121,12 +214,12 @@ func NewShardInfo(shardConf *types.PartitionDescriptionRecord, hashAlg crypto.Ha
 	si := &ShardInfo{
 		PartitionID:   shardConf.PartitionID,
 		ShardID:       shardConf.ShardID,
-		EpochStart:    shardConf.EpochStart,
 		T2Timeout:     shardConf.T2Timeout,
 		ShardConfHash: shardConfHash,
 		RootHash:      nil,
 		PrevEpochFees: types.RawCBOR{0xA0}, // CBOR map(0)
 		LastCR:        nil,
+		IR:            &types.InputRecord{Version: 1},
 	}
 
 	if si.PrevEpochStat, err = types.Cbor.Marshal(si.Stat); err != nil {
@@ -134,21 +227,26 @@ func NewShardInfo(shardConf *types.PartitionDescriptionRecord, hashAlg crypto.Ha
 	}
 
 	si.resetFeeList(shardConf)
+
 	if err = si.resetTrustBase(shardConf); err != nil {
 		return nil, fmt.Errorf("shard info init: %w", err)
+	}
+
+	if si.TR, err = newShardTechnicalRecord(si.nodeIDs); err != nil {
+		return nil, fmt.Errorf("failed to create technical record for shard %d-%s: %w", si.PartitionID, si.ShardID, err)
 	}
 
 	return si, nil
 }
 
 type ShardInfo struct {
-	_        struct{} `cbor:",toarray"`
+	_             struct{} `cbor:",toarray"`
 	PartitionID   types.PartitionID
 	ShardID       types.ShardID
 	T2Timeout     time.Duration
 	ShardConfHash []byte
-	EpochStart    uint64   // Root round when the currently valid shard conf was activated
-	RootHash      []byte   // last certified root hash
+	RootHash      []byte // last certified root hash
+
 	// statistical record of the previous epoch. As we only need
 	// it for hashing we keep it in serialized representation
 	PrevEpochStat types.RawCBOR
@@ -164,6 +262,10 @@ type ShardInfo struct {
 	Fees map[string]uint64 // per validator summary fees of the current epoch
 
 	LastCR *certification.CertificationResponse // last response sent to shard
+
+	// latest change request data for creating next certificate
+	IR *types.InputRecord
+	TR certification.TechnicalRecord
 
 	nodeIDs   []string // sorted list of partition node IDs
 	trustBase map[string]abcrypto.Verifier
@@ -205,9 +307,9 @@ func (si *ShardInfo) IsValid() error {
 	return nil
 }
 
-func (si *ShardInfo) nextEpoch(shardEpoch uint64, shardConf *types.PartitionDescriptionRecord, hashAlg crypto.Hash) (*ShardInfo, error) {
-	if shardEpoch != shardConf.Epoch {
-		return nil, fmt.Errorf("epochs must be consecutive, expected %d proposed next %d", shardEpoch, shardConf.Epoch)
+func (si *ShardInfo) nextEpoch(shardConf *types.PartitionDescriptionRecord, hashAlg crypto.Hash) (*ShardInfo, error) {
+	if si.TR.Epoch != shardConf.Epoch {
+		return nil, fmt.Errorf("epochs must be consecutive, expected %d proposed next %d", si.TR.Epoch, shardConf.Epoch)
 	}
 	shardConfHash, err := shardConf.Hash(hashAlg)
 	if err != nil {
@@ -216,11 +318,12 @@ func (si *ShardInfo) nextEpoch(shardEpoch uint64, shardConf *types.PartitionDesc
 	nextSI := &ShardInfo{
 		PartitionID:   shardConf.PartitionID,
 		ShardID:       shardConf.ShardID,
-		EpochStart:    shardConf.EpochStart,
 		T2Timeout:     shardConf.T2Timeout,
 		ShardConfHash: shardConfHash,
 		RootHash:      si.RootHash,
 		LastCR:        si.LastCR,
+		IR:            si.IR,
+		TR:            si.TR,
 	}
 
 	if nextSI.PrevEpochFees, err = types.Cbor.Marshal(si.Fees); err != nil {
@@ -238,38 +341,30 @@ func (si *ShardInfo) nextEpoch(shardEpoch uint64, shardConf *types.PartitionDesc
 	return nextSI, nil
 }
 
-func (si *ShardInfo) nextRound(req *certification.BlockCertificationRequest, lastTR certification.TechnicalRecord, orc Orchestration, rootRound uint64, hashAlg crypto.Hash) (tr certification.TechnicalRecord, err error) {
+func (si *ShardInfo) nextRound(req *certification.BlockCertificationRequest, pdr *types.PartitionDescriptionRecord, hashAlg crypto.Hash) (err error) {
 	// timeout IRChangeRequest doesn't have BlockCertificationRequest
 	if req != nil {
-		si.update(req, lastTR.Leader)
+		si.update(req, si.TR.Leader)
 	}
-
-	tr.Round = lastTR.Round + 1
 
 	nextShardInfo := si
-	// If current root round reaches the activation root round of a new shard conf,
-	// then the next shard round is verified with the new shard conf (epoch is increased in TR).
-	nextShardConf, err := orc.ShardConfig(si.PartitionID, si.ShardID, rootRound)
-	if err != nil {
-		return tr, fmt.Errorf("failed to get shard conf for next round: %w", err)
-	}
-
-	tr.Epoch = nextShardConf.Epoch
-	if lastTR.Epoch != tr.Epoch {
-		if nextShardInfo, err = si.nextEpoch(lastTR.Epoch+1, nextShardConf, hashAlg); err != nil {
-			return tr, fmt.Errorf("creating ShardInfo of the next epoch: %w", err)
+	if si.TR.Epoch != pdr.Epoch {
+		si.TR.Epoch++
+		if nextShardInfo, err = si.nextEpoch(pdr, hashAlg); err != nil {
+			return fmt.Errorf("creating ShardInfo of the next epoch: %w", err)
 		}
 	}
 
-	if tr.FeeHash, err = nextShardInfo.feeHash(crypto.SHA256); err != nil {
-		return tr, fmt.Errorf("hashing fees: %w", err)
+	if si.TR.FeeHash, err = nextShardInfo.feeHash(crypto.SHA256); err != nil {
+		return fmt.Errorf("hashing fees: %w", err)
 	}
-	if tr.StatHash, err = nextShardInfo.statHash(crypto.SHA256); err != nil {
-		return tr, fmt.Errorf("hashing statistics: %w", err)
+	if si.TR.StatHash, err = nextShardInfo.statHash(crypto.SHA256); err != nil {
+		return fmt.Errorf("hashing statistics: %w", err)
 	}
-	tr.Leader = nextShardInfo.selectLeader(tr.Round)
+	si.TR.Round++
+	si.TR.Leader = nextShardInfo.selectLeader(si.TR.Round)
 
-	return tr, nil
+	return nil
 }
 
 /*
@@ -353,7 +448,7 @@ func (si *ShardInfo) Verify(nodeID string, f func(v abcrypto.Verifier) error) er
 }
 
 func (si *ShardInfo) selectLeader(seed uint64) string {
-	// TODO: if rootHash is nil for new shard, leader is predicatble
+	// TODO: if rootHash is nil for new shard, leader is predictable
 	extra := si.RootHash
 	if len(extra) >= 4 {
 		seed += (uint64(extra[0]) | uint64(extra[1])<<8 | uint64(extra[2])<<16 | uint64(extra[3])<<24)
@@ -361,4 +456,16 @@ func (si *ShardInfo) selectLeader(seed uint64) string {
 	peerCount := uint64(len(si.nodeIDs))
 
 	return si.nodeIDs[seed%peerCount]
+}
+
+func shardingSchemes(pdrs map[types.PartitionShardID]*types.PartitionDescriptionRecord) map[types.PartitionID]types.ShardingScheme {
+	schemes := map[types.PartitionID]types.ShardingScheme{}
+	for k, v := range pdrs {
+		if v.ShardID.Length() == 0 {
+			schemes[k.PartitionID] = types.ShardingScheme{}
+			continue
+		}
+		schemes[k.PartitionID] = append(schemes[k.PartitionID], v.ShardID)
+	}
+	return schemes
 }

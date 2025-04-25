@@ -5,7 +5,6 @@ import (
 	"crypto"
 	"errors"
 	"fmt"
-	"log/slog"
 	"sync"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
@@ -22,7 +21,6 @@ type (
 		storage       keyvaluedb.KeyValueDB
 		orchestration Orchestration
 		lock          sync.RWMutex
-		log           *slog.Logger
 	}
 
 	Orchestration interface {
@@ -32,7 +30,7 @@ type (
 	}
 )
 
-func New(hashAlgo crypto.Hash, db keyvaluedb.KeyValueDB, orchestration Orchestration, log *slog.Logger) (block *BlockStore, err error) {
+func New(hashAlgo crypto.Hash, db keyvaluedb.KeyValueDB, orchestration Orchestration) (block *BlockStore, err error) {
 	if db == nil {
 		return nil, errors.New("storage is nil")
 	}
@@ -56,16 +54,15 @@ func New(hashAlgo crypto.Hash, db keyvaluedb.KeyValueDB, orchestration Orchestra
 		blockTree:     blTree,
 		storage:       db,
 		orchestration: orchestration,
-		log:           log,
 	}, nil
 }
 
-func NewFromState(hash crypto.Hash, stateMsg *abdrc.StateMsg, db keyvaluedb.KeyValueDB, orchestration Orchestration, log *slog.Logger) (*BlockStore, error) {
+func NewFromState(hash crypto.Hash, stateMsg *abdrc.StateMsg, db keyvaluedb.KeyValueDB, orchestration Orchestration) (*BlockStore, error) {
 	if db == nil {
 		return nil, errors.New("storage is nil")
 	}
 
-	rootNode, err := NewRootBlock(hash, stateMsg.CommittedHead, orchestration)
+	rootNode, err := NewRootBlock(stateMsg.CommittedHead, hash, orchestration)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create new root node: %w", err)
 	}
@@ -79,7 +76,6 @@ func NewFromState(hash crypto.Hash, stateMsg *abdrc.StateMsg, db keyvaluedb.KeyV
 		blockTree:     blTree,
 		storage:       db,
 		orchestration: orchestration,
-		log:           log,
 	}, nil
 }
 
@@ -101,13 +97,16 @@ func (x *BlockStore) ProcessTc(tc *rctypes.TimeoutCert) (rErr error) {
 	return rErr
 }
 
-// IsChangeInProgress - return input record if shard has a pending IR change in the pipeline or nil if no change is
-// currently in the pipeline.
+/*
+IsChangeInProgress - return input record if shard has a pending IR change in the pipeline
+or nil if no change is currently in the pipeline.
+*/
 func (x *BlockStore) IsChangeInProgress(partition types.PartitionID, shard types.ShardID) *types.InputRecord {
+	k := types.PartitionShardID{PartitionID: partition, ShardID: shard.Key()}
 	// go through the block we have and make sure that there is no change in progress for this shard
 	for _, b := range x.blockTree.GetAllUncommittedNodes() {
-		if _, ok := b.Changed[types.PartitionShardID{PartitionID: partition, ShardID: shard.Key()}]; ok {
-			return b.CurrentIR.Find(partition, shard).IR
+		if _, ok := b.ShardInfo.Changed[k]; ok {
+			return b.ShardInfo.States[k].IR
 		}
 	}
 	return nil
@@ -170,7 +169,7 @@ func (x *BlockStore) Add(block *rctypes.BlockData, verifier IRChangeReqVerifier)
 		return nil, fmt.Errorf("add block failed: parent round %v not found, recover", block.Qc.VoteInfo.RoundNumber)
 	}
 	// Extend state from parent block
-	exeBlock, err := parentBlock.Extend(x.hash, block, verifier, x.orchestration, x.log)
+	exeBlock, err := parentBlock.Extend(block, verifier, x.orchestration, x.hash)
 	if err != nil {
 		return nil, fmt.Errorf("error processing block round %v, %w", block.Round, err)
 	}
@@ -194,7 +193,7 @@ func (x *BlockStore) GetCertificate(id types.PartitionID, shard types.ShardID) (
 	defer x.lock.RUnlock()
 
 	committedBlock := x.blockTree.Root()
-	if si, ok := committedBlock.ShardInfo[types.PartitionShardID{PartitionID: id, ShardID: shard.Key()}]; ok {
+	if si, ok := committedBlock.ShardInfo.States[types.PartitionShardID{PartitionID: id, ShardID: shard.Key()}]; ok {
 		return si.LastCR, nil
 	}
 	return nil, fmt.Errorf("no certificate found for shard %s - %s", id, shard)
@@ -205,8 +204,8 @@ func (x *BlockStore) GetCertificates() []*types.UnicityCertificate {
 	defer x.lock.RUnlock()
 
 	committedBlock := x.blockTree.Root()
-	ucs := make([]*types.UnicityCertificate, 0, len(committedBlock.ShardInfo))
-	for _, v := range committedBlock.ShardInfo {
+	ucs := make([]*types.UnicityCertificate, 0, len(committedBlock.ShardInfo.States))
+	for _, v := range committedBlock.ShardInfo.States {
 		if v.LastCR != nil {
 			ucs = append(ucs, &v.LastCR.UC)
 		}
@@ -219,7 +218,7 @@ func (x *BlockStore) ShardInfo(partition types.PartitionID, shard types.ShardID)
 	defer x.lock.RUnlock()
 
 	committedBlock := x.blockTree.Root()
-	if si, ok := committedBlock.ShardInfo[types.PartitionShardID{PartitionID: partition, ShardID: shard.Key()}]; ok {
+	if si, ok := committedBlock.ShardInfo.States[types.PartitionShardID{PartitionID: partition, ShardID: shard.Key()}]; ok {
 		return si
 	}
 	return nil
@@ -254,11 +253,8 @@ func NewGenesisBlock(networkID types.NetworkID, hashAlgo crypto.Hash) (*Executed
 		Round:     rctypes.GenesisRootRound,
 		Epoch:     rctypes.GenesisRootEpoch,
 		Timestamp: types.GenesisTime,
-		Payload:   &rctypes.Payload{
-			// no shards -> no IR change requests
-			Requests: make([]*rctypes.IRChangeReq, 0),
-		},
-		Qc: nil, // no parent block -> no parent QC
+		Payload:   &rctypes.Payload{},
+		Qc:        nil, // no parent block -> no parent QC
 	}
 
 	// Info about the round that commits the genesis block.
@@ -280,8 +276,8 @@ func NewGenesisBlock(networkID types.NetworkID, hashAlgo crypto.Hash) (*Executed
 	commitQc := &rctypes.QuorumCert{
 		VoteInfo: commitRoundInfo,
 		LedgerCommitInfo: &types.UnicitySeal{
-			Version:              1,
-			NetworkID:            networkID,
+			Version:   1,
+			NetworkID: networkID,
 			// Usually the round that gets committed is different from
 			// the round that commits, but for genesis block they are the same.
 			RootChainRoundNumber: commitRoundInfo.RoundNumber,
@@ -297,14 +293,11 @@ func NewGenesisBlock(networkID types.NetworkID, hashAlgo crypto.Hash) (*Executed
 	return &ExecutedBlock{
 		BlockData: genesisBlock,
 		HashAlgo:  hashAlgo,
-		CurrentIR: nil, // no shards -> no inputs
-		Changed:   nil, // no shards -> no changes
-		ShardInfo: nil, // no shards -> no shard info
 
 		// the same QC accepts the genesis block and commits it, usually commit comes later
-		Qc:        commitQc,
-		CommitQc:  commitQc,
-		RootHash:  commitQc.LedgerCommitInfo.Hash,
+		Qc:       commitQc,
+		CommitQc: commitQc,
+		RootHash: commitQc.LedgerCommitInfo.Hash,
 	}, nil
 }
 

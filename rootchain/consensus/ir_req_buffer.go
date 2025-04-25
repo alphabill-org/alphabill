@@ -1,18 +1,18 @@
 package consensus
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/logger"
-	"github.com/alphabill-org/alphabill/rootchain/consensus/storage"
 	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
 )
 
 type (
 	IRChangeVerifier interface {
-		VerifyIRChangeReq(round uint64, irChReq *drctypes.IRChangeReq) (*storage.InputData, error)
+		VerifyIRChangeReq(round uint64, irChReq *drctypes.IRChangeReq) (*types.InputRecord, error)
 	}
 	PartitionTimeout interface {
 		GetT2Timeouts(currenRound uint64) ([]types.PartitionID, error)
@@ -41,36 +41,36 @@ func NewIrReqBuffer(log *slog.Logger) *IrReqBuffer {
 // valid, reason is logged, error is returned and request is ignored.
 func (x *IrReqBuffer) Add(round uint64, irChReq *drctypes.IRChangeReq, ver IRChangeVerifier) error {
 	if irChReq == nil {
-		return fmt.Errorf("ir change request is nil")
+		return errors.New("ir change request is nil")
 	}
 	// special case, timeout cannot be requested, it can only be added to a block by the leader
 	if irChReq.CertReason == drctypes.T2Timeout {
-		return fmt.Errorf("invalid ir change request, timeout can only be proposed by leader issuing a new block")
+		return errors.New("invalid ir change request, timeout can only be proposed by leader issuing a new block")
 	}
-	irData, err := ver.VerifyIRChangeReq(round, irChReq)
+	ir, err := ver.VerifyIRChangeReq(round, irChReq)
 	if err != nil {
-		return fmt.Errorf("ir change request verification failed, %w", err)
+		return fmt.Errorf("ir change request verification: %w", err)
 	}
 
 	psID := types.PartitionShardID{PartitionID: irChReq.Partition, ShardID: irChReq.Shard.Key()}
 
 	// verify and extract proposed IR, NB! in this case we set the age to 0 as
 	// currently no request can be received to request timeout
-	newIrChReq := &irChange{InputRecord: irData.IR, Reason: irChReq.CertReason, Req: irChReq}
+	newIrChReq := &irChange{InputRecord: ir, Reason: irChReq.CertReason, Req: irChReq}
 	if irChangeReq, found := x.irChgReqBuffer[psID]; found {
 		if irChangeReq.Reason != newIrChReq.Reason {
 			return fmt.Errorf("equivocating request for partition %s, reason has changed", psID.PartitionID)
 		}
 		if b, err := types.EqualIR(irChangeReq.InputRecord, newIrChReq.InputRecord); b || err != nil {
 			if err != nil {
-				return fmt.Errorf("failed to compare IRs, %w", err)
+				return fmt.Errorf("failed to compare IRs: %w", err)
 			}
 			// duplicate already stored
-			x.log.Debug("duplicate IR change request, ignored", logger.Shard(psID.PartitionID, irChReq.Shard))
+			x.log.Debug("duplicate IR change request, ignored", logger.Shard(irChReq.Partition, irChReq.Shard))
 			return nil
 		}
 		// At this point it is not possible to cast blame, so just return error and ignore
-		return fmt.Errorf("equivocating request for partition %s", psID.PartitionID)
+		return fmt.Errorf("equivocating request for partition %s-%s", irChReq.Partition, irChReq.Shard)
 	}
 	// Insert first valid request received and compare the others received against it
 	x.irChgReqBuffer[psID] = newIrChReq
@@ -91,7 +91,7 @@ func (x *IrReqBuffer) GeneratePayload(round uint64, timeouts []*types.UnicityCer
 		Requests: make([]*drctypes.IRChangeReq, 0, len(x.irChgReqBuffer)+len(timeouts)),
 	}
 	// first add timeout requests
-	for _, uc  := range timeouts {
+	for _, uc := range timeouts {
 		pID := uc.GetPartitionID()
 		sID := uc.GetShardID()
 		// if there is a request for the same partition (same id) in buffer (prefer progress to timeout) or

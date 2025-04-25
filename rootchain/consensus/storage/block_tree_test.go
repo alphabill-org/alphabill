@@ -1,10 +1,12 @@
 package storage
 
 import (
-	gocrypto "crypto"
+	"crypto"
 	"encoding/hex"
 	"fmt"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
@@ -12,12 +14,10 @@ import (
 	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
 	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
 	testpartition "github.com/alphabill-org/alphabill/rootchain/partitions/testutils"
-	"github.com/stretchr/testify/require"
 )
 
-var randomHash = test.RandomBytes(32)
-
 func mockExecutedBlock(round, qcRound, qcParentRound uint64) *ExecutedBlock {
+	var randomHash = test.RandomBytes(32)
 	return &ExecutedBlock{
 		BlockData: &drctypes.BlockData{
 			Round: round,
@@ -34,8 +34,8 @@ func mockExecutedBlock(round, qcRound, qcParentRound uint64) *ExecutedBlock {
 				},
 			},
 		},
-		ShardInfo: shardStates{},
-		HashAlgo:  gocrypto.SHA256,
+		ShardInfo: ShardStates{States: map[types.PartitionShardID]*ShardInfo{}},
+		HashAlgo:  crypto.SHA256,
 	}
 }
 
@@ -47,11 +47,12 @@ func hexToBytes(hexStr string) []byte {
 	return b
 }
 
-// createTestBlockTree creates the following tree
 /*
-   ╭--> B6--> B7--> B8
-  B5--> B9--> B10
-         ╰--> B11--> B12
+createTestBlockTree creates the following tree
+
+	 ╭--> B6--> B7--> B8
+	B5--> B9--> B10
+	       ╰--> B11--> B12
 */
 func createTestBlockTree(t *testing.T) *BlockTree {
 	treeNodes := make(map[uint64]*node)
@@ -106,7 +107,7 @@ func initFromGenesis(t *testing.T) *BlockTree {
 	db, err := memorydb.New()
 	require.NoError(t, err)
 
-	require.NoError(t, storeGenesisInit(db, 5, gocrypto.SHA256))
+	require.NoError(t, storeGenesisInit(db, 5, crypto.SHA256))
 	orchestration := testpartition.NewOrchestration(t, logger.New(t))
 	btree, err := NewBlockTree(db, orchestration)
 	require.NoError(t, err)
@@ -230,7 +231,7 @@ func TestBlockTree_pruning(t *testing.T) {
 func TestBlockTree_InsertQc(t *testing.T) {
 	tree := createTestBlockTree(t)
 	require.ErrorContains(t, tree.InsertQc(&drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 2, CurrentRootHash: nil}}), "find block: block for round 2 not found")
-	require.ErrorContains(t, tree.InsertQc(&drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 12, CurrentRootHash: randomHash}}), "qc state hash is different from local computed state hash")
+	require.ErrorContains(t, tree.InsertQc(&drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 12, CurrentRootHash: test.RandomBytes(32)}}), "qc state hash is different from local computed state hash")
 	b, err := tree.FindBlock(12)
 	require.NoError(t, err)
 	b.RootHash = []byte{1, 2, 3}
@@ -257,7 +258,7 @@ func TestNewBlockTreeFromDb(t *testing.T) {
 	require.NoError(t, err)
 	orchestration := testpartition.NewOrchestration(t, logger.New(t))
 
-	gBlock, err := NewGenesisBlock(orchestration.NetworkID(), gocrypto.SHA256)
+	gBlock, err := NewGenesisBlock(orchestration.NetworkID(), crypto.SHA256)
 	require.NoError(t, err)
 	require.NoError(t, db.Write(blockKey(drctypes.GenesisRootRound), gBlock))
 
@@ -271,12 +272,11 @@ func TestNewBlockTreeFromDb(t *testing.T) {
 			Payload:   &drctypes.Payload{},
 			Qc:        gBlock.Qc,
 		},
-		CurrentIR: gBlock.CurrentIR,
-		Changed:   make(map[types.PartitionShardID]struct{}),
-		HashAlgo:  gocrypto.SHA256,
-		RootHash:  gBlock.RootHash,
+		HashAlgo: crypto.SHA256,
+		RootHash: gBlock.RootHash,
 	}
 	require.NoError(t, db.Write(blockKey(block2.GetRound()), block2))
+
 	bTree, err := NewBlockTree(db, orchestration)
 	require.NoError(t, err)
 	require.NotNil(t, bTree)
@@ -290,7 +290,7 @@ func TestNewBlockTreeFromDbChain3Blocks(t *testing.T) {
 	db, err := memorydb.New()
 	require.NoError(t, err)
 	orchestration := testpartition.NewOrchestration(t, logger.New(t))
-	gBlock, err := NewGenesisBlock(orchestration.NetworkID(), gocrypto.SHA256)
+	gBlock, err := NewGenesisBlock(orchestration.NetworkID(), crypto.SHA256)
 	require.NoError(t, err)
 	require.NoError(t, db.Write(blockKey(drctypes.GenesisRootRound), gBlock))
 	// create blocks 2 and 3
@@ -300,7 +300,7 @@ func TestNewBlockTreeFromDbChain3Blocks(t *testing.T) {
 		ParentRoundNumber: 1,
 		CurrentRootHash:   gBlock.RootHash,
 	}
-	h2, err := voteInfoB2.Hash(gocrypto.SHA256)
+	h2, err := voteInfoB2.Hash(crypto.SHA256)
 	require.NoError(t, err)
 	qcBlock2 := &drctypes.QuorumCert{
 		VoteInfo: voteInfoB2,
@@ -320,10 +320,8 @@ func TestNewBlockTreeFromDbChain3Blocks(t *testing.T) {
 			Payload:   &drctypes.Payload{},
 			Qc:        gBlock.Qc,
 		},
-		CurrentIR: gBlock.CurrentIR,
-		Changed:   make(map[types.PartitionShardID]struct{}),
-		HashAlgo:  gocrypto.SHA256,
-		RootHash:  gBlock.RootHash,
+		HashAlgo: crypto.SHA256,
+		RootHash: gBlock.RootHash,
 	}
 	block3 := &ExecutedBlock{
 		BlockData: &drctypes.BlockData{
@@ -334,10 +332,8 @@ func TestNewBlockTreeFromDbChain3Blocks(t *testing.T) {
 			Payload:   &drctypes.Payload{},
 			Qc:        qcBlock2,
 		},
-		CurrentIR: gBlock.CurrentIR,
-		Changed:   make(map[types.PartitionShardID]struct{}),
-		HashAlgo:  gocrypto.SHA256,
-		RootHash:  gBlock.RootHash,
+		HashAlgo: crypto.SHA256,
+		RootHash: gBlock.RootHash,
 	}
 	require.NoError(t, db.Write(blockKey(block2.BlockData.Round), block2))
 	require.NoError(t, db.Write(blockKey(block3.BlockData.Round), block3))
@@ -354,7 +350,7 @@ func TestNewBlockTreeFromDbChain3Blocks(t *testing.T) {
 func TestNewBlockTreeFromRecovery(t *testing.T) {
 	db, err := memorydb.New()
 	require.NoError(t, err)
-	gBlock, err := NewGenesisBlock(5, gocrypto.SHA256)
+	gBlock, err := NewGenesisBlock(5, crypto.SHA256)
 	require.NoError(t, err)
 	require.NoError(t, db.Write(blockKey(drctypes.GenesisRootRound), gBlock))
 	// create blocks 2 and 3
@@ -364,7 +360,7 @@ func TestNewBlockTreeFromRecovery(t *testing.T) {
 		ParentRoundNumber: 1,
 		CurrentRootHash:   gBlock.RootHash,
 	}
-	h2, err := voteInfoB2.Hash(gocrypto.SHA256)
+	h2, err := voteInfoB2.Hash(crypto.SHA256)
 	require.NoError(t, err)
 	qcBlock2 := &drctypes.QuorumCert{
 		VoteInfo: voteInfoB2,
@@ -387,10 +383,8 @@ func TestNewBlockTreeFromRecovery(t *testing.T) {
 			Payload:   &drctypes.Payload{},
 			Qc:        gBlock.Qc,
 		},
-		CurrentIR: gBlock.CurrentIR,
-		Changed:   make(map[types.PartitionShardID]struct{}),
-		HashAlgo:  gocrypto.SHA256,
-		RootHash:  gBlock.RootHash,
+		HashAlgo: crypto.SHA256,
+		RootHash: gBlock.RootHash,
 	}
 	require.NoError(t, bTree.Add(block2))
 	require.NoError(t, bTree.InsertQc(block2.BlockData.Qc))
@@ -403,10 +397,8 @@ func TestNewBlockTreeFromRecovery(t *testing.T) {
 			Payload:   &drctypes.Payload{},
 			Qc:        qcBlock2,
 		},
-		CurrentIR: gBlock.CurrentIR,
-		Changed:   make(map[types.PartitionShardID]struct{}),
-		HashAlgo:  gocrypto.SHA256,
-		RootHash:  gBlock.RootHash,
+		HashAlgo: crypto.SHA256,
+		RootHash: gBlock.RootHash,
 	}
 	require.NoError(t, bTree.Add(block3))
 	require.NoError(t, bTree.InsertQc(block3.BlockData.Qc))
@@ -480,11 +472,9 @@ func TestAddAndCommit(t *testing.T) {
 	// set block input data (mock blocks do not have it assigned) as without it
 	// commit creates empty unicity tree. As we do not have any shard marked as
 	// having changes Commit doesn't return any certificates.
-	b.CurrentIR = append(b.CurrentIR, &InputData{
-		Partition:     1,
-		IR:            &types.InputRecord{},
-		ShardConfHash: nil,
-	})
+	k := types.PartitionShardID{PartitionID: 1, ShardID: types.ShardID{}.Key()}
+	b.ShardInfo.States[k] = &ShardInfo{PartitionID: 1, IR: &types.InputRecord{}}
+	b.Schemes = map[types.PartitionID]types.ShardingScheme{1: {}}
 	b.RootHash = hexToBytes("F8C1F929F9E718FE5B19DD72BFD23802FFFE5FAC21711BF425548548262942E5")
 
 	commitQc := &drctypes.QuorumCert{

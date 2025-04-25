@@ -2,7 +2,7 @@ package consensus
 
 import (
 	"context"
-	gocrypto "crypto"
+	"crypto"
 	"crypto/rand"
 	"fmt"
 	"maps"
@@ -14,41 +14,32 @@ import (
 	"testing"
 	"time"
 
-	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
-	"github.com/alphabill-org/alphabill-go-base/types/hex"
-	testcertificates "github.com/alphabill-org/alphabill/internal/testutils/certificates"
-	"github.com/alphabill-org/alphabill/internal/testutils/trustbase"
-	testpartition "github.com/alphabill-org/alphabill/rootchain/partitions/testutils"
 	p2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
 	p2ptest "github.com/libp2p/go-libp2p/core/test"
 	"github.com/stretchr/testify/require"
 
+	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
+	testcertificates "github.com/alphabill-org/alphabill/internal/testutils/certificates"
 	testnetwork "github.com/alphabill-org/alphabill/internal/testutils/network"
 	testobservability "github.com/alphabill-org/alphabill/internal/testutils/observability"
+	"github.com/alphabill-org/alphabill/internal/testutils/trustbase"
 	"github.com/alphabill-org/alphabill/network"
 	"github.com/alphabill-org/alphabill/network/protocol/abdrc"
 	"github.com/alphabill-org/alphabill/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/rootchain/consensus/storage"
 	abdrctu "github.com/alphabill-org/alphabill/rootchain/consensus/testutils"
 	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
+	testpartition "github.com/alphabill-org/alphabill/rootchain/partitions/testutils"
 	"github.com/alphabill-org/alphabill/rootchain/testutils"
 )
 
 const partitionID types.PartitionID = 0x00FF0001
-var shardID = types.ShardID{}
 
-var partitionInputRecord = &types.InputRecord{
-	Version:      1,
-	PreviousHash: make([]byte, 32),
-	Hash:         []byte{0, 0, 0, 1},
-	BlockHash:    []byte{0, 0, 1, 2},
-	SummaryValue: []byte{0, 0, 1, 3},
-	RoundNumber:  1,
-	Timestamp:    types.NewTimestamp(),
-}
+var shardID = types.ShardID{}
 
 func readResult(ch <-chan *certification.CertificationResponse, timeout time.Duration) (*types.UnicityCertificate, error) {
 	select {
@@ -426,9 +417,9 @@ func TestIRChangeRequestFromRootValidator(t *testing.T) {
 
 	shardConf, err := cm.orchestration.ShardConfig(partitionID, shardID, 1)
 	require.NoError(t, err)
-	shardConfHash, err := shardConf.Hash(gocrypto.SHA256)
+	shardConfHash, err := shardConf.Hash(crypto.SHA256)
 	require.NoError(t, err)
-	require.NoError(t, result.Verify(cm.trustBase, gocrypto.SHA256, partitionID, shardConfHash))
+	require.NoError(t, result.Verify(cm.trustBase, crypto.SHA256, partitionID, shardConfHash))
 
 	// root will continue and next proposal is also triggered by the same QC
 	lastProposalMsg = testutils.MockAwaitMessage[*abdrc.ProposalMsg](t, mockNet, network.ProtocolRootProposal)
@@ -536,7 +527,7 @@ func TestGetState_WithoutShards(t *testing.T) {
 	mockNet.WaitReceive(t, getStateMsg)
 	stateMsg := testutils.MockAwaitMessage[*abdrc.StateMsg](t, mockNet, network.ProtocolRootStateResp)
 
-	// only genesis block present 
+	// only genesis block present
 	require.Equal(t, 0, len(stateMsg.BlockData))
 	require.Len(t, stateMsg.CommittedHead.ShardInfo, 0)
 	// the hard-coded round 1 is the CommittedHead
@@ -545,7 +536,7 @@ func TestGetState_WithoutShards(t *testing.T) {
 	require.Equal(t, uint64(1), stateMsg.CommittedHead.Qc.GetRound())
 	// the verification of hard-coded CommittedHead should succeed despite having no signatures
 	require.Len(t, stateMsg.CommittedHead.CommitQc.Signatures, 0)
-	require.NoError(t, stateMsg.Verify(gocrypto.SHA256, trustBase))
+	require.NoError(t, stateMsg.Verify(crypto.SHA256, trustBase))
 
 	// advance to round 2
 	lastProposalMsg := testutils.MockAwaitMessage[*abdrc.ProposalMsg](t, mockNet, network.ProtocolRootProposal)
@@ -567,7 +558,7 @@ func TestGetState_WithoutShards(t *testing.T) {
 	// but a new commitQc was produced with signatures
 	require.Equal(t, uint64(2), stateMsg.CommittedHead.CommitQc.GetRound())
 	require.Len(t, stateMsg.CommittedHead.CommitQc.Signatures, 1)
-	require.NoError(t, stateMsg.Verify(gocrypto.SHA256, trustBase))
+	require.NoError(t, stateMsg.Verify(crypto.SHA256, trustBase))
 }
 
 func TestGetState_WithShards(t *testing.T) {
@@ -597,7 +588,7 @@ func Test_ConsensusManager_onVoteMsg(t *testing.T) {
 	makeVoteMsg := func(t *testing.T, cms []*ConsensusManager, round uint64) *abdrc.VoteMsg {
 		t.Helper()
 		qcRoundInfo := abdrctu.NewDummyRootRoundInfo(round - 2)
-		commitInfo := abdrctu.NewDummyCommitInfo(t, gocrypto.SHA256, qcRoundInfo)
+		commitInfo := abdrctu.NewDummyCommitInfo(t, crypto.SHA256, qcRoundInfo)
 		highQc := &drctypes.QuorumCert{
 			VoteInfo:         qcRoundInfo,
 			LedgerCommitInfo: commitInfo,
@@ -611,7 +602,7 @@ func Test_ConsensusManager_onVoteMsg(t *testing.T) {
 		}
 
 		voteRoundInfo := abdrctu.NewDummyRootRoundInfo(round)
-		h, err := voteRoundInfo.Hash(gocrypto.SHA256)
+		h, err := voteRoundInfo.Hash(crypto.SHA256)
 		require.NoError(t, err)
 		voteMsg := &abdrc.VoteMsg{
 			VoteInfo: voteRoundInfo,
@@ -978,7 +969,7 @@ func Test_ConsensusManager_sendCertificates(t *testing.T) {
 				Partition: id,
 				Shard:     shardID,
 				UC: types.UnicityCertificate{
-					Version: 1,
+					Version:       1,
 					ShardConfHash: test.RandomBytes(32),
 					UnicityTreeCertificate: &types.UnicityTreeCertificate{
 						Version:   1,

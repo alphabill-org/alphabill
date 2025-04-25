@@ -20,13 +20,13 @@ type (
 	}
 
 	IRChangeReqVerifier struct {
-		params        *Parameters
-		state         State
+		params *Parameters
+		state  State
 	}
 
 	PartitionTimeoutGenerator struct {
-		blockRate     time.Duration
-		state         State
+		blockRate time.Duration
+		state     State
 	}
 )
 
@@ -38,12 +38,12 @@ func NewIRChangeReqVerifier(c *Parameters, sMonitor State) (*IRChangeReqVerifier
 		return nil, errors.New("consensus params is nil")
 	}
 	return &IRChangeReqVerifier{
-		params:        c,
-		state:         sMonitor,
+		params: c,
+		state:  sMonitor,
 	}, nil
 }
 
-func (x *IRChangeReqVerifier) VerifyIRChangeReq(rootRound uint64, irChReq *drctypes.IRChangeReq) (*storage.InputData, error) {
+func (x *IRChangeReqVerifier) VerifyIRChangeReq(rootRound uint64, irChReq *drctypes.IRChangeReq) (*types.InputRecord, error) {
 	if irChReq == nil {
 		return nil, fmt.Errorf("IR change request is nil")
 	}
@@ -63,25 +63,19 @@ func (x *IRChangeReqVerifier) VerifyIRChangeReq(rootRound uint64, irChReq *drcty
 	}
 	// verify that there are no pending changes in the pipeline for any of the updated partitions
 	if ir := x.state.IsChangeInProgress(irChReq.Partition, irChReq.Shard); ir != nil {
-		// If the same change is already in progress then report duplicate error
 		if b, err := types.EqualIR(inputRecord, ir); b || err != nil {
 			if err != nil {
 				return nil, fmt.Errorf("comparing input records: %w", err)
 			}
 			return nil, ErrDuplicateChangeReq
 		}
-		return nil, fmt.Errorf("add state failed: partition %s has pending changes in pipeline", irChReq.Partition)
+		return nil, fmt.Errorf("shard %s-%s has pending changes in pipeline", irChReq.Partition, irChReq.Shard)
 	}
 	// check - should never happen, somehow the root node round must have been reset
 	if rootRound < luc.UnicitySeal.RootChainRoundNumber {
 		return nil, fmt.Errorf("current round %v is in the past, LUC round %v", rootRound, luc.UnicitySeal.RootChainRoundNumber)
 	}
-	return &storage.InputData{
-		Partition:     irChReq.Partition,
-		Shard:         irChReq.Shard,
-		IR:            inputRecord,
-		ShardConfHash: si.ShardConfHash,
-	}, nil
+	return inputRecord, nil
 }
 
 func NewLucBasedT2TimeoutGenerator(c *Parameters, sMonitor State) (*PartitionTimeoutGenerator, error) {
@@ -92,14 +86,14 @@ func NewLucBasedT2TimeoutGenerator(c *Parameters, sMonitor State) (*PartitionTim
 		return nil, errors.New("consensus params is nil")
 	}
 	return &PartitionTimeoutGenerator{
-		blockRate:     c.BlockRate,
-		state:         sMonitor,
+		blockRate: c.BlockRate,
+		state:     sMonitor,
 	}, nil
 }
 
 func (x *PartitionTimeoutGenerator) GetT2Timeouts(currentRound uint64) ([]*types.UnicityCertificate, error) {
 	// Only activated shards with an UC can time out. New shards are activated by adding their ShardInfo and
-	// an empty IR to the ExectuedBlock in the activation root round. Once the block gets committed, they
+	// an empty IR to the ExecutedBlock in the activation root round. Once the block gets committed, they
 	// get their first UC and can start timing out.
 	ucs := x.state.GetCertificates()
 

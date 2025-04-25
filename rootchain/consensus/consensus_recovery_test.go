@@ -893,7 +893,7 @@ func newTestGenesisBlock(t *testing.T, shardConf *types.PartitionDescriptionReco
 	require.NotNil(t, si.LastCR.UC)
 
 	// Changed set was necessary to generate certificates with GenerateCertificates,
-	// set it to nil so that certificates won't be generated again when CM is run
+	// clear it so that certificates won't be generated again when CM is run
 	clear(executedBlock.ShardInfo.Changed)
 	return executedBlock
 }

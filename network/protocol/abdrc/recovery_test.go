@@ -91,7 +91,7 @@ func TestStateMsg_CanRecoverToRound(t *testing.T) {
 					Qc:    &rctypes.QuorumCert{VoteInfo: &rctypes.RoundInfo{RoundNumber: 4}},
 				},
 			},
-			BlockData: []*rctypes.BlockData{
+			Pending: []*rctypes.BlockData{
 				{
 					Round: 6,
 					Qc:    &rctypes.QuorumCert{VoteInfo: &rctypes.RoundInfo{RoundNumber: 5}},
@@ -176,7 +176,7 @@ func TestStateMsg_Verify(t *testing.T) {
 						StatHash: []byte{5},
 						FeeHash:  []byte{0xF, 0xE, 0xE},
 					},
-					IR:      headIR,
+					IR:            headIR,
 					ShardConfHash: test.DoHash(t, &shardConf),
 				}},
 				Block: &rctypes.BlockData{
@@ -211,7 +211,7 @@ func TestStateMsg_Verify(t *testing.T) {
 					Signatures: map[string]hex.Bytes{"test": test.RandomBytes(65)},
 				},
 			},
-			BlockData: []*rctypes.BlockData{{
+			Pending: []*rctypes.BlockData{{
 				Round:   6,
 				Payload: &rctypes.Payload{},
 				Qc: &rctypes.QuorumCert{
@@ -239,7 +239,7 @@ func TestStateMsg_Verify(t *testing.T) {
 	t.Run("commit head is nil", func(t *testing.T) {
 		sm := &StateMsg{
 			CommittedHead: nil,
-			BlockData:     nil,
+			Pending:       nil,
 		}
 		require.ErrorContains(t, sm.Verify(crypto.SHA256, &types.RootTrustBaseV1{}), "commit head is nil")
 	})
@@ -258,7 +258,7 @@ func TestStateMsg_Verify(t *testing.T) {
 
 	t.Run("invalid block node data", func(t *testing.T) {
 		sm := validStateMsg()
-		sm.BlockData[0].Qc = nil
+		sm.Pending[0].Qc = nil
 		tb := testtb.NewAlwaysValidTrustBase(t)
 		require.ErrorContains(t, sm.Verify(crypto.SHA256, tb), "invalid block node: proposed block is missing quorum certificate")
 	})

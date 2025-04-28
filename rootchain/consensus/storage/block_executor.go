@@ -3,10 +3,8 @@ package storage
 import (
 	"bytes"
 	"crypto"
-	"errors"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill-go-base/hash"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	"github.com/alphabill-org/alphabill/network/protocol/abdrc"
@@ -15,8 +13,6 @@ import (
 )
 
 type (
-	ShardSet map[types.PartitionShardID]struct{}
-
 	ExecutedBlock struct {
 		_         struct{}            `cbor:",toarray"`
 		BlockData *rctypes.BlockData  // proposed block
@@ -89,14 +85,6 @@ func NewRootBlock(block *abdrc.CommittedBlock, hash crypto.Hash, orchestration O
 		}
 		shardInfo.States[shardKey] = si
 	}
-
-	/* no need to mark these shards as "changed", this is committed block with CertRsp already generated?
-	if block.Block.Payload != nil {
-		// verify requests for IR change and proof of consensus
-		for _, irChReq := range block.Block.Payload.Requests {
-			shardInfo.Changed[types.PartitionShardID{PartitionID: irChReq.Partition, ShardID: irChReq.Shard.Key()}] = struct{}{}
-		}
-	}*/
 
 	schemes := shardingSchemes(shardConfs)
 	ut, _, err := shardInfo.UnicityTree(schemes, hash)
@@ -210,72 +198,4 @@ func (x *ExecutedBlock) GetParentRound() uint64 {
 		return x.BlockData.GetParentRound()
 	}
 	return 0
-}
-
-/*
-shardSetItem is helper type for serializing ShardSet - map with complex key
-is not handled properly by the CBOR library so we serialize it as array.
-*/
-type shardSetItem struct {
-	_         struct{} `cbor:",toarray"`
-	Partition types.PartitionID
-	Shard     []byte
-}
-
-func (ss ShardSet) MarshalCBOR() ([]byte, error) {
-	// map with complex key is not handled properly by the CBOR library so we serialize it as array
-	d := make([]shardSetItem, len(ss))
-	idx := 0
-	for k := range ss {
-		d[idx].Partition = k.PartitionID
-		d[idx].Shard = []byte(k.ShardID)
-		idx++
-	}
-	buf := bytes.Buffer{}
-	if err := types.Cbor.Encode(&buf, d); err != nil {
-		return nil, fmt.Errorf("encoding shard set data: %w", err)
-	}
-	return buf.Bytes(), nil
-}
-
-func (ss *ShardSet) UnmarshalCBOR(data []byte) error {
-	var d []shardSetItem
-	if err := types.Cbor.Unmarshal(data, &d); err != nil {
-		return fmt.Errorf("decoding shard set data: %w", err)
-	}
-	ssn := make(ShardSet, len(d))
-	for _, itm := range d {
-		ssn[types.PartitionShardID{PartitionID: itm.Partition, ShardID: string(itm.Shard)}] = struct{}{}
-	}
-	*ss = ssn
-	return nil
-}
-
-func newShardTechnicalRecord(validators []string) (certification.TechnicalRecord, error) {
-	if len(validators) == 0 {
-		return certification.TechnicalRecord{}, errors.New("validator list empty")
-	}
-
-	tr := certification.TechnicalRecord{
-		Round:  1,
-		Epoch:  0,
-		Leader: validators[0],
-		// precalculated hash of CBOR(certification.StatisticalRecord{})
-		StatHash: []uint8{0x24, 0xee, 0x26, 0xf4, 0xaa, 0x45, 0x48, 0x5f, 0x53, 0xaa, 0xb4, 0x77, 0x57, 0xd0, 0xb9, 0x71, 0x99, 0xa3, 0xd9, 0x5f, 0x50, 0xcb, 0x97, 0x9c, 0x38, 0x3b, 0x7e, 0x50, 0x24, 0xf9, 0x21, 0xff},
-	}
-
-	fees := map[string]uint64{}
-	for _, v := range validators {
-		fees[v] = 0
-	}
-	h := hash.New(crypto.SHA256.New())
-	h.WriteRaw(types.RawCBOR{0xA0}) // empty map
-	h.Write(fees)
-
-	var err error
-	if tr.FeeHash, err = h.Sum(); err != nil {
-		return tr, fmt.Errorf("calculating fee hash: %w", err)
-	}
-
-	return tr, nil
 }

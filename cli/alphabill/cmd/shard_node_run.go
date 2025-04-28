@@ -134,7 +134,9 @@ func shardNodeRun(ctx context.Context, flags *shardNodeRunFlags) error {
 					rpc.WithOwnerIndex(nodeConf.OwnerIndexer()),
 					rpc.WithGetUnits(flags.WithGetUnits),
 					rpc.WithShardConf(nodeConf.ShardConf()),
-					rpc.WithRateLimit(flags.StateRpcRateLimit)),
+					rpc.WithRateLimit(flags.StateRpcRateLimit),
+					rpc.WithResponseItemLimit(flags.StateRpcResponseItemLimit),
+				),
 			},
 			{
 				Namespace: "admin",
@@ -235,8 +237,8 @@ func createNode(ctx context.Context, flags *shardNodeRunFlags) (*partition.Node,
 			time.Duration(flags.LedgerReplicationTimeoutMs)*time.Millisecond),
 		partition.WithProofIndex(proofStore, 20),
 		partition.WithOwnerIndex(ownerIndexer),
-		partition.WithBlockSubscriptionTimeout(time.Duration(flags.BlockSubscriptionTimeoutMs) * time.Millisecond),
-		partition.WithT1Timeout(time.Duration(flags.T1TimeoutMs) * time.Millisecond),
+		partition.WithBlockSubscriptionTimeout(time.Duration(flags.BlockSubscriptionTimeoutMs)*time.Millisecond),
+		partition.WithT1Timeout(time.Duration(flags.T1TimeoutMs)*time.Millisecond),
 	)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create node configuration: %w", err)

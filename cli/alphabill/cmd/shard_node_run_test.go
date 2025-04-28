@@ -97,14 +97,14 @@ func TestShardNodeRun_EnvAndFlags(t *testing.T) {
 			args: "shard-node run --rpc-server-address=srv:1111 --rpc-server-read-timeout=10s --rpc-server-read-header-timeout=11s --rpc-server-write-timeout=12s --rpc-server-idle-timeout=13s --rpc-server-max-header=14 --rpc-server-max-body=15 --rpc-server-batch-item-limit=16 --rpc-server-batch-response-size-limit=17",
 			expectedConfig: func() *shardNodeRunFlags {
 				f := defaultFlags()
-				f.rpcFlags.Address =       "srv:1111"
-				f.ReadTimeout =            10 * time.Second
-				f.ReadHeaderTimeout =      11 * time.Second
-				f.WriteTimeout =           12 * time.Second
-				f.IdleTimeout =            13 * time.Second
-				f.MaxHeaderBytes =         14
-				f.MaxBodyBytes =           15
-				f.BatchItemLimit =         16
+				f.rpcFlags.Address = "srv:1111"
+				f.ReadTimeout = 10 * time.Second
+				f.ReadHeaderTimeout = 11 * time.Second
+				f.WriteTimeout = 12 * time.Second
+				f.IdleTimeout = 13 * time.Second
+				f.MaxHeaderBytes = 14
+				f.MaxBodyBytes = 15
+				f.BatchItemLimit = 16
 				f.BatchResponseSizeLimit = 17
 				return f
 			}(),
@@ -263,6 +263,7 @@ func defaultFlags() *shardNodeRunFlags {
 	flags.BatchResponseSizeLimit = rpc.DefaultBatchResponseSizeLimit
 	flags.StateRpcRateLimit = 20
 	flags.T1TimeoutMs = partition.DefaultT1Timeout
+	flags.StateRpcResponseItemLimit = 10000
 	return flags
 }
 

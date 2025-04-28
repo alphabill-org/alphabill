@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/keyvaluedb"
 	rcnet "github.com/alphabill-org/alphabill/network/protocol/abdrc"
 	"github.com/alphabill-org/alphabill/network/protocol/certification"
@@ -74,13 +75,27 @@ func readBlocksFromDB(bDB keyvaluedb.KeyValueDB, orchestration Orchestration) (b
 		if err = itr.Value(&b); err != nil {
 			return nil, fmt.Errorf("read block %v from db: %w", itr.Key(), err)
 		}
-		for _, si := range b.ShardInfo {
-			shardConf, err := orchestration.ShardConfig(si.PartitionID, si.ShardID, si.EpochStart)
-			if err != nil {
-				return nil, fmt.Errorf("acquiring shard configuration: %w", err)
+		shardConfs, err := orchestration.ShardConfigs(b.GetRound())
+		if err != nil {
+			return nil, fmt.Errorf("loading shard configurations for round %d: %w", b.GetRound(), err)
+		}
+		// this check would fail for genesis block as it is created with empty shard states!
+		if len(b.ShardInfo.States) != len(shardConfs) && b.GetRound() != abdrc.GenesisRootRound {
+			return nil, fmt.Errorf("round %d has %d shards, block has data for %d shards", b.GetRound(), len(shardConfs), len(b.ShardInfo.States))
+		}
+		b.Schemes = map[types.PartitionID]types.ShardingScheme{}
+		for k, si := range b.ShardInfo.States {
+			pdr, ok := shardConfs[k]
+			if !ok {
+				return nil, fmt.Errorf("block has a shard %s but orchestration doesn't have such shard for round %d", k, b.GetRound())
 			}
-			if err = si.resetTrustBase(shardConf); err != nil {
+			if err = si.resetTrustBase(pdr); err != nil {
 				return nil, fmt.Errorf("init shard trustbase (%s - %s): %w", si.LastCR.Partition, si.LastCR.Shard, err)
+			}
+			if pdr.ShardID.Length() == 0 {
+				b.Schemes[pdr.PartitionID] = types.ShardingScheme{}
+			} else {
+				b.Schemes[pdr.PartitionID] = append(b.Schemes[pdr.PartitionID], pdr.ShardID)
 			}
 		}
 		blocks = append(blocks, &b)
@@ -354,10 +369,10 @@ func (bt *BlockTree) Commit(commitQc *abdrc.QuorumCert) ([]*certification.Certif
 		return nil, errors.Join(ErrCommitFailed, fmt.Errorf("block for round %v not found", commitRound))
 	}
 
-	for k, parentSI := range bt.root.data.ShardInfo {
+	for k, parentSI := range bt.root.data.ShardInfo.States {
 		// between blocks there might have been epoch change and thus new state
 		// might not have all the shards of the old state
-		if si, ok := commitNode.data.ShardInfo[k]; ok {
+		if si, ok := commitNode.data.ShardInfo.States[k]; ok {
 			si.LastCR = parentSI.LastCR
 		}
 	}
@@ -366,7 +381,7 @@ func (bt *BlockTree) Commit(commitQc *abdrc.QuorumCert) ([]*certification.Certif
 	path := bt.findPathToRoot(commitRound)
 	// new committed block also certifies the changes from pending rounds
 	for _, cb := range path {
-		maps.Copy(commitNode.data.Changed, cb.Changed)
+		maps.Copy(commitNode.data.ShardInfo.Changed, cb.ShardInfo.Changed)
 	}
 	// prune the chain, the committed block becomes new root of the chain
 	blocksToPrune, err := bt.findBlocksToPrune(commitRound)
@@ -440,29 +455,25 @@ func (bt *BlockTree) CurrentState() (*rcnet.StateMsg, error) {
 }
 
 func toRecoveryShardInfo(block *ExecutedBlock) ([]rcnet.ShardInfo, error) {
-	si := make([]rcnet.ShardInfo, len(block.ShardInfo))
+	si := make([]rcnet.ShardInfo, len(block.ShardInfo.States))
 	idx := 0
-	for _, v := range block.ShardInfo {
+	for _, v := range block.ShardInfo.States {
 		si[idx].Partition = v.PartitionID
 		si[idx].Shard = v.ShardID
-		si[idx].EpochStart = v.EpochStart
 		si[idx].T2Timeout = v.T2Timeout
 		si[idx].RootHash = v.RootHash
 		si[idx].PrevEpochStat = v.PrevEpochStat
 		si[idx].Stat = v.Stat
 		si[idx].PrevEpochFees = v.PrevEpochFees
 		si[idx].Fees = maps.Clone(v.Fees)
+		si[idx].IR = v.IR
+		si[idx].IRTR = v.TR
+		si[idx].ShardConfHash = v.ShardConfHash
 		if v.LastCR != nil {
 			si[idx].UC = &v.LastCR.UC
 			si[idx].TR = &v.LastCR.Technical
 		}
-		if ir := block.CurrentIR.Find(v.PartitionID, v.ShardID); ir != nil {
-			si[idx].IR = ir.IR
-			si[idx].IRTR = ir.Technical
-			si[idx].ShardConfHash = ir.ShardConfHash
-		} else {
-			return nil, fmt.Errorf("no InputData for shard %s-%s", v.PartitionID, v.ShardID)
-		}
+
 		idx++
 	}
 	return si, nil

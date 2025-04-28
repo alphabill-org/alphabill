@@ -104,7 +104,7 @@ func TestNewNodeConf_WithDefaults(t *testing.T) {
 	require.NotNil(t, conf.ucValidator)
 	require.NotNil(t, conf.shardConf)
 	require.NotNil(t, conf.hashAlgorithm)
-	require.Equal(t, DefaultT1Timeout, conf.t1Timeout)
+	require.Equal(t, DefaultT1Timeout*time.Millisecond, conf.t1Timeout)
 	require.Equal(t, DefaultReplicationMaxBlocks, conf.replicationConfig.maxFetchBlocks)
 	require.Equal(t, DefaultReplicationMaxBlocks, conf.replicationConfig.maxReturnBlocks)
 	require.Equal(t, DefaultReplicationMaxTx, conf.replicationConfig.maxTx)

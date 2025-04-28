@@ -9,6 +9,7 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
 	"github.com/alphabill-org/alphabill-go-base/types"
 
+	"github.com/alphabill-org/alphabill/logger"
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/txsystem"
@@ -127,12 +128,22 @@ func (o *OwnerIndexer) indexUnit(unitID types.UnitID, logs []*state.Log) error {
 	// if unit existed before this round:
 	//   logs[0] - last tx that changed the unit from previous rounds
 	//   logs[1..n] - txs changing the unit in current round
-	currOwnerPredicate := logs[len(logs)-1].NewUnitData.Owner()
+	newUnitData := logs[len(logs)-1].NewUnitData
+	if newUnitData == nil {
+		o.log.Debug("not indexing dummy unit", logger.UnitID(unitID))
+		return nil
+	}
+	currOwnerPredicate := newUnitData.Owner()
 	if err := o.addOwnerIndex(unitID, currOwnerPredicate); err != nil {
 		return fmt.Errorf("failed to add owner index: %w", err)
 	}
 	if len(logs) > 1 {
-		prevOwnerPredicate := logs[0].NewUnitData.Owner()
+		newUnitData = logs[0].NewUnitData
+		if newUnitData == nil {
+			// nothing to remove, owner index does not exist for dummy units
+			return nil
+		}
+		prevOwnerPredicate := newUnitData.Owner()
 		if err := o.delOwnerIndex(unitID, prevOwnerPredicate); err != nil {
 			return fmt.Errorf("failed to remove owner index: %w", err)
 		}

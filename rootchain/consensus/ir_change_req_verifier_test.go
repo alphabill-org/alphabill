@@ -92,7 +92,7 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 					UC: types.UnicityCertificate{
 						UnicitySeal: &types.UnicitySeal{
 							RootChainRoundNumber: 2,
-							Timestamp: 1,
+							Timestamp:            1,
 						},
 						InputRecord: &types.InputRecord{},
 					},
@@ -109,8 +109,8 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 
 	t.Run("ir change request nil", func(t *testing.T) {
 		ver := &IRChangeReqVerifier{
-			params:        &Parameters{BlockRate: 500 * time.Millisecond},
-			state:         stateProvider([]types.PartitionID{partitionID1}, nil),
+			params: &Parameters{BlockRate: 500 * time.Millisecond},
+			state:  stateProvider([]types.PartitionID{partitionID1}, nil),
 		}
 		data, err := ver.VerifyIRChangeReq(2, nil)
 		require.Nil(t, data)
@@ -119,8 +119,8 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 
 	t.Run("error change in progress", func(t *testing.T) {
 		ver := &IRChangeReqVerifier{
-			params:        &Parameters{BlockRate: 500 * time.Millisecond},
-			state:         stateProvider([]types.PartitionID{partitionID1}, &types.InputRecord{Version: 1}),
+			params: &Parameters{BlockRate: 500 * time.Millisecond},
+			state:  stateProvider([]types.PartitionID{partitionID1}, &types.InputRecord{Version: 1}),
 		}
 		newIR := &types.InputRecord{
 			Version:         1,
@@ -145,13 +145,13 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 		}
 		data, err := ver.VerifyIRChangeReq(2, irChReq)
 		require.Nil(t, data)
-		require.EqualError(t, err, "add state failed: partition 00000001 has pending changes in pipeline")
+		require.EqualError(t, err, "shard 00000001- has pending changes in pipeline")
 	})
 
 	t.Run("invalid partition ID", func(t *testing.T) {
 		ver := &IRChangeReqVerifier{
-			params:        &Parameters{BlockRate: 500 * time.Millisecond},
-			state:         stateProvider([]types.PartitionID{partitionID1}, &types.InputRecord{Version: 1}),
+			params: &Parameters{BlockRate: 500 * time.Millisecond},
+			state:  stateProvider([]types.PartitionID{partitionID1}, &types.InputRecord{Version: 1}),
 		}
 		newIR := &types.InputRecord{
 			Version:         1,
@@ -191,8 +191,8 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 			Timestamp:       1,
 		}
 		ver := &IRChangeReqVerifier{
-			params:        &Parameters{BlockRate: 500 * time.Millisecond},
-			state:         stateProvider([]types.PartitionID{partitionID1}, newIR),
+			params: &Parameters{BlockRate: 500 * time.Millisecond},
+			state:  stateProvider([]types.PartitionID{partitionID1}, newIR),
 		}
 		request := &certification.BlockCertificationRequest{
 			PartitionID: partitionID1,
@@ -243,8 +243,8 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 
 	t.Run("ok", func(t *testing.T) {
 		ver := &IRChangeReqVerifier{
-			params:        &Parameters{BlockRate: 500 * time.Millisecond, HashAlgorithm: crypto.SHA256},
-			state:         stateProvider(nil, nil),
+			params: &Parameters{BlockRate: 500 * time.Millisecond, HashAlgorithm: crypto.SHA256},
+			state:  stateProvider(nil, nil),
 		}
 		newIR := &types.InputRecord{
 			Version:         1,
@@ -267,10 +267,9 @@ func TestIRChangeReqVerifier_VerifyIRChangeReq(t *testing.T) {
 			CertReason: abtypes.Quorum,
 			Requests:   []*certification.BlockCertificationRequest{request},
 		}
-		data, err := ver.VerifyIRChangeReq(2, irChReq)
+		ir, err := ver.VerifyIRChangeReq(2, irChReq)
 		require.NoError(t, err)
-		require.Equal(t, newIR, data.IR)
-		require.Equal(t, partitionID1, data.Partition)
+		require.Equal(t, newIR, ir)
 	})
 }
 
@@ -315,11 +314,13 @@ func TestNewLucBasedT2TimeoutGenerator(t *testing.T) {
 }
 
 func TestPartitionTimeoutGenerator_GetT2Timeouts(t *testing.T) {
+	tn := testutils.NewTestNode(t)
 	shardConf := &types.PartitionDescriptionRecord{
 		Version:     1,
 		NetworkID:   5,
 		PartitionID: partitionID1,
 		T2Timeout:   2500 * time.Millisecond,
+		Validators:  []*types.NodeInfo{tn.NodeInfo(t)},
 	}
 	state := &MockState{
 		shardInfo: func(partition types.PartitionID, shard types.ShardID) *storage.ShardInfo {

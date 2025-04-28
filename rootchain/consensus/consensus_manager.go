@@ -953,10 +953,10 @@ func (x *ConsensusManager) onStateResponse(ctx context.Context, rsp *abdrc.State
 		return fmt.Errorf("state message not suitable for recovery: %w", err)
 	}
 	// sort blocks by round
-	slices.SortFunc(rsp.BlockData, func(a, b *drctypes.BlockData) int {
+	slices.SortFunc(rsp.Pending, func(a, b *drctypes.BlockData) int {
 		return cmp.Compare(a.GetRound(), b.GetRound())
 	})
-	blockStore, err := storage.NewFromState(x.params.HashAlgorithm, rsp, x.blockStore.GetDB(), x.orchestration)
+	blockStore, err := storage.NewFromState(x.params.HashAlgorithm, rsp.CommittedHead, x.blockStore.GetDB(), x.orchestration)
 	if err != nil {
 		return fmt.Errorf("recovery, new block store init failed: %w", err)
 	}
@@ -967,7 +967,7 @@ func (x *ConsensusManager) onStateResponse(ctx context.Context, rsp *abdrc.State
 	}
 	x.pacemaker.Reset(ctx, blockStore.GetHighQc().GetRound(), nil, nil)
 
-	for i, block := range rsp.BlockData {
+	for i, block := range rsp.Pending {
 		// if received block has QC then process it first as with a block received normally
 		if block.Qc != nil {
 			if _, err = blockStore.ProcessQc(block.Qc); err != nil {

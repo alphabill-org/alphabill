@@ -2,6 +2,7 @@ package types
 
 import (
 	"crypto"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 
@@ -38,6 +39,8 @@ type (
 		IRRound() uint64
 		IRPreviousHash() []byte
 	}
+
+	sha256Hash [sha256.Size]byte
 )
 
 func (r IRChangeReason) String() string {
@@ -52,7 +55,7 @@ func (r IRChangeReason) String() string {
 	return fmt.Sprintf("unknown IR change reason %d", int(r))
 }
 
-func getMaxHashCount(hashCnt map[string]uint64) uint64 {
+func getMaxHashCount(hashCnt map[sha256Hash]uint64) uint64 {
 	var cnt uint64 = 0
 	for _, c := range hashCnt {
 		if c > cnt {
@@ -83,7 +86,7 @@ func (x *IRChangeReq) Verify(tb RequestVerifier, luc *types.UnicityCertificate, 
 	}
 	// verify IR change proof
 	// monitor hash counts
-	hashCnt := make(map[string]uint64)
+	hashCnt := make(map[sha256Hash]uint64)
 	// duplicate requests
 	nodeIDs := make(map[string]struct{})
 	// validate all block request in the proof
@@ -101,14 +104,11 @@ func (x *IRChangeReq) Verify(tb RequestVerifier, luc *types.UnicityCertificate, 
 		// register node id
 		nodeIDs[req.NodeID] = struct{}{}
 		// get hash of IR and add to hash counter
-		hasher := abhash.New(crypto.SHA256.New())
-		req.InputRecord.AddToHasher(hasher)
-		hash, err := hasher.Sum()
+		hash, err := abhash.HashValues(crypto.SHA256, req.InputRecord, req.BlockSize, req.StateSize)
 		if err != nil {
 			return nil, fmt.Errorf("failed to calculate hash: %w", err)
 		}
-		count := hashCnt[string(hash)]
-		hashCnt[string(hash)] = count + 1
+		hashCnt[sha256Hash(hash)] = hashCnt[sha256Hash(hash)] + 1
 	}
 	// match request type to proof
 	switch x.CertReason {

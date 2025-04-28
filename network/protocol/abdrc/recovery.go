@@ -61,7 +61,7 @@ type ShardInfo struct {
 type StateMsg struct {
 	_             struct{} `cbor:",toarray"`
 	CommittedHead *CommittedBlock
-	BlockData     []*rctypes.BlockData
+	Pending       []*rctypes.BlockData
 }
 
 /*
@@ -78,7 +78,7 @@ func (sm *StateMsg) CanRecoverToRound(round uint64) error {
 	if round == sm.CommittedHead.Block.GetRound() {
 		return nil
 	}
-	if !slices.ContainsFunc(sm.BlockData, func(b *rctypes.BlockData) bool { return b.GetRound() == round }) {
+	if !slices.ContainsFunc(sm.Pending, func(b *rctypes.BlockData) bool { return b.GetRound() == round }) {
 		return fmt.Errorf("state has no data block for round %d", round)
 	}
 
@@ -105,7 +105,7 @@ func (sm *StateMsg) Verify(hashAlgorithm crypto.Hash, tb types.RootTrustBase) er
 		return fmt.Errorf("commit qc verification error: %w", err)
 	}
 	// verify node blocks
-	for _, n := range sm.BlockData {
+	for _, n := range sm.Pending {
 		if err := n.IsValid(); err != nil {
 			return fmt.Errorf("invalid block node: %w", err)
 		}

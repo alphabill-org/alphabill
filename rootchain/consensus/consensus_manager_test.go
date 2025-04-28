@@ -298,10 +298,10 @@ func TestIRChangeRequestFromRootValidator_RootTimeout(t *testing.T) {
 	stateMsg := testutils.MockAwaitMessage[*abdrc.StateMsg](t, mockNet, network.ProtocolRootStateResp)
 	// commit head is still at round 3, as round 5 that would have committed 4 resulted in timeout
 	require.Equal(t, uint64(2), stateMsg.CommittedHead.Block.Round)
-	require.Equal(t, 2, len(stateMsg.BlockData))
+	require.Equal(t, 2, len(stateMsg.Pending))
 	// round 5 has been removed as it resulted in timeout quorum
-	require.Equal(t, uint64(3), stateMsg.BlockData[0].Round)
-	require.Equal(t, uint64(5), stateMsg.BlockData[1].Round)
+	require.Equal(t, uint64(3), stateMsg.Pending[0].Round)
+	require.Equal(t, uint64(5), stateMsg.Pending[1].Round)
 	// send vote back to validator
 	mockNet.WaitReceive(t, lastVoteMsg)
 	lastProposalMsg = mockNet.WaitRootProposal(t)
@@ -325,11 +325,11 @@ func TestIRChangeRequestFromRootValidator_RootTimeout(t *testing.T) {
 	// commit head is still at round 2, rounds 3, 5 and 6 are added, 6 will commit 5 when it reaches quorum, but
 	// this happens after vote is routed back, so current expected state is:
 	require.Equal(t, uint64(2), stateMsg.CommittedHead.Block.Round)
-	require.Equal(t, 3, len(stateMsg.BlockData))
+	require.Equal(t, 3, len(stateMsg.Pending))
 	// round 5 has been removed as it resulted in timeout quorum
-	require.Equal(t, uint64(3), stateMsg.BlockData[0].Round)
-	require.Equal(t, uint64(5), stateMsg.BlockData[1].Round)
-	require.Equal(t, uint64(6), stateMsg.BlockData[2].Round)
+	require.Equal(t, uint64(3), stateMsg.Pending[0].Round)
+	require.Equal(t, uint64(5), stateMsg.Pending[1].Round)
+	require.Equal(t, uint64(6), stateMsg.Pending[2].Round)
 	mockNet.WaitReceive(t, lastVoteMsg)
 	lastProposalMsg = testutils.MockAwaitMessage[*abdrc.ProposalMsg](t, mockNet, network.ProtocolRootProposal)
 
@@ -351,8 +351,8 @@ func TestIRChangeRequestFromRootValidator_RootTimeout(t *testing.T) {
 	// at this stage the committed round is 6 and round 7 block is pending
 	require.Equal(t, uint64(5), stateMsg.CommittedHead.Block.Round)
 	require.Equal(t, uint64(5), stateMsg.CommittedHead.ShardInfo[idx].UC.UnicitySeal.RootChainRoundNumber)
-	require.Equal(t, 1, len(stateMsg.BlockData))
-	require.Equal(t, uint64(6), stateMsg.BlockData[0].Round)
+	require.Equal(t, 1, len(stateMsg.Pending))
+	require.Equal(t, uint64(6), stateMsg.Pending[0].Round)
 }
 
 func TestIRChangeRequestFromRootValidator(t *testing.T) {
@@ -528,7 +528,7 @@ func TestGetState_WithoutShards(t *testing.T) {
 	stateMsg := testutils.MockAwaitMessage[*abdrc.StateMsg](t, mockNet, network.ProtocolRootStateResp)
 
 	// only genesis block present
-	require.Equal(t, 0, len(stateMsg.BlockData))
+	require.Equal(t, 0, len(stateMsg.Pending))
 	require.Len(t, stateMsg.CommittedHead.ShardInfo, 0)
 	// the hard-coded round 1 is the CommittedHead
 	require.Equal(t, uint64(1), stateMsg.CommittedHead.Block.Round)
@@ -550,8 +550,8 @@ func TestGetState_WithoutShards(t *testing.T) {
 	stateMsg = testutils.MockAwaitMessage[*abdrc.StateMsg](t, mockNet, network.ProtocolRootStateResp)
 
 	// a new block present now, still no shards
-	require.Len(t, stateMsg.BlockData, 1)
-	require.Equal(t, uint64(2), stateMsg.BlockData[0].Round)
+	require.Len(t, stateMsg.Pending, 1)
+	require.Equal(t, uint64(2), stateMsg.Pending[0].Round)
 	// the hard-coded round 1 is still the CommittedHead
 	require.Equal(t, uint64(1), stateMsg.CommittedHead.Block.Round)
 	require.Equal(t, uint64(1), stateMsg.CommittedHead.Qc.GetRound())
@@ -578,7 +578,7 @@ func TestGetState_WithShards(t *testing.T) {
 	stateMsg := testutils.MockAwaitMessage[*abdrc.StateMsg](t, mockNet, network.ProtocolRootStateResp)
 	// at this stage there is only genesis block
 	require.Equal(t, uint64(1), stateMsg.CommittedHead.Block.Round)
-	require.Equal(t, 0, len(stateMsg.BlockData))
+	require.Equal(t, 0, len(stateMsg.Pending))
 	require.Len(t, stateMsg.CommittedHead.ShardInfo, 1)
 }
 
@@ -952,7 +952,7 @@ func Test_ConsensusManager_messages(t *testing.T) {
 			state := msg.(*abdrc.StateMsg)
 			require.NotNil(t, state)
 			require.EqualValues(t, 1, state.CommittedHead.Block.Round)
-			require.Empty(t, state.BlockData)
+			require.Empty(t, state.Pending)
 			require.Len(t, state.CommittedHead.ShardInfo, 1)
 		}
 	})

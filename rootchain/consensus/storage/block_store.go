@@ -57,17 +57,17 @@ func New(hashAlgo crypto.Hash, db keyvaluedb.KeyValueDB, orchestration Orchestra
 	}, nil
 }
 
-func NewFromState(hash crypto.Hash, stateMsg *abdrc.StateMsg, db keyvaluedb.KeyValueDB, orchestration Orchestration) (*BlockStore, error) {
+func NewFromState(hash crypto.Hash, block *abdrc.CommittedBlock, db keyvaluedb.KeyValueDB, orchestration Orchestration) (*BlockStore, error) {
 	if db == nil {
 		return nil, errors.New("storage is nil")
 	}
 
-	rootNode, err := NewRootBlock(stateMsg.CommittedHead, hash, orchestration)
+	rootNode, err := NewRootBlock(block, hash, orchestration)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create new root node: %w", err)
 	}
 
-	blTree, err := NewBlockTreeFromRecovery(rootNode, db)
+	blTree, err := NewBlockTreeWithRootBlock(rootNode, db)
 	if err != nil {
 		return nil, fmt.Errorf("creating block tree from recovery: %w", err)
 	}

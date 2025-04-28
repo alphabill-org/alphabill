@@ -549,7 +549,7 @@ func (mn *MockNode) RegisterShardConf(shardConf *types.PartitionDescriptionRecor
 	return nil
 }
 
-func (mn *MockOwnerIndex) GetOwnerUnits(ownerID []byte, sinceUnitID *types.UnitID) ([]types.UnitID, error) {
+func (mn *MockOwnerIndex) GetOwnerUnits(ownerID []byte, sinceUnitID *types.UnitID, limit int) ([]types.UnitID, error) {
 	if mn.err != nil {
 		return nil, mn.err
 	}
@@ -557,7 +557,8 @@ func (mn *MockOwnerIndex) GetOwnerUnits(ownerID []byte, sinceUnitID *types.UnitI
 	if startIndex >= len(mn.ownerUnits[string(ownerID)]) {
 		return []types.UnitID{}, nil
 	}
-	return mn.ownerUnits[string(ownerID)][startIndex:], nil
+	endIndex := endIndex(startIndex, limit, mn.ownerUnits[string(ownerID)])
+	return mn.ownerUnits[string(ownerID)][startIndex:endIndex], nil
 }
 
 func createTransactionOrder(t *testing.T, unitID types.UnitID) []byte {

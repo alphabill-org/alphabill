@@ -163,15 +163,8 @@ func (s *StateAPI) GetUnitsByOwnerID(ownerID hex.Bytes, sinceUnitID *types.UnitI
 	if err := s.requestLimiter.CheckRequestAllowed("getUnitsByOwnerID"); err != nil {
 		return nil, fmt.Errorf("request not allowed: %w", err)
 	}
-
-	ownerUnitIDs, err := s.ownerIndex.GetOwnerUnits(ownerID, sinceUnitID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load owner units: %w", err)
-	}
 	responseLimit := s.responseLimit(limit)
-
-	endIndex := endIndex(0, responseLimit, ownerUnitIDs)
-	return ownerUnitIDs[:endIndex], nil
+	return s.ownerIndex.GetOwnerUnits(ownerID, sinceUnitID, responseLimit)
 }
 
 // GetUnits returns list of unit identifiers, optionally filtered by the given unit type identifier.
@@ -284,7 +277,7 @@ func startIndex(sinceUnitID *types.UnitID, ownerUnitIDs []types.UnitID) int {
 }
 
 func endIndex(startIndex int, limit int, ownerUnitIDs []types.UnitID) int {
-	if limit == 0 {
+	if limit <= 0 {
 		return len(ownerUnitIDs)
 	}
 	endIndex := min(startIndex+limit, len(ownerUnitIDs))

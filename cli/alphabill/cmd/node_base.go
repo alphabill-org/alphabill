@@ -48,7 +48,7 @@ func (f *rpcFlags) addRPCFlags(cmd *cobra.Command) {
 	cmd.Flags().IntVar(&f.BatchResponseSizeLimit, "rpc-server-batch-response-size-limit", rpc.DefaultBatchResponseSizeLimit,
 		"The maximum number of response bytes across all requests in a batch.")
 	cmd.Flags().IntVar(&f.StateRpcRateLimit, "state-rpc-rate-limit", 20, "number of costliest state rpc requests allowed in a second")
-	cmd.Flags().IntVar(&f.StateRpcResponseItemLimit, "state-rpc-response-item-limit", 1000, "maximum number of items in a state rpc response")
+	cmd.Flags().IntVar(&f.StateRpcResponseItemLimit, "state-rpc-response-item-limit", 10000, "maximum number of items in a state rpc response")
 
 	hideFlags(cmd,
 		"rpc-server-read-timeout",

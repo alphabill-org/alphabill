@@ -263,7 +263,7 @@ func defaultFlags() *shardNodeRunFlags {
 	flags.BatchResponseSizeLimit = rpc.DefaultBatchResponseSizeLimit
 	flags.StateRpcRateLimit = 20
 	flags.T1TimeoutMs = partition.DefaultT1Timeout
-	flags.StateRpcResponseItemLimit = 1000
+	flags.StateRpcResponseItemLimit = 10000
 	return flags
 }
 

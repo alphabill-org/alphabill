@@ -444,7 +444,7 @@ func verifyTxSystemState(state *txsystem.StateSummary, sumOfEarnedFees uint64, u
 	} else if ucIR.SumOfEarnedFees != sumOfEarnedFees {
 		return fmt.Errorf("transaction system sum of earned fees %d not equal to unicity certificate value %d", sumOfEarnedFees, ucIR.SumOfEarnedFees)
 	} else if !bytes.Equal(ucIR.ETHash, state.ETHash()) {
-		return fmt.Errorf("transaction system executed transactions buffer hash %X not equal to unicity certificate value %X", ucIR.SumOfEarnedFees, state.ETHash())
+		return fmt.Errorf("transaction system executed transactions buffer hash '%X' not equal to unicity certificate value '%X'", state.ETHash(), ucIR.ETHash)
 	}
 	return nil
 }

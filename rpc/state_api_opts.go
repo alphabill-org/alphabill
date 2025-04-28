@@ -7,10 +7,11 @@ import (
 
 type (
 	StateAPIOptions struct {
-		withGetUnits bool
-		shardConf    *types.PartitionDescriptionRecord
-		ownerIndex   partition.IndexReader
-		rateLimit    int
+		withGetUnits      bool
+		shardConf         *types.PartitionDescriptionRecord
+		ownerIndex        partition.IndexReader
+		rateLimit         int
+		responseItemLimit int
 	}
 
 	StateAPIOption func(*StateAPIOptions)
@@ -40,11 +41,18 @@ func WithRateLimit(rateLimit int) StateAPIOption {
 	}
 }
 
+func WithResponseItemLimit(limit int) StateAPIOption {
+	return func(c *StateAPIOptions) {
+		c.responseItemLimit = limit
+	}
+}
+
 func defaultStateAPIOptions() *StateAPIOptions {
 	return &StateAPIOptions{
-		withGetUnits: false,
-		shardConf:    nil,
-		ownerIndex:   nil,
-		rateLimit:    0,
+		withGetUnits:      false,
+		shardConf:         nil,
+		ownerIndex:        nil,
+		rateLimit:         0,
+		responseItemLimit: 0,
 	}
 }

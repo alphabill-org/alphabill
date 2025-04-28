@@ -190,7 +190,7 @@ func TestOwnerIndexer(t *testing.T) {
 		require.NoError(t, ownerIndexer.LoadState(s))
 
 		// verify that unit is indexed
-		ownerUnitIDs, err := ownerIndexer.GetOwnerUnits(ownerID)
+		ownerUnitIDs, err := ownerIndexer.GetOwnerUnits(ownerID, nil, 0)
 		require.NoError(t, err)
 		require.Len(t, ownerUnitIDs, 1)
 		require.Equal(t, unitID, ownerUnitIDs[0])

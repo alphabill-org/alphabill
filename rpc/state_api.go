@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 	"time"
 
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -25,7 +26,8 @@ type (
 		pdr          *types.PartitionDescriptionRecord
 		withGetUnits bool
 
-		requestLimiter *RequestLimiter
+		requestLimiter    *RequestLimiter
+		responseItemLimit int
 
 		updMetrics    func(ctx context.Context, method string, start time.Time, apiErr error)
 		updTxReceived func(ctx context.Context, txType uint16, apiErr error)
@@ -88,13 +90,14 @@ func NewStateAPI(node partitionNode, obs Observability, opts ...StateAPIOption) 
 	)
 
 	return &StateAPI{
-		node:           node,
-		ownerIndex:     options.ownerIndex,
-		pdr:            options.shardConf,
-		withGetUnits:   options.withGetUnits,
-		updMetrics:     metricsUpdater(m, node, log),
-		updTxReceived:  metricsUpdaterTxReceived(m, node, log),
-		requestLimiter: requestLimiter,
+		node:              node,
+		ownerIndex:        options.ownerIndex,
+		pdr:               options.shardConf,
+		withGetUnits:      options.withGetUnits,
+		updMetrics:        metricsUpdater(m, node, log),
+		updTxReceived:     metricsUpdaterTxReceived(m, node, log),
+		requestLimiter:    requestLimiter,
+		responseItemLimit: options.responseItemLimit,
 	}
 }
 
@@ -152,7 +155,7 @@ func (s *StateAPI) GetUnit(unitID types.UnitID, includeStateProof bool) (_ *Unit
 }
 
 // GetUnitsByOwnerID returns list of unit identifiers that belong to the given owner.
-func (s *StateAPI) GetUnitsByOwnerID(ownerID hex.Bytes) (_ []types.UnitID, retErr error) {
+func (s *StateAPI) GetUnitsByOwnerID(ownerID hex.Bytes, sinceUnitID *types.UnitID, limit *int) (_ []types.UnitID, retErr error) {
 	defer func(start time.Time) { s.updMetrics(context.Background(), "getUnitsByOwnerID", start, retErr) }(time.Now())
 	if s.ownerIndex == nil {
 		return nil, errors.New("owner indexer is disabled")
@@ -160,16 +163,12 @@ func (s *StateAPI) GetUnitsByOwnerID(ownerID hex.Bytes) (_ []types.UnitID, retEr
 	if err := s.requestLimiter.CheckRequestAllowed("getUnitsByOwnerID"); err != nil {
 		return nil, fmt.Errorf("request not allowed: %w", err)
 	}
-
-	unitIds, err := s.ownerIndex.GetOwnerUnits(ownerID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load owner units: %w", err)
-	}
-	return unitIds, nil
+	responseLimit := s.responseLimit(limit)
+	return s.ownerIndex.GetOwnerUnits(ownerID, sinceUnitID, responseLimit)
 }
 
 // GetUnits returns list of unit identifiers, optionally filtered by the given unit type identifier.
-func (s *StateAPI) GetUnits(unitTypeID *uint32) (_ []types.UnitID, retErr error) {
+func (s *StateAPI) GetUnits(unitTypeID *uint32, sinceUnitID *types.UnitID, limit *int) (_ []types.UnitID, retErr error) {
 	defer func(start time.Time) { s.updMetrics(context.Background(), "getUnits", start, retErr) }(time.Now())
 	if !s.withGetUnits {
 		return nil, errors.New("state_getUnits is disabled")
@@ -181,7 +180,14 @@ func (s *StateAPI) GetUnits(unitTypeID *uint32) (_ []types.UnitID, retErr error)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get units: %w", err)
 	}
-	return units, nil
+	startIndex := startIndex(sinceUnitID, units)
+	if startIndex >= len(units) {
+		return []types.UnitID{}, nil
+	}
+	responseLimit := s.responseLimit(limit)
+	endIndex := endIndex(startIndex, responseLimit, units)
+
+	return units[startIndex:endIndex], nil
 }
 
 // SendTransaction broadcasts the given transaction to the network, returns the submitted transaction hash.
@@ -257,4 +263,33 @@ func (s *StateAPI) GetTrustBase(epochNumber hex.Uint64) (_ types.RootTrustBase, 
 		return nil, fmt.Errorf("failed to load trust base: %w", err)
 	}
 	return trustBase, nil
+}
+
+// startIndex returns next index from sinceUnitID.
+func startIndex(sinceUnitID *types.UnitID, ownerUnitIDs []types.UnitID) int {
+	if sinceUnitID == nil {
+		return 0
+	}
+	index := slices.IndexFunc(ownerUnitIDs, func(n types.UnitID) bool {
+		return n.Compare(*sinceUnitID) == 0
+	})
+	return index + 1
+}
+
+func endIndex(startIndex int, limit int, ownerUnitIDs []types.UnitID) int {
+	if limit <= 0 {
+		return len(ownerUnitIDs)
+	}
+	endIndex := min(startIndex+limit, len(ownerUnitIDs))
+	return endIndex
+}
+
+func (s *StateAPI) responseLimit(limit *int) int {
+	if limit == nil || *limit == 0 {
+		return s.responseItemLimit
+	}
+	if s.responseItemLimit == 0 {
+		return *limit
+	}
+	return min(s.responseItemLimit, *limit)
 }

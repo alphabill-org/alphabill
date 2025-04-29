@@ -370,7 +370,7 @@ func TestNewBlockTreeFromRecovery(t *testing.T) {
 			Hash:         gBlock.RootHash,
 		},
 	}
-	bTree, err := NewBlockTreeFromRecovery(gBlock, db)
+	bTree, err := NewBlockTreeWithRootBlock(gBlock, db)
 	require.NoError(t, err)
 	require.NotNil(t, bTree)
 	// create a new block

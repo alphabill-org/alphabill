@@ -52,7 +52,12 @@ func (l *node) removeChild(child *node) {
 	}
 }
 
-func NewBlockTreeFromRecovery(block *ExecutedBlock, bDB keyvaluedb.KeyValueDB) (*BlockTree, error) {
+/*
+NewBlockTreeWithRootBlock creates BlockTree with given block as root node.
+
+Intended use-case is for recovery - acquire latest committed block and build on that state.
+*/
+func NewBlockTreeWithRootBlock(block *ExecutedBlock, bDB keyvaluedb.KeyValueDB) (*BlockTree, error) {
 	rootNode := newNode(block)
 	treeNodes := map[uint64]*node{rootNode.data.GetRound(): rootNode}
 	if err := bDB.Write(blockKey(block.GetRound()), block); err != nil {
@@ -450,7 +455,7 @@ func (bt *BlockTree) CurrentState() (*rcnet.StateMsg, error) {
 			Qc:        committedBlock.Qc,
 			CommitQc:  committedBlock.CommitQc,
 		},
-		BlockData: pending,
+		Pending: pending,
 	}, nil
 }
 

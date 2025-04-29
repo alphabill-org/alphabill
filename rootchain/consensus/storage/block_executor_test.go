@@ -100,7 +100,8 @@ func TestExecutedBlock_Extend(t *testing.T) {
 
 	// current root block for tests to extend from. it's ok to extend from
 	// the same block multiple times (mustn't affect the parent block)
-	parent := genesisBlockWithShard(t, &pdrEpoch1)
+	parent, err := NewGenesisBlock(orchestration, crypto.SHA256)
+	require.NoError(t, err)
 	require.Len(t, parent.ShardInfo.States, 1)
 	require.Contains(t, parent.ShardInfo.States, psID)
 	require.Len(t, parent.ShardInfo.Changed, 1)

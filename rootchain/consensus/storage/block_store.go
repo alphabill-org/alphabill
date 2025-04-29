@@ -40,7 +40,7 @@ func New(hashAlgo crypto.Hash, db keyvaluedb.KeyValueDB, orchestration Orchestra
 		return nil, fmt.Errorf("failed to read block store: %w", err)
 	}
 	if empty {
-		if err = storeGenesisInit(db, orchestration.NetworkID(), hashAlgo); err != nil {
+		if err = storeGenesisInit(db, orchestration, hashAlgo); err != nil {
 			return nil, fmt.Errorf("initializing block store: %w", err)
 		}
 	}
@@ -246,7 +246,29 @@ func (x *BlockStore) ReadLastVote() (any, error) {
 	return ReadVote(x.storage)
 }
 
-func NewGenesisBlock(networkID types.NetworkID, hashAlgo crypto.Hash) (*ExecutedBlock, error) {
+func NewGenesisBlock(orchestration Orchestration, hashAlgo crypto.Hash) (*ExecutedBlock, error) {
+	confs, err := orchestration.ShardConfigs(rctypes.GenesisRootRound)
+	if err != nil {
+		return nil, fmt.Errorf("reading shard configurations: %w", err)
+	}
+	states := ShardStates{
+		States:  make(map[types.PartitionShardID]*ShardInfo, len(confs)),
+		Changed: ShardSet{},
+	}
+	for pid, pdr := range confs {
+		si, err := NewShardInfo(pdr, crypto.SHA256)
+		if err != nil {
+			return nil, fmt.Errorf("creating shard info %s: %w", pid, err)
+		}
+		states.States[pid] = si
+		states.Changed[pid] = struct{}{}
+	}
+	schemes := shardingSchemes(confs)
+	ut, _, err := states.UnicityTree(schemes, hashAlgo)
+	if err != nil {
+		return nil, fmt.Errorf("creating UnicityTree: %w", err)
+	}
+
 	genesisBlock := &rctypes.BlockData{
 		Version:   1,
 		Author:    "genesis",
@@ -264,8 +286,8 @@ func NewGenesisBlock(networkID types.NetworkID, hashAlgo crypto.Hash) (*Executed
 		RoundNumber:       genesisBlock.Round,
 		Epoch:             genesisBlock.Epoch,
 		Timestamp:         genesisBlock.Timestamp,
-		ParentRoundNumber: 0,   // no parent block
-		CurrentRootHash:   nil, // no shards -> Unicity Tree root hash is nil
+		ParentRoundNumber: 0, // no parent block
+		CurrentRootHash:   ut.RootHash(),
 	}
 	commitRoundInfoHash, err := commitRoundInfo.Hash(hashAlgo)
 	if err != nil {
@@ -277,7 +299,7 @@ func NewGenesisBlock(networkID types.NetworkID, hashAlgo crypto.Hash) (*Executed
 		VoteInfo: commitRoundInfo,
 		LedgerCommitInfo: &types.UnicitySeal{
 			Version:   1,
-			NetworkID: networkID,
+			NetworkID: orchestration.NetworkID(),
 			// Usually the round that gets committed is different from
 			// the round that commits, but for genesis block they are the same.
 			RootChainRoundNumber: commitRoundInfo.RoundNumber,
@@ -295,14 +317,16 @@ func NewGenesisBlock(networkID types.NetworkID, hashAlgo crypto.Hash) (*Executed
 		HashAlgo:  hashAlgo,
 
 		// the same QC accepts the genesis block and commits it, usually commit comes later
-		Qc:       commitQc,
-		CommitQc: commitQc,
-		RootHash: commitQc.LedgerCommitInfo.Hash,
+		Qc:        commitQc,
+		CommitQc:  commitQc,
+		RootHash:  commitQc.LedgerCommitInfo.Hash,
+		ShardInfo: states,
+		Schemes:   schemes,
 	}, nil
 }
 
-func storeGenesisInit(db keyvaluedb.KeyValueDB, networkID types.NetworkID, hashAlgo crypto.Hash) error {
-	genesisBlock, err := NewGenesisBlock(networkID, hashAlgo)
+func storeGenesisInit(db keyvaluedb.KeyValueDB, orchestration Orchestration, hashAlgo crypto.Hash) error {
+	genesisBlock, err := NewGenesisBlock(orchestration, hashAlgo)
 	if err != nil {
 		return fmt.Errorf("creating genesis block: %w", err)
 	}

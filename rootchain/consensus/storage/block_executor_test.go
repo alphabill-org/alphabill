@@ -24,7 +24,12 @@ func (x mockIRVerifier) VerifyIRChangeReq(round uint64, irChReq *drctypes.IRChan
 }
 
 func TestNewGenesisBlock(t *testing.T) {
-	b, err := NewGenesisBlock(5, crypto.SHA256)
+	orchestration := mockOrchestration{
+		shardConfigs: func(rootRound uint64) (map[types.PartitionShardID]*types.PartitionDescriptionRecord, error) {
+			return nil, nil
+		},
+	}
+	b, err := NewGenesisBlock(orchestration, crypto.SHA256)
 	require.NoError(t, err)
 	require.Equal(t, b.HashAlgo, crypto.SHA256)
 	require.Empty(t, b.ShardInfo.States)

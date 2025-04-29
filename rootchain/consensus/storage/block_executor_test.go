@@ -24,25 +24,58 @@ func (x mockIRVerifier) VerifyIRChangeReq(round uint64, irChReq *drctypes.IRChan
 }
 
 func TestNewGenesisBlock(t *testing.T) {
-	orchestration := mockOrchestration{
-		shardConfigs: func(rootRound uint64) (map[types.PartitionShardID]*types.PartitionDescriptionRecord, error) {
-			return nil, nil
-		},
-	}
-	b, err := NewGenesisBlock(orchestration, crypto.SHA256)
-	require.NoError(t, err)
-	require.Equal(t, b.HashAlgo, crypto.SHA256)
-	require.Empty(t, b.ShardInfo.States)
-	require.Empty(t, b.ShardInfo.Changed)
-	require.Nil(t, b.RootHash)
-	require.NotNil(t, b.BlockData)
-	require.Equal(t, uint64(1), b.BlockData.Round)
-	require.Equal(t, "genesis", b.BlockData.Author)
-	require.Nil(t, b.BlockData.Qc)
-	require.NotNil(t, b.Qc)
-	require.NoError(t, b.Qc.IsValid())
-	require.NotNil(t, b.CommitQc)
-	require.NoError(t, b.CommitQc.IsValid())
+	t.Run("no shards", func(t *testing.T) {
+		orchestration := mockOrchestration{
+			shardConfigs: func(rootRound uint64) (map[types.PartitionShardID]*types.PartitionDescriptionRecord, error) {
+				return nil, nil
+			},
+		}
+		b, err := NewGenesisBlock(orchestration, crypto.SHA256)
+		require.NoError(t, err)
+		require.Equal(t, b.HashAlgo, crypto.SHA256)
+		require.Empty(t, b.ShardInfo.States)
+		require.Empty(t, b.ShardInfo.Changed)
+		require.Nil(t, b.RootHash)
+		require.NotNil(t, b.BlockData)
+		require.Equal(t, drctypes.GenesisRootRound, b.BlockData.Round)
+		require.Equal(t, drctypes.GenesisRootEpoch, b.BlockData.Epoch)
+		require.Equal(t, "genesis", b.BlockData.Author)
+		require.Nil(t, b.BlockData.Qc)
+		require.NotNil(t, b.Qc)
+		require.NoError(t, b.Qc.IsValid())
+		require.NotNil(t, b.CommitQc)
+		require.NoError(t, b.CommitQc.IsValid())
+	})
+
+	t.Run("initial shard in orchestration", func(t *testing.T) {
+		shardConf := newShardConf(t)
+		psID := types.PartitionShardID{PartitionID: shardConf.PartitionID, ShardID: shardConf.ShardID.Key()}
+		orchestration := mockOrchestration{
+			shardConfigs: func(rootRound uint64) (map[types.PartitionShardID]*types.PartitionDescriptionRecord, error) {
+				return map[types.PartitionShardID]*types.PartitionDescriptionRecord{psID: shardConf}, nil
+			},
+		}
+		b, err := NewGenesisBlock(orchestration, crypto.SHA256)
+		require.NoError(t, err)
+		require.Equal(t, b.HashAlgo, crypto.SHA256)
+		require.NotNil(t, b.RootHash)
+		require.NotNil(t, b.BlockData)
+		require.Equal(t, drctypes.GenesisRootRound, b.BlockData.Round)
+		require.Equal(t, drctypes.GenesisRootEpoch, b.BlockData.Epoch)
+		require.Equal(t, "genesis", b.BlockData.Author)
+		require.Nil(t, b.BlockData.Qc)
+		require.NotNil(t, b.Qc)
+		require.NoError(t, b.Qc.IsValid())
+		require.NotNil(t, b.CommitQc)
+		require.NoError(t, b.CommitQc.IsValid())
+		require.Len(t, b.ShardInfo.States, 1)
+		if assert.Contains(t, b.ShardInfo.States, psID) {
+			si := b.ShardInfo.States[psID]
+			require.NotNil(t, si.LastCR)
+			require.NotNil(t, si.LastCR.UC)
+			require.Equal(t, si.LastCR.UC.UnicitySeal.Hash, b.RootHash)
+		}
+	})
 }
 
 func TestExecutedBlock_Extend(t *testing.T) {

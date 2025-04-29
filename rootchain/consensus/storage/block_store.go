@@ -312,7 +312,7 @@ func NewGenesisBlock(orchestration Orchestration, hashAlgo crypto.Hash) (*Execut
 		Signatures: nil, // root validators agree on the first block by running the same software, no need to sign
 	}
 
-	return &ExecutedBlock{
+	eb := &ExecutedBlock{
 		BlockData: genesisBlock,
 		HashAlgo:  hashAlgo,
 
@@ -322,7 +322,9 @@ func NewGenesisBlock(orchestration Orchestration, hashAlgo crypto.Hash) (*Execut
 		RootHash:  commitQc.LedgerCommitInfo.Hash,
 		ShardInfo: states,
 		Schemes:   schemes,
-	}, nil
+	}
+	_, err = eb.GenerateCertificates(commitQc)
+	return eb, err
 }
 
 func storeGenesisInit(db keyvaluedb.KeyValueDB, orchestration Orchestration, hashAlgo crypto.Hash) error {

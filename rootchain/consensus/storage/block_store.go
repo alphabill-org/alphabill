@@ -247,23 +247,23 @@ func (x *BlockStore) ReadLastVote() (any, error) {
 }
 
 func NewGenesisBlock(orchestration Orchestration, hashAlgo crypto.Hash) (*ExecutedBlock, error) {
-	confs, err := orchestration.ShardConfigs(rctypes.GenesisRootRound)
+	shardConfs, err := orchestration.ShardConfigs(rctypes.GenesisRootRound)
 	if err != nil {
 		return nil, fmt.Errorf("reading shard configurations: %w", err)
 	}
 	states := ShardStates{
-		States:  make(map[types.PartitionShardID]*ShardInfo, len(confs)),
+		States:  make(map[types.PartitionShardID]*ShardInfo, len(shardConfs)),
 		Changed: ShardSet{},
 	}
-	for pid, pdr := range confs {
-		si, err := NewShardInfo(pdr, crypto.SHA256)
+	for psID, conf := range shardConfs {
+		si, err := NewShardInfo(conf, crypto.SHA256)
 		if err != nil {
-			return nil, fmt.Errorf("creating shard info %s: %w", pid, err)
+			return nil, fmt.Errorf("creating shard info %s: %w", psID, err)
 		}
-		states.States[pid] = si
-		states.Changed[pid] = struct{}{}
+		states.States[psID] = si
+		states.Changed[psID] = struct{}{}
 	}
-	schemes := shardingSchemes(confs)
+	schemes := shardingSchemes(shardConfs)
 	ut, _, err := states.UnicityTree(schemes, hashAlgo)
 	if err != nil {
 		return nil, fmt.Errorf("creating UnicityTree: %w", err)

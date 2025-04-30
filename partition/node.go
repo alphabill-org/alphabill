@@ -1021,6 +1021,14 @@ func (n *Node) handleUnicityCertificate(ctx context.Context, uc *types.UnicityCe
 		}
 		// if state hash does not match - start recovery
 		if !bytes.Equal(uc.GetStateHash(), state.Root()) {
+			n.log.DebugContext(ctx, fmt.Sprintf("No pending block proposal, state hash mismatch: expected '%X' got '%X'", uc.GetStateHash(), state.Root()))
+			n.startRecovery(ctx)
+			return ErrNodeDoesNotHaveLatestBlock
+		}
+		// if executed transactions buffer hash does not match - start recovery e.g.
+		// if ETBuffer contains a failed tx then state hash is the same but ETBuffer hash is different
+		if !bytes.Equal(uc.GetETHash(), state.ETHash()) {
+			n.log.DebugContext(ctx, fmt.Sprintf("No pending block proposal, ETBuffer hash mismatch: expected '%X' got '%X'", uc.GetETHash(), state.ETHash()))
 			n.startRecovery(ctx)
 			return ErrNodeDoesNotHaveLatestBlock
 		}

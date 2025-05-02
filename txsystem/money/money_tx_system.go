@@ -32,7 +32,6 @@ func NewTxSystem(shardConf *basetypes.PartitionDescriptionRecord, observe txsyst
 	}
 	return txsystem.NewGenericTxSystem(
 		*shardConf,
-		options.trustBase,
 		[]txtypes.Module{moneyModule},
 		observe,
 		txsystem.WithFeeCredits(feeCreditModule),

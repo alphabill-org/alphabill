@@ -3,7 +3,6 @@ package wvm
 import (
 	"bytes"
 	"context"
-	"crypto"
 	"crypto/sha256"
 	"errors"
 	"fmt"
@@ -136,7 +135,7 @@ func amountTransferred(vec *vmContext, mod api.Module, stack []uint64) error {
 		refNo = read(mod, addrRefNo)
 	}
 
-	sum, err := amountTransferredSum(txs, pkh, refNo, trustBaseLoader(vec.curPrg.env.TrustBase))
+	sum, err := amountTransferredSum(txs, pkh, refNo, vec.orc.TrustBase)
 	if err != nil {
 		vec.log.Debug(fmt.Sprintf("AmountTransferredSum(%d) returned %d and some error(s): %v", len(txs), sum, err))
 	}
@@ -149,16 +148,11 @@ The error return value is "for diagnostic" purposes, ie the func might return no
 case the error describes reason why some transaction(s) were not counted. The ref number or receiver not matching are
 not included in errors, only failures to determine whether the tx possibly could have been contributing to the sum...
 */
-func amountTransferredSum(proofs []*types.TxRecordProof, receiverPKH []byte, refNo []byte, getTrustBase func(*types.TxProof) (types.RootTrustBase, error)) (uint64, error) {
+func amountTransferredSum(proofs []*types.TxRecordProof, receiverPKH []byte, refNo []byte, getTrustBase func(epoch uint64) (types.RootTrustBase, error)) (uint64, error) {
 	var total uint64
 	var rErr error
 	for i, v := range proofs {
-		trustBase, err := getTrustBase(v.TxProof)
-		if err != nil {
-			rErr = errors.Join(rErr, fmt.Errorf("record[%d]: acquiring trust base: %w", i, err))
-			continue
-		}
-		sum, err := transferredSum(trustBase, v, receiverPKH, refNo)
+		sum, err := transferredSum(v, receiverPKH, refNo, getTrustBase)
 		if err != nil {
 			rErr = errors.Join(rErr, fmt.Errorf("record[%d]: %w", i, err))
 		}
@@ -178,12 +172,9 @@ Arguments:
 
 unknown / invalid transactions are ignored (not error)?
 */
-func transferredSum(trustBase types.RootTrustBase, txRecordProof *types.TxRecordProof, receiverPKH []byte, refNo []byte) (uint64, error) {
+func transferredSum(txRecordProof *types.TxRecordProof, receiverPKH, refNo []byte, getTrustBase func(epoch uint64) (types.RootTrustBase, error)) (uint64, error) {
 	if err := txRecordProof.IsValid(); err != nil {
 		return 0, fmt.Errorf("invalid input: %w", err)
-	}
-	if trustBase == nil {
-		return 0, errors.New("invalid input: trustbase is unassigned")
 	}
 	txo, err := txRecordProof.GetTransactionOrderV1()
 	if err != nil {
@@ -231,32 +222,11 @@ func transferredSum(trustBase types.RootTrustBase, txRecordProof *types.TxRecord
 	}
 
 	// potentially costly operation so we do it last
-	if err := types.VerifyTxProof(txRecordProof, trustBase, crypto.SHA256); err != nil {
+	if err := txRecordProof.Verify(getTrustBase); err != nil {
 		return 0, fmt.Errorf("verification of transaction: %w", err)
 	}
 
 	return sum, nil
-}
-
-/*
-trustBaseLoader returns function which loads the trustbase in effect on
-the epoch of the tx proof
-*/
-func trustBaseLoader(getTrustBase func(epoch uint64) (types.RootTrustBase, error)) func(proof *types.TxProof) (types.RootTrustBase, error) {
-	return func(proof *types.TxProof) (types.RootTrustBase, error) {
-		uc, err := proof.GetUC()
-		if err != nil {
-			return nil, fmt.Errorf("reading UC: %w", err)
-		}
-		if uc.UnicitySeal == nil {
-			return nil, fmt.Errorf("invalid UC: UnicitySeal is unassigned")
-		}
-		trustBase, err := getTrustBase(uc.UnicitySeal.Epoch)
-		if err != nil {
-			return nil, fmt.Errorf("acquiring trust base: %w", err)
-		}
-		return trustBase, nil
-	}
 }
 
 type txoEvalCtx struct {

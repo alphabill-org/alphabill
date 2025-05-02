@@ -17,7 +17,6 @@ type (
 		executedTransactions map[string]uint64
 		hashAlgorithm        crypto.Hash
 		ownerPredicate       types.PredicateBytes
-		trustBase            types.RootTrustBase
 		exec                 predicates.PredicateExecutor
 	}
 
@@ -55,12 +54,6 @@ func WithExecutedTransactions(executedTransactions map[string]uint64) Option {
 func WithHashAlgorithm(hashAlgorithm crypto.Hash) Option {
 	return func(g *Options) {
 		g.hashAlgorithm = hashAlgorithm
-	}
-}
-
-func WithTrustBase(trustBase types.RootTrustBase) Option {
-	return func(c *Options) {
-		c.trustBase = trustBase
 	}
 }
 

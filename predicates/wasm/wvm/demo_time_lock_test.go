@@ -43,7 +43,7 @@ func Test_time_lock(t *testing.T) {
 	templateEng, err := predicates.Dispatcher(tmpPred)
 	require.NoError(t, err)
 	// wasm engine to use for tests
-	wvm, err := New(context.Background(), txsEnc, templateEng.Execute, obs)
+	wvm, err := New(context.Background(), txsEnc, templateEng.Execute, nil, obs)
 	require.NoError(t, err)
 
 	// owner of the time locked unit

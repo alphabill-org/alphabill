@@ -51,6 +51,9 @@ func Test_conference_tickets_v2(t *testing.T) {
 	trustbase := &mockRootTrustBase{
 		verifyQuorumSignatures: func(data []byte, signatures map[string]hex.Bytes) (error, []error) { return nil, nil },
 	}
+	orchestration := mockOrchestration{
+		trustBase: func(epoch uint64) (types.RootTrustBase, error) { return trustbase, nil },
+	}
 
 	// configuration of the conference (predicate configuration)
 	const earlyBirdDate uint64 = 1709683200
@@ -105,7 +108,7 @@ func Test_conference_tickets_v2(t *testing.T) {
 		}
 
 		obs := observability.Default(t)
-		wvm, err := New(context.Background(), txsEnc, templateEng.Execute, obs)
+		wvm, err := New(context.Background(), txsEnc, templateEng.Execute, orchestration, obs)
 		require.NoError(t, err)
 		conf := wasm.PredicateParams{Entrypoint: "type_bearer", Args: predCfg}
 
@@ -166,7 +169,7 @@ func Test_conference_tickets_v2(t *testing.T) {
 		}
 
 		obs := observability.Default(t)
-		wvm, err := New(context.Background(), txsEnc, templateEng.Execute, obs)
+		wvm, err := New(context.Background(), txsEnc, templateEng.Execute, orchestration, obs)
 		require.NoError(t, err)
 		conf := wasm.PredicateParams{Entrypoint: "type_update_data", Args: nil}
 
@@ -231,7 +234,7 @@ func Test_conference_tickets_v2(t *testing.T) {
 		}
 
 		obs := observability.Default(t)
-		wvm, err := New(context.Background(), txsEnc, templateEng.Execute, obs)
+		wvm, err := New(context.Background(), txsEnc, templateEng.Execute, orchestration, obs)
 		require.NoError(t, err)
 		conf := wasm.PredicateParams{Entrypoint: "token_bearer", Args: predCfg}
 
@@ -320,7 +323,7 @@ func Test_conference_tickets_v2(t *testing.T) {
 		}
 
 		obs := observability.Default(t)
-		wvm, err := New(context.Background(), txsEnc, templateEng.Execute, obs)
+		wvm, err := New(context.Background(), txsEnc, templateEng.Execute, orchestration, obs)
 		require.NoError(t, err)
 		conf := wasm.PredicateParams{Entrypoint: "token_update_data", Args: predCfg}
 

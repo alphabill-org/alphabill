@@ -52,6 +52,7 @@ type (
 		curPrg  *evalContext
 		encoder Encoder
 		factory ABTypesFactory
+		orc     Orchestration
 		engines predicates.PredicateExecutor
 		log     *slog.Logger
 	}
@@ -69,11 +70,14 @@ type (
 		env    EvalEnvironment // callback to the tx system
 	}
 
+	Orchestration interface {
+		TrustBase(epoch uint64) (types.RootTrustBase, error)
+	}
+
 	EvalEnvironment interface {
 		GetUnit(id types.UnitID, committed bool) (state.Unit, error)
 		CommittedUC() *types.UnicityCertificate
 		CurrentRound() uint64
-		TrustBase(epoch uint64) (types.RootTrustBase, error)
 		GasAvailable() uint64
 		SpendGas(gas uint64) error
 		CalculateCost() uint64
@@ -171,7 +175,7 @@ func (vmCtx *vmContext) writeToMemory(mod api.Module, buf []byte) (uint64, error
 }
 
 // New - creates new wazero based wasm vm
-func New(ctx context.Context, enc Encoder, engines predicates.PredicateExecutor, observe Observability, opts ...Option) (*WasmVM, error) {
+func New(ctx context.Context, enc Encoder, engines predicates.PredicateExecutor, orc Orchestration, observe Observability, opts ...Option) (*WasmVM, error) {
 	options := defaultOptions()
 	for _, opt := range opts {
 		opt(options)
@@ -203,6 +207,7 @@ func New(ctx context.Context, enc Encoder, engines predicates.PredicateExecutor,
 			curPrg: &evalContext{
 				vars: map[uint32]any{},
 			},
+			orc:     orc,
 			encoder: enc,
 			engines: engines,
 			factory: ABTypesFactory{},

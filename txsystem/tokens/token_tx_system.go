@@ -77,7 +77,6 @@ func NewTxSystem(shardConf basetypes.PartitionDescriptionRecord, observe txsyste
 	}
 	return txsystem.NewGenericTxSystem(
 		shardConf,
-		options.trustBase,
 		[]txtypes.Module{nft, fungible, nopModule},
 		observe,
 		txsystem.WithFeeCredits(feeCreditModule),

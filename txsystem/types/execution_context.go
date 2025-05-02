@@ -29,25 +29,23 @@ type (
 
 	// TxExecutionContext - implementation of ExecutionContext interface for generic tx handler
 	TxExecutionContext struct {
-		txs          StateInfo
-		fee          FeeCalculation
-		trustStore   types.RootTrustBase
-		initialGas   uint64
-		remainingGas uint64
-		customData   []byte
-		exArgument   func() ([]byte, error)
+		txs           StateInfo
+		fee           FeeCalculation
+		initialGas    uint64
+		remainingGas  uint64
+		customData    []byte
+		exArgument    func() ([]byte, error)
 		executionType ExecutionType
 	}
 
 	ExecutionType uint
 )
 
-func NewExecutionContext(txSys StateInfo, f FeeCalculation, tb types.RootTrustBase, maxCost uint64) *TxExecutionContext {
+func NewExecutionContext(txSys StateInfo, f FeeCalculation, maxCost uint64) *TxExecutionContext {
 	gasUnits := f.BuyGas(maxCost)
 	return &TxExecutionContext{
 		txs:          txSys,
 		fee:          f,
-		trustStore:   tb,
 		initialGas:   gasUnits,
 		remainingGas: gasUnits,
 	}
@@ -62,10 +60,6 @@ func (ec *TxExecutionContext) CommittedUC() *types.UnicityCertificate {
 }
 
 func (ec *TxExecutionContext) CurrentRound() uint64 { return ec.txs.CurrentRound() }
-
-func (ec *TxExecutionContext) TrustBase(epoch uint64) (types.RootTrustBase, error) {
-	return ec.trustStore, nil
-}
 
 func (ec *TxExecutionContext) GasAvailable() uint64 {
 	return ec.remainingGas

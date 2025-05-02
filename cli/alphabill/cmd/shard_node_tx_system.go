@@ -100,7 +100,7 @@ func newTokensTxSystem(flags *shardNodeRunFlags, nodeConf *partition.NodeConf) (
 	if err != nil {
 		return nil, fmt.Errorf("creating predicate executor for WASM engine: %w", err)
 	}
-	wasmEng, err := wasm.New(enc, tpe.Execute, nodeConf.Observability())
+	wasmEng, err := wasm.New(enc, tpe.Execute, nodeConf.Orchestration(), nodeConf.Observability())
 	if err != nil {
 		return nil, fmt.Errorf("creating predicate WASM executor: %w", err)
 	}
@@ -179,7 +179,6 @@ func newOrchestrationTxSystem(flags *shardNodeRunFlags, nodeConf *partition.Node
 		*nodeConf.ShardConf(),
 		nodeConf.Observability(),
 		orchestration.WithHashAlgorithm(nodeConf.HashAlgorithm()),
-		orchestration.WithTrustBase(nodeConf.TrustBase()),
 		orchestration.WithState(state),
 		orchestration.WithOwnerPredicate(params.OwnerPredicate),
 		orchestration.WithExecutedTransactions(header.ExecutedTransactions),

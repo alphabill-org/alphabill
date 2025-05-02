@@ -15,12 +15,6 @@ import (
 
 const mockTx uint16 = 22
 
-type txSysInfo struct {
-	getUnit      func(id types.UnitID, committed bool) (state.Unit, error)
-	committedUC  func() *types.UnicityCertificate
-	currentRound func() uint64
-}
-
 type MockTxAttributes struct {
 	_     struct{} `cbor:",toarray"`
 	Value uint64
@@ -35,8 +29,6 @@ type MockModule struct {
 	ValidateError error
 	Result        error
 }
-
-type MockFeeHandling struct{}
 
 func NewMockTxModule(wantErr error) *MockModule {
 	return &MockModule{Result: wantErr}
@@ -58,28 +50,39 @@ func (mm MockModule) TxHandlers() map[uint16]TxExecutor {
 	}
 }
 
-func NewMockFeeModule() *MockFeeHandling {
-	return &MockFeeHandling{}
+type mockFeeHandling struct {
+	buyGas func(tema uint64) uint64
+	cost   func(gas uint64) uint64
 }
 
-func (f *MockFeeHandling) CalculateCost(_ uint64) uint64 {
-	return 0
+func NewMockFeeModule() *mockFeeHandling {
+	return &mockFeeHandling{buyGas: func(tema uint64) uint64 { return math.MaxUint64 }}
 }
 
-func (f *MockFeeHandling) BuyGas(_ uint64) uint64 {
-	return math.MaxUint64
+func (f *mockFeeHandling) CalculateCost(gas uint64) uint64 {
+	return f.cost(gas)
 }
 
-func (s txSysInfo) GetUnit(id types.UnitID, committed bool) (state.Unit, error) {
+func (f *mockFeeHandling) BuyGas(tema uint64) uint64 {
+	return f.buyGas(tema)
+}
+
+type mockSysInfo struct {
+	getUnit      func(id types.UnitID, committed bool) (state.Unit, error)
+	committedUC  func() *types.UnicityCertificate
+	currentRound func() uint64
+}
+
+func (s mockSysInfo) GetUnit(id types.UnitID, committed bool) (state.Unit, error) {
 	if s.getUnit != nil {
 		return s.getUnit(id, committed)
 	}
 	return &state.UnitV1{}, fmt.Errorf("unit does not exist")
 }
 
-func (s txSysInfo) CommittedUC() *types.UnicityCertificate { return s.committedUC() }
+func (s mockSysInfo) CommittedUC() *types.UnicityCertificate { return s.committedUC() }
 
-func (s txSysInfo) CurrentRound() uint64 {
+func (s mockSysInfo) CurrentRound() uint64 {
 	if s.currentRound != nil {
 		return s.currentRound()
 	}
@@ -92,7 +95,7 @@ func Test_TxExecutors_Execute(t *testing.T) {
 		mock := NewMockTxModule(errors.New("unexpected call"))
 		require.NoError(t, exec.Add(mock.TxHandlers()))
 		txo := &types.TransactionOrder{Version: 1, Payload: types.Payload{Type: 23}}
-		exeCtx := NewExecutionContext(&txSysInfo{}, NewMockFeeModule(), nil, 10)
+		exeCtx := NewExecutionContext(&mockSysInfo{}, NewMockFeeModule(), 10)
 
 		// try calling unmarshal
 		attr, authProof, _, err := exec.UnmarshalTx(txo, exeCtx)
@@ -126,7 +129,7 @@ func Test_TxExecutors_Execute(t *testing.T) {
 		mock := NewMockTxModule(expErr)
 		require.NoError(t, exec.Add(mock.TxHandlers()))
 		txo := &types.TransactionOrder{Version: 1, Payload: types.Payload{Type: mockTx}}
-		exeCtx := NewExecutionContext(&txSysInfo{}, NewMockFeeModule(), nil, 10)
+		exeCtx := NewExecutionContext(&mockSysInfo{}, NewMockFeeModule(), 10)
 
 		// try calling unmarshal
 		attr, authProof, _, err := exec.UnmarshalTx(txo, exeCtx)
@@ -150,7 +153,7 @@ func Test_TxExecutors_Execute(t *testing.T) {
 		mock := NewMockTxModule(expErr)
 		require.NoError(t, exec.Add(mock.TxHandlers()))
 		txo := &types.TransactionOrder{Version: 1, Payload: types.Payload{Type: mockTx}}
-		exeCtx := NewExecutionContext(&txSysInfo{}, NewMockFeeModule(), nil, 10)
+		exeCtx := NewExecutionContext(&mockSysInfo{}, NewMockFeeModule(), 10)
 
 		// try calling unmarshal
 		attr, authProof, _, err := exec.UnmarshalTx(txo, exeCtx)
@@ -179,7 +182,7 @@ func Test_TxExecutors_Execute(t *testing.T) {
 			transaction.WithAttributes(MockTxAttributes{}),
 			transaction.WithAuthProof(MockTxAuthProof{}),
 		)
-		exeCtx := NewExecutionContext(&txSysInfo{}, NewMockFeeModule(), nil, 10)
+		exeCtx := NewExecutionContext(&mockSysInfo{}, NewMockFeeModule(), 10)
 
 		// unmarshal tx
 		attr, authProof, _, err := exec.UnmarshalTx(txo, exeCtx)
@@ -204,7 +207,7 @@ func Test_TxExecutors_Execute(t *testing.T) {
 			transaction.WithAttributes(MockTxAttributes{}),
 			transaction.WithAuthProof(MockTxAuthProof{}),
 		)
-		attr, err := exec.ValidateAndExecute(txo, NewExecutionContext(&txSysInfo{}, NewMockFeeModule(), nil, 10))
+		attr, err := exec.ValidateAndExecute(txo, NewExecutionContext(&mockSysInfo{}, NewMockFeeModule(), 10))
 		require.ErrorIs(t, err, validateErr)
 		require.Nil(t, attr)
 	})
@@ -219,7 +222,7 @@ func Test_TxExecutors_Execute(t *testing.T) {
 			transaction.WithAttributes(MockTxAttributes{}),
 			transaction.WithAuthProof(MockTxAuthProof{}),
 		)
-		attr, err := exec.ValidateAndExecute(txo, NewExecutionContext(&txSysInfo{}, NewMockFeeModule(), nil, 10))
+		attr, err := exec.ValidateAndExecute(txo, NewExecutionContext(&mockSysInfo{}, NewMockFeeModule(), 10))
 		require.ErrorIs(t, err, execErr)
 		require.Nil(t, attr)
 	})
@@ -235,7 +238,7 @@ func Test_TxExecutors_Execute(t *testing.T) {
 		txo := transaction.NewTransactionOrder(t,
 			transaction.WithTransactionType(mockTx),
 			transaction.WithAttributes(TestData{Data: []byte{1, 4}}))
-		exeCtx := NewExecutionContext(&txSysInfo{}, NewMockFeeModule(), nil, 10)
+		exeCtx := NewExecutionContext(&mockSysInfo{}, NewMockFeeModule(), 10)
 
 		// unmarshal tx
 		attr, authProof, _, err := exec.UnmarshalTx(txo, exeCtx)
@@ -259,7 +262,7 @@ func Test_TxExecutors_Execute(t *testing.T) {
 			transaction.WithAttributes(MockTxAttributes{}),
 			transaction.WithAuthProof(MockTxAuthProof{}),
 		)
-		exeCtx := NewExecutionContext(&txSysInfo{}, NewMockFeeModule(), nil, 10)
+		exeCtx := NewExecutionContext(&mockSysInfo{}, NewMockFeeModule(), 10)
 
 		// unmarshal tx
 		attr, authProof, _, err := exec.UnmarshalTx(txo, exeCtx)
@@ -272,7 +275,7 @@ func Test_TxExecutors_Execute(t *testing.T) {
 		require.Error(t, err, expErr)
 
 		// try calling execute
-		sm, err := exec.ExecuteWithAttr(txo, attr, authProof, NewExecutionContext(&txSysInfo{}, NewMockFeeModule(), nil, 10))
+		sm, err := exec.ExecuteWithAttr(txo, attr, authProof, NewExecutionContext(&mockSysInfo{}, NewMockFeeModule(), 10))
 		require.Error(t, err, expErr)
 		require.Nil(t, sm)
 	})
@@ -287,7 +290,7 @@ func Test_TxExecutors_Execute(t *testing.T) {
 			transaction.WithAuthProof(MockTxAuthProof{}),
 		)
 
-		exeCtx := NewExecutionContext(&txSysInfo{}, NewMockFeeModule(), nil, 10)
+		exeCtx := NewExecutionContext(&mockSysInfo{}, NewMockFeeModule(), 10)
 		attr, authProof, _, err := exec.UnmarshalTx(txo, exeCtx)
 		require.NoError(t, err)
 		err = exec.Validate(txo, attr, authProof, exeCtx)
@@ -305,7 +308,7 @@ func Test_TxExecutors_Execute(t *testing.T) {
 			transaction.WithAttributes(MockTxAttributes{}),
 			transaction.WithAuthProof(MockTxAuthProof{}),
 		)
-		exeCtx := NewExecutionContext(&txSysInfo{}, NewMockFeeModule(), nil, 10)
+		exeCtx := NewExecutionContext(&mockSysInfo{}, NewMockFeeModule(), 10)
 
 		attr, authProof, _, err := exec.UnmarshalTx(txo, exeCtx)
 		require.NoError(t, err)
@@ -328,7 +331,7 @@ func Test_TxExecutors_Execute(t *testing.T) {
 			transaction.WithAttributes(MockTxAttributes{}),
 			transaction.WithAuthProof(MockTxAuthProof{}),
 		)
-		exeCtx := NewExecutionContext(&txSysInfo{}, NewMockFeeModule(), nil, 10)
+		exeCtx := NewExecutionContext(&mockSysInfo{}, NewMockFeeModule(), 10)
 
 		attr, authProof, _, err := exec.UnmarshalTx(txo, exeCtx)
 		require.NoError(t, err)
@@ -351,7 +354,7 @@ func Test_TxExecutors_Execute(t *testing.T) {
 			transaction.WithAttributes(MockTxAttributes{}),
 			transaction.WithAuthProof(MockTxAuthProof{}),
 		)
-		sm, err := exec.ValidateAndExecute(txo, NewExecutionContext(&txSysInfo{}, NewMockFeeModule(), nil, 10))
+		sm, err := exec.ValidateAndExecute(txo, NewExecutionContext(&mockSysInfo{}, NewMockFeeModule(), 10))
 		require.NoError(t, err)
 		require.NotNil(t, sm)
 	})

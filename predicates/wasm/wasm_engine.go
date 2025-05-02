@@ -21,8 +21,8 @@ type WasmRunner struct {
 	execDur metric.Float64Histogram
 }
 
-func New(enc wvm.Encoder, engines exec.PredicateExecutor, obs wvm.Observability) (WasmRunner, error) {
-	vm, err := wvm.New(context.Background(), enc, engines, obs)
+func New(enc wvm.Encoder, engines exec.PredicateExecutor, orchestration wvm.Orchestration, obs wvm.Observability) (WasmRunner, error) {
+	vm, err := wvm.New(context.Background(), enc, engines, orchestration, obs)
 	if err != nil {
 		return WasmRunner{}, fmt.Errorf("creating WASM engine: %w", err)
 	}

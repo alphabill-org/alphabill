@@ -17,8 +17,6 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/util"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/observability"
-	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
-	testtb "github.com/alphabill-org/alphabill/internal/testutils/trustbase"
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/tree/avl"
 	"github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
@@ -71,7 +69,7 @@ func Test_NewGenericTxSystem(t *testing.T) {
 	t.Run("partition ID param is mandatory", func(t *testing.T) {
 		pdr := validPDR
 		pdr.PartitionID = 0
-		txSys, err := NewGenericTxSystem(pdr, nil, nil, nil, nil)
+		txSys, err := NewGenericTxSystem(pdr, nil, nil, nil)
 		require.Nil(t, txSys)
 		require.EqualError(t, err, `invalid Partition Description: invalid partition identifier: 00000000`)
 	})
@@ -86,7 +84,6 @@ func Test_NewGenericTxSystem(t *testing.T) {
 		obs := observability.Default(t)
 		txSys, err := NewGenericTxSystem(
 			validPDR,
-			nil,
 			nil,
 			obs,
 		)
@@ -488,15 +485,11 @@ func Test_GenericTxSystem_Execute_FeeTransactions(t *testing.T) {
 		require.NoError(t, err)
 		unitV1, err = state.ToUnitV1(u)
 		require.NoError(t, err)
-		expectedTxBytes, err = cbor.Marshal(tx)
-		require.NoError(t, err)
 		require.False(t, unitV1.IsStateLocked())
 	})
 }
 
 func createTxSystemWithFees(t *testing.T, options ...txSystemTestOption) *GenericTxSystem {
-	_, verifier := testsig.CreateSignerAndVerifier(t)
-	trustBase := testtb.NewTrustBase(t, verifier)
 	pdr := types.PartitionDescriptionRecord{
 		Version:         1,
 		NetworkID:       mockNetworkID,
@@ -509,7 +502,7 @@ func createTxSystemWithFees(t *testing.T, options ...txSystemTestOption) *Generi
 	obs := observability.Default(t)
 	feeModule := newMockFeeModule(16)
 	m := NewMockTxModule(nil)
-	txSys, err := NewGenericTxSystem(pdr, trustBase, []txtypes.Module{m}, obs, WithFeeCredits(feeModule))
+	txSys, err := NewGenericTxSystem(pdr, []txtypes.Module{m}, obs, WithFeeCredits(feeModule))
 	require.NoError(t, err)
 	for _, opt := range options {
 		require.NoError(t, opt(txSys))
@@ -818,27 +811,6 @@ func withStateUnit(unitID []byte, data types.UnitData, lock []byte) txSystemTest
 	}
 }
 
-func withTrustBase(tb types.RootTrustBase) txSystemTestOption {
-	return func(m *GenericTxSystem) error {
-		m.trustBase = tb
-		return nil
-	}
-}
-
-func withCurrentRound(round uint64) txSystemTestOption {
-	return func(m *GenericTxSystem) error {
-		m.currentRoundNumber = round
-		return nil
-	}
-}
-
-func withFeeModule(module txtypes.FeeCreditModule) txSystemTestOption {
-	return func(m *GenericTxSystem) error {
-		m.fees = module
-		return nil
-	}
-}
-
 func NewTestGenericTxSystem(t *testing.T, modules []txtypes.Module, opts ...txSystemTestOption) *GenericTxSystem {
 	txSys := defaultTestConfiguration(t, modules)
 	// apply test overrides
@@ -859,7 +831,7 @@ func defaultTestConfiguration(t *testing.T, modules []txtypes.Module) *GenericTx
 		T2Timeout:       2500 * time.Millisecond,
 	}
 	// default configuration has no fee handling
-	txSys, err := NewGenericTxSystem(pdr, nil, modules, observability.Default(t))
+	txSys, err := NewGenericTxSystem(pdr, modules, observability.Default(t))
 	require.NoError(t, err)
 	return txSys
 }

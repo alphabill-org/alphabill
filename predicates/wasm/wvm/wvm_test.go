@@ -37,7 +37,7 @@ func TestNew(t *testing.T) {
 	require.NoError(t, err)
 
 	require.NoError(t, err)
-	wvm, err := New(ctx, encoder.TXSystemEncoder{}, nil, obs, WithStorage(memDB))
+	wvm, err := New(ctx, encoder.TXSystemEncoder{}, nil, nil, obs, WithStorage(memDB))
 	require.NoError(t, err)
 	require.NotNil(t, wvm)
 
@@ -51,7 +51,7 @@ func TestReadHeapBase(t *testing.T) {
 	}
 	enc := encoder.TXSystemEncoder{}
 	conf := wasm.PredicateParams{Entrypoint: "bearer_invariant"}
-	wvm, err := New(context.Background(), enc, nil, observability.Default(t))
+	wvm, err := New(context.Background(), enc, nil, nil, observability.Default(t))
 	require.NoError(t, err)
 	_, err = wvm.Exec(context.Background(), ticketsWasm, nil, conf, &types.TransactionOrder{}, env)
 	require.Error(t, err)
@@ -224,4 +224,12 @@ type mockRootTrustBase struct {
 
 func (rtb *mockRootTrustBase) VerifyQuorumSignatures(data []byte, signatures map[string]hex.Bytes) (error, []error) {
 	return rtb.verifyQuorumSignatures(data, signatures)
+}
+
+type mockOrchestration struct {
+	trustBase func(epoch uint64) (types.RootTrustBase, error)
+}
+
+func (o mockOrchestration) TrustBase(epoch uint64) (types.RootTrustBase, error) {
+	return o.trustBase(epoch)
 }

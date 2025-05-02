@@ -20,7 +20,7 @@ func TestFC_Validation(t *testing.T) {
 	_, verifier := testsig.CreateSignerAndVerifier(t)
 	trustBase := testtb.NewTrustBase(t, verifier)
 	s := state.NewEmptyState()
-	partitionID := moneyPartitionID
+	const partitionID = 10
 	targetPDR := moneyid.PDR()
 	observe := observability.Default(t)
 

@@ -22,7 +22,6 @@ func NewTxSystem(shardConf types.PartitionDescriptionRecord, observe txsystem.Ob
 	}
 	return txsystem.NewGenericTxSystem(
 		shardConf,
-		options.trustBase,
 		[]txtypes.Module{module},
 		observe,
 		txsystem.WithHashAlgorithm(options.hashAlgorithm),

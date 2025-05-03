@@ -32,7 +32,6 @@ type (
 		state               *state.State
 		currentRoundNumber  uint64
 		handlers            txtypes.TxExecutors
-		trustBase           types.RootTrustBase
 		fees                txtypes.FeeCreditModule
 		beginBlockFunctions []func(roundNumber uint64) error
 		endBlockFunctions   []func(roundNumber uint64) error
@@ -41,7 +40,6 @@ type (
 		pr                  predicates.PredicateRunner
 		unitIDValidator     func(types.UnitID) error
 		etBuffer            *ETBuffer // executed transactions buffer
-		fcrTypeID           uint32
 	}
 
 	Observability interface {
@@ -51,7 +49,7 @@ type (
 	}
 )
 
-func NewGenericTxSystem(shardConf types.PartitionDescriptionRecord, trustBase types.RootTrustBase, modules []txtypes.Module, observe Observability, opts ...Option) (*GenericTxSystem, error) {
+func NewGenericTxSystem(shardConf types.PartitionDescriptionRecord, modules []txtypes.Module, observe Observability, opts ...Option) (*GenericTxSystem, error) {
 	if err := shardConf.IsValid(); err != nil {
 		return nil, fmt.Errorf("invalid Partition Description: %w", err)
 	}
@@ -73,7 +71,6 @@ func NewGenericTxSystem(shardConf types.PartitionDescriptionRecord, trustBase ty
 		pdr:                 shardConf,
 		hashAlgorithm:       options.hashAlgorithm,
 		state:               options.state,
-		trustBase:           trustBase,
 		unitIDValidator:     shardConf.UnitIDValidator(shardConf.ShardID),
 		beginBlockFunctions: options.beginBlockFunctions,
 		endBlockFunctions:   options.endBlockFunctions,
@@ -247,7 +244,7 @@ func (m *GenericTxSystem) Execute(tx *types.TransactionOrder) (tr *types.Transac
 	// First, check transaction credible and that there are enough fee credits on the FCR?
 	// buy gas according to the maximum tx fee allowed by client -
 	// if fee proof check fails, function will exit tx and tx will not be added to block
-	exeCtx := txtypes.NewExecutionContext(m, m.fees, m.trustBase, tx.MaxFee())
+	exeCtx := txtypes.NewExecutionContext(m, m.fees, tx.MaxFee())
 	// 2. If P.α != S.α ∨ fSH(P.ι) != S.σ ∨ S .n ≥ P.T 0 then return ⊥
 	// 3. If not P.MC .ι f = ⊥ = P.s f then return ⊥
 	if err := m.validateGenericTransaction(tx); err != nil {

@@ -448,6 +448,62 @@ func TestNode_HandleUnicityCertificate_RevertAndStartRecovery_withNoProposal(t *
 	require.Equal(t, recovering, tp.node.status.Load())
 }
 
+func TestNode_HandleUnicityCertificate_NoPendingProposal_InvalidETHash(t *testing.T) {
+	system := &testtxsystem.CounterTxSystem{}
+	tp := runSingleValidatorNodePartition(t, system)
+	tp.WaitHandshake(t)
+	tp.CreateBlock(t)
+
+	uc1 := tp.GetCommittedUC(t)
+
+	tp.node.startNewRound(context.Background())
+
+	// send new UC
+	rootRound := uc1.UnicitySeal.RootChainRoundNumber
+	partitionRound := uc1.InputRecord.RoundNumber
+	sum := uc1.InputRecord.SummaryValue
+	rootRound++
+	partitionRound++
+	ir := &types.InputRecord{
+		Version:      1,
+		PreviousHash: uc1.InputRecord.Hash,
+		Hash:         uc1.InputRecord.Hash,
+		ETHash:       test.RandomBytes(32),
+		BlockHash:    nil,
+		SummaryValue: sum,
+		RoundNumber:  partitionRound,
+		Timestamp:    uc1.UnicitySeal.Timestamp,
+	}
+	tp.ReceiveCertResponseSameEpoch(t, ir, rootRound)
+
+	ContainsError(t, tp, ErrNodeDoesNotHaveLatestBlock.Error())
+	require.Equal(t, uint64(1), system.RevertCount)
+	require.Equal(t, recovering, tp.node.status.Load())
+	testevent.ContainsEvent(t, tp.eh, event.RecoveryStarted)
+
+	// make sure replication request is sent
+	req := WaitNodeRequestReceived(t, tp, network.ProtocolLedgerReplicationReq)
+	require.NotNil(t, req)
+
+	// send newer UC and check LUC is updated and node still recovering
+	tp.eh.Reset()
+	rootRound++
+	partitionRound++
+	ir = &types.InputRecord{
+		Version:      1,
+		PreviousHash: uc1.GetStateHash(),
+		Hash:         test.RandomBytes(32),
+		BlockHash:    test.RandomBytes(32),
+		ETHash:       test.RandomBytes(32),
+		SummaryValue: sum,
+		RoundNumber:  partitionRound,
+		Timestamp:    uc1.UnicitySeal.Timestamp,
+	}
+	tp.ReceiveCertResponseSameEpoch(t, ir, rootRound)
+	testevent.ContainsEvent(t, tp.eh, event.LatestUnicityCertificateUpdated)
+	require.Equal(t, recovering, tp.node.status.Load())
+}
+
 func TestNode_RecoverBlocks(t *testing.T) {
 	tp := runSingleValidatorNodePartition(t, &testtxsystem.CounterTxSystem{FixedState: testtxsystem.MockState{}})
 	tp.WaitHandshake(t)
@@ -1059,7 +1115,7 @@ func TestNode_CertificationRequestNotSentWhenProposalStoreFails(t *testing.T) {
 	// mock error situation, every next write will fail with error
 	db.MockWriteError(fmt.Errorf("disk full"))
 
-		// submit transaction
+	// submit transaction
 	// tx, err := testtransaction.NewTransactionRecord(t).GetTransactionOrderV1()
 	require.NoError(t, err)
 	require.NoError(t, tp.SubmitTx(tx))

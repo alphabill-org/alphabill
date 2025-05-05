@@ -107,8 +107,8 @@ func initFromGenesis(t *testing.T) *BlockTree {
 	db, err := memorydb.New()
 	require.NoError(t, err)
 
-	require.NoError(t, storeGenesisInit(db, 5, crypto.SHA256))
 	orchestration := testpartition.NewOrchestration(t, logger.New(t))
+	require.NoError(t, storeGenesisInit(db, orchestration, crypto.SHA256))
 	btree, err := NewBlockTree(db, orchestration)
 	require.NoError(t, err)
 	return btree
@@ -258,7 +258,7 @@ func TestNewBlockTreeFromDb(t *testing.T) {
 	require.NoError(t, err)
 	orchestration := testpartition.NewOrchestration(t, logger.New(t))
 
-	gBlock, err := NewGenesisBlock(orchestration.NetworkID(), crypto.SHA256)
+	gBlock, err := NewGenesisBlock(orchestration, crypto.SHA256)
 	require.NoError(t, err)
 	require.NoError(t, db.Write(blockKey(drctypes.GenesisRootRound), gBlock))
 
@@ -290,7 +290,7 @@ func TestNewBlockTreeFromDbChain3Blocks(t *testing.T) {
 	db, err := memorydb.New()
 	require.NoError(t, err)
 	orchestration := testpartition.NewOrchestration(t, logger.New(t))
-	gBlock, err := NewGenesisBlock(orchestration.NetworkID(), crypto.SHA256)
+	gBlock, err := NewGenesisBlock(orchestration, crypto.SHA256)
 	require.NoError(t, err)
 	require.NoError(t, db.Write(blockKey(drctypes.GenesisRootRound), gBlock))
 	// create blocks 2 and 3
@@ -348,9 +348,14 @@ func TestNewBlockTreeFromDbChain3Blocks(t *testing.T) {
 }
 
 func TestNewBlockTreeFromRecovery(t *testing.T) {
+	orchestration := mockOrchestration{
+		shardConfigs: func(rootRound uint64) (map[types.PartitionShardID]*types.PartitionDescriptionRecord, error) {
+			return nil, nil
+		},
+	}
 	db, err := memorydb.New()
 	require.NoError(t, err)
-	gBlock, err := NewGenesisBlock(5, crypto.SHA256)
+	gBlock, err := NewGenesisBlock(orchestration, crypto.SHA256)
 	require.NoError(t, err)
 	require.NoError(t, db.Write(blockKey(drctypes.GenesisRootRound), gBlock))
 	// create blocks 2 and 3

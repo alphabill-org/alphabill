@@ -9,7 +9,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/keyvaluedb"
 	rcnet "github.com/alphabill-org/alphabill/network/protocol/abdrc"
 	"github.com/alphabill-org/alphabill/network/protocol/certification"
@@ -84,11 +83,10 @@ func readBlocksFromDB(bDB keyvaluedb.KeyValueDB, orchestration Orchestration) (b
 		if err != nil {
 			return nil, fmt.Errorf("loading shard configurations for round %d: %w", b.GetRound(), err)
 		}
-		// this check would fail for genesis block as it is created with empty shard states!
-		if len(b.ShardInfo.States) != len(shardConfs) && b.GetRound() != abdrc.GenesisRootRound {
+		if len(b.ShardInfo.States) != len(shardConfs) {
 			return nil, fmt.Errorf("round %d has %d shards, block has data for %d shards", b.GetRound(), len(shardConfs), len(b.ShardInfo.States))
 		}
-		b.Schemes = map[types.PartitionID]types.ShardingScheme{}
+		b.Schemes = shardingSchemes(shardConfs)
 		for k, si := range b.ShardInfo.States {
 			pdr, ok := shardConfs[k]
 			if !ok {
@@ -96,11 +94,6 @@ func readBlocksFromDB(bDB keyvaluedb.KeyValueDB, orchestration Orchestration) (b
 			}
 			if err = si.resetTrustBase(pdr); err != nil {
 				return nil, fmt.Errorf("init shard trustbase (%s - %s): %w", si.LastCR.Partition, si.LastCR.Shard, err)
-			}
-			if pdr.ShardID.Length() == 0 {
-				b.Schemes[pdr.PartitionID] = types.ShardingScheme{}
-			} else {
-				b.Schemes[pdr.PartitionID] = append(b.Schemes[pdr.PartitionID], pdr.ShardID)
 			}
 		}
 		blocks = append(blocks, &b)

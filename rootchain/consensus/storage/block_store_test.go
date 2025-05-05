@@ -29,7 +29,14 @@ func initBlockStoreFromGenesis(t *testing.T, shardConf *types.PartitionDescripti
 	require.NoError(t, err)
 
 	if shardConf != nil {
-		genesisBlock := genesisBlockWithShard(t, shardConf)
+		psID := types.PartitionShardID{PartitionID: shardConf.PartitionID, ShardID: shardConf.ShardID.Key()}
+		orchestration := mockOrchestration{
+			shardConfigs: func(rootRound uint64) (map[types.PartitionShardID]*types.PartitionDescriptionRecord, error) {
+				return map[types.PartitionShardID]*types.PartitionDescriptionRecord{psID: shardConf}, nil
+			},
+		}
+		genesisBlock, err := NewGenesisBlock(orchestration, crypto.SHA256)
+		require.NoError(t, err)
 		require.NoError(t, WriteBlock(db, genesisBlock))
 	}
 
@@ -80,7 +87,7 @@ func TestNewBlockStoreFromDB_MultipleRoots(t *testing.T) {
 	orchestration := testpartition.NewOrchestration(t, logger.New(t))
 	db, err := memorydb.New()
 	require.NoError(t, err)
-	require.NoError(t, storeGenesisInit(db, 5, crypto.SHA256))
+	require.NoError(t, storeGenesisInit(db, orchestration, crypto.SHA256))
 	// create second root
 	vInfo9 := &drctypes.RoundInfo{RoundNumber: 9, ParentRoundNumber: 8}
 	h9, err := vInfo9.Hash(crypto.SHA256)
@@ -149,7 +156,7 @@ func TestNewBlockStoreFromDB_InvalidDBContainsCap(t *testing.T) {
 	orchestration := testpartition.NewOrchestration(t, logger.New(t))
 	db, err := memorydb.New()
 	require.NoError(t, err)
-	require.NoError(t, storeGenesisInit(db, 5, crypto.SHA256))
+	require.NoError(t, storeGenesisInit(db, orchestration, crypto.SHA256))
 	// create a second chain, that has no root
 	b10 := fakeBlock(10, &drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 9}})
 	require.NoError(t, db.Write(blockKey(b10.GetRound()), b10))
@@ -471,52 +478,13 @@ func newShardConf(t *testing.T) *types.PartitionDescriptionRecord {
 }
 
 func genesisBlockWithShard(t *testing.T, shardConf *types.PartitionDescriptionRecord) *ExecutedBlock {
-	hashAlgo := crypto.SHA256
-	genesisBlock := &drctypes.BlockData{
-		Version:   1,
-		Author:    "testgenesis",
-		Round:     drctypes.GenesisRootRound,
-		Epoch:     drctypes.GenesisRootEpoch,
-		Timestamp: types.GenesisTime,
+	psID := types.PartitionShardID{PartitionID: shardConf.PartitionID, ShardID: shardConf.ShardID.Key()}
+	orchestration := mockOrchestration{
+		shardConfigs: func(rootRound uint64) (map[types.PartitionShardID]*types.PartitionDescriptionRecord, error) {
+			return map[types.PartitionShardID]*types.PartitionDescriptionRecord{psID: shardConf}, nil
+		},
 	}
-
-	si, err := NewShardInfo(shardConf, hashAlgo)
+	genesisBlock, err := NewGenesisBlock(orchestration, crypto.SHA256)
 	require.NoError(t, err)
-	psID := types.PartitionShardID{PartitionID: si.PartitionID, ShardID: si.ShardID.Key()}
-	commitQc := &drctypes.QuorumCert{
-		VoteInfo: &drctypes.RoundInfo{
-			Version:           1,
-			RoundNumber:       genesisBlock.Round,
-			Epoch:             genesisBlock.Epoch,
-			Timestamp:         genesisBlock.Timestamp,
-			ParentRoundNumber: 0, // no parent block
-		},
-		LedgerCommitInfo: &types.UnicitySeal{
-			Version:              1,
-			NetworkID:            5,
-			RootChainRoundNumber: 4,
-			Epoch:                0,
-			Timestamp:            123,
-			Hash:                 []byte{1, 2, 3},
-			PreviousHash:         []byte{3, 2, 1},
-		},
-	}
-
-	eb := &ExecutedBlock{
-		BlockData: genesisBlock,
-		HashAlgo:  hashAlgo,
-		ShardInfo: ShardStates{
-			States:  map[types.PartitionShardID]*ShardInfo{psID: si},
-			Changed: ShardSet{psID: struct{}{}},
-		},
-		Qc:       commitQc,
-		CommitQc: commitQc,
-		Schemes:  map[types.PartitionID]types.ShardingScheme{si.PartitionID: {}},
-	}
-	ut, _, err := eb.ShardInfo.UnicityTree(eb.Schemes, hashAlgo)
-	require.NoError(t, err)
-	eb.RootHash = ut.RootHash()
-	commitQc.VoteInfo.CurrentRootHash = eb.RootHash
-
-	return eb
+	return genesisBlock
 }

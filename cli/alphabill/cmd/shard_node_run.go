@@ -18,6 +18,7 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/internal/debug"
 	"github.com/alphabill-org/alphabill/logger"
+	"github.com/alphabill-org/alphabill/network"
 	"github.com/alphabill-org/alphabill/observability"
 	"github.com/alphabill-org/alphabill/partition"
 	"github.com/alphabill-org/alphabill/rpc"
@@ -220,6 +221,11 @@ func createNode(ctx context.Context, flags *shardNodeRunFlags) (*partition.Node,
 		ownerIndexer = partition.NewOwnerIndexer(log)
 	}
 
+	bootstrapConnectRetry := &network.BootstrapConnectRetry{
+		Count: flags.BootstrapConnectRetryCount,
+		Delay: flags.BootstrapConnectRetryDelay,
+	}
+
 	nodeConf, err := partition.NewNodeConf(
 		keyConf,
 		shardConf,
@@ -228,6 +234,7 @@ func createNode(ctx context.Context, flags *shardNodeRunFlags) (*partition.Node,
 		partition.WithAddress(flags.p2pFlags.Address),
 		partition.WithAnnounceAddresses(flags.AnnounceAddresses),
 		partition.WithBootstrapAddresses(flags.BootstrapAddresses),
+		partition.WithBootstrapConnectRetry(bootstrapConnectRetry),
 		partition.WithBlockStore(blockStore),
 		partition.WithShardStore(shardStore),
 		partition.WithReplicationParams(

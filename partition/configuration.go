@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/libp2p/go-libp2p/core/peer"
 	p2pcrypto "github.com/libp2p/go-libp2p/core/crypto"
+	"github.com/libp2p/go-libp2p/core/peer"
 
 	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
@@ -36,31 +36,32 @@ var (
 
 type (
 	NodeConf struct {
-		keyConf                     *KeyConf
-		shardConf                   *types.PartitionDescriptionRecord
-		trustBase                   types.RootTrustBase
-		observability               Observability
+		keyConf       *KeyConf
+		shardConf     *types.PartitionDescriptionRecord
+		trustBase     types.RootTrustBase
+		observability Observability
 
-		address                     string
-		announceAddresses           []string
-		bootstrapAddresses          []string
-		validatorNetwork            ValidatorNetwork
+		address               string
+		announceAddresses     []string
+		bootstrapAddresses    []string
+		bootstrapConnectRetry *network.BootstrapConnectRetry
+		validatorNetwork      ValidatorNetwork
 
-		signer                      abcrypto.Signer
-		hashAlgorithm               crypto.Hash   // make hash algorithm configurable in the future. currently it is using SHA-256.
-		txValidator                 TxValidator
-		ucValidator                 UnicityCertificateValidator
-		bpValidator                 BlockProposalValidator
-		blockStore                  keyvaluedb.KeyValueDB
-		shardStore                  keyvaluedb.KeyValueDB
-		proofIndexConfig            proofIndexConfig
-		ownerIndexer                *OwnerIndexer
-		t1Timeout                   time.Duration // T1 timeout of the node. Time to wait before node creates a new block proposal.
+		signer           abcrypto.Signer
+		hashAlgorithm    crypto.Hash // make hash algorithm configurable in the future. currently it is using SHA-256.
+		txValidator      TxValidator
+		ucValidator      UnicityCertificateValidator
+		bpValidator      BlockProposalValidator
+		blockStore       keyvaluedb.KeyValueDB
+		shardStore       keyvaluedb.KeyValueDB
+		proofIndexConfig proofIndexConfig
+		ownerIndexer     *OwnerIndexer
+		t1Timeout        time.Duration // T1 timeout of the node. Time to wait before node creates a new block proposal.
 
-		eventHandler                event.Handler
-		eventChCapacity             int
-		replicationConfig           ledgerReplicationConfig
-		blockSubscriptionTimeout    time.Duration // time since last block when to start recovery on non-validating node
+		eventHandler             event.Handler
+		eventChCapacity          int
+		replicationConfig        ledgerReplicationConfig
+		blockSubscriptionTimeout time.Duration // time since last block when to start recovery on non-validating node
 	}
 
 	NodeOption func(c *NodeConf)
@@ -94,7 +95,7 @@ type (
 )
 
 func NewNodeConf(
-	keyConf   *KeyConf,
+	keyConf *KeyConf,
 	shardConf *types.PartitionDescriptionRecord,
 	trustBase types.RootTrustBase,
 	observability Observability,
@@ -154,6 +155,12 @@ func WithAnnounceAddresses(announceAddresses []string) NodeOption {
 func WithBootstrapAddresses(bootstrapAddresses []string) NodeOption {
 	return func(c *NodeConf) {
 		c.bootstrapAddresses = bootstrapAddresses
+	}
+}
+
+func WithBootstrapConnectRetry(bootstrapConnectRetry *network.BootstrapConnectRetry) NodeOption {
+	return func(c *NodeConf) {
+		c.bootstrapConnectRetry = bootstrapConnectRetry
 	}
 }
 
@@ -352,7 +359,7 @@ func (c *NodeConf) PeerConf() (*network.PeerConfiguration, error) {
 		bootNodes[i] = *addrInfo
 	}
 
-	return network.NewPeerConfiguration(c.address, c.announceAddresses, authKeyPair, bootNodes)
+	return network.NewPeerConfiguration(c.address, c.announceAddresses, authKeyPair, bootNodes, c.bootstrapConnectRetry)
 }
 
 func (c *NodeConf) OwnerIndexer() *OwnerIndexer {

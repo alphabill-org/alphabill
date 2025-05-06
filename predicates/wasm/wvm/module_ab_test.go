@@ -165,7 +165,7 @@ func Test_amountTransferredSum(t *testing.T) {
 		// need VerifyQuorumSignatures for verifying tx proofs
 		verifyQuorumSignatures: func(data []byte, signatures map[string]hex.Bytes) (error, []error) { return nil, nil },
 	}
-	tbLoader := func(tp *types.TxProof) (types.RootTrustBase, error) { return trustBaseOK, nil }
+	tbLoader := func(epoch uint64) (types.RootTrustBase, error) { return trustBaseOK, nil }
 
 	tbSigner, err := abcrypto.NewInMemorySecp256K1Signer()
 	require.NoError(t, err)
@@ -248,14 +248,14 @@ func Test_amountTransferredSum(t *testing.T) {
 	txRecProof.TxProof.UnicityCertificate, err = uc.MarshalCBOR()
 	require.NoError(t, err)
 	// loader which finds trust base only for the epoch in the split tx proof
-	tbl := trustBaseLoader(func(epoch uint64) (types.RootTrustBase, error) {
+	tbl := func(epoch uint64) (types.RootTrustBase, error) {
 		if epoch == uc.UnicitySeal.Epoch {
 			return trustBaseOK, nil
 		}
 		return nil, errors.New("nope")
-	})
+	}
 	sum, err = amountTransferredSum(proofs, pkhA, nil, tbl)
-	require.EqualError(t, err, "record[0]: acquiring trust base: reading UC: tx proof is nil\nrecord[1]: acquiring trust base: acquiring trust base: nope")
+	require.EqualError(t, err, "record[0]: invalid input: transaction proof is nil\nrecord[1]: verification of transaction: acquiring trust base: nope")
 	require.EqualValues(t, 100, sum)
 }
 
@@ -265,36 +265,49 @@ func Test_transferredSum(t *testing.T) {
 		// need VerifyQuorumSignatures for verifying tx proofs
 		verifyQuorumSignatures: func(data []byte, signatures map[string]hex.Bytes) (error, []error) { return nil, nil },
 	}
+	tbLoader := func(epoch uint64) (types.RootTrustBase, error) { return trustBaseOK, nil }
 
 	t.Run("invalid input, required argument is nil", func(t *testing.T) {
-		txRec := &types.TransactionRecord{Version: 1, TransactionOrder: testtransaction.NewTransactionOrderBytes(t), ServerMetadata: &types.ServerMetadata{}}
+		receiverPKH := make([]byte, 32)
+		txo := types.TransactionOrder{
+			Version: 1,
+			Payload: types.Payload{
+				PartitionID: 1,
+				Type:        money.TransactionTypeTransfer,
+			},
+		}
+		require.NoError(t, txo.SetAttributes(money.TransferAttributes{NewOwnerPredicate: templates.NewP2pkh256BytesFromKeyHash(receiverPKH)}))
+		b, err := txo.MarshalCBOR()
+		require.NoError(t, err)
+		txRec := &types.TransactionRecord{Version: 1, TransactionOrder: b, ServerMetadata: &types.ServerMetadata{}}
 		txRecProof := &types.TxRecordProof{TxRecord: txRec, TxProof: &types.TxProof{Version: 1}}
 
-		sum, err := transferredSum(nil, txRecProof, nil, nil)
+		tbl := func(epoch uint64) (types.RootTrustBase, error) { return nil, errors.New("unexpected call") }
+		sum, err := transferredSum(txRecProof, receiverPKH, nil, tbl)
 		require.Zero(t, sum)
-		require.EqualError(t, err, `invalid input: trustbase is unassigned`)
+		require.EqualError(t, err, `verification of transaction: reading UC of the tx proof: unicity certificate is nil`)
 
-		sum, err = transferredSum(trustBaseOK, nil, nil, nil)
+		sum, err = transferredSum(nil, nil, nil, tbLoader)
 		require.Zero(t, sum)
 		require.EqualError(t, err, `invalid input: transaction record proof is nil`)
 
 		invalidTxRecProof := &types.TxRecordProof{TxRecord: nil, TxProof: &types.TxProof{Version: 1}}
-		sum, err = transferredSum(trustBaseOK, invalidTxRecProof, nil, nil)
+		sum, err = transferredSum(invalidTxRecProof, nil, nil, tbLoader)
 		require.Zero(t, sum)
 		require.EqualError(t, err, `invalid input: transaction record is nil`)
 
 		invalidTxRecProof = &types.TxRecordProof{TxRecord: &types.TransactionRecord{Version: 1, TransactionOrder: nil}, TxProof: &types.TxProof{Version: 1}}
-		sum, err = transferredSum(trustBaseOK, invalidTxRecProof, nil, nil)
+		sum, err = transferredSum(invalidTxRecProof, nil, nil, tbLoader)
 		require.Zero(t, sum)
 		require.EqualError(t, err, `invalid input: transaction order is nil`)
 
 		invalidTxRecProof = &types.TxRecordProof{TxRecord: &types.TransactionRecord{Version: 1, TransactionOrder: testtransaction.NewTransactionOrderBytes(t), ServerMetadata: nil}, TxProof: &types.TxProof{Version: 1}}
-		sum, err = transferredSum(trustBaseOK, invalidTxRecProof, nil, nil)
+		sum, err = transferredSum(invalidTxRecProof, nil, nil, tbLoader)
 		require.Zero(t, sum)
 		require.EqualError(t, err, `invalid input: server metadata is nil`)
 
 		invalidTxRecProof = &types.TxRecordProof{TxRecord: &types.TransactionRecord{Version: 1, TransactionOrder: testtransaction.NewTransactionOrderBytes(t), ServerMetadata: &types.ServerMetadata{}}, TxProof: nil}
-		sum, err = transferredSum(trustBaseOK, invalidTxRecProof, nil, nil)
+		sum, err = transferredSum(invalidTxRecProof, nil, nil, tbLoader)
 		require.Zero(t, sum)
 		require.EqualError(t, err, `invalid input: transaction proof is nil`)
 	})
@@ -305,7 +318,7 @@ func Test_transferredSum(t *testing.T) {
 		require.NoError(t, err)
 		txRec := &types.TransactionRecord{Version: 1, TransactionOrder: txPaymentBytes, ServerMetadata: &types.ServerMetadata{}}
 		txRecProof := &types.TxRecordProof{TxRecord: txRec, TxProof: &types.TxProof{Version: 1}}
-		sum, err := transferredSum(&mockRootTrustBase{}, txRecProof, nil, nil)
+		sum, err := transferredSum(txRecProof, nil, nil, tbLoader)
 		require.Zero(t, sum)
 		require.EqualError(t, err, `expected partition id 1 got 2`)
 	})
@@ -332,13 +345,13 @@ func Test_transferredSum(t *testing.T) {
 		txRecProof := &types.TxRecordProof{TxRecord: txRec, TxProof: &types.TxProof{Version: 1}}
 		refNo := []byte{1, 2, 3, 4, 5}
 		// txRec.ReferenceNumber == nil but refNo param != nil
-		sum, err := transferredSum(&mockRootTrustBase{}, txRecProof, nil, refNo)
+		sum, err := transferredSum(txRecProof, nil, refNo, tbLoader)
 		require.Zero(t, sum)
 		require.EqualError(t, err, `reference number mismatch`)
 
 		// txRec.ReferenceNumber != refNo (we add extra zero to the end)
 		tx.ClientMetadata.ReferenceNumber = slices.Concat(refNo, []byte{0})
-		sum, err = transferredSum(&mockRootTrustBase{}, txRecProof, nil, refNo)
+		sum, err = transferredSum(txRecProof, nil, refNo, tbLoader)
 		require.Zero(t, sum)
 		require.EqualError(t, err, `reference number mismatch`)
 	})
@@ -362,7 +375,7 @@ func Test_transferredSum(t *testing.T) {
 			require.NoError(t, err)
 			txRec.TransactionOrder = txBytes
 			txRecProof := &types.TxRecordProof{TxRecord: txRec, TxProof: &types.TxProof{Version: 1}}
-			sum, err := transferredSum(&mockRootTrustBase{}, txRecProof, nil, nil)
+			sum, err := transferredSum(txRecProof, nil, nil, tbLoader)
 			require.NoError(t, err)
 			require.Zero(t, sum)
 		}
@@ -388,7 +401,7 @@ func Test_transferredSum(t *testing.T) {
 		txRec := &types.TransactionRecord{Version: 1, TransactionOrder: txBytes, ServerMetadata: &types.ServerMetadata{ActualFee: 25}}
 		txRecProof := &types.TxRecordProof{TxRecord: txRec, TxProof: &types.TxProof{Version: 1}}
 
-		sum, err := transferredSum(&mockRootTrustBase{}, txRecProof, nil, nil)
+		sum, err := transferredSum(txRecProof, nil, nil, tbLoader)
 		require.EqualError(t, err, `decoding split attributes: cbor: cannot unmarshal array into Go value of type money.SplitAttributes (cannot decode CBOR array to struct with different number of elements)`)
 		require.Zero(t, sum)
 	})
@@ -420,19 +433,19 @@ func Test_transferredSum(t *testing.T) {
 		txRec := &types.TransactionRecord{Version: 1, TransactionOrder: txBytes, ServerMetadata: &types.ServerMetadata{ActualFee: 25, SuccessIndicator: types.TxStatusSuccessful}}
 		txRecProof := testblock.CreateTxRecordProof(t, txRec, tbSigner, testblock.WithPartitionID(money.DefaultPartitionID))
 		// match without ref-no
-		sum, err := transferredSum(trustBaseOK, txRecProof, pkHash, nil)
+		sum, err := transferredSum(txRecProof, pkHash, nil, tbLoader)
 		require.NoError(t, err)
 		require.EqualValues(t, 100, sum)
 		// match with ref-no
-		sum, err = transferredSum(trustBaseOK, txRecProof, pkHash, refNo)
+		sum, err = transferredSum(txRecProof, pkHash, refNo, tbLoader)
 		require.NoError(t, err)
 		require.EqualValues(t, 100, sum)
 		// different PKH, should get zero
-		sum, err = transferredSum(trustBaseOK, txRecProof, []byte{1, 1, 1, 1, 1}, refNo)
+		sum, err = transferredSum(txRecProof, []byte{1, 1, 1, 1, 1}, refNo, tbLoader)
 		require.NoError(t, err)
 		require.EqualValues(t, 0, sum)
 		// sum where ref-no is not set, should get zero as our transfer does have ref-no
-		sum, err = transferredSum(trustBaseOK, txRecProof, pkHash, []byte{})
+		sum, err = transferredSum(txRecProof, pkHash, []byte{}, tbLoader)
 		require.Zero(t, sum)
 		require.EqualError(t, err, `reference number mismatch`)
 		// transfer does not verify
@@ -441,7 +454,8 @@ func Test_transferredSum(t *testing.T) {
 			// need VerifyQuorumSignatures for verifying tx proofs
 			verifyQuorumSignatures: func(data []byte, signatures map[string]hex.Bytes) (error, []error) { return errNOK, nil },
 		}
-		sum, err = transferredSum(tbNOK, txRecProof, pkHash, nil)
+		tbl := func(epoch uint64) (types.RootTrustBase, error) { return tbNOK, nil }
+		sum, err = transferredSum(txRecProof, pkHash, nil, tbl)
 		require.ErrorIs(t, err, errNOK)
 		require.Zero(t, sum)
 	})
@@ -474,23 +488,23 @@ func Test_transferredSum(t *testing.T) {
 		txRecProof := testblock.CreateTxRecordProof(t, txRec, tbSigner, testblock.WithPartitionID(money.DefaultPartitionID))
 
 		// match without ref-no
-		sum, err := transferredSum(trustBaseOK, txRecProof, pkHash, nil)
+		sum, err := transferredSum(txRecProof, pkHash, nil, tbLoader)
 		require.NoError(t, err)
 		require.EqualValues(t, 100, sum)
 		// match with ref-no
-		sum, err = transferredSum(trustBaseOK, txRecProof, pkHash, refNo)
+		sum, err = transferredSum(txRecProof, pkHash, refNo, tbLoader)
 		require.NoError(t, err)
 		require.EqualValues(t, 100, sum)
 		// PKH not in use by any units, should get zero
-		sum, err = transferredSum(trustBaseOK, txRecProof, []byte{1, 1, 1, 1, 1}, refNo)
+		sum, err = transferredSum(txRecProof, []byte{1, 1, 1, 1, 1}, refNo, tbLoader)
 		require.NoError(t, err)
 		require.EqualValues(t, 0, sum)
 		// the other guy
-		sum, err = transferredSum(trustBaseOK, txRecProof, []byte("other guy"), nil)
+		sum, err = transferredSum(txRecProof, []byte("other guy"), nil, tbLoader)
 		require.NoError(t, err)
 		require.EqualValues(t, 50, sum)
 		// sum where ref-no is not set, should get zero as our transfer does have ref-no
-		sum, err = transferredSum(trustBaseOK, txRecProof, pkHash, []byte{})
+		sum, err = transferredSum(txRecProof, pkHash, []byte{}, tbLoader)
 		require.Zero(t, sum)
 		require.EqualError(t, err, `reference number mismatch`)
 		// transfer does not verify
@@ -499,76 +513,9 @@ func Test_transferredSum(t *testing.T) {
 			// need VerifyQuorumSignatures for verifying tx proofs
 			verifyQuorumSignatures: func(data []byte, signatures map[string]hex.Bytes) (error, []error) { return errNOK, nil },
 		}
-		sum, err = transferredSum(tbNOK, txRecProof, pkHash, nil)
+		tbl := func(epoch uint64) (types.RootTrustBase, error) { return tbNOK, nil }
+		sum, err = transferredSum(txRecProof, pkHash, nil, tbl)
 		require.ErrorIs(t, err, errNOK)
 		require.Zero(t, sum)
-	})
-}
-
-func Test_trustBaseLoader(t *testing.T) {
-	t.Run("nil proof", func(t *testing.T) {
-		noCall := func(epoch uint64) (types.RootTrustBase, error) {
-			t.Errorf("unexpected call of the TB loader with epoch %d", epoch)
-			return nil, nil
-		}
-		loader := trustBaseLoader(noCall)
-		tb, err := loader(nil)
-		require.EqualError(t, err, `reading UC: tx proof is nil`)
-		require.Nil(t, tb)
-	})
-
-	t.Run("nil UC", func(t *testing.T) {
-		noCall := func(epoch uint64) (types.RootTrustBase, error) {
-			t.Errorf("unexpected call of the TB loader with epoch %d", epoch)
-			return nil, nil
-		}
-		loader := trustBaseLoader(noCall)
-		proof := types.TxProof{}
-		tb, err := loader(&proof)
-		require.EqualError(t, err, `reading UC: unicity certificate is nil`)
-		require.Nil(t, tb)
-	})
-
-	t.Run("nil UnicitySeal", func(t *testing.T) {
-		noCall := func(epoch uint64) (types.RootTrustBase, error) {
-			t.Errorf("unexpected call of the TB loader with epoch %d", epoch)
-			return nil, nil
-		}
-		loader := trustBaseLoader(noCall)
-		uc, err := (&types.UnicityCertificate{}).MarshalCBOR()
-		require.NoError(t, err)
-		proof := types.TxProof{UnicityCertificate: uc}
-		tb, err := loader(&proof)
-		require.EqualError(t, err, `invalid UC: UnicitySeal is unassigned`)
-		require.Nil(t, tb)
-	})
-
-	t.Run("loader returns error", func(t *testing.T) {
-		expErr := errors.New("failed to load TB")
-		noCall := func(epoch uint64) (types.RootTrustBase, error) {
-			require.EqualValues(t, 45, epoch)
-			return nil, expErr
-		}
-		loader := trustBaseLoader(noCall)
-		uc, err := (&types.UnicityCertificate{UnicitySeal: &types.UnicitySeal{Epoch: 45}}).MarshalCBOR()
-		require.NoError(t, err)
-		proof := types.TxProof{UnicityCertificate: uc}
-		tb, err := loader(&proof)
-		require.ErrorIs(t, err, expErr)
-		require.Nil(t, tb)
-	})
-
-	t.Run("success", func(t *testing.T) {
-		noCall := func(epoch uint64) (types.RootTrustBase, error) {
-			require.EqualValues(t, 45, epoch)
-			return nil, nil
-		}
-		loader := trustBaseLoader(noCall)
-		uc, err := (&types.UnicityCertificate{UnicitySeal: &types.UnicitySeal{Epoch: 45}}).MarshalCBOR()
-		require.NoError(t, err)
-		proof := types.TxProof{UnicityCertificate: uc}
-		tb, err := loader(&proof)
-		require.NoError(t, err)
-		require.Nil(t, tb)
 	})
 }

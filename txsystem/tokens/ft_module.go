@@ -15,16 +15,16 @@ var _ txtypes.Module = &FungibleTokensModule{}
 type FungibleTokensModule struct {
 	state         *state.State
 	hashAlgorithm crypto.Hash
-	trustBase     types.RootTrustBase
+	orchestration txtypes.Orchestration
 	execPredicate predicates.PredicateRunner
 	pdr           types.PartitionDescriptionRecord
 }
 
-func NewFungibleTokensModule(pdr types.PartitionDescriptionRecord, options *Options) (*FungibleTokensModule, error) {
+func NewFungibleTokensModule(pdr types.PartitionDescriptionRecord, orchestration txtypes.Orchestration, options *Options) (*FungibleTokensModule, error) {
 	return &FungibleTokensModule{
 		state:         options.state,
 		hashAlgorithm: options.hashAlgorithm,
-		trustBase:     options.trustBase,
+		orchestration: orchestration,
 		execPredicate: predicates.NewPredicateRunner(options.exec),
 		pdr:           pdr,
 	}, nil

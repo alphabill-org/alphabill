@@ -193,7 +193,7 @@ func newTestFeeModule(t *testing.T, pdr *types.PartitionDescriptionRecord, tb ty
 		state:            state.NewEmptyState(),
 		pdr:              *pdr,
 		moneyPartitionID: moneyPartitionID,
-		trustBase:        tb,
+		orchestration:    newStaticOrchestration(tb),
 		execPredicate: func(predicate types.PredicateBytes, args []byte, txo *types.TransactionOrder, env predicates.TxContext) error {
 			return nil
 		},

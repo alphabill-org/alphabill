@@ -62,7 +62,7 @@ type TxSystem struct {
 	log                 *slog.Logger
 }
 
-func NewEVMTxSystem(networkID types.NetworkID, partitionID types.PartitionID, observe Observability, opts ...Option) (*TxSystem, error) {
+func NewEVMTxSystem(networkID types.NetworkID, partitionID types.PartitionID, orchestration txtypes.Orchestration, observe Observability, opts ...Option) (*TxSystem, error) {
 	options, err := defaultOptions(observe)
 	if err != nil {
 		return nil, fmt.Errorf("default configuration: %w", err)
@@ -90,7 +90,7 @@ func NewEVMTxSystem(networkID types.NetworkID, partitionID types.PartitionID, ob
 	if err != nil {
 		return nil, fmt.Errorf("failed to load EVM module: %w", err)
 	}
-	fees, err := newFeeModule(partitionID, options, observe)
+	fees, err := newFeeModule(partitionID, options, orchestration, observe)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load EVM fee module: %w", err)
 	}

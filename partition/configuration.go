@@ -317,11 +317,6 @@ func (c *NodeConf) ShardConf() *types.PartitionDescriptionRecord {
 	return c.shardConf
 }
 
-// Deprecated: use orchestration instead to prepare for dynamic RootChain
-func (c *NodeConf) TrustBase() types.RootTrustBase {
-	return c.trustBase
-}
-
 func (c *NodeConf) Orchestration() Orchestration {
 	return Orchestration{c.trustBase}
 }

@@ -80,7 +80,7 @@ func (f *FeeCreditModule) validateAddFC(tx *types.TransactionOrder, attr *fc.Add
 		}
 	}
 	// proof of the bill transfer order verifies
-	if err = types.VerifyTxProof(attr.FeeCreditTransferProof, f.trustBase, f.hashAlgorithm); err != nil {
+	if err = attr.FeeCreditTransferProof.Verify(f.orchestration.TrustBase); err != nil {
 		return fmt.Errorf("transFC proof is not valid: %w", err)
 	}
 	// the owner proof satisfies the bill's owner predicate

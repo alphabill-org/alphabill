@@ -22,7 +22,7 @@ type (
 		state            *state.State
 		partitionID      types.PartitionID
 		moneyPartitionID types.PartitionID
-		trustBase        types.RootTrustBase
+		orchestration    txtypes.Orchestration
 		hashAlgorithm    crypto.Hash
 		feeCalculator    FeeCalculator
 		execPredicate    predicates.PredicateRunner
@@ -38,12 +38,12 @@ func FixedFee(fee uint64) FeeCalculator {
 	}
 }
 
-func newFeeModule(partitionID types.PartitionID, options *Options, obs Observability) (*FeeAccount, error) {
+func newFeeModule(partitionID types.PartitionID, options *Options, orchestration txtypes.Orchestration, obs Observability) (*FeeAccount, error) {
 	m := &FeeAccount{
 		state:            options.state,
 		partitionID:      partitionID,
 		moneyPartitionID: money.DefaultPartitionID,
-		trustBase:        options.trustBase,
+		orchestration:    orchestration,
 		hashAlgorithm:    options.hashAlgorithm,
 		feeCalculator:    FixedFee(1),
 		log:              obs.Logger(),

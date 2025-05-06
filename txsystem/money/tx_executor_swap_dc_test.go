@@ -103,7 +103,7 @@ func TestModule_validateSwapTx(t *testing.T) {
 			withStateUnit(swapTx.UnitID, &money.BillData{Value: 0, Counter: 0, OwnerPredicate: templates.NewP2pkh256BytesFromKey(pubKey)}),
 			withStateUnit(DustCollectorMoneySupplyID, &money.BillData{Value: 1e8, Counter: 0}))
 		exeCtx := testctx.NewMockExecutionContext()
-		require.EqualError(t, module.validateSwapTx(swapTx, swapAttr, authProof, exeCtx), "dust transfer proof is not valid at index 0: verify tx inclusion: failed to get unicity certificate: unicity certificate is nil")
+		require.EqualError(t, module.validateSwapTx(swapTx, swapAttr, authProof, exeCtx), "dust transfer proof is not valid at index 0: reading UC of the tx proof: unicity certificate is nil")
 	})
 	t.Run("InvalidDcProofInvalid", func(t *testing.T) {
 		swapTx, swapAttr, authProof := newInvalidDcProofsSwap(t, &pdr, signer)

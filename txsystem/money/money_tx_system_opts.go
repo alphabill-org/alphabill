@@ -4,8 +4,6 @@ import (
 	"crypto"
 	"fmt"
 
-	"github.com/alphabill-org/alphabill-go-base/types"
-
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/predicates/templates"
 	"github.com/alphabill-org/alphabill/state"
@@ -14,11 +12,10 @@ import (
 
 type (
 	Options struct {
-		state                       *state.State
-		executedTransactions        map[string]uint64
-		hashAlgorithm               crypto.Hash
-		trustBase                   types.RootTrustBase
-		exec                        predicates.PredicateExecutor
+		state                *state.State
+		executedTransactions map[string]uint64
+		hashAlgorithm        crypto.Hash
+		exec                 predicates.PredicateExecutor
 	}
 
 	Option func(*Options)
@@ -49,12 +46,6 @@ func WithState(s *state.State) Option {
 func WithExecutedTransactions(executedTransactions map[string]uint64) Option {
 	return func(g *Options) {
 		g.executedTransactions = executedTransactions
-	}
-}
-
-func WithTrustBase(trust types.RootTrustBase) Option {
-	return func(options *Options) {
-		options.trustBase = trust
 	}
 }
 

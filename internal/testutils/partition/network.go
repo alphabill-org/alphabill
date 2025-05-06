@@ -13,7 +13,6 @@ import (
 	"testing"
 	"time"
 
-	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/stretchr/testify/require"
@@ -33,6 +32,8 @@ import (
 	"github.com/alphabill-org/alphabill/rootchain/partitions"
 	"github.com/alphabill-org/alphabill/rootchain/testutils"
 	"github.com/alphabill-org/alphabill/txsystem"
+	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
+	txstypes "github.com/alphabill-org/alphabill/txsystem/types"
 )
 
 const networkID = 5
@@ -54,8 +55,6 @@ type RootChain struct {
 type Shard struct {
 	shardConf *types.PartitionDescriptionRecord
 	Nodes     []*shardNode
-	ctx       context.Context
-	ctxCancel context.CancelFunc
 }
 
 type shardNode struct {
@@ -83,7 +82,7 @@ type rootNode struct {
 	done      chan error
 }
 
-type txSystemProvider func(trustBase types.RootTrustBase) txsystem.TransactionSystem
+type txSystemProvider func(orchestration txstypes.Orchestration) txsystem.TransactionSystem
 
 func (n *shardNode) Stop() error {
 	n.ctxCancel()
@@ -153,6 +152,7 @@ func (a *AlphabillNetwork) AddShard(t *testing.T, shardConf *types.PartitionDesc
 		shardConf: shardConf,
 		Nodes:     make([]*shardNode, nodeCount),
 	}
+	orchestration := orchestrationStaticTB{a.RootChain.TrustBase}
 
 	for idx, node := range nodes {
 		ctx, ctxCancel := context.WithCancel(a.ctx)
@@ -175,7 +175,7 @@ func (a *AlphabillNetwork) AddShard(t *testing.T, shardConf *types.PartitionDesc
 		)
 		require.NoError(t, err)
 
-		txSystem := txSystemProvider(a.RootChain.TrustBase)
+		txSystem := txSystemProvider(orchestration)
 		node, err := partition.NewNode(
 			ctx,
 			txSystem,
@@ -192,7 +192,7 @@ func (a *AlphabillNetwork) AddShard(t *testing.T, shardConf *types.PartitionDesc
 			ctxCancel:    ctxCancel,
 		}
 	}
-	
+
 	a.Shards[shard.PartitionShardID()] = shard
 
 	// start shard nodes
@@ -506,4 +506,12 @@ func BlockchainContains(t *testing.T, shard *Shard, criteria func(txr *types.Tra
 		}
 		return false
 	}
+}
+
+type orchestrationStaticTB struct {
+	trustBase types.RootTrustBase
+}
+
+func (o orchestrationStaticTB) TrustBase(epoch uint64) (types.RootTrustBase, error) {
+	return o.trustBase, nil
 }

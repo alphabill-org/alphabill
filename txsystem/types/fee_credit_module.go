@@ -23,4 +23,8 @@ type (
 	FeeTxVerifier interface {
 		IsFeeCreditTx(tx *types.TransactionOrder) bool
 	}
+
+	Orchestration interface {
+		TrustBase(epoch uint64) (types.RootTrustBase, error)
+	}
 )

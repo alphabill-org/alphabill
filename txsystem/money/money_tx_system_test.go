@@ -53,14 +53,13 @@ func TestNewTxSystem(t *testing.T) {
 		sdrs        = createPDRs(t)
 		txsState    = genesisStateWithUC(t, initialBill, sdrs)
 		_, verifier = testsig.CreateSignerAndVerifier(t)
-		trustBase   = testtb.NewTrustBase(t, verifier)
 	)
 	txSystem, err := NewTxSystem(
 		sdrs[0],
+		newStaticOrchestration(testtb.NewTrustBase(t, verifier)),
 		observability.Default(t),
 		WithHashAlgorithm(crypto.SHA256),
 		WithState(txsState),
-		WithTrustBase(trustBase),
 	)
 	require.NoError(t, err)
 	require.NotNil(t, txSystem)
@@ -87,9 +86,9 @@ func TestNewTxSystem_RecoveredState(t *testing.T) {
 
 	originalTxs, err := NewTxSystem(
 		sdrs[0],
+		newStaticOrchestration(trustBase),
 		observe,
 		WithState(s),
-		WithTrustBase(trustBase),
 	)
 	require.NoError(t, err)
 
@@ -124,9 +123,9 @@ func TestNewTxSystem_RecoveredState(t *testing.T) {
 	require.NoError(t, err)
 	recoveredTxs, err := NewTxSystem(
 		sdrs[0],
+		newStaticOrchestration(trustBase),
 		observe,
 		WithState(recoveredState),
-		WithTrustBase(trustBase),
 	)
 	require.NoError(t, err)
 
@@ -920,14 +919,13 @@ func createStateAndTxSystem(t *testing.T, pdrs []*types.PartitionDescriptionReco
 	require.Equal(t, money.PartitionTypeID, pdrs[0].PartitionTypeID, "first PDR must be for the money partition")
 	s := genesisStateWithUC(t, initialBill, pdrs)
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
-	trustBase := testtb.NewTrustBase(t, verifier)
 	fcrID := testutils.NewFeeCreditRecordIDAlwaysTrue(t)
 
 	mss, err := NewTxSystem(
 		pdrs[0],
+		newStaticOrchestration(testtb.NewTrustBase(t, verifier)),
 		observability.Default(t),
 		WithState(s),
-		WithTrustBase(trustBase),
 	)
 	require.NoError(t, err)
 	summary, err := mss.StateSummary()
@@ -1044,9 +1042,22 @@ func defaultMoneyModule(t *testing.T, pdr types.PartitionDescriptionRecord, veri
 	// NB! using the same pubkey for trust base and unit bearer! TODO: use different keys...
 	options, err := defaultOptions(observability.Default(t))
 	require.NoError(t, err)
-	options.trustBase = testtb.NewTrustBase(t, verifier)
 	options.state = state.NewEmptyState()
-	module, err := NewMoneyModule(pdr, options)
+	module, err := NewMoneyModule(pdr, newStaticOrchestration(testtb.NewTrustBase(t, verifier)), options)
 	require.NoError(t, err)
 	return module
+}
+
+func newStaticOrchestration(tb types.RootTrustBase) mockOrchestration {
+	return mockOrchestration{
+		trustBase: func(epoch uint64) (types.RootTrustBase, error) { return tb, nil },
+	}
+}
+
+type mockOrchestration struct {
+	trustBase func(epoch uint64) (types.RootTrustBase, error)
+}
+
+func (o mockOrchestration) TrustBase(epoch uint64) (types.RootTrustBase, error) {
+	return o.trustBase(epoch)
 }

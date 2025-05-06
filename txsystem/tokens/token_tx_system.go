@@ -32,7 +32,7 @@ const (
 	ErrStrInvalidIconDataLength = "icon data length exceeds the allowed maximum of 64 KiB"
 )
 
-func NewTxSystem(shardConf basetypes.PartitionDescriptionRecord, observe txsystem.Observability, opts ...Option) (*txsystem.GenericTxSystem, error) {
+func NewTxSystem(shardConf basetypes.PartitionDescriptionRecord, orchestration txtypes.Orchestration, observe txsystem.Observability, opts ...Option) (*txsystem.GenericTxSystem, error) {
 	options, err := defaultOptions(observe)
 	if err != nil {
 		return nil, fmt.Errorf("tokens transaction system default config: %w", err)
@@ -49,7 +49,7 @@ func NewTxSystem(shardConf basetypes.PartitionDescriptionRecord, observe txsyste
 	if err != nil {
 		return nil, fmt.Errorf("failed to load NFT module: %w", err)
 	}
-	fungible, err := NewFungibleTokensModule(shardConf, options)
+	fungible, err := NewFungibleTokensModule(shardConf, orchestration, options)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load fungible tokens module: %w", err)
 	}
@@ -67,7 +67,7 @@ func NewTxSystem(shardConf basetypes.PartitionDescriptionRecord, observe txsyste
 			return nil, fmt.Errorf("failed to load permissioned fee credit module: %w", err)
 		}
 	} else {
-		feeCreditModule, err = fc.NewFeeCreditModule(shardConf, options.moneyPartitionID, options.state, options.trustBase, observe,
+		feeCreditModule, err = fc.NewFeeCreditModule(shardConf, options.moneyPartitionID, options.state, orchestration, observe,
 			fc.WithHashAlgorithm(options.hashAlgorithm),
 			fc.WithFeeCreditRecordUnitType(tokens.FeeCreditRecordUnitType),
 		)

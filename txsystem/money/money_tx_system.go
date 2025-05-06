@@ -10,7 +10,7 @@ import (
 	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 )
 
-func NewTxSystem(shardConf *basetypes.PartitionDescriptionRecord, observe txsystem.Observability, opts ...Option) (*txsystem.GenericTxSystem, error) {
+func NewTxSystem(shardConf *basetypes.PartitionDescriptionRecord, orchestration txtypes.Orchestration, observe txsystem.Observability, opts ...Option) (*txsystem.GenericTxSystem, error) {
 	options, err := defaultOptions(observe)
 	if err != nil {
 		return nil, fmt.Errorf("money transaction system default configuration: %w", err)
@@ -19,11 +19,11 @@ func NewTxSystem(shardConf *basetypes.PartitionDescriptionRecord, observe txsyst
 		option(options)
 	}
 
-	moneyModule, err := NewMoneyModule(*shardConf, options)
+	moneyModule, err := NewMoneyModule(*shardConf, orchestration, options)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load money module: %w", err)
 	}
-	feeCreditModule, err := fc.NewFeeCreditModule(*shardConf, shardConf.PartitionID, options.state, options.trustBase, observe,
+	feeCreditModule, err := fc.NewFeeCreditModule(*shardConf, shardConf.PartitionID, options.state, orchestration, observe,
 		fc.WithHashAlgorithm(options.hashAlgorithm),
 		fc.WithFeeCreditRecordUnitType(money.FeeCreditRecordUnitType),
 	)

@@ -147,7 +147,7 @@ func (f *FeeAccount) validateAddFC(tx *types.TransactionOrder, attr *fc.AddFeeCr
 	}
 
 	// 3. VerifyBlockProof(P.A.Π, P.A.P, S.T, S.SD) – proof of the bill transfer order verifies
-	if err = types.VerifyTxProof(feeCreditTransferProof, f.trustBase, f.hashAlgorithm); err != nil {
+	if err = feeCreditTransferProof.Verify(f.orchestration.TrustBase); err != nil {
 		return fmt.Errorf("proof is not valid: %w", err)
 	}
 	return nil

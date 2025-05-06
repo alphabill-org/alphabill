@@ -91,7 +91,7 @@ func (m *Module) validateSwapTx(tx *types.TransactionOrder, attr *money.SwapDCAt
 
 	// verify dust transfer proofs
 	for i, proof := range attr.DustTransferProofs {
-		if err = types.VerifyTxProof(proof, m.trustBase, m.hashAlgorithm); err != nil {
+		if err = proof.Verify(m.orchestration.TrustBase); err != nil {
 			return fmt.Errorf("dust transfer proof is not valid at index %d: %w", i, err)
 		}
 	}

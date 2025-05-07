@@ -394,7 +394,6 @@ func Test_BlockStore_StateRoundtrip(t *testing.T) {
 	require.NotNil(t, storeB)
 
 	// two stores should have the same state now
-	require.Equal(t, storeA.blockTree.root.data.Schemes, storeB.blockTree.root.data.Schemes)
 	require.Equal(t, storeA.blockTree.root.data.ShardInfo.States, storeB.blockTree.root.data.ShardInfo.States)
 	require.Equal(t, storeA.blockTree.root.data.ShardInfo.Changed, storeB.blockTree.root.data.ShardInfo.Changed)
 	require.Equal(t, storeA.blockTree.root.data.RootHash, storeB.blockTree.root.data.RootHash, "root hash")
@@ -511,9 +510,8 @@ func genesisBlockWithShard(t *testing.T, shardConf *types.PartitionDescriptionRe
 		},
 		Qc:       commitQc,
 		CommitQc: commitQc,
-		Schemes:  map[types.PartitionID]types.ShardingScheme{si.PartitionID: {}},
 	}
-	ut, _, err := eb.ShardInfo.UnicityTree(eb.Schemes, hashAlgo)
+	ut, _, err := eb.ShardInfo.UnicityTree(hashAlgo)
 	require.NoError(t, err)
 	eb.RootHash = ut.RootHash()
 	commitQc.VoteInfo.CurrentRootHash = eb.RootHash

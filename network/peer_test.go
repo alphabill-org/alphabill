@@ -172,6 +172,65 @@ func TestBootstrap_AllConnectionsFail(t *testing.T) {
 	require.ErrorContains(t, err, fmt.Sprintf("failed to bootstrap: failed to dial: failed to dial %s: all dials failed", bootStrapPeer1Conf.ID))
 }
 
+func TestBootstrapConnect_OnlySelf(t *testing.T) {
+	log := logger.New(t)
+	ctx := context.Background()
+
+	bootnode1AddrStr := randomTestAddressStr
+	bootnode1Addr, err := ma.NewMultiaddr(bootnode1AddrStr)
+	require.NoError(t, err)
+	bootnode1KeyPair := generateKeyPair(t)
+	bootnode1Conf, err := NewPeerConfiguration(bootnode1AddrStr, nil, bootnode1KeyPair, nil, nil)
+	require.NoError(t, err)
+
+	bootstrapNodeAddrInfo := []peer.AddrInfo{{ID: bootnode1Conf.ID, Addrs: []ma.Multiaddr{bootnode1Addr}}}
+
+	peerConf, err := NewPeerConfiguration(bootnode1AddrStr, nil, bootnode1KeyPair, bootstrapNodeAddrInfo, nil)
+	require.NoError(t, err)
+	// Create the test peer
+	testPeer, err := NewPeer(ctx, peerConf, log, nil)
+	require.NoError(t, err)
+	defer func() { require.NoError(t, testPeer.Close()) }()
+
+	// Attempt to bootstrap connect
+	err = testPeer.BootstrapConnect(ctx, log)
+	require.NoError(t, err)
+}
+
+func TestBootstrapConnect_BootnodeIgnoresConnectionFailure(t *testing.T) {
+	log := logger.New(t)
+	ctx := context.Background()
+
+	bootnode1AddrStr := randomTestAddressStr
+	bootnode1Addr, err := ma.NewMultiaddr(bootnode1AddrStr)
+	require.NoError(t, err)
+	bootnode1KeyPair := generateKeyPair(t)
+	bootnode1Conf, err := NewPeerConfiguration(bootnode1AddrStr, nil, bootnode1KeyPair, nil, nil)
+	require.NoError(t, err)
+
+	bootnode2AddrStr := "/ip4/127.0.0.2/tcp/10"
+	bootnode2Addr, err := ma.NewMultiaddr(bootnode2AddrStr)
+	require.NoError(t, err)
+	bootnode2Conf, err := NewPeerConfiguration(bootnode2AddrStr, nil, generateKeyPair(t), nil, nil)
+	require.NoError(t, err)
+
+	bootstrapNodeAddrInfo := []peer.AddrInfo{
+		{ID: bootnode1Conf.ID, Addrs: []ma.Multiaddr{bootnode1Addr}},
+		{ID: bootnode2Conf.ID, Addrs: []ma.Multiaddr{bootnode2Addr}},
+	}
+
+	peerConf, err := NewPeerConfiguration(bootnode1AddrStr, nil, bootnode1KeyPair, bootstrapNodeAddrInfo, nil)
+	require.NoError(t, err)
+	// Create the test peer
+	testPeer, err := NewPeer(ctx, peerConf, log, nil)
+	require.NoError(t, err)
+	defer func() { require.NoError(t, testPeer.Close()) }()
+
+	// Attempt to bootstrap connect
+	err = testPeer.BootstrapConnect(ctx, log)
+	require.NoError(t, err)
+}
+
 func TestProvidesAndDiscoverNodes(t *testing.T) {
 	log := logger.New(t)
 	ctx := context.Background()

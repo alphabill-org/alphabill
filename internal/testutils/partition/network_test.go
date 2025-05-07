@@ -11,7 +11,6 @@ import (
 	testtxsystem "github.com/alphabill-org/alphabill/internal/testutils/txsystem"
 	"github.com/alphabill-org/alphabill/txsystem"
 	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
-	txstypes "github.com/alphabill-org/alphabill/txsystem/types"
 )
 
 func TestNewNetwork_Ok(t *testing.T) {
@@ -32,7 +31,7 @@ func TestNewNetwork_Ok(t *testing.T) {
 	require.NoError(t, abNetwork.Start(t))
 	t.Cleanup(func() { abNetwork.WaitClose(t) })
 
-	abNetwork.AddShard(t, shardConf, 3, func(txstypes.Orchestration) txsystem.TransactionSystem {
+	abNetwork.AddShard(t, shardConf, 3, func(Orchestration) txsystem.TransactionSystem {
 		return &testtxsystem.CounterTxSystem{FixedState: testtxsystem.MockState{}}
 	})
 

@@ -18,16 +18,20 @@ var _ txtypes.Module = (*Module)(nil)
 type (
 	Module struct {
 		state               *state.State
-		orchestration       txtypes.Orchestration
+		orchestration       Orchestration
 		hashAlgorithm       crypto.Hash
 		dustCollector       *DustCollector
 		feeCreditTxRecorder *feeCreditTxRecorder
 		execPredicate       predicates.PredicateRunner
 		pdr                 types.PartitionDescriptionRecord
 	}
+
+	Orchestration interface {
+		TrustBase(epoch uint64) (types.RootTrustBase, error)
+	}
 )
 
-func NewMoneyModule(pdr types.PartitionDescriptionRecord, orchestration txtypes.Orchestration, options *Options) (*Module, error) {
+func NewMoneyModule(pdr types.PartitionDescriptionRecord, orchestration Orchestration, options *Options) (*Module, error) {
 	if options == nil {
 		return nil, errors.New("money module options are missing")
 	}

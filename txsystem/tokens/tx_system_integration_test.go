@@ -20,7 +20,6 @@ import (
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/txsystem/fc/unit"
 	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
-	txstypes "github.com/alphabill-org/alphabill/txsystem/types"
 )
 
 var (
@@ -47,7 +46,7 @@ func TestInitPartitionAndDefineNFT_Ok(t *testing.T) {
 	abNet := testpartition.NewAlphabillNetwork(t, 1)
 	require.NoError(t, abNet.Start(t))
 	defer abNet.WaitClose(t)
-	abNet.AddShard(t, &pdr, 3, func(orchestration txstypes.Orchestration) txsystem.TransactionSystem {
+	abNet.AddShard(t, &pdr, 3, func(orchestration testpartition.Orchestration) txsystem.TransactionSystem {
 		system, err := NewTxSystem(pdr, orchestration, observability.Default(t), WithState(genesisState.Clone()))
 		require.NoError(t, err)
 		return system
@@ -85,7 +84,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 		totalValue          uint64 = 1000
 		splitValue1         uint64 = 100
 		splitValue2         uint64 = 10
-		orchestration       txstypes.Orchestration
+		orchestration       Orchestration
 	)
 	pdr := types.PartitionDescriptionRecord{
 		Version:         1,
@@ -105,7 +104,7 @@ func TestFungibleTokenTransactions_Ok(t *testing.T) {
 	abNet := testpartition.NewAlphabillNetwork(t, 1)
 	require.NoError(t, abNet.Start(t))
 	defer abNet.WaitClose(t)
-	abNet.AddShard(t, &pdr, 3, func(orch txstypes.Orchestration) txsystem.TransactionSystem {
+	abNet.AddShard(t, &pdr, 3, func(orch testpartition.Orchestration) txsystem.TransactionSystem {
 		orchestration = orch
 		genesisState = genesisState.Clone()
 		system, err := NewTxSystem(pdr, orch, observability.Default(t), WithState(genesisState))

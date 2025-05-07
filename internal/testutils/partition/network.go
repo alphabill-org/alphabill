@@ -33,7 +33,6 @@ import (
 	"github.com/alphabill-org/alphabill/rootchain/testutils"
 	"github.com/alphabill-org/alphabill/txsystem"
 	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
-	txstypes "github.com/alphabill-org/alphabill/txsystem/types"
 )
 
 const networkID = 5
@@ -82,7 +81,11 @@ type rootNode struct {
 	done      chan error
 }
 
-type txSystemProvider func(orchestration txstypes.Orchestration) txsystem.TransactionSystem
+type Orchestration interface {
+	TrustBase(epoch uint64) (types.RootTrustBase, error)
+}
+
+type txSystemProvider func(orchestration Orchestration) txsystem.TransactionSystem
 
 func (n *shardNode) Stop() error {
 	n.ctxCancel()

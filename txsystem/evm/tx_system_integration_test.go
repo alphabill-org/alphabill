@@ -25,7 +25,6 @@ import (
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/txsystem/evm/statedb"
 	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
-	txstypes "github.com/alphabill-org/alphabill/txsystem/types"
 )
 
 // contract Counter {
@@ -70,7 +69,7 @@ func TestEVMPartition_DeployAndCallContract(t *testing.T) {
 	network := testpartition.NewAlphabillNetwork(t, 1)
 	require.NoError(t, network.Start(t))
 	defer network.WaitClose(t)
-	network.AddShard(t, &pdr, 3, func(orchestration txstypes.Orchestration) txsystem.TransactionSystem {
+	network.AddShard(t, &pdr, 3, func(orchestration testpartition.Orchestration) txsystem.TransactionSystem {
 		genesisState = genesisState.Clone()
 		system, err := NewEVMTxSystem(
 			pdr.NetworkID,

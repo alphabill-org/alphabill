@@ -23,7 +23,6 @@ import (
 	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/alphabill-org/alphabill/txsystem/fc/testutils"
 	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
-	txstypes "github.com/alphabill-org/alphabill/txsystem/types"
 )
 
 var (
@@ -52,7 +51,7 @@ func TestPartition_Ok(t *testing.T) {
 	abNet := testpartition.NewAlphabillNetwork(t, 1)
 	require.NoError(t, abNet.Start(t))
 	defer abNet.WaitClose(t)
-	abNet.AddShard(t, &shardConf, 3, func(orchestration txstypes.Orchestration) txsystem.TransactionSystem {
+	abNet.AddShard(t, &shardConf, 3, func(orchestration testpartition.Orchestration) txsystem.TransactionSystem {
 		s = s.Clone()
 		system, err := NewTxSystem(
 			&shardConf,
@@ -182,7 +181,7 @@ func TestPartition_SwapDCOk(t *testing.T) {
 	abNet := testpartition.NewAlphabillNetwork(t, 1)
 	require.NoError(t, abNet.Start(t))
 	defer abNet.WaitClose(t)
-	abNet.AddShard(t, &moneyPDR, 3, func(orchestration txstypes.Orchestration) txsystem.TransactionSystem {
+	abNet.AddShard(t, &moneyPDR, 3, func(orchestration testpartition.Orchestration) txsystem.TransactionSystem {
 		txsState = txsState.Clone()
 		system, err := NewTxSystem(
 			&moneyPDR,

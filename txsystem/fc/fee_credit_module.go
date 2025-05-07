@@ -35,11 +35,15 @@ type (
 		moneyPartitionID        types.PartitionID
 		state                   *state.State
 		hashAlgorithm           crypto.Hash
-		orchestration           txtypes.Orchestration
+		orchestration           Orchestration
 		execPredicate           predicates.PredicateRunner
 		feeBalanceValidator     *FeeBalanceValidator
 		feeCreditRecordUnitType uint32
 		pdr                     types.PartitionDescriptionRecord
+	}
+
+	Orchestration interface {
+		TrustBase(epoch uint64) (types.RootTrustBase, error)
 	}
 
 	Observability interface {
@@ -48,7 +52,7 @@ type (
 	}
 )
 
-func NewFeeCreditModule(pdr types.PartitionDescriptionRecord, moneyPartitionID types.PartitionID, state *state.State, orchestration txtypes.Orchestration, obs Observability, opts ...Option) (*FeeCreditModule, error) {
+func NewFeeCreditModule(pdr types.PartitionDescriptionRecord, moneyPartitionID types.PartitionID, state *state.State, orchestration Orchestration, obs Observability, opts ...Option) (*FeeCreditModule, error) {
 	m := &FeeCreditModule{
 		pdr:              pdr,
 		moneyPartitionID: moneyPartitionID,

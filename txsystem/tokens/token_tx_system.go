@@ -32,7 +32,7 @@ const (
 	ErrStrInvalidIconDataLength = "icon data length exceeds the allowed maximum of 64 KiB"
 )
 
-func NewTxSystem(shardConf basetypes.PartitionDescriptionRecord, orchestration txtypes.Orchestration, observe txsystem.Observability, opts ...Option) (*txsystem.GenericTxSystem, error) {
+func NewTxSystem(shardConf basetypes.PartitionDescriptionRecord, orchestration Orchestration, observe txsystem.Observability, opts ...Option) (*txsystem.GenericTxSystem, error) {
 	options, err := defaultOptions(observe)
 	if err != nil {
 		return nil, fmt.Errorf("tokens transaction system default config: %w", err)

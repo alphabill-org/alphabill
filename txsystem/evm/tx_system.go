@@ -62,7 +62,7 @@ type TxSystem struct {
 	log                 *slog.Logger
 }
 
-func NewEVMTxSystem(networkID types.NetworkID, partitionID types.PartitionID, orchestration txtypes.Orchestration, observe Observability, opts ...Option) (*TxSystem, error) {
+func NewEVMTxSystem(networkID types.NetworkID, partitionID types.PartitionID, orchestration Orchestration, observe Observability, opts ...Option) (*TxSystem, error) {
 	options, err := defaultOptions(observe)
 	if err != nil {
 		return nil, fmt.Errorf("default configuration: %w", err)

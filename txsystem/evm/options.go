@@ -21,7 +21,6 @@ type (
 		state                *state.State
 		executedTransactions map[string]uint64
 		hashAlgorithm        crypto.Hash
-		trustBase            types.RootTrustBase
 		blockGasLimit        uint64
 		gasUnitPrice         *big.Int
 		blockDB              keyvaluedb.KeyValueDB
@@ -44,7 +43,6 @@ func defaultOptions(obs Observability) (*Options, error) {
 	return &Options{
 		moneyPartitionID: 1,
 		hashAlgorithm:    crypto.SHA256,
-		trustBase:        nil,
 		blockGasLimit:    DefaultBlockGasLimit,
 		gasUnitPrice:     big.NewInt(DefaultGasPrice),
 		execPredicate:    predEng.Execute,
@@ -72,12 +70,6 @@ func WithExecutedTransactions(executedTransactions map[string]uint64) Option {
 func WithHashAlgorithm(algorithm crypto.Hash) Option {
 	return func(c *Options) {
 		c.hashAlgorithm = algorithm
-	}
-}
-
-func WithTrustBase(tb types.RootTrustBase) Option {
-	return func(c *Options) {
-		c.trustBase = tb
 	}
 }
 

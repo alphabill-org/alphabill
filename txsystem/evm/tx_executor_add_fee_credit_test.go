@@ -6,6 +6,9 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/holiman/uint256"
+	"github.com/stretchr/testify/require"
+
 	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/evm"
@@ -21,8 +24,6 @@ import (
 	testfc "github.com/alphabill-org/alphabill/txsystem/fc/testutils"
 	testctx "github.com/alphabill-org/alphabill/txsystem/testutils/exec_context"
 	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
-	"github.com/holiman/uint256"
-	"github.com/stretchr/testify/require"
 )
 
 func TestAddFC_ValidateAddNewFeeCreditTx(t *testing.T) {
@@ -547,12 +548,20 @@ func newTestFeeModule(t *testing.T, tb types.RootTrustBase, opts ...feeTestOptio
 		state:            state.NewEmptyState(),
 		partitionID:      evm.DefaultPartitionID,
 		moneyPartitionID: money.DefaultPartitionID,
-		trustBase:        tb,
+		orchestration:    orchestrationStaticTB{tb},
 	}
 	for _, o := range opts {
 		require.NoError(t, o(m))
 	}
 	return m
+}
+
+type orchestrationStaticTB struct {
+	trustBase types.RootTrustBase
+}
+
+func (o orchestrationStaticTB) TrustBase(epoch uint64) (types.RootTrustBase, error) {
+	return o.trustBase, nil
 }
 
 func newInvalidProof(t *testing.T, signer abcrypto.Signer) *types.TxRecordProof {

@@ -51,14 +51,14 @@ func TestPartition_Ok(t *testing.T) {
 	abNet := testpartition.NewAlphabillNetwork(t, 1)
 	require.NoError(t, abNet.Start(t))
 	defer abNet.WaitClose(t)
-	abNet.AddShard(t, &shardConf, 3, func(tb types.RootTrustBase) txsystem.TransactionSystem {
+	abNet.AddShard(t, &shardConf, 3, func(orchestration testpartition.Orchestration) txsystem.TransactionSystem {
 		s = s.Clone()
 		system, err := NewTxSystem(
 			&shardConf,
+			orchestration,
 			observability.Default(t),
 			WithState(s),
 			WithHashAlgorithm(crypto.SHA256),
-			WithTrustBase(tb),
 		)
 		require.NoError(t, err)
 		return system
@@ -181,13 +181,13 @@ func TestPartition_SwapDCOk(t *testing.T) {
 	abNet := testpartition.NewAlphabillNetwork(t, 1)
 	require.NoError(t, abNet.Start(t))
 	defer abNet.WaitClose(t)
-	abNet.AddShard(t, &moneyPDR, 3, func(tb types.RootTrustBase) txsystem.TransactionSystem {
+	abNet.AddShard(t, &moneyPDR, 3, func(orchestration testpartition.Orchestration) txsystem.TransactionSystem {
 		txsState = txsState.Clone()
 		system, err := NewTxSystem(
 			&moneyPDR,
+			orchestration,
 			observability.Default(t),
 			WithHashAlgorithm(crypto.SHA256),
-			WithTrustBase(tb),
 			WithState(txsState),
 		)
 		require.NoError(t, err)

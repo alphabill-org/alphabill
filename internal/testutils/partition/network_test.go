@@ -4,13 +4,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/alphabill-org/alphabill-go-base/types"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testtxsystem "github.com/alphabill-org/alphabill/internal/testutils/txsystem"
 	"github.com/alphabill-org/alphabill/txsystem"
-
 	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
-	"github.com/stretchr/testify/require"
 )
 
 func TestNewNetwork_Ok(t *testing.T) {
@@ -31,7 +31,7 @@ func TestNewNetwork_Ok(t *testing.T) {
 	require.NoError(t, abNetwork.Start(t))
 	t.Cleanup(func() { abNetwork.WaitClose(t) })
 
-	abNetwork.AddShard(t, shardConf, 3, func(tb types.RootTrustBase) txsystem.TransactionSystem {
+	abNetwork.AddShard(t, shardConf, 3, func(Orchestration) txsystem.TransactionSystem {
 		return &testtxsystem.CounterTxSystem{FixedState: testtxsystem.MockState{}}
 	})
 

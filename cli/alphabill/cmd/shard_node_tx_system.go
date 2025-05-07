@@ -54,9 +54,9 @@ func newMoneyTxSystem(flags *shardNodeRunFlags, nodeConf *partition.NodeConf) (t
 
 	txs, err := money.NewTxSystem(
 		nodeConf.ShardConf(),
+		nodeConf.Orchestration(),
 		nodeConf.Observability(),
 		money.WithHashAlgorithm(nodeConf.HashAlgorithm()),
-		money.WithTrustBase(nodeConf.TrustBase()),
 		money.WithState(state),
 		money.WithExecutedTransactions(header.ExecutedTransactions),
 	)
@@ -111,9 +111,9 @@ func newTokensTxSystem(flags *shardNodeRunFlags, nodeConf *partition.NodeConf) (
 
 	txs, err := tokens.NewTxSystem(
 		*nodeConf.ShardConf(),
+		nodeConf.Orchestration(),
 		nodeConf.Observability(),
 		tokens.WithHashAlgorithm(nodeConf.HashAlgorithm()),
-		tokens.WithTrustBase(nodeConf.TrustBase()),
 		tokens.WithState(state),
 		tokens.WithPredicateExecutor(predEng.Execute),
 		tokens.WithAdminOwnerPredicate(params.AdminOwnerPredicate),
@@ -139,11 +139,11 @@ func newEvmTxSystem(flags *shardNodeRunFlags, nodeConf *partition.NodeConf) (txs
 	txs, err := evm.NewEVMTxSystem(
 		nodeConf.ShardConf().NetworkID,
 		nodeConf.ShardConf().PartitionID,
+		nodeConf.Orchestration(),
 		nodeConf.Observability(),
 		evm.WithBlockGasLimit(params.BlockGasLimit),
 		evm.WithGasPrice(params.GasUnitPrice),
 		evm.WithBlockDB(nodeConf.BlockStore()),
-		evm.WithTrustBase(nodeConf.TrustBase()),
 		evm.WithState(state),
 		evm.WithExecutedTransactions(header.ExecutedTransactions),
 	)

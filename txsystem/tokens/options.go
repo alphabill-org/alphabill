@@ -1,7 +1,7 @@
 package tokens
 
 import (
-	gocrypto "crypto"
+	"crypto"
 	"fmt"
 
 	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
@@ -16,8 +16,7 @@ import (
 type (
 	Options struct {
 		moneyPartitionID     types.PartitionID
-		hashAlgorithm        gocrypto.Hash
-		trustBase            types.RootTrustBase
+		hashAlgorithm        crypto.Hash
 		state                *state.State
 		executedTransactions map[string]uint64
 		exec                 predicates.PredicateExecutor
@@ -40,7 +39,7 @@ func defaultOptions(observe txsystem.Observability) (*Options, error) {
 
 	return &Options{
 		moneyPartitionID: money.DefaultPartitionID,
-		hashAlgorithm:    gocrypto.SHA256,
+		hashAlgorithm:    crypto.SHA256,
 		exec:             predEng.Execute,
 	}, nil
 }
@@ -63,15 +62,9 @@ func WithMoneyPartitionID(moneyPartitionID types.PartitionID) Option {
 	}
 }
 
-func WithHashAlgorithm(algorithm gocrypto.Hash) Option {
+func WithHashAlgorithm(algorithm crypto.Hash) Option {
 	return func(c *Options) {
 		c.hashAlgorithm = algorithm
-	}
-}
-
-func WithTrustBase(trustBase types.RootTrustBase) Option {
-	return func(c *Options) {
-		c.trustBase = trustBase
 	}
 }
 

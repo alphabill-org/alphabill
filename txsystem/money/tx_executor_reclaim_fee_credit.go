@@ -104,7 +104,7 @@ func (m *Module) validateReclaimFCTx(tx *types.TransactionOrder, attr *fc.Reclai
 		return err
 	}
 	// verify proof
-	if err = types.VerifyTxProof(closeFcProof, m.trustBase, m.hashAlgorithm); err != nil {
+	if err = closeFcProof.Verify(m.orchestration.TrustBase); err != nil {
 		return fmt.Errorf("invalid proof: %w", err)
 	}
 	// store reclaimed amount to execution context to not have to calculate it again later

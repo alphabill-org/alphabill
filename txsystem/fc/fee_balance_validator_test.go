@@ -19,7 +19,7 @@ import (
 
 func TestCheckFeeCreditBalance(t *testing.T) {
 	_, verifier := testsig.CreateSignerAndVerifier(t)
-	trustBase := testtb.NewTrustBase(t, verifier)
+	orchestration := newStaticOrchestration(testtb.NewTrustBase(t, verifier))
 	ownerPredicate := []byte{2}
 
 	pdr := moneyid.PDR()
@@ -33,7 +33,7 @@ func TestCheckFeeCreditBalance(t *testing.T) {
 	require.NoError(t, sharedState.Apply(state.AddUnit(recordID, existingFCR)))
 	require.NoError(t, sharedState.AddUnitLog(recordID, []byte{9}))
 
-	fcModule, err := NewFeeCreditModule(pdr, moneyPartitionID, sharedState, trustBase, observability.Default(t), WithFeeCreditRecordUnitType(0xFC))
+	fcModule, err := NewFeeCreditModule(pdr, moneyPartitionID, sharedState, orchestration, observability.Default(t), WithFeeCreditRecordUnitType(0xFC))
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -75,4 +75,18 @@ func TestCheckFeeCreditBalance(t *testing.T) {
 			}
 		})
 	}
+}
+
+func newStaticOrchestration(tb types.RootTrustBase) mockOrchestration {
+	return mockOrchestration{
+		trustBase: func(epoch uint64) (types.RootTrustBase, error) { return tb, nil },
+	}
+}
+
+type mockOrchestration struct {
+	trustBase func(epoch uint64) (types.RootTrustBase, error)
+}
+
+func (o mockOrchestration) TrustBase(epoch uint64) (types.RootTrustBase, error) {
+	return o.trustBase(epoch)
 }

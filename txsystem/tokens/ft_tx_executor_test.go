@@ -190,7 +190,7 @@ func TestCreateFungibleTokenType_NotOk(t *testing.T) {
 		},
 	}
 
-	m, err := NewFungibleTokensModule(tokenid.PDR(), defaultOpts(t))
+	m, err := NewFungibleTokensModule(tokenid.PDR(), nil, defaultOpts(t))
 	require.NoError(t, err)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -220,7 +220,7 @@ func TestCreateFungibleTokenType_CreateSingleType_Ok(t *testing.T) {
 		TypeIDLen:       8,
 	}
 
-	m, err := NewFungibleTokensModule(pdr, opts)
+	m, err := NewFungibleTokensModule(pdr, nil, opts)
 	require.NoError(t, err)
 	txExecutors := make(txtypes.TxExecutors)
 	require.NoError(t, txExecutors.Add(m.TxHandlers()))
@@ -285,7 +285,7 @@ func TestCreateFungibleTokenType_CreateTokenTypeChain_Ok(t *testing.T) {
 	}
 	childTx := createTxOrder(t, childID, tokens.TransactionTypeDefineFT, childAttributes, testtransaction.WithAuthProof(tokens.DefineFungibleTokenAuthProof{SubTypeCreationProofs: [][]byte{templates.EmptyArgument()}}))
 
-	m, err := NewFungibleTokensModule(pdr, opts)
+	m, err := NewFungibleTokensModule(pdr, nil, opts)
 	require.NoError(t, err)
 	txExecutors := make(txtypes.TxExecutors)
 	require.NoError(t, txExecutors.Add(m.TxHandlers()))
@@ -338,7 +338,7 @@ func TestCreateFungibleTokenType_CreateTokenTypeChain_InvalidCreationProof(t *te
 		TokenTypeOwnerPredicate:  templates.AlwaysTrueBytes(),
 	}
 	childTx := createTxOrder(t, childID, tokens.TransactionTypeDefineFT, childAttributes, testtransaction.WithAuthProof(tokens.DefineFungibleTokenAuthProof{SubTypeCreationProofs: [][]byte{[]byte("invalid")}}))
-	m, err := NewFungibleTokensModule(tokenid.PDR(), opts)
+	m, err := NewFungibleTokensModule(tokenid.PDR(), nil, opts)
 	require.NoError(t, err)
 	txExecutors := make(txtypes.TxExecutors)
 	require.NoError(t, txExecutors.Add(m.TxHandlers()))
@@ -448,7 +448,7 @@ func TestMintFungibleToken_NotOk(t *testing.T) {
 		},
 	}
 
-	m, err := NewFungibleTokensModule(tokenid.PDR(), defaultOpts(t))
+	m, err := NewFungibleTokensModule(tokenid.PDR(), nil, defaultOpts(t))
 	require.NoError(t, err)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -469,7 +469,7 @@ func TestMintFungibleToken_Ok(t *testing.T) {
 	tx := createTxOrder(t, nil, tokens.TransactionTypeMintFT, attributes)
 	tx.NetworkID = pdr.NetworkID
 	require.NoError(t, tokens.GenerateUnitID(tx, &pdr))
-	m, err := NewFungibleTokensModule(pdr, opts)
+	m, err := NewFungibleTokensModule(pdr, nil, opts)
 	require.NoError(t, err)
 	txExecutors := make(txtypes.TxExecutors)
 	require.NoError(t, txExecutors.Add(m.TxHandlers()))
@@ -569,7 +569,7 @@ func TestTransferFungibleToken_NotOk(t *testing.T) {
 		},
 	}
 
-	m, err := NewFungibleTokensModule(tokenid.PDR(), defaultOpts(t))
+	m, err := NewFungibleTokensModule(tokenid.PDR(), nil, defaultOpts(t))
 	require.NoError(t, err)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -592,7 +592,7 @@ func TestTransferFungibleToken_Ok(t *testing.T) {
 	}
 	uID := existingTokenID
 	tx := createTxOrder(t, uID, tokens.TransactionTypeTransferFT, transferAttributes, testtransaction.WithAuthProof(authProof))
-	m, err := NewFungibleTokensModule(tokenid.PDR(), opts)
+	m, err := NewFungibleTokensModule(tokenid.PDR(), nil, opts)
 	require.NoError(t, err)
 	txExecutors := make(txtypes.TxExecutors)
 	require.NoError(t, txExecutors.Add(m.TxHandlers()))
@@ -714,7 +714,7 @@ func TestSplitFungibleToken_NotOk(t *testing.T) {
 		},
 	}
 
-	m, err := NewFungibleTokensModule(tokenid.PDR(), defaultOpts(t))
+	m, err := NewFungibleTokensModule(tokenid.PDR(), nil, defaultOpts(t))
 	require.NoError(t, err)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -739,7 +739,7 @@ func TestSplitFungibleToken_Ok(t *testing.T) {
 	uID := existingTokenID
 	tx := createTxOrder(t, uID, tokens.TransactionTypeSplitFT, attr, testtransaction.WithAuthProof(authProof))
 	var roundNo uint64 = 10
-	m, err := NewFungibleTokensModule(pdr, opts)
+	m, err := NewFungibleTokensModule(pdr, nil, opts)
 	require.NoError(t, err)
 	require.NoError(t, m.validateSplitFT(tx, attr, authProof, testctx.NewMockExecutionContext(testctx.WithCurrentRound(roundNo))))
 	sm, err := m.executeSplitFT(tx, attr, authProof, testctx.NewMockExecutionContext(testctx.WithCurrentRound(roundNo)))
@@ -839,7 +839,7 @@ func TestBurnFungibleToken_NotOk(t *testing.T) {
 		},
 	}
 
-	m, err := NewFungibleTokensModule(tokenid.PDR(), defaultOpts(t))
+	m, err := NewFungibleTokensModule(tokenid.PDR(), nil, defaultOpts(t))
 	require.NoError(t, err)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -862,7 +862,7 @@ func TestBurnFungibleToken_Ok(t *testing.T) {
 	tx := createTxOrder(t, uID, tokens.TransactionTypeBurnFT, burnAttributes, testtransaction.WithAuthProof(authProof))
 	roundNo := uint64(10)
 
-	m, err := NewFungibleTokensModule(tokenid.PDR(), opts)
+	m, err := NewFungibleTokensModule(tokenid.PDR(), nil, opts)
 	require.NoError(t, err)
 	txExecutors := make(txtypes.TxExecutors)
 	require.NoError(t, txExecutors.Add(m.TxHandlers()))
@@ -889,8 +889,7 @@ func TestBurnFungibleToken_Ok(t *testing.T) {
 func TestJoinFungibleToken_Ok(t *testing.T) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	opts := defaultOpts(t)
-	opts.trustBase = testtb.NewTrustBase(t, verifier)
-	m, err := NewFungibleTokensModule(tokenid.PDR(), opts)
+	m, err := NewFungibleTokensModule(tokenid.PDR(), newStaticOrchestration(testtb.NewTrustBase(t, verifier)), opts)
 	require.NoError(t, err)
 	txExecutors := make(txtypes.TxExecutors)
 	require.NoError(t, txExecutors.Add(m.TxHandlers()))
@@ -925,7 +924,6 @@ func TestJoinFungibleToken_Ok(t *testing.T) {
 func TestJoinFungibleToken_NotOk(t *testing.T) {
 	signer, verifier := testsig.CreateSignerAndVerifier(t)
 	opts := defaultOpts(t)
-	opts.trustBase = testtb.NewTrustBase(t, verifier)
 
 	burnTxInvalidTargetTokenID := createTxRecord(t, existingTokenID, tokens.TransactionTypeBurnFT, &tokens.BurnFungibleTokenAttributes{
 		TypeID:             existingTokenTypeID,
@@ -1094,7 +1092,7 @@ func TestJoinFungibleToken_NotOk(t *testing.T) {
 		},
 	}
 
-	m, err := NewFungibleTokensModule(tokenid.PDR(), opts)
+	m, err := NewFungibleTokensModule(tokenid.PDR(), newStaticOrchestration(testtb.NewTrustBase(t, verifier)), opts)
 	require.NoError(t, err)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

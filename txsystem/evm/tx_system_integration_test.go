@@ -69,11 +69,12 @@ func TestEVMPartition_DeployAndCallContract(t *testing.T) {
 	network := testpartition.NewAlphabillNetwork(t, 1)
 	require.NoError(t, network.Start(t))
 	defer network.WaitClose(t)
-	network.AddShard(t, &pdr, 3, func(trustBase types.RootTrustBase) txsystem.TransactionSystem {
+	network.AddShard(t, &pdr, 3, func(orchestration testpartition.Orchestration) txsystem.TransactionSystem {
 		genesisState = genesisState.Clone()
 		system, err := NewEVMTxSystem(
 			pdr.NetworkID,
 			pdr.PartitionID,
+			orchestration,
 			observability.Default(t),
 			WithBlockDB(blockDB),
 			WithState(genesisState),
@@ -142,7 +143,7 @@ func TestEVMPartition_Revert_test(t *testing.T) {
 	blockDB, err := memorydb.New()
 	require.NoError(t, err)
 	genesisState := newGenesisState(t, from, big.NewInt(oneEth))
-	system, err := NewEVMTxSystem(networkID, partitionID, observability.Default(t), WithBlockDB(blockDB), WithState(genesisState)) // 1 ETH
+	system, err := NewEVMTxSystem(networkID, partitionID, nil, observability.Default(t), WithBlockDB(blockDB), WithState(genesisState)) // 1 ETH
 	require.NoError(t, err)
 
 	// Simulate round 1

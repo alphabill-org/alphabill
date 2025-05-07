@@ -9,22 +9,20 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
-	"slices"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/multiformats/go-multiaddr"
+	"github.com/stretchr/testify/require"
+
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/internal/testutils/net"
 	"github.com/alphabill-org/alphabill/internal/testutils/observability"
 	testtime "github.com/alphabill-org/alphabill/internal/testutils/time"
-	"github.com/alphabill-org/alphabill/network"
 	"github.com/alphabill-org/alphabill/network/protocol/abdrc"
 	rctypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
-	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/multiformats/go-multiaddr"
-	"github.com/stretchr/testify/require"
 )
 
 func TestRootValidator_OK(t *testing.T) {
@@ -184,28 +182,6 @@ func getRootValidatorMultiAddress(addressStr string) (multiaddr.Multiaddr, error
 		return nil, err
 	}
 	return rootAddress, nil
-}
-
-type mockNode struct {
-	partitionID    types.PartitionID
-	peer           *network.Peer
-	validatorNodes peer.IDSlice
-}
-
-func (mn *mockNode) PartitionID() types.PartitionID {
-	return mn.partitionID
-}
-
-func (mn *mockNode) ShardID() types.ShardID {
-	return types.ShardID{}
-}
-
-func (mn *mockNode) Peer() *network.Peer {
-	return mn.peer
-}
-
-func (mn *mockNode) IsValidator() bool {
-	return slices.Contains(mn.validatorNodes, mn.peer.ID())
 }
 
 func Test_cfgHandler(t *testing.T) {

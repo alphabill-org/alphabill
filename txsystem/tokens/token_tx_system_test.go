@@ -61,13 +61,13 @@ func TestNewTokenTxSystem(t *testing.T) {
 	t.Run("invalid PartitionID", func(t *testing.T) {
 		invalidPDR := pdr
 		invalidPDR.PartitionID = 0
-		txs, err := NewTxSystem(invalidPDR, observe, WithState(state.NewEmptyState()))
+		txs, err := NewTxSystem(invalidPDR, nil, observe, WithState(state.NewEmptyState()))
 		require.ErrorContains(t, err, `failed to load permissionless fee credit module: invalid fee credit module configuration: invalid PDR: invalid partition identifier: 00000000`)
 		require.Nil(t, txs)
 	})
 
 	t.Run("state is nil", func(t *testing.T) {
-		txs, err := NewTxSystem(pdr, observe, WithState(nil))
+		txs, err := NewTxSystem(pdr, nil, observe, WithState(nil))
 		require.ErrorContains(t, err, ErrStrStateIsNil)
 		require.Nil(t, txs)
 	})
@@ -1577,6 +1577,20 @@ func (m mockUnitData) GetVersion() types.ABVersion {
 	return 0
 }
 
+func newStaticOrchestration(tb types.RootTrustBase) mockOrchestration {
+	return mockOrchestration{
+		trustBase: func(epoch uint64) (types.RootTrustBase, error) { return tb, nil },
+	}
+}
+
+type mockOrchestration struct {
+	trustBase func(epoch uint64) (types.RootTrustBase, error)
+}
+
+func (o mockOrchestration) TrustBase(epoch uint64) (types.RootTrustBase, error) {
+	return o.trustBase(epoch)
+}
+
 func createSigner(t *testing.T) (abcrypto.Signer, []byte) {
 	t.Helper()
 	signer, err := abcrypto.NewInMemorySecp256K1Signer()
@@ -1625,9 +1639,10 @@ func newTokenTxSystem(t *testing.T, opts ...Option) (*txsystem.GenericTxSystem, 
 		T2Timeout:       2000 * time.Millisecond,
 	}
 
-	opts = append(opts, WithTrustBase(testtb.NewTrustBase(t, verifier)), WithState(s))
+	opts = append(opts, WithState(s))
 	txs, err := NewTxSystem(
 		pdr,
+		newStaticOrchestration(testtb.NewTrustBase(t, verifier)),
 		observability.Default(t),
 		opts...,
 	)

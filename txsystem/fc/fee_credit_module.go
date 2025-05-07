@@ -26,7 +26,7 @@ var _ txtypes.FeeCreditModule = (*FeeCreditModule)(nil)
 var (
 	ErrMoneyPartitionIDMissing = errors.New("money transaction partition identifier is missing")
 	ErrStateIsNil              = errors.New("state is nil")
-	ErrTrustBaseIsNil          = errors.New("trust base is nil")
+	ErrOrchestrationIsNil      = errors.New("orchestration is nil")
 )
 
 type (
@@ -35,11 +35,15 @@ type (
 		moneyPartitionID        types.PartitionID
 		state                   *state.State
 		hashAlgorithm           crypto.Hash
-		trustBase               types.RootTrustBase
+		orchestration           Orchestration
 		execPredicate           predicates.PredicateRunner
 		feeBalanceValidator     *FeeBalanceValidator
 		feeCreditRecordUnitType uint32
 		pdr                     types.PartitionDescriptionRecord
+	}
+
+	Orchestration interface {
+		TrustBase(epoch uint64) (types.RootTrustBase, error)
 	}
 
 	Observability interface {
@@ -48,12 +52,12 @@ type (
 	}
 )
 
-func NewFeeCreditModule(pdr types.PartitionDescriptionRecord, moneyPartitionID types.PartitionID, state *state.State, trustBase types.RootTrustBase, obs Observability, opts ...Option) (*FeeCreditModule, error) {
+func NewFeeCreditModule(pdr types.PartitionDescriptionRecord, moneyPartitionID types.PartitionID, state *state.State, orchestration Orchestration, obs Observability, opts ...Option) (*FeeCreditModule, error) {
 	m := &FeeCreditModule{
 		pdr:              pdr,
 		moneyPartitionID: moneyPartitionID,
 		state:            state,
-		trustBase:        trustBase,
+		orchestration:    orchestration,
 		hashAlgorithm:    crypto.SHA256,
 	}
 	for _, o := range opts {
@@ -113,8 +117,8 @@ func (f *FeeCreditModule) IsValid() error {
 	if f.state == nil {
 		return ErrStateIsNil
 	}
-	if f.trustBase == nil {
-		return ErrTrustBaseIsNil
+	if f.orchestration == nil {
+		return ErrOrchestrationIsNil
 	}
 	return nil
 }

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"sync"
+	"time"
 
 	"github.com/libp2p/go-libp2p"
 	dht "github.com/libp2p/go-libp2p-kad-dht"
@@ -24,8 +25,10 @@ import (
 )
 
 const (
-	defaultAddress    = "/ip4/0.0.0.0/tcp/0"
-	dhtProtocolPrefix = "/ab/dht/0.1.0"
+	defaultAddress                    = "/ip4/0.0.0.0/tcp/0"
+	dhtProtocolPrefix                 = "/ab/dht/0.1.0"
+	defaultBootstrapConnectRetry      = 0
+	defaultBootstrapConnectRetryDelay = 1
 )
 
 var (
@@ -35,11 +38,18 @@ var (
 type (
 	// PeerConfiguration includes single peer configuration values.
 	PeerConfiguration struct {
-		ID             peer.ID         // peer identifier derived from the KeyPair.PublicKey.
-		Address        string          // address to listen for incoming connections. Uses libp2p multiaddress format.
-		AnnounceAddrs  []ma.Multiaddr  // callback addresses to announce to other peers, if specified then overwrites any and all default listen addresses
-		KeyPair        *PeerKeyPair    // keypair for the peer.
-		BootstrapPeers []peer.AddrInfo // a list of seed peers to connect to.
+		ID                    peer.ID         // peer identifier derived from the KeyPair.PublicKey.
+		Address               string          // address to listen for incoming connections. Uses libp2p multiaddress format.
+		AnnounceAddrs         []ma.Multiaddr  // callback addresses to announce to other peers, if specified then overwrites any and all default listen addresses
+		KeyPair               *PeerKeyPair    // keypair for the peer.
+		BootstrapPeers        []peer.AddrInfo // a list of seed peers to connect to.
+		BootstrapConnectRetry *BootstrapConnectRetry
+	}
+
+	// BootstrapConnectRetry contains the number of times to retry connecting to bootstrap peers and the delay between retries.
+	BootstrapConnectRetry struct {
+		Count int // number of times to retry connecting to bootstrap peers
+		Delay int // delay in seconds
 	}
 
 	// PeerKeyPair contains node's public and private key.
@@ -124,15 +134,38 @@ func NewPeer(ctx context.Context, conf *PeerConfiguration, log *slog.Logger, pro
 	}, nil
 }
 
+// bootstrapPeers filters out the self peer from the list of bootnodes.
+// This is necessary because we don't want to attempt to connect to self.
+func bootstrapPeers(bootnodes []peer.AddrInfo, self peer.ID) []peer.AddrInfo {
+	var filtered []peer.AddrInfo
+	for _, bootnode := range bootnodes {
+		if bootnode.ID != self {
+			filtered = append(filtered, bootnode)
+		}
+	}
+	return filtered
+}
+
+func isBootnode(peerID peer.ID, bootNodes []peer.AddrInfo) bool {
+	for _, peerAddr := range bootNodes {
+		if peerID == peerAddr.ID {
+			return true
+		}
+	}
+	return false
+}
+
 // This code is borrowed from the go-ipfs bootstrap process
 func (p *Peer) BootstrapConnect(ctx context.Context, log *slog.Logger) error {
-	if len(p.conf.BootstrapPeers) == 0 {
+	bootstrapPeers := bootstrapPeers(p.conf.BootstrapPeers, p.host.ID())
+	if len(bootstrapPeers) == 0 {
 		return nil
 	}
+	isBootnode := isBootnode(p.host.ID(), p.conf.BootstrapPeers)
 
-	errs := make(chan error, len(p.conf.BootstrapPeers))
+	errs := make(chan error, len(bootstrapPeers))
 	var wg sync.WaitGroup
-	for _, peerAddr := range p.conf.BootstrapPeers {
+	for _, peerAddr := range bootstrapPeers {
 		// performed asynchronously because when performed synchronously, if
 		// one `Connect` call hangs, subsequent calls are more likely to
 		// fail/abort due to an expiring context.
@@ -141,12 +174,36 @@ func (p *Peer) BootstrapConnect(ctx context.Context, log *slog.Logger) error {
 		go func(peerAddr peer.AddrInfo) {
 			defer wg.Done()
 			p.host.Peerstore().AddAddrs(peerAddr.ID, peerAddr.Addrs, peerstore.PermanentAddrTTL)
-			if err := p.host.Connect(ctx, peerAddr); err != nil {
-				log.WarnContext(ctx, fmt.Sprintf("Bootstrap dial %s to %s failed: %s", p.host.ID(), peerAddr.ID, err))
-				errs <- err
-				return
+
+			countdown := p.conf.BootstrapConnectRetry.Count
+			if countdown < 0 {
+				countdown = int(^uint(0) >> 1) // Set to maximum value of int
 			}
-			log.DebugContext(ctx, fmt.Sprintf("Bootstrap dial %s to %s: success", p.host.ID(), peerAddr.ID))
+			if isBootnode {
+				countdown = 0
+			}
+
+			for ; ; countdown-- {
+				err := p.host.Connect(ctx, peerAddr)
+				if err == nil {
+					log.DebugContext(ctx, fmt.Sprintf("Bootstrap dial %s to %s: success", p.host.ID(), peerAddr.ID))
+					return
+				}
+				log.DebugContext(ctx, fmt.Sprintf("Bootstrap dial %s to %s failed: %s, retry in %s", p.host.ID(), peerAddr.ID, err, time.Second))
+				if countdown <= 0 {
+					log.WarnContext(ctx, fmt.Sprintf("Bootstrap dial %s to %s failed: %s", p.host.ID(), peerAddr.ID, err))
+					errs <- err
+					return
+				}
+
+				select {
+				case <-time.After(time.Duration(p.conf.BootstrapConnectRetry.Delay) * time.Second):
+					continue
+				case <-ctx.Done():
+					return
+				}
+			}
+
 		}(peerAddr)
 	}
 	wg.Wait()
@@ -162,8 +219,13 @@ func (p *Peer) BootstrapConnect(ctx context.Context, log *slog.Logger) error {
 			allErr = errors.Join(allErr, err)
 		}
 	}
-	if count == len(p.conf.BootstrapPeers) {
-		return fmt.Errorf("failed to bootstrap: %w", allErr)
+	if count == len(bootstrapPeers) {
+		err := fmt.Errorf("failed to bootstrap: %w", allErr)
+		if isBootnode {
+			log.DebugContext(ctx, fmt.Sprintf("Failed to dial other bootnodes: %s", err))
+			return nil
+		}
+		return err
 	}
 	return p.dht.Bootstrap(ctx)
 }
@@ -240,7 +302,9 @@ func NewPeerConfiguration(
 	addr string,
 	announceAddrs []string,
 	keyPair *PeerKeyPair,
-	bootstrapPeers []peer.AddrInfo) (*PeerConfiguration, error) {
+	bootstrapPeers []peer.AddrInfo,
+	bootstrapConnectRetry *BootstrapConnectRetry,
+) (*PeerConfiguration, error) {
 
 	if keyPair == nil {
 		return nil, fmt.Errorf("missing key pair")
@@ -260,12 +324,20 @@ func NewPeerConfiguration(
 		announceMultiAddrs = append(announceMultiAddrs, announceMultiAddr)
 	}
 
+	if bootstrapConnectRetry == nil {
+		bootstrapConnectRetry = &BootstrapConnectRetry{
+			Count: defaultBootstrapConnectRetry,
+			Delay: defaultBootstrapConnectRetryDelay,
+		}
+	}
+
 	return &PeerConfiguration{
-		ID:             peerID,
-		Address:        addr,
-		AnnounceAddrs:  announceMultiAddrs,
-		KeyPair:        keyPair,
-		BootstrapPeers: bootstrapPeers,
+		ID:                    peerID,
+		Address:               addr,
+		AnnounceAddrs:         announceMultiAddrs,
+		KeyPair:               keyPair,
+		BootstrapPeers:        bootstrapPeers,
+		BootstrapConnectRetry: bootstrapConnectRetry,
 	}, nil
 }
 

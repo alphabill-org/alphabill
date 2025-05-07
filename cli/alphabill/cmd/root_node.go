@@ -46,7 +46,7 @@ type (
 		trustBaseFlags
 		p2pFlags
 
-		RootStoreFile          string   // path to Bolt storage file
+		RootStoreFile          string // path to Bolt storage file
 		TrustBaseStoreFile     string
 		OrchestrationStoreFile string
 		ShardConfFiles         []string // paths to shard conf files
@@ -259,7 +259,11 @@ func createHost(ctx context.Context, keyConf *partition.KeyConf, flags *rootNode
 	if err != nil {
 		return nil, fmt.Errorf("invalid authentication key: %w", err)
 	}
-	peerConf, err := network.NewPeerConfiguration(flags.Address, flags.AnnounceAddresses, authKeyPair, bootNodes)
+	bootstrapConnectRetry := &network.BootstrapConnectRetry{
+		Count: flags.BootstrapConnectRetryCount,
+		Delay: flags.BootstrapConnectRetryDelay,
+	}
+	peerConf, err := network.NewPeerConfiguration(flags.Address, flags.AnnounceAddresses, authKeyPair, bootNodes, bootstrapConnectRetry)
 	if err != nil {
 		return nil, err
 	}

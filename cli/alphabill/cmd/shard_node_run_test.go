@@ -264,6 +264,8 @@ func defaultFlags() *shardNodeRunFlags {
 	flags.StateRpcRateLimit = 20
 	flags.T1TimeoutMs = partition.DefaultT1Timeout
 	flags.StateRpcResponseItemLimit = 10000
+	flags.BootstrapConnectRetryCount = 10
+	flags.BootstrapConnectRetryDelay = 1
 	return flags
 }
 

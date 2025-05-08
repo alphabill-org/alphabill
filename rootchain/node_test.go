@@ -530,10 +530,7 @@ func Test_onBlockCertificationRequest(t *testing.T) {
 	t.Run("invalid request - invalid NodeID", func(t *testing.T) {
 		cm := mockConsensusManager{
 			shardInfo: func(partition types.PartitionID, shard types.ShardID) (*storage.ShardInfo, error) {
-				// just return non nil SI - before the SI is used the request node
-				// is subscribed for responses and that's where we expect failure as
-				// the node ID is not valid (invalid encoding)
-				return &storage.ShardInfo{}, nil
+				return newMockShardInfo(t, "not valid ID", sigKey, certResp), nil
 			},
 		}
 
@@ -542,7 +539,7 @@ func Test_onBlockCertificationRequest(t *testing.T) {
 		cr := validCertRequest
 		cr.NodeID = "not valid ID"
 		err = node.onBlockCertificationRequest(t.Context(), &cr)
-		require.EqualError(t, err, `subscribing the sender: invalid receiver id: failed to parse peer ID: invalid cid: selected encoding not supported`)
+		require.ErrorContains(t, err, `invalid receiver id: failed to parse peer ID: invalid cid: selected encoding not supported`)
 	})
 
 	t.Run("invalid request", func(t *testing.T) {

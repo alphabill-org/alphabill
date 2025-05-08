@@ -228,16 +228,17 @@ func (v *Node) onBlockCertificationRequest(ctx context.Context, req *certificati
 	if err != nil {
 		return fmt.Errorf("acquiring shard %s - %s info: %w", req.PartitionID, req.ShardID, err)
 	}
-	if err := v.subscription.Subscribe(req.PartitionID, req.ShardID, req.NodeID); err != nil {
-		return fmt.Errorf("subscribing the sender: %w", err)
-	}
-	// we got the shard info thus it's a valid partition/shard
 	if err := si.ValidRequest(req); err != nil {
 		err = fmt.Errorf("invalid block certification request: %w", err)
 		if se := v.sendResponse(ctx, req.NodeID, si.LastCR); se != nil {
 			err = errors.Join(err, fmt.Errorf("sending latest cert: %w", se))
 		}
 		return err
+	}
+
+	// we got the shard info thus it's a valid partition/shard
+	if err := v.subscription.Subscribe(req.PartitionID, req.ShardID, req.NodeID); err != nil {
+		return fmt.Errorf("subscribing the sender: %w", err)
 	}
 
 	// check if consensus is already achieved

@@ -321,10 +321,6 @@ func TestExecutedBlock_GenerateCertificates(t *testing.T) {
 			},
 			HashAlgo: crypto.SHA256,
 			RootHash: rh,
-			Schemes: map[types.PartitionID]types.ShardingScheme{
-				partitionID1: {},
-				partitionID2: {},
-			},
 		}
 	}
 
@@ -348,7 +344,7 @@ func TestExecutedBlock_GenerateCertificates(t *testing.T) {
 		commitQc := validCommitQc()
 		block := validBlock()
 		// scheme lists partition for which there is no shard info
-		block.Schemes[66] = types.ShardingScheme{}
+		block.ShardInfo.schemes = map[types.PartitionID]types.ShardingScheme{66: {}}
 		certs, err := block.GenerateCertificates(commitQc)
 		require.EqualError(t, err, `failed to generate root hash: creating unicity tree: missing shard info for 00000042_80`)
 		require.Empty(t, certs)

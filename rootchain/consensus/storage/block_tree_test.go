@@ -474,7 +474,6 @@ func TestAddAndCommit(t *testing.T) {
 	// having changes Commit doesn't return any certificates.
 	k := types.PartitionShardID{PartitionID: 1, ShardID: types.ShardID{}.Key()}
 	b.ShardInfo.States[k] = &ShardInfo{PartitionID: 1, IR: &types.InputRecord{}}
-	b.Schemes = map[types.PartitionID]types.ShardingScheme{1: {}}
 	b.RootHash = hexToBytes("F8C1F929F9E718FE5B19DD72BFD23802FFFE5FAC21711BF425548548262942E5")
 
 	commitQc := &drctypes.QuorumCert{

@@ -41,10 +41,11 @@ type (
 		trustBase     types.RootTrustBase
 		observability Observability
 
-		address            string
-		announceAddresses  []string
-		bootstrapAddresses []string
-		validatorNetwork   ValidatorNetwork
+		address               string
+		announceAddresses     []string
+		bootstrapAddresses    []string
+		bootstrapConnectRetry *network.BootstrapConnectRetry
+		validatorNetwork      ValidatorNetwork
 
 		signer           abcrypto.Signer
 		hashAlgorithm    crypto.Hash // make hash algorithm configurable in the future. currently it is using SHA-256.
@@ -154,6 +155,12 @@ func WithAnnounceAddresses(announceAddresses []string) NodeOption {
 func WithBootstrapAddresses(bootstrapAddresses []string) NodeOption {
 	return func(c *NodeConf) {
 		c.bootstrapAddresses = bootstrapAddresses
+	}
+}
+
+func WithBootstrapConnectRetry(bootstrapConnectRetry *network.BootstrapConnectRetry) NodeOption {
+	return func(c *NodeConf) {
+		c.bootstrapConnectRetry = bootstrapConnectRetry
 	}
 }
 
@@ -357,7 +364,7 @@ func (c *NodeConf) PeerConf() (*network.PeerConfiguration, error) {
 		bootNodes[i] = *addrInfo
 	}
 
-	return network.NewPeerConfiguration(c.address, c.announceAddresses, authKeyPair, bootNodes)
+	return network.NewPeerConfiguration(c.address, c.announceAddresses, authKeyPair, bootNodes, c.bootstrapConnectRetry)
 }
 
 func (c *NodeConf) OwnerIndexer() *OwnerIndexer {

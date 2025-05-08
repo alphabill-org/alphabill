@@ -769,6 +769,60 @@ func TestSplitFungibleToken_Ok(t *testing.T) {
 	require.Equal(t, uint64(0), newUnitData.Counter)
 }
 
+func TestSplitFungibleToken_WithExistingDummyUnitsOk(t *testing.T) {
+	opts := defaultOpts(t)
+	pdr := tokenid.PDR()
+	m, err := NewFungibleTokensModule(pdr, opts)
+	require.NoError(t, err)
+
+	// build split x
+	var remainingBillValue uint64 = 10
+	attr := &tokens.SplitFungibleTokenAttributes{
+		TypeID:            existingTokenTypeID,
+		NewOwnerPredicate: templates.NewP2pkh256BytesFromKeyHash(test.RandomBytes(32)),
+		TargetValue:       existingTokenValue - remainingBillValue,
+		Counter:           0,
+	}
+	authProof := &tokens.SplitFungibleTokenAuthProof{TokenTypeOwnerProofs: [][]byte{templates.EmptyArgument()}}
+	tx := createTxOrder(t, existingTokenID, tokens.TransactionTypeSplitFT, attr, testtransaction.WithAuthProof(authProof))
+
+	// calculate split target unit id
+	newTokenID, err := m.pdr.ComposeUnitID(types.ShardID{}, tokens.FungibleTokenUnitType, tokens.PrndSh(tx))
+	require.NoError(t, err)
+
+	// create that token as dummy unit ahead of time
+	require.NoError(t, m.state.Apply(state.AddDummyUnit(newTokenID)))
+
+	// validate and execute split
+	var roundNo uint64 = 10
+	require.NoError(t, m.validateSplitFT(tx, attr, authProof, testctx.NewMockExecutionContext(testctx.WithCurrentRound(roundNo))))
+	sm, err := m.executeSplitFT(tx, attr, authProof, testctx.NewMockExecutionContext(testctx.WithCurrentRound(roundNo)))
+	require.NoError(t, err)
+	require.NotNil(t, sm)
+
+	// verify existing token is updated
+	u, err := opts.state.GetUnit(existingTokenID, false)
+	require.NoError(t, err)
+	require.NotNil(t, u)
+	require.IsType(t, &tokens.FungibleTokenData{}, u.Data())
+
+	d := u.Data().(*tokens.FungibleTokenData)
+	require.EqualValues(t, templates.AlwaysTrueBytes(), d.Owner())
+	require.Equal(t, remainingBillValue, d.Value)
+	require.Equal(t, uint64(1), d.Counter)
+
+	// verify dummy unit is "promoted" and updated
+	newToken, err := opts.state.GetUnit(newTokenID, false)
+	require.NoError(t, err)
+	require.NotNil(t, newToken)
+	require.IsType(t, &tokens.FungibleTokenData{}, newToken.Data())
+
+	newUnitData := newToken.Data().(*tokens.FungibleTokenData)
+	require.Equal(t, attr.NewOwnerPredicate, newUnitData.Owner())
+	require.Equal(t, existingTokenValue-remainingBillValue, newUnitData.Value)
+	require.Equal(t, uint64(0), newUnitData.Counter)
+}
+
 func TestBurnFungibleToken_NotOk(t *testing.T) {
 	ftUnitID := tokenid.NewFungibleTokenID(t)
 	tests := []struct {

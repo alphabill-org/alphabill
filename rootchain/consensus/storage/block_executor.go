@@ -21,10 +21,6 @@ type (
 		Qc        *rctypes.QuorumCert // block's quorum certificate (from next view)
 		CommitQc  *rctypes.QuorumCert // block's commit certificate
 		ShardInfo ShardStates
-
-		// cache schemes of the block. Public as tests outside the package need to
-		// be able to access it (refactor!)
-		Schemes map[types.PartitionID]types.ShardingScheme `cbor:"-"`
 	}
 
 	IRChangeReqVerifier interface {
@@ -37,9 +33,6 @@ func NewRootBlock(block *abdrc.CommittedBlock, hash crypto.Hash, orchestration O
 	if err != nil {
 		return nil, fmt.Errorf("loading shard configurations for round %d: %w", block.GetRound(), err)
 	}
-	if len(block.ShardInfo) != len(shardConfs) {
-		return nil, fmt.Errorf("round %d has %d shards, block has data for %d shards", block.GetRound(), len(shardConfs), len(block.ShardInfo))
-	}
 
 	shardInfo := ShardStates{
 		States:  make(map[types.PartitionShardID]*ShardInfo, len(shardConfs)),
@@ -49,7 +42,7 @@ func NewRootBlock(block *abdrc.CommittedBlock, hash crypto.Hash, orchestration O
 		shardKey := types.PartitionShardID{PartitionID: d.Partition, ShardID: d.Shard.Key()}
 		shardConf, ok := shardConfs[shardKey]
 		if !ok {
-			return nil, fmt.Errorf("no shard conf for %s - %s", d.Partition, d.Shard)
+			return nil, fmt.Errorf("block contains shard %s - %s which is not listed in the local orchestration", d.Partition, d.Shard)
 		}
 		shardConfHash, err := shardConf.Hash(crypto.SHA256)
 		if err != nil {
@@ -86,8 +79,7 @@ func NewRootBlock(block *abdrc.CommittedBlock, hash crypto.Hash, orchestration O
 		shardInfo.States[shardKey] = si
 	}
 
-	schemes := shardingSchemes(shardConfs)
-	ut, _, err := shardInfo.UnicityTree(schemes, hash)
+	ut, _, err := shardInfo.UnicityTree(hash)
 	if err != nil {
 		return nil, err
 	}
@@ -98,7 +90,6 @@ func NewRootBlock(block *abdrc.CommittedBlock, hash crypto.Hash, orchestration O
 		Qc:        block.Qc,
 		CommitQc:  block.CommitQc,
 		ShardInfo: shardInfo,
-		Schemes:   schemes,
 	}, nil
 }
 
@@ -137,8 +128,7 @@ func (x *ExecutedBlock) Extend(newBlock *rctypes.BlockData, verifier IRChangeReq
 		shardInfo.Changed[shardKey] = struct{}{}
 	}
 
-	schemes := shardingSchemes(shardConfs)
-	ut, _, err := shardInfo.UnicityTree(schemes, hash)
+	ut, _, err := shardInfo.UnicityTree(hash)
 	if err != nil {
 		return nil, fmt.Errorf("creating UnicityTree: %w", err)
 	}
@@ -147,12 +137,11 @@ func (x *ExecutedBlock) Extend(newBlock *rctypes.BlockData, verifier IRChangeReq
 		HashAlgo:  hash,
 		RootHash:  ut.RootHash(),
 		ShardInfo: shardInfo,
-		Schemes:   schemes,
 	}, nil
 }
 
 func (x *ExecutedBlock) GenerateCertificates(commitQc *rctypes.QuorumCert) ([]*certification.CertificationResponse, error) {
-	crs, rootHash, err := x.ShardInfo.certificationResponses(x.Schemes, x.HashAlgo)
+	crs, rootHash, err := x.ShardInfo.certificationResponses(x.HashAlgo)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate root hash: %w", err)
 	}

@@ -19,6 +19,9 @@ import (
 type ShardStates struct {
 	States  map[types.PartitionShardID]*ShardInfo
 	Changed ShardSet // shards whose state has changed
+
+	// cache schemes of the block
+	schemes map[types.PartitionID]types.ShardingScheme
 }
 
 /*
@@ -51,13 +54,18 @@ func (ss ShardStates) nextBlock(shardConfs map[types.PartitionShardID]*types.Par
 			nextBlock.Changed[k] = struct{}{}
 		}
 	}
+
 	return nextBlock, nil
 }
 
 /*
 UnicityTree builds the unicity tree based on the shard states.
 */
-func (ss ShardStates) UnicityTree(schemes map[types.PartitionID]types.ShardingScheme, algo crypto.Hash) (*types.UnicityTree, map[types.PartitionID]types.ShardTree, error) {
+func (ss ShardStates) UnicityTree(algo crypto.Hash) (*types.UnicityTree, map[types.PartitionID]types.ShardTree, error) {
+	schemes, err := ss.shardingSchemes()
+	if err != nil {
+		return nil, nil, fmt.Errorf("acquiring sharding schemes: %w", err)
+	}
 	utData := make([]*types.UnicityTreeData, 0, len(schemes))
 	shardTrees := make(map[types.PartitionID]types.ShardTree)
 	var si *ShardInfo
@@ -104,8 +112,8 @@ certificationResponses builds the unicity tree and certification responses based
 CertificationResponse will be generated only for shards marked as "changed".
 The UnicityCertificates in the response are not complete, they miss the UnicitySeal.
 */
-func (ss ShardStates) certificationResponses(schemes map[types.PartitionID]types.ShardingScheme, algo crypto.Hash) ([]*certification.CertificationResponse, []byte, error) {
-	ut, shardTrees, err := ss.UnicityTree(schemes, algo)
+func (ss ShardStates) certificationResponses(algo crypto.Hash) ([]*certification.CertificationResponse, []byte, error) {
+	ut, shardTrees, err := ss.UnicityTree(algo)
 	if err != nil {
 		return nil, nil, fmt.Errorf("creating unicity tree: %w", err)
 	}
@@ -143,6 +151,33 @@ func (ss ShardStates) certificationResponses(schemes map[types.PartitionID]types
 	}
 
 	return crs, ut.RootHash(), err
+}
+
+func (ss *ShardStates) shardingSchemes() (map[types.PartitionID]types.ShardingScheme, error) {
+	if ss.schemes != nil {
+		return ss.schemes, nil
+	}
+
+	schemes := map[types.PartitionID]types.ShardingScheme{}
+	for k, v := range ss.States {
+		if v.ShardID.Length() == 0 {
+			if _, ok := schemes[k.PartitionID]; ok {
+				return nil, fmt.Errorf("invalid sharding scheme for partition %s - empty shardID in a multi shard scheme", k.PartitionID)
+			}
+			schemes[k.PartitionID] = types.ShardingScheme{}
+			continue
+		}
+		schemes[k.PartitionID] = append(schemes[k.PartitionID], v.ShardID)
+	}
+
+	for partitionID, shards := range schemes {
+		if err := shards.IsValid(); err != nil {
+			return nil, fmt.Errorf("invalid sharding scheme for partition %s: %w", partitionID, err)
+		}
+	}
+
+	ss.schemes = schemes
+	return schemes, nil
 }
 
 /*
@@ -490,18 +525,6 @@ func (si *ShardInfo) selectLeader(seed uint64) string {
 	peerCount := uint64(len(si.nodeIDs))
 
 	return si.nodeIDs[seed%peerCount]
-}
-
-func shardingSchemes(pdrs map[types.PartitionShardID]*types.PartitionDescriptionRecord) map[types.PartitionID]types.ShardingScheme {
-	schemes := map[types.PartitionID]types.ShardingScheme{}
-	for k, v := range pdrs {
-		if v.ShardID.Length() == 0 {
-			schemes[k.PartitionID] = types.ShardingScheme{}
-			continue
-		}
-		schemes[k.PartitionID] = append(schemes[k.PartitionID], v.ShardID)
-	}
-	return schemes
 }
 
 type (

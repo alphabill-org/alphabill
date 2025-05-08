@@ -877,10 +877,8 @@ func newTestGenesisBlock(t *testing.T, shardConf *types.PartitionDescriptionReco
 			States:  map[types.PartitionShardID]*storage.ShardInfo{psID: si},
 			Changed: storage.ShardSet{psID: {}},
 		},
-		// as we get single config it must be single shard schema
-		Schemes: map[types.PartitionID]types.ShardingScheme{shardConf.PartitionID: {}},
 	}
-	ut, _, err := executedBlock.ShardInfo.UnicityTree(executedBlock.Schemes, hashAlgo)
+	ut, _, err := executedBlock.ShardInfo.UnicityTree(hashAlgo)
 	require.NoError(t, err)
 	commitQc := createCommitQc(t, genesisBlock, ut.RootHash(), hashAlgo, signers)
 	// the same QC accepts the genesis block and commits it, usually commit comes later

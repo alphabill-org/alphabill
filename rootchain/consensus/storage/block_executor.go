@@ -109,7 +109,8 @@ func (x *ExecutedBlock) Extend(newBlock *rctypes.BlockData, verifier IRChangeReq
 		shardKey := types.PartitionShardID{PartitionID: irChReq.Partition, ShardID: irChReq.Shard.Key()}
 		si, ok := shardInfo.States[shardKey]
 		if !ok {
-			return nil, fmt.Errorf("block contains data for shard %s - %s which is not active in round %d", irChReq.Partition, irChReq.Shard, newBlock.Round)
+			// skip processing IR Change Requests that have no ShardConfig (shard has been deleted?)
+			continue
 		}
 
 		if si.IR, err = verifier.VerifyIRChangeReq(newBlock.Round, irChReq); err != nil {

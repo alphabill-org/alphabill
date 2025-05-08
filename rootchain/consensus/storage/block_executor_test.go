@@ -124,26 +124,6 @@ func TestExecutedBlock_Extend(t *testing.T) {
 		require.Nil(t, executedBlock)
 	})
 
-	t.Run("invalid block", func(t *testing.T) {
-		newBlock := &drctypes.BlockData{
-			Author:    "test",
-			Round:     parent.GetRound() + 1,
-			Epoch:     0,
-			Timestamp: 12,
-			Payload: &drctypes.Payload{
-				// contains request from nonexisting shard
-				Requests: []*drctypes.IRChangeReq{{
-					Partition:  pdrEpoch1.PartitionID + 10,
-					CertReason: drctypes.Quorum,
-					Requests:   []*certification.BlockCertificationRequest{certReq},
-				}},
-			},
-		}
-		executedBlock, err := parent.Extend(newBlock, reqVer, orchestration, crypto.SHA256)
-		require.EqualError(t, err, `block contains data for shard 0000000B -  which is not active in round 2`)
-		require.Nil(t, executedBlock)
-	})
-
 	t.Run("empty block", func(t *testing.T) {
 		emptyBlock := newBlock
 		emptyBlock.Payload = &drctypes.Payload{}

@@ -78,7 +78,7 @@ func (o *Orchestration) ShardConfig(partitionID types.PartitionID, shardID types
 }
 
 /*
-   ShardConfigs returns shard confs active in the given root round.
+ShardConfigs returns shard confs active in the given root round.
 */
 func (o *Orchestration) ShardConfigs(rootRound uint64) (map[types.PartitionShardID]*types.PartitionDescriptionRecord, error) {
 	shardConfs := make(map[types.PartitionShardID]*types.PartitionDescriptionRecord)
@@ -108,6 +108,11 @@ func (o *Orchestration) ShardConfigs(rootRound uint64) (map[types.PartitionShard
 					var shardConf *types.PartitionDescriptionRecord
 					if err := json.Unmarshal(v, &shardConf); err != nil {
 						return fmt.Errorf("failed to unmarshal shard conf: %w", err)
+					}
+					if len(shardConf.Validators) == 0 {
+						// empty validators list is signal that shard has been deleted,
+						// do not return deleted shard config
+						break
 					}
 					ps := types.PartitionShardID{
 						PartitionID: shardConf.PartitionID,
@@ -225,8 +230,9 @@ func verifyShardConf(tx *bolt.Tx, shardConf *types.PartitionDescriptionRecord) e
 
 // schema:
 // root bucket (root bucket)
-//   multiple partition buckets (partition id to partition bucket)
-//     multiple shard buckets (shard id to shard bucket)
+//
+//	multiple partition buckets (partition id to partition bucket)
+//	  multiple shard buckets (shard id to shard bucket)
 func createShardBuckets(tx *bolt.Tx, partitionID types.PartitionID, shardID types.ShardID) (*bolt.Bucket, error) {
 	rootBucket := tx.Bucket(rootBucketName)
 	if rootBucket == nil {

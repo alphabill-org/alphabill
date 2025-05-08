@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	testobservability "github.com/alphabill-org/alphabill/internal/testutils/observability"
@@ -191,6 +192,12 @@ func Test_onHandshake(t *testing.T) {
 	nodeID := generateNodeID(t)
 	certResp := validCertificationResponse(t)
 	nopObs := testobservability.NOPObservability()
+	signer, err := abcrypto.NewInMemorySecp256K1Signer()
+	require.NoError(t, err)
+	verifier, err := signer.Verifier()
+	require.NoError(t, err)
+	publicKey, err := verifier.MarshalPublicKey()
+	require.NoError(t, err)
 
 	t.Run("invalid handshake msg", func(t *testing.T) {
 		partNet := mockPartitionNet{}
@@ -235,7 +242,7 @@ func Test_onHandshake(t *testing.T) {
 		}
 		cm := mockConsensusManager{
 			shardInfo: func(partition types.PartitionID, shard types.ShardID) (*storage.ShardInfo, error) {
-				return &storage.ShardInfo{LastCR: &certResp}, nil
+				return newMockShardInfo(t, nodeID.String(), publicKey, certResp), nil
 			},
 		}
 		node, err := New(&nwPeer, partNet, cm, nopObs)
@@ -261,7 +268,7 @@ func Test_onHandshake(t *testing.T) {
 		}
 		cm := mockConsensusManager{
 			shardInfo: func(partition types.PartitionID, shard types.ShardID) (*storage.ShardInfo, error) {
-				return &storage.ShardInfo{LastCR: &certResp}, nil
+				return newMockShardInfo(t, nodeID.String(), publicKey, certResp), nil
 			},
 		}
 		node, err := New(&nwPeer, partNet, cm, nopObs)
@@ -281,6 +288,12 @@ func Test_handlePartitionMsg(t *testing.T) {
 	nwPeer := network.Peer{}
 	nodeID := generateNodeID(t)
 	certResp := validCertificationResponse(t)
+	signer, err := abcrypto.NewInMemorySecp256K1Signer()
+	require.NoError(t, err)
+	verifier, err := signer.Verifier()
+	require.NoError(t, err)
+	publicKey, err := verifier.MarshalPublicKey()
+	require.NoError(t, err)
 
 	t.Run("unsupported message", func(t *testing.T) {
 		partNet := mockPartitionNet{}
@@ -304,7 +317,7 @@ func Test_handlePartitionMsg(t *testing.T) {
 		}
 		cm := mockConsensusManager{
 			shardInfo: func(partition types.PartitionID, shard types.ShardID) (*storage.ShardInfo, error) {
-				return &storage.ShardInfo{LastCR: &certResp}, nil
+				return newMockShardInfo(t, nodeID.String(), publicKey, certResp), nil
 			},
 		}
 		node, err := New(&nwPeer, partNet, cm, nopObs)
@@ -905,4 +918,14 @@ func validCertificationResponse(t *testing.T) certification.CertificationRespons
 		}))
 	require.NoError(t, certResp.IsValid())
 	return certResp
+}
+
+func newMockShardInfo(t *testing.T, nodeID string, nodeSigningPubKey []byte, certResp certification.CertificationResponse) *storage.ShardInfo {
+	shardConf := &types.PartitionDescriptionRecord{
+		Validators: []*types.NodeInfo{{NodeID: nodeID, SigKey: nodeSigningPubKey}},
+	}
+	si, err := storage.NewShardInfo(shardConf, crypto.SHA256)
+	require.NoError(t, err)
+	si.LastCR = &certResp
+	return si
 }

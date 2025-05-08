@@ -13,6 +13,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
 
+	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/internal/debug"
 	"github.com/alphabill-org/alphabill/logger"
@@ -194,6 +195,14 @@ func (v *Node) onHandshake(ctx context.Context, req *handshake.Handshake) error 
 	if err != nil {
 		return fmt.Errorf("reading partition %s certificate: %w", req.PartitionID, err)
 	}
+	// verifies nodeID is part of active validator set
+	err = si.Verify(req.NodeID, func(v abcrypto.Verifier) error {
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("node ID is not in active validator set %s - %s - %s", req.PartitionID, req.ShardID, req.NodeID)
+	}
+
 	if si.LastCR.UC.GetRoundNumber() == 0 {
 		// Make sure shard nodes get CertificationResponses even
 		// before they send the first BlockCertificationRequests

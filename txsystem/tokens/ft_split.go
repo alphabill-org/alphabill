@@ -35,7 +35,7 @@ func (m *FungibleTokensModule) executeSplitFT(tx *types.TransactionOrder, attr *
 
 	// update state
 	if err = m.state.Apply(
-		state.AddUnit(newTokenID, &tokens.FungibleTokenData{
+		state.AddOrPromoteUnit(newTokenID, &tokens.FungibleTokenData{
 			TypeID:         ftData.TypeID,
 			Value:          attr.TargetValue,
 			OwnerPredicate: attr.NewOwnerPredicate,

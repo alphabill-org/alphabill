@@ -6,9 +6,6 @@ import (
 
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/api"
-
-	"github.com/alphabill-org/alphabill-go-base/util"
-	"github.com/alphabill-org/alphabill/logger"
 )
 
 /*
@@ -20,9 +17,6 @@ func addHostModule(ctx context.Context, rt wazero.Runtime, observe Observability
 		NewFunctionBuilder().WithFunc(logMsg).Export("log_msg").
 		NewFunctionBuilder().WithGoModuleFunction(extMalloc(observe), []api.ValueType{api.ValueTypeI32}, []api.ValueType{api.ValueTypeI32}).Export("ext_malloc").
 		NewFunctionBuilder().WithGoModuleFunction(extFree(observe), []api.ValueType{api.ValueTypeI32}, []api.ValueType{}).Export("ext_free").
-		// do not expose storage API, need to decide do we want to support it, fees etc...
-		//NewFunctionBuilder().WithFunc(storageReadV1).Export("storage_read").
-		//NewFunctionBuilder().WithFunc(storageWriteV1).Export("storage_write").
 		Instantiate(ctx)
 	return err
 }
@@ -47,46 +41,6 @@ func read(m api.Module, pointerSize uint64) (data []byte) {
 		panic("out of range read from shared memory")
 	}
 	return data
-}
-
-func storageReadV1(ctx context.Context, m api.Module, fileID uint32) uint64 {
-	rtCtx := extractVMContext(ctx)
-	rtCtx.log.DebugContext(ctx, fmt.Sprintf("program state file request, %v", fileID))
-	var Value []byte
-	found, err := rtCtx.storage.Read(util.Uint32ToBytes(fileID), &Value)
-	if !found {
-		return 0
-	}
-	if err != nil {
-		rtCtx.log.WarnContext(ctx, "get state from storage failed, %v", logger.Error(err))
-		return 0
-	}
-	dataLen := uint32(len(Value))
-	offset, err := rtCtx.memMngr.Alloc(m.Memory(), dataLen)
-	if err != nil {
-		rtCtx.log.WarnContext(ctx, "program state file memory allocation failed failed", logger.Error(err))
-	}
-	if ok := m.Memory().Write(offset, Value); !ok {
-		rtCtx.log.WarnContext(ctx, "program state file write failed")
-		return 0
-	}
-	return newPointerSize(offset, dataLen)
-}
-
-func storageWriteV1(ctx context.Context, m api.Module, fileID uint32, value uint64) int32 {
-	rtCtx := extractVMContext(ctx)
-	prt, size := splitPointerSize(value)
-	data, ok := m.Memory().Read(prt, size)
-	if !ok {
-		rtCtx.log.WarnContext(ctx, "failed to read state from program memory")
-		return -1
-	}
-	rtCtx.log.WarnContext(ctx, fmt.Sprintf("set state, %v id, new state: %v", fileID, data))
-	if err := rtCtx.storage.Write(util.Uint32ToBytes(fileID), data); err != nil {
-		rtCtx.log.WarnContext(ctx, "failed to persist program state")
-		return -1
-	}
-	return 0
 }
 
 func logMsg(ctx context.Context, m api.Module, level uint32, msgData uint64) {

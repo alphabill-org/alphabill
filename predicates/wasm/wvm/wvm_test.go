@@ -16,7 +16,6 @@ import (
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	"github.com/alphabill-org/alphabill/internal/testutils/observability"
-	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/predicates/wasm/wvm/bumpallocator"
 	"github.com/alphabill-org/alphabill/predicates/wasm/wvm/encoder"
 	"github.com/alphabill-org/alphabill/predicates/wasm/wvm/instrument"
@@ -33,11 +32,7 @@ func TestNew(t *testing.T) {
 	ctx := context.Background()
 	obs := observability.Default(t)
 
-	memDB, err := memorydb.New()
-	require.NoError(t, err)
-
-	require.NoError(t, err)
-	wvm, err := New(ctx, encoder.TXSystemEncoder{}, nil, nil, obs, WithStorage(memDB))
+	wvm, err := New(ctx, encoder.TXSystemEncoder{}, nil, nil, obs)
 	require.NoError(t, err)
 	require.NotNil(t, wvm)
 

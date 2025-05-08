@@ -14,7 +14,6 @@ import (
 
 	"github.com/alphabill-org/alphabill-go-base/predicates/wasm"
 	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill/keyvaluedb"
 	"github.com/alphabill-org/alphabill/logger"
 	"github.com/alphabill-org/alphabill/predicates"
 	"github.com/alphabill-org/alphabill/predicates/wasm/wvm/bumpallocator"
@@ -48,7 +47,6 @@ type (
 
 	vmContext struct {
 		memMngr allocator
-		storage keyvaluedb.KeyValueDB
 		curPrg  *evalContext
 		encoder Encoder
 		factory ABTypesFactory
@@ -211,7 +209,6 @@ func New(ctx context.Context, enc Encoder, engines predicates.PredicateExecutor,
 			encoder: enc,
 			engines: engines,
 			factory: ABTypesFactory{},
-			storage: options.storage,
 			log:     observe.Logger(),
 		},
 	}, nil

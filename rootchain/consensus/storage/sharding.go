@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"iter"
+	"log/slog"
 	"maps"
 	"slices"
 	"time"
@@ -28,10 +29,14 @@ type ShardStates struct {
 nextBlock returns shard states for the next block based on the configs of the round - if the
 shard was part of the current block it's state is cloned, otherwise new empty state is added.
 */
-func (ss ShardStates) nextBlock(shardConfs map[types.PartitionShardID]*types.PartitionDescriptionRecord, hashAlg crypto.Hash) (nextBlock ShardStates, err error) {
+func (ss ShardStates) nextBlock(shardConfs map[types.PartitionShardID]*types.PartitionDescriptionRecord, hashAlg crypto.Hash, log *slog.Logger) (nextBlock ShardStates, err error) {
 	nextBlock.States = make(map[types.PartitionShardID]*ShardInfo, len(shardConfs))
 	nextBlock.Changed = ShardSet{}
 	for k, pdr := range shardConfs {
+		if len(pdr.Validators) == 0 {
+			log.Debug(fmt.Sprintf("no validators in shard config, not including shard info in next block - %s", k))
+			continue
+		}
 		if prevSI, ok := ss.States[k]; ok {
 			// prevSI.IR is the state in the shard when prevSI.TR was created - so when the epoch in the TR
 			// is different the previous round triggered epoch change in the shard and this round should

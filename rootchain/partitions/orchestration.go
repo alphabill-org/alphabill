@@ -78,7 +78,7 @@ func (o *Orchestration) ShardConfig(partitionID types.PartitionID, shardID types
 }
 
 /*
-   ShardConfigs returns shard confs active in the given root round.
+ShardConfigs returns shard confs active in the given root round.
 */
 func (o *Orchestration) ShardConfigs(rootRound uint64) (map[types.PartitionShardID]*types.PartitionDescriptionRecord, error) {
 	shardConfs := make(map[types.PartitionShardID]*types.PartitionDescriptionRecord)
@@ -225,8 +225,9 @@ func verifyShardConf(tx *bolt.Tx, shardConf *types.PartitionDescriptionRecord) e
 
 // schema:
 // root bucket (root bucket)
-//   multiple partition buckets (partition id to partition bucket)
-//     multiple shard buckets (shard id to shard bucket)
+//
+//	multiple partition buckets (partition id to partition bucket)
+//	  multiple shard buckets (shard id to shard bucket)
 func createShardBuckets(tx *bolt.Tx, partitionID types.PartitionID, shardID types.ShardID) (*bolt.Bucket, error) {
 	rootBucket := tx.Bucket(rootBucketName)
 	if rootBucket == nil {

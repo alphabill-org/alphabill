@@ -42,7 +42,7 @@ func initBlockStoreFromGenesis(t *testing.T, shardConf *types.PartitionDescripti
 	}
 	t.Cleanup(func() { _ = orchestration.Close() })
 
-	bStore, err := New(crypto.SHA256, db, orchestration)
+	bStore, err := New(crypto.SHA256, db, orchestration, logger.New(t))
 	require.NoError(t, err)
 	return bStore
 }
@@ -126,7 +126,7 @@ func TestNewBlockStoreFromDB_MultipleRoots(t *testing.T) {
 	b8.CommitQc = &drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 9}}
 	require.NoError(t, db.Write(blockKey(b8.GetRound()), b8))
 	// load from DB
-	bStore, err := New(crypto.SHA256, db, orchestration)
+	bStore, err := New(crypto.SHA256, db, orchestration, logger.New(t))
 	require.NoError(t, err)
 	// although store contains more than one root, the latest is preferred
 	require.EqualValues(t, 8, bStore.blockTree.Root().GetRound())
@@ -161,7 +161,7 @@ func TestNewBlockStoreFromDB_InvalidDBContainsCap(t *testing.T) {
 	b8.CommitQc = nil
 	require.NoError(t, db.Write(blockKey(b8.GetRound()), b8))
 	// load from DB
-	bStore, err := New(crypto.SHA256, db, orchestration)
+	bStore, err := New(crypto.SHA256, db, orchestration, logger.New(t))
 	require.ErrorContains(t, err, `initializing block tree: cannot add block for round 8, parent block 7 not found`)
 	require.Nil(t, bStore)
 }
@@ -181,7 +181,7 @@ func TestNewBlockStoreFromDB_NoRootBlock(t *testing.T) {
 	require.NoError(t, db.Write(blockKey(b8.GetRound()), b8))
 	// load from DB
 	log := logger.New(t)
-	bStore, err := New(crypto.SHA256, db, testpartition.NewOrchestration(t, log))
+	bStore, err := New(crypto.SHA256, db, testpartition.NewOrchestration(t, log), log)
 	require.ErrorContains(t, err, `initializing block tree: root block not found`)
 	require.Nil(t, bStore)
 }
@@ -389,7 +389,7 @@ func Test_BlockStore_StateRoundtrip(t *testing.T) {
 	db, err := memorydb.New()
 	require.NoError(t, err)
 	// state msg is used to init "shard info registry", the orchestration provides data which is not part of state msg
-	storeB, err := NewFromState(crypto.SHA256, state.CommittedHead, db, storeA.orchestration)
+	storeB, err := NewFromState(crypto.SHA256, state.CommittedHead, db, storeA.orchestration, logger.New(t))
 	require.NoError(t, err)
 	require.NotNil(t, storeB)
 
@@ -431,7 +431,7 @@ func Test_BlockStore_persistence(t *testing.T) {
 
 	orchestration := testpartition.NewOrchestration(t, log)
 	require.NoError(t, orchestration.AddShardConfig(shardConf))
-	storeA, err := New(crypto.SHA256, db, orchestration)
+	storeA, err := New(crypto.SHA256, db, orchestration, logger.New(t))
 	require.NoError(t, err)
 	require.NotNil(t, storeA)
 
@@ -441,7 +441,7 @@ func Test_BlockStore_persistence(t *testing.T) {
 	require.NoError(t, err)
 
 	// to make sure we load the state from db send in empty genesis record
-	storeB, err := New(crypto.SHA256, db, orchestration)
+	storeB, err := New(crypto.SHA256, db, orchestration, logger.New(t))
 	require.NoError(t, err)
 
 	siA := blockA.ShardInfo.States[types.PartitionShardID{PartitionID: shardConf.PartitionID, ShardID: shardConf.ShardID.Key()}]

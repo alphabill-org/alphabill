@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto"
 	"fmt"
+	"log/slog"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/types/hex"
@@ -93,14 +94,14 @@ func NewRootBlock(block *abdrc.CommittedBlock, hash crypto.Hash, orchestration O
 	}, nil
 }
 
-func (x *ExecutedBlock) Extend(newBlock *rctypes.BlockData, verifier IRChangeReqVerifier, orchestration Orchestration, hash crypto.Hash) (*ExecutedBlock, error) {
+func (x *ExecutedBlock) Extend(newBlock *rctypes.BlockData, verifier IRChangeReqVerifier, orchestration Orchestration, hash crypto.Hash, log *slog.Logger) (*ExecutedBlock, error) {
 	// clone parent state
 	shardConfs, err := orchestration.ShardConfigs(newBlock.Round)
 	if err != nil {
 		return nil, fmt.Errorf("loading shard configurations for round %d: %w", newBlock.Round, err)
 	}
 
-	shardInfo, err := x.ShardInfo.nextBlock(shardConfs, hash)
+	shardInfo, err := x.ShardInfo.nextBlock(shardConfs, hash, log)
 	if err != nil {
 		return nil, fmt.Errorf("creating shard info for the block: %w", err)
 	}
@@ -109,7 +110,8 @@ func (x *ExecutedBlock) Extend(newBlock *rctypes.BlockData, verifier IRChangeReq
 		shardKey := types.PartitionShardID{PartitionID: irChReq.Partition, ShardID: irChReq.Shard.Key()}
 		si, ok := shardInfo.States[shardKey]
 		if !ok {
-			return nil, fmt.Errorf("block contains data for shard %s - %s which is not active in round %d", irChReq.Partition, irChReq.Shard, newBlock.Round)
+			// skip processing IR Change Requests that have no ShardConfig (shard has been deleted?)
+			continue
 		}
 
 		if si.IR, err = verifier.VerifyIRChangeReq(newBlock.Round, irChReq); err != nil {

@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/network/protocol/certification"
 	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
 	"github.com/alphabill-org/alphabill/rootchain/testutils"
@@ -108,7 +109,7 @@ func TestExecutedBlock_Extend(t *testing.T) {
 				return nil, expErr
 			},
 		}
-		executedBlock, err := parent.Extend(&newBlock, reqVer, orc, crypto.SHA256)
+		executedBlock, err := parent.Extend(&newBlock, reqVer, orc, crypto.SHA256, logger.New(t))
 		require.ErrorIs(t, err, expErr)
 		require.Nil(t, executedBlock)
 	})
@@ -119,35 +120,15 @@ func TestExecutedBlock_Extend(t *testing.T) {
 		reqVer := mockIRVerifier{
 			verify: func(round uint64, irChReq *drctypes.IRChangeReq) (*types.InputRecord, error) { return nil, expErr },
 		}
-		executedBlock, err := parent.Extend(&newBlock, reqVer, orchestration, crypto.SHA256)
+		executedBlock, err := parent.Extend(&newBlock, reqVer, orchestration, crypto.SHA256, logger.New(t))
 		require.ErrorIs(t, err, expErr)
-		require.Nil(t, executedBlock)
-	})
-
-	t.Run("invalid block", func(t *testing.T) {
-		newBlock := &drctypes.BlockData{
-			Author:    "test",
-			Round:     parent.GetRound() + 1,
-			Epoch:     0,
-			Timestamp: 12,
-			Payload: &drctypes.Payload{
-				// contains request from nonexisting shard
-				Requests: []*drctypes.IRChangeReq{{
-					Partition:  pdrEpoch1.PartitionID + 10,
-					CertReason: drctypes.Quorum,
-					Requests:   []*certification.BlockCertificationRequest{certReq},
-				}},
-			},
-		}
-		executedBlock, err := parent.Extend(newBlock, reqVer, orchestration, crypto.SHA256)
-		require.EqualError(t, err, `block contains data for shard 0000000B -  which is not active in round 2`)
 		require.Nil(t, executedBlock)
 	})
 
 	t.Run("empty block", func(t *testing.T) {
 		emptyBlock := newBlock
 		emptyBlock.Payload = &drctypes.Payload{}
-		executedBlock, err := parent.Extend(&emptyBlock, reqVer, orchestration, crypto.SHA512)
+		executedBlock, err := parent.Extend(&emptyBlock, reqVer, orchestration, crypto.SHA512, logger.New(t))
 		require.NoError(t, err)
 		require.Equal(t, &emptyBlock, executedBlock.BlockData)
 		require.Empty(t, executedBlock.ShardInfo.Changed, "expected no changes")
@@ -160,7 +141,7 @@ func TestExecutedBlock_Extend(t *testing.T) {
 	})
 
 	t.Run("non-empty block", func(t *testing.T) {
-		executedBlock, err := parent.Extend(&newBlock, &reqVer, orchestration, crypto.SHA256)
+		executedBlock, err := parent.Extend(&newBlock, &reqVer, orchestration, crypto.SHA256, logger.New(t))
 		require.NoError(t, err)
 		require.Equal(t, &newBlock, executedBlock.BlockData)
 		require.Len(t, executedBlock.ShardInfo.Changed, 1)
@@ -188,7 +169,7 @@ func TestExecutedBlock_Extend(t *testing.T) {
 		// if shard has no ChangeRequest in the block then Epoch doesn't change!
 		emptyBlock := newBlock
 		emptyBlock.Payload = &drctypes.Payload{}
-		executedBlock, err := parent.Extend(&emptyBlock, &reqVer, orchestration, crypto.SHA256)
+		executedBlock, err := parent.Extend(&emptyBlock, &reqVer, orchestration, crypto.SHA256, logger.New(t))
 		require.NoError(t, err)
 		require.Equal(t, &emptyBlock, executedBlock.BlockData)
 		require.Empty(t, executedBlock.ShardInfo.Changed)
@@ -199,7 +180,7 @@ func TestExecutedBlock_Extend(t *testing.T) {
 		}
 
 		// next block with shard sending ChangeRequest - the TR should now indicate next epoch
-		executedBlock, err = executedBlock.Extend(&newBlock, &reqVer, orchestration, crypto.SHA256)
+		executedBlock, err = executedBlock.Extend(&newBlock, &reqVer, orchestration, crypto.SHA256, logger.New(t))
 		require.NoError(t, err)
 		if assert.Contains(t, executedBlock.ShardInfo.States, psID) {
 			si := executedBlock.ShardInfo.States[psID]
@@ -231,7 +212,7 @@ func TestExecutedBlock_Extend(t *testing.T) {
 				Requests:   []*certification.BlockCertificationRequest{certReq},
 			}},
 		}
-		executedBlock, err := parent.Extend(&block, &reqVer, orchestration, crypto.SHA256)
+		executedBlock, err := parent.Extend(&block, &reqVer, orchestration, crypto.SHA256, logger.New(t))
 		require.NoError(t, err)
 		require.Equal(t, &block, executedBlock.BlockData)
 		require.Len(t, executedBlock.ShardInfo.Changed, 2)
@@ -256,7 +237,7 @@ func TestExecutedBlock_Extend(t *testing.T) {
 		}
 		emptyBlock := newBlock
 		emptyBlock.Payload = &drctypes.Payload{}
-		executedBlock, err := parent.Extend(&emptyBlock, &reqVer, orchestration, crypto.SHA256)
+		executedBlock, err := parent.Extend(&emptyBlock, &reqVer, orchestration, crypto.SHA256, logger.New(t))
 		require.NoError(t, err)
 		require.Len(t, executedBlock.ShardInfo.Changed, 2)
 		require.Contains(t, executedBlock.ShardInfo.Changed, psIDA)

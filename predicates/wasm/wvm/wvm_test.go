@@ -211,13 +211,13 @@ func (env *mockTxContext) CalculateCost() uint64 { return env.calcCost() }
 func (env *mockTxContext) ExtraArgument() ([]byte, error) { return env.exArgument() }
 
 type mockRootTrustBase struct {
-	verifyQuorumSignatures func(data []byte, signatures map[string]hex.Bytes) (error, []error)
+	verifyQuorumSignatures func(data []byte, signatures map[string]hex.Bytes) error
 
 	// instead of implementing all methods just embed the interface for now
 	types.RootTrustBase
 }
 
-func (rtb *mockRootTrustBase) VerifyQuorumSignatures(data []byte, signatures map[string]hex.Bytes) (error, []error) {
+func (rtb *mockRootTrustBase) VerifyQuorumSignatures(data []byte, signatures map[string]hex.Bytes) error {
 	return rtb.verifyQuorumSignatures(data, signatures)
 }
 

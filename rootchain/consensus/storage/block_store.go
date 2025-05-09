@@ -5,6 +5,7 @@ import (
 	"crypto"
 	"errors"
 	"fmt"
+	"log/slog"
 	"sync"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
@@ -21,6 +22,7 @@ type (
 		storage       keyvaluedb.KeyValueDB
 		orchestration Orchestration
 		lock          sync.RWMutex
+		log           *slog.Logger
 	}
 
 	Orchestration interface {
@@ -30,7 +32,7 @@ type (
 	}
 )
 
-func New(hashAlgo crypto.Hash, db keyvaluedb.KeyValueDB, orchestration Orchestration) (block *BlockStore, err error) {
+func New(hashAlgo crypto.Hash, db keyvaluedb.KeyValueDB, orchestration Orchestration, log *slog.Logger) (block *BlockStore, err error) {
 	if db == nil {
 		return nil, errors.New("storage is nil")
 	}
@@ -54,10 +56,11 @@ func New(hashAlgo crypto.Hash, db keyvaluedb.KeyValueDB, orchestration Orchestra
 		blockTree:     blTree,
 		storage:       db,
 		orchestration: orchestration,
+		log:           log,
 	}, nil
 }
 
-func NewFromState(hash crypto.Hash, block *abdrc.CommittedBlock, db keyvaluedb.KeyValueDB, orchestration Orchestration) (*BlockStore, error) {
+func NewFromState(hash crypto.Hash, block *abdrc.CommittedBlock, db keyvaluedb.KeyValueDB, orchestration Orchestration, log *slog.Logger) (*BlockStore, error) {
 	if db == nil {
 		return nil, errors.New("storage is nil")
 	}
@@ -76,6 +79,7 @@ func NewFromState(hash crypto.Hash, block *abdrc.CommittedBlock, db keyvaluedb.K
 		blockTree:     blTree,
 		storage:       db,
 		orchestration: orchestration,
+		log:           log,
 	}, nil
 }
 
@@ -169,7 +173,7 @@ func (x *BlockStore) Add(block *rctypes.BlockData, verifier IRChangeReqVerifier)
 		return nil, fmt.Errorf("add block failed: parent round %v not found, recover", block.Qc.VoteInfo.RoundNumber)
 	}
 	// Extend state from parent block
-	exeBlock, err := parentBlock.Extend(block, verifier, x.orchestration, x.hash)
+	exeBlock, err := parentBlock.Extend(block, verifier, x.orchestration, x.hash, x.log)
 	if err != nil {
 		return nil, fmt.Errorf("error processing block round %v, %w", block.Round, err)
 	}

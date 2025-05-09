@@ -109,11 +109,6 @@ func (o *Orchestration) ShardConfigs(rootRound uint64) (map[types.PartitionShard
 					if err := json.Unmarshal(v, &shardConf); err != nil {
 						return fmt.Errorf("failed to unmarshal shard conf: %w", err)
 					}
-					if len(shardConf.Validators) == 0 {
-						// empty validators list is signal that shard has been deleted,
-						// do not return deleted shard config
-						break
-					}
 					ps := types.PartitionShardID{
 						PartitionID: shardConf.PartitionID,
 						ShardID:     shardConf.ShardID.Key(),

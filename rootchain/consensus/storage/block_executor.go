@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto"
 	"fmt"
+	"log/slog"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/types/hex"
@@ -93,14 +94,14 @@ func NewRootBlock(block *abdrc.CommittedBlock, hash crypto.Hash, orchestration O
 	}, nil
 }
 
-func (x *ExecutedBlock) Extend(newBlock *rctypes.BlockData, verifier IRChangeReqVerifier, orchestration Orchestration, hash crypto.Hash) (*ExecutedBlock, error) {
+func (x *ExecutedBlock) Extend(newBlock *rctypes.BlockData, verifier IRChangeReqVerifier, orchestration Orchestration, hash crypto.Hash, log *slog.Logger) (*ExecutedBlock, error) {
 	// clone parent state
 	shardConfs, err := orchestration.ShardConfigs(newBlock.Round)
 	if err != nil {
 		return nil, fmt.Errorf("loading shard configurations for round %d: %w", newBlock.Round, err)
 	}
 
-	shardInfo, err := x.ShardInfo.nextBlock(shardConfs, hash)
+	shardInfo, err := x.ShardInfo.nextBlock(shardConfs, hash, log)
 	if err != nil {
 		return nil, fmt.Errorf("creating shard info for the block: %w", err)
 	}

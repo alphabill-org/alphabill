@@ -37,22 +37,18 @@ type AlwaysValidBlockProposalValidator struct{}
 type AlwaysValidTransactionValidator struct{}
 
 type SingleNodePartition struct {
-	nodeConf   *NodeConf
-	txSystem   txsystem.TransactionSystem
-	node       *Node
+	nodeConf *NodeConf
+	txSystem txsystem.TransactionSystem
+	node     *Node
 
 	rootNodeID string
 	rootRound  uint64
 	rootSigner crypto.Signer
 	certs      map[types.PartitionID]*types.UnicityCertificate
 
-	mockNet    *testnetwork.MockNet
-	eh         *testevent.TestEventHandler
-	obs        Observability
-}
-
-type partitionStartupDependencies struct {
-	nodeOptions []NodeOption
+	mockNet *testnetwork.MockNet
+	eh      *testevent.TestEventHandler
+	obs     Observability
 }
 
 func (t *AlwaysValidTransactionValidator) Validate(*types.TransactionOrder, uint64) error {
@@ -312,7 +308,7 @@ func (sn *SingleNodePartition) CreateUnicityCertificate(t *testing.T, ir *types.
 		Version:                1,
 		InputRecord:            ir,
 		TRHash:                 trHash,
-		ShardConfHash: 		shardConfHash,
+		ShardConfHash:          shardConfHash,
 		ShardTreeCertificate:   stCert,
 		UnicityTreeCertificate: cert,
 		UnicitySeal:            unicitySeal,
@@ -328,7 +324,7 @@ func (sn *SingleNodePartition) CreateUnicityCertificateTR(t *testing.T, ir *type
 	}
 
 	shardConfHash := sn.node.shardStore.ShardConfHash()
-	sTree, err := types.CreateShardTree(nil,[]types.ShardTreeInput{
+	sTree, err := types.CreateShardTree(nil, []types.ShardTreeInput{
 		{Shard: types.ShardID{}, IR: ir, TRHash: trHash, ShardConfHash: shardConfHash},
 	}, gocrypto.SHA256)
 	if err != nil {
@@ -444,11 +440,11 @@ func createKeyConf(t *testing.T) (*KeyConf, *types.NodeInfo) {
 	require.NoError(t, err)
 
 	key := Key{
-		Algorithm: KeyAlgorithmSecp256k1,
+		Algorithm:  KeyAlgorithmSecp256k1,
 		PrivateKey: privKeyBytes,
 	}
 	keyConf := &KeyConf{
-		SigKey: key,
+		SigKey:  key,
 		AuthKey: key,
 	}
 	signer, err := keyConf.Signer()

@@ -13,7 +13,6 @@ import (
 	"testing"
 	"time"
 
-	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
 	"github.com/stretchr/testify/require"
@@ -33,6 +32,7 @@ import (
 	"github.com/alphabill-org/alphabill/rootchain/partitions"
 	"github.com/alphabill-org/alphabill/rootchain/testutils"
 	"github.com/alphabill-org/alphabill/txsystem"
+	testtransaction "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
 )
 
 const networkID = 5
@@ -54,8 +54,6 @@ type RootChain struct {
 type Shard struct {
 	shardConf *types.PartitionDescriptionRecord
 	Nodes     []*shardNode
-	ctx       context.Context
-	ctxCancel context.CancelFunc
 }
 
 type shardNode struct {
@@ -192,7 +190,7 @@ func (a *AlphabillNetwork) AddShard(t *testing.T, shardConf *types.PartitionDesc
 			ctxCancel:    ctxCancel,
 		}
 	}
-	
+
 	a.Shards[shard.PartitionShardID()] = shard
 
 	// start shard nodes

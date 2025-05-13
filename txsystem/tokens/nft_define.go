@@ -36,17 +36,17 @@ func (n *NonFungibleTokensModule) validateDefineNFT(tx *types.TransactionOrder, 
 		}
 	}
 	if len(attr.Symbol) > maxSymbolLength {
-		return fmt.Errorf("create nft type: %s", ErrStrInvalidSymbolLength)
+		return errInvalidSymbolLength
 	}
 	if len(attr.Name) > maxNameLength {
-		return fmt.Errorf("create nft type: %s", ErrStrInvalidNameLength)
+		return errInvalidNameLength
 	}
 	if attr.Icon != nil {
 		if len(attr.Icon.Type) > maxIconTypeLength {
-			return fmt.Errorf("create nft type: %s", ErrStrInvalidIconTypeLength)
+			return errInvalidIconTypeLength
 		}
 		if len(attr.Icon.Data) > maxIconDataLength {
-			return fmt.Errorf("create nft type: %s", ErrStrInvalidIconDataLength)
+			return errInvalidIconDataLength
 		}
 	}
 	u, err := n.state.GetUnit(unitID, false)

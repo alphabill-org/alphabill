@@ -37,17 +37,17 @@ func (m *FungibleTokensModule) validateDefineFT(tx *types.TransactionOrder, attr
 		}
 	}
 	if len(attr.Symbol) > maxSymbolLength {
-		return errors.New(ErrStrInvalidSymbolLength)
+		return errInvalidSymbolLength
 	}
 	if len(attr.Name) > maxNameLength {
-		return errors.New(ErrStrInvalidNameLength)
+		return errInvalidNameLength
 	}
 	if attr.Icon != nil {
 		if len(attr.Icon.Type) > maxIconTypeLength {
-			return errors.New(ErrStrInvalidIconTypeLength)
+			return errInvalidIconTypeLength
 		}
 		if len(attr.Icon.Data) > maxIconDataLength {
-			return errors.New(ErrStrInvalidIconDataLength)
+			return errInvalidIconDataLength
 		}
 	}
 

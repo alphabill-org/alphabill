@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"iter"
-	"log/slog"
 	"maps"
 	"slices"
 	"time"
@@ -29,13 +28,12 @@ type ShardStates struct {
 nextBlock returns shard states for the next block based on the configs of the round - if the
 shard was part of the current block it's state is cloned, otherwise new empty state is added.
 */
-func (ss ShardStates) nextBlock(shardConfs map[types.PartitionShardID]*types.PartitionDescriptionRecord, hashAlg crypto.Hash, log *slog.Logger) (nextBlock ShardStates, err error) {
+func (ss ShardStates) nextBlock(shardConfs map[types.PartitionShardID]*types.PartitionDescriptionRecord, hashAlg crypto.Hash) (nextBlock ShardStates, err error) {
 	nextBlock.States = make(map[types.PartitionShardID]*ShardInfo, len(shardConfs))
 	nextBlock.Changed = ShardSet{}
 	for k, pdr := range shardConfs {
 		if len(pdr.Validators) == 0 {
-			log.Debug(fmt.Sprintf("no validators in shard config, not including shard info in next block - %s", k))
-			continue
+			continue //  shard is deleted
 		}
 		if prevSI, ok := ss.States[k]; ok {
 			// prevSI.IR is the state in the shard when prevSI.TR was created - so when the epoch in the TR
@@ -272,21 +270,21 @@ func NewShardInfo(shardConf *types.PartitionDescriptionRecord, hashAlg crypto.Ha
 		return nil, fmt.Errorf("shard info init: %w", err)
 	}
 
-	if si.TR, err = newShardTechnicalRecord(si.nodeIDs); err != nil {
+	if si.TR, err = newShardTechnicalRecord(shardConf, si.nodeIDs); err != nil {
 		return nil, fmt.Errorf("failed to create technical record for shard %d-%s: %w", si.PartitionID, si.ShardID, err)
 	}
 
 	return si, nil
 }
 
-func newShardTechnicalRecord(validators []string) (certification.TechnicalRecord, error) {
+func newShardTechnicalRecord(shardConf *types.PartitionDescriptionRecord, validators []string) (certification.TechnicalRecord, error) {
 	if len(validators) == 0 {
 		return certification.TechnicalRecord{}, errors.New("validator list empty")
 	}
 
 	tr := certification.TechnicalRecord{
 		Round:  1,
-		Epoch:  0,
+		Epoch:  shardConf.Epoch,
 		Leader: validators[0],
 		// precalculated hash of CBOR(certification.StatisticalRecord{})
 		StatHash: []uint8{0x24, 0xee, 0x26, 0xf4, 0xaa, 0x45, 0x48, 0x5f, 0x53, 0xaa, 0xb4, 0x77, 0x57, 0xd0, 0xb9, 0x71, 0x99, 0xa3, 0xd9, 0x5f, 0x50, 0xcb, 0x97, 0x9c, 0x38, 0x3b, 0x7e, 0x50, 0x24, 0xf9, 0x21, 0xff},

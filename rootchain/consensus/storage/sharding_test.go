@@ -9,7 +9,6 @@ import (
 	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	testcertificates "github.com/alphabill-org/alphabill/internal/testutils/certificates"
-	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 	"github.com/alphabill-org/alphabill/network/protocol/certification"
 	"github.com/alphabill-org/alphabill/rootchain/testutils"
@@ -504,7 +503,7 @@ func Test_shardStates_nextBlock(t *testing.T) {
 		shardConfs := map[types.PartitionShardID]*types.PartitionDescriptionRecord{psID1: {Validators: make([]*types.NodeInfo, 1)}, psID2: pdr2}
 
 		ssA := ShardStates{States: map[types.PartitionShardID]*ShardInfo{psID1: &si}}
-		ssB, err := ssA.nextBlock(shardConfs, hashAlg, logger.New(t))
+		ssB, err := ssA.nextBlock(shardConfs, hashAlg)
 		require.NoError(t, err)
 		require.Len(t, ssB.States, 2)
 		require.Contains(t, ssB.Changed, psID2, `new shard must be in the "changed" list`)
@@ -526,7 +525,7 @@ func Test_shardStates_nextBlock(t *testing.T) {
 		shardConfs := map[types.PartitionShardID]*types.PartitionDescriptionRecord{psID: {Validators: make([]*types.NodeInfo, 1)}}
 
 		ssA := ShardStates{States: map[types.PartitionShardID]*ShardInfo{psID: &si}, Changed: ShardSet{}}
-		ssB, err := ssA.nextBlock(shardConfs, hashAlg, logger.New(t))
+		ssB, err := ssA.nextBlock(shardConfs, hashAlg)
 		require.NoError(t, err)
 		require.Equal(t, ssA, ssB, "expected clone to be identical")
 		require.Empty(t, ssB.Changed)
@@ -556,7 +555,7 @@ func Test_shardStates_nextBlock(t *testing.T) {
 		shardConfs := map[types.PartitionShardID]*types.PartitionDescriptionRecord{psID: {Epoch: 3, Validators: make([]*types.NodeInfo, 1)}}
 
 		ssA := ShardStates{States: map[types.PartitionShardID]*ShardInfo{psID: &si}}
-		_, err := ssA.nextBlock(shardConfs, hashAlg, logger.New(t))
+		_, err := ssA.nextBlock(shardConfs, hashAlg)
 		require.EqualError(t, err, `creating ShardInfo 00000001 -  of the next epoch: epochs must be consecutive, expected 2 proposed next 3`)
 	})
 }

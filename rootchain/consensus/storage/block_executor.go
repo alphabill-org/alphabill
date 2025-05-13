@@ -101,7 +101,7 @@ func (x *ExecutedBlock) Extend(newBlock *rctypes.BlockData, verifier IRChangeReq
 		return nil, fmt.Errorf("loading shard configurations for round %d: %w", newBlock.Round, err)
 	}
 
-	shardInfo, err := x.ShardInfo.nextBlock(shardConfs, hash, log)
+	shardInfo, err := x.ShardInfo.nextBlock(shardConfs, hash)
 	if err != nil {
 		return nil, fmt.Errorf("creating shard info for the block: %w", err)
 	}
@@ -110,7 +110,7 @@ func (x *ExecutedBlock) Extend(newBlock *rctypes.BlockData, verifier IRChangeReq
 		shardKey := types.PartitionShardID{PartitionID: irChReq.Partition, ShardID: irChReq.Shard.Key()}
 		si, ok := shardInfo.States[shardKey]
 		if !ok {
-			// skip processing IR Change Requests that have no ShardConfig (shard has been deleted?)
+			log.Info(fmt.Sprintf("no validators in shard config (shard has been removed?) %s", shardKey))
 			continue
 		}
 

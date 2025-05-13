@@ -36,7 +36,7 @@ func (n *NonFungibleTokensModule) validateMintNFT(tx *types.TransactionOrder, at
 
 	// verify max allowed sizes
 	if len(attr.Name) > maxNameLength {
-		return errors.New(ErrStrInvalidNameLength)
+		return errInvalidNameLength
 	}
 	uri := attr.URI
 	if uri != "" {

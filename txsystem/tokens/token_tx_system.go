@@ -21,15 +21,13 @@ const (
 	maxIconTypeLength        = 64
 	maxIconDataLength        = 64 * 1024
 	maxDecimalPlaces         = 8
+)
 
-	ErrStrInvalidUnitID         = "invalid unit ID"
-	ErrStrInvalidTokenTypeID    = "invalid token type ID"
-	ErrStrInvalidParentTypeID   = "invalid parent type ID"
-	ErrStrStateIsNil            = "state is nil"
-	ErrStrInvalidSymbolLength   = "symbol length exceeds the allowed maximum of 16 bytes"
-	ErrStrInvalidNameLength     = "name length exceeds the allowed maximum of 256 bytes"
-	ErrStrInvalidIconTypeLength = "icon type length exceeds the allowed maximum of 64 bytes"
-	ErrStrInvalidIconDataLength = "icon data length exceeds the allowed maximum of 64 KiB"
+var (
+	errInvalidSymbolLength   = fmt.Errorf("symbol length exceeds the allowed maximum of %d bytes", maxSymbolLength)
+	errInvalidNameLength     = fmt.Errorf("name length exceeds the allowed maximum of %d bytes", maxNameLength)
+	errInvalidIconTypeLength = fmt.Errorf("icon type length exceeds the allowed maximum of %d bytes", maxIconTypeLength)
+	errInvalidIconDataLength = fmt.Errorf("icon data length exceeds the allowed maximum of %d KiB", maxIconDataLength/1024)
 )
 
 func NewTxSystem(shardConf basetypes.PartitionDescriptionRecord, observe txsystem.Observability, opts ...Option) (*txsystem.GenericTxSystem, error) {
@@ -42,7 +40,7 @@ func NewTxSystem(shardConf basetypes.PartitionDescriptionRecord, observe txsyste
 		opt(options)
 	}
 	if options.state == nil {
-		return nil, errors.New(ErrStrStateIsNil)
+		return nil, errors.New("state is nil")
 	}
 
 	nft, err := NewNonFungibleTokensModule(shardConf, options)

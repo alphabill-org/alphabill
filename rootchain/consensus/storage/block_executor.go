@@ -15,13 +15,13 @@ import (
 
 type (
 	ExecutedBlock struct {
-		_         struct{}            `cbor:",toarray"`
-		BlockData *rctypes.BlockData  // proposed block
-		HashAlgo  crypto.Hash         // hash algorithm for the block
-		RootHash  hex.Bytes           // resulting root hash
-		Qc        *rctypes.QuorumCert // block's quorum certificate (from next view)
-		CommitQc  *rctypes.QuorumCert // block's commit certificate
-		ShardInfo ShardStates
+		_          struct{}            `cbor:",toarray"`
+		BlockData  *rctypes.BlockData  // proposed block
+		HashAlgo   crypto.Hash         // hash algorithm for the block
+		RootHash   hex.Bytes           // resulting root hash
+		Qc         *rctypes.QuorumCert // block's quorum certificate (from next view)
+		CommitQc   *rctypes.QuorumCert // block's commit certificate
+		ShardState ShardStates
 	}
 
 	IRChangeReqVerifier interface {
@@ -35,7 +35,7 @@ func NewRootBlock(block *abdrc.CommittedBlock, hash crypto.Hash, orchestration O
 		return nil, fmt.Errorf("loading shard configurations for round %d: %w", block.GetRound(), err)
 	}
 
-	shardInfo := ShardStates{
+	shardState := ShardStates{
 		States:  make(map[types.PartitionShardID]*ShardInfo, len(shardConfs)),
 		Changed: ShardSet{},
 	}
@@ -77,20 +77,20 @@ func NewRootBlock(block *abdrc.CommittedBlock, hash crypto.Hash, orchestration O
 		if err := si.resetTrustBase(shardConf); err != nil {
 			return nil, fmt.Errorf("initializing shard trustbase: %w", err)
 		}
-		shardInfo.States[shardKey] = si
+		shardState.States[shardKey] = si
 	}
 
-	ut, _, err := shardInfo.UnicityTree(hash)
+	ut, _, err := shardState.UnicityTree(hash)
 	if err != nil {
 		return nil, err
 	}
 	return &ExecutedBlock{
-		BlockData: block.Block,
-		HashAlgo:  hash,
-		RootHash:  ut.RootHash(),
-		Qc:        block.Qc,
-		CommitQc:  block.CommitQc,
-		ShardInfo: shardInfo,
+		BlockData:  block.Block,
+		HashAlgo:   hash,
+		RootHash:   ut.RootHash(),
+		Qc:         block.Qc,
+		CommitQc:   block.CommitQc,
+		ShardState: shardState,
 	}, nil
 }
 
@@ -101,14 +101,14 @@ func (x *ExecutedBlock) Extend(newBlock *rctypes.BlockData, verifier IRChangeReq
 		return nil, fmt.Errorf("loading shard configurations for round %d: %w", newBlock.Round, err)
 	}
 
-	shardInfo, err := x.ShardInfo.nextBlock(shardConfs, hash)
+	nextShardState, err := x.ShardState.nextBlock(shardConfs, hash)
 	if err != nil {
 		return nil, fmt.Errorf("creating shard info for the block: %w", err)
 	}
 
 	for _, irChReq := range newBlock.Payload.Requests {
 		shardKey := types.PartitionShardID{PartitionID: irChReq.Partition, ShardID: irChReq.Shard.Key()}
-		si, ok := shardInfo.States[shardKey]
+		si, ok := nextShardState.States[shardKey]
 		if !ok {
 			log.Info(fmt.Sprintf("no validators in shard config (shard has been removed?) %s", shardKey))
 			continue
@@ -127,23 +127,23 @@ func (x *ExecutedBlock) Extend(newBlock *rctypes.BlockData, verifier IRChangeReq
 			return nil, fmt.Errorf("updating shard info for the next round: %w", err)
 		}
 
-		shardInfo.Changed[shardKey] = struct{}{}
+		nextShardState.Changed[shardKey] = struct{}{}
 	}
 
-	ut, _, err := shardInfo.UnicityTree(hash)
+	ut, _, err := nextShardState.UnicityTree(hash)
 	if err != nil {
 		return nil, fmt.Errorf("creating UnicityTree: %w", err)
 	}
 	return &ExecutedBlock{
-		BlockData: newBlock,
-		HashAlgo:  hash,
-		RootHash:  ut.RootHash(),
-		ShardInfo: shardInfo,
+		BlockData:  newBlock,
+		HashAlgo:   hash,
+		RootHash:   ut.RootHash(),
+		ShardState: nextShardState,
 	}, nil
 }
 
 func (x *ExecutedBlock) GenerateCertificates(commitQc *rctypes.QuorumCert) ([]*certification.CertificationResponse, error) {
-	crs, rootHash, err := x.ShardInfo.certificationResponses(x.HashAlgo)
+	crs, rootHash, err := x.ShardState.certificationResponses(x.HashAlgo)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate root hash: %w", err)
 	}
@@ -172,7 +172,7 @@ func (x *ExecutedBlock) GenerateCertificates(commitQc *rctypes.QuorumCert) ([]*c
 	}
 	for _, cr := range crs {
 		cr.UC.UnicitySeal = uSeal
-		x.ShardInfo.States[types.PartitionShardID{PartitionID: cr.Partition, ShardID: cr.Shard.Key()}].LastCR = cr
+		x.ShardState.States[types.PartitionShardID{PartitionID: cr.Partition, ShardID: cr.Shard.Key()}].LastCR = cr
 	}
 	return crs, nil
 }

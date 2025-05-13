@@ -873,12 +873,12 @@ func newTestGenesisBlock(t *testing.T, shardConf *types.PartitionDescriptionReco
 	executedBlock := &storage.ExecutedBlock{
 		BlockData: genesisBlock,
 		HashAlgo:  hashAlgo,
-		ShardInfo: storage.ShardStates{
+		ShardState: storage.ShardStates{
 			States:  map[types.PartitionShardID]*storage.ShardInfo{psID: si},
 			Changed: storage.ShardSet{psID: {}},
 		},
 	}
-	ut, _, err := executedBlock.ShardInfo.UnicityTree(hashAlgo)
+	ut, _, err := executedBlock.ShardState.UnicityTree(hashAlgo)
 	require.NoError(t, err)
 	commitQc := createCommitQc(t, genesisBlock, ut.RootHash(), hashAlgo, signers)
 	// the same QC accepts the genesis block and commits it, usually commit comes later
@@ -892,7 +892,7 @@ func newTestGenesisBlock(t *testing.T, shardConf *types.PartitionDescriptionReco
 
 	// Changed set was necessary to generate certificates with GenerateCertificates,
 	// clear it so that certificates won't be generated again when CM is run
-	clear(executedBlock.ShardInfo.Changed)
+	clear(executedBlock.ShardState.Changed)
 	return executedBlock
 }
 

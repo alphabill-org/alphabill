@@ -68,11 +68,11 @@ func fakeBlock(round uint64, qc *drctypes.QuorumCert) *ExecutedBlock {
 			Payload: &drctypes.Payload{},
 			Qc:      qc,
 		},
-		HashAlgo:  crypto.SHA256,
-		RootHash:  make([]byte, 32),
-		Qc:        &drctypes.QuorumCert{},
-		CommitQc:  nil,
-		ShardInfo: ShardStates{},
+		HashAlgo:   crypto.SHA256,
+		RootHash:   make([]byte, 32),
+		Qc:         &drctypes.QuorumCert{},
+		CommitQc:   nil,
+		ShardState: ShardStates{},
 	}
 }
 
@@ -376,7 +376,7 @@ func Test_BlockStore_StateRoundtrip(t *testing.T) {
 	storeA := initBlockStoreFromGenesis(t, shardConf)
 	// the genesis block is created with the shard marked as "changed" - clear
 	// it as the state message does not carry that information
-	clear(storeA.blockTree.root.data.ShardInfo.Changed)
+	clear(storeA.blockTree.root.data.ShardState.Changed)
 
 	// modify Fees to see if they are restored correctly
 	si := storeA.ShardInfo(shardConf.PartitionID, shardConf.ShardID)
@@ -394,8 +394,8 @@ func Test_BlockStore_StateRoundtrip(t *testing.T) {
 	require.NotNil(t, storeB)
 
 	// two stores should have the same state now
-	require.Equal(t, storeA.blockTree.root.data.ShardInfo.States, storeB.blockTree.root.data.ShardInfo.States)
-	require.Equal(t, storeA.blockTree.root.data.ShardInfo.Changed, storeB.blockTree.root.data.ShardInfo.Changed)
+	require.Equal(t, storeA.blockTree.root.data.ShardState.States, storeB.blockTree.root.data.ShardState.States)
+	require.Equal(t, storeA.blockTree.root.data.ShardState.Changed, storeB.blockTree.root.data.ShardState.Changed)
 	require.Equal(t, storeA.blockTree.root.data.RootHash, storeB.blockTree.root.data.RootHash, "root hash")
 	require.Equal(t, storeA.blockTree.root.child, storeB.blockTree.root.child)
 	require.Len(t, storeB.blockTree.roundToNode, len(storeA.blockTree.roundToNode))
@@ -444,7 +444,7 @@ func Test_BlockStore_persistence(t *testing.T) {
 	storeB, err := New(crypto.SHA256, db, orchestration, logger.New(t))
 	require.NoError(t, err)
 
-	siA := blockA.ShardInfo.States[types.PartitionShardID{PartitionID: shardConf.PartitionID, ShardID: shardConf.ShardID.Key()}]
+	siA := blockA.ShardState.States[types.PartitionShardID{PartitionID: shardConf.PartitionID, ShardID: shardConf.ShardID.Key()}]
 	siB := storeB.ShardInfo(shardConf.PartitionID, shardConf.ShardID)
 	require.NoError(t, err)
 	require.Equal(t, siA, siB)
@@ -504,14 +504,14 @@ func genesisBlockWithShard(t *testing.T, shardConf *types.PartitionDescriptionRe
 	eb := &ExecutedBlock{
 		BlockData: genesisBlock,
 		HashAlgo:  hashAlgo,
-		ShardInfo: ShardStates{
+		ShardState: ShardStates{
 			States:  map[types.PartitionShardID]*ShardInfo{psID: si},
 			Changed: ShardSet{psID: struct{}{}},
 		},
 		Qc:       commitQc,
 		CommitQc: commitQc,
 	}
-	ut, _, err := eb.ShardInfo.UnicityTree(hashAlgo)
+	ut, _, err := eb.ShardState.UnicityTree(hashAlgo)
 	require.NoError(t, err)
 	eb.RootHash = ut.RootHash()
 	commitQc.VoteInfo.CurrentRootHash = eb.RootHash

@@ -83,7 +83,7 @@ func readBlocksFromDB(bDB keyvaluedb.KeyValueDB, orchestration Orchestration) (b
 		if err != nil {
 			return nil, fmt.Errorf("loading shard configurations for round %d: %w", b.GetRound(), err)
 		}
-		for k, si := range b.ShardInfo.States {
+		for k, si := range b.ShardState.States {
 			pdr, ok := shardConfs[k]
 			if !ok {
 				return nil, fmt.Errorf("block has a shard %s but orchestration doesn't have such shard for round %d", k, b.GetRound())
@@ -363,10 +363,10 @@ func (bt *BlockTree) Commit(commitQc *abdrc.QuorumCert) ([]*certification.Certif
 		return nil, errors.Join(ErrCommitFailed, fmt.Errorf("block for round %v not found", commitRound))
 	}
 
-	for k, parentSI := range bt.root.data.ShardInfo.States {
+	for k, parentSI := range bt.root.data.ShardState.States {
 		// between blocks there might have been epoch change and thus new state
 		// might not have all the shards of the old state
-		if si, ok := commitNode.data.ShardInfo.States[k]; ok {
+		if si, ok := commitNode.data.ShardState.States[k]; ok {
 			si.LastCR = parentSI.LastCR
 		}
 	}
@@ -375,7 +375,7 @@ func (bt *BlockTree) Commit(commitQc *abdrc.QuorumCert) ([]*certification.Certif
 	path := bt.findPathToRoot(commitRound)
 	// new committed block also certifies the changes from pending rounds
 	for _, cb := range path {
-		maps.Copy(commitNode.data.ShardInfo.Changed, cb.ShardInfo.Changed)
+		maps.Copy(commitNode.data.ShardState.Changed, cb.ShardState.Changed)
 	}
 	// prune the chain, the committed block becomes new root of the chain
 	blocksToPrune, err := bt.findBlocksToPrune(commitRound)
@@ -449,9 +449,9 @@ func (bt *BlockTree) CurrentState() (*rcnet.StateMsg, error) {
 }
 
 func toRecoveryShardInfo(block *ExecutedBlock) ([]rcnet.ShardInfo, error) {
-	si := make([]rcnet.ShardInfo, len(block.ShardInfo.States))
+	si := make([]rcnet.ShardInfo, len(block.ShardState.States))
 	idx := 0
-	for _, v := range block.ShardInfo.States {
+	for _, v := range block.ShardState.States {
 		si[idx].Partition = v.PartitionID
 		si[idx].Shard = v.ShardID
 		si[idx].T2Timeout = v.T2Timeout

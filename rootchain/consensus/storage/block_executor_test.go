@@ -28,8 +28,8 @@ func TestNewGenesisBlock(t *testing.T) {
 	b, err := NewGenesisBlock(5, crypto.SHA256)
 	require.NoError(t, err)
 	require.Equal(t, b.HashAlgo, crypto.SHA256)
-	require.Empty(t, b.ShardInfo.States)
-	require.Empty(t, b.ShardInfo.Changed)
+	require.Empty(t, b.ShardState.States)
+	require.Empty(t, b.ShardState.Changed)
 	require.Nil(t, b.RootHash)
 	require.NotNil(t, b.BlockData)
 	require.Equal(t, uint64(1), b.BlockData.Round)
@@ -97,10 +97,10 @@ func TestExecutedBlock_Extend(t *testing.T) {
 	// current root block for tests to extend from. it's ok to extend from
 	// the same block multiple times (mustn't affect the parent block)
 	parent := genesisBlockWithShard(t, &pdrEpoch1)
-	require.Len(t, parent.ShardInfo.States, 1)
-	require.Contains(t, parent.ShardInfo.States, psID)
-	require.Len(t, parent.ShardInfo.Changed, 1)
-	require.Contains(t, parent.ShardInfo.Changed, psID)
+	require.Len(t, parent.ShardState.States, 1)
+	require.Contains(t, parent.ShardState.States, psID)
+	require.Len(t, parent.ShardState.Changed, 1)
+	require.Contains(t, parent.ShardState.Changed, psID)
 
 	t.Run("orchestration error", func(t *testing.T) {
 		expErr := errors.New("no configs")
@@ -131,10 +131,10 @@ func TestExecutedBlock_Extend(t *testing.T) {
 		executedBlock, err := parent.Extend(&emptyBlock, reqVer, orchestration, crypto.SHA512, logger.New(t))
 		require.NoError(t, err)
 		require.Equal(t, &emptyBlock, executedBlock.BlockData)
-		require.Empty(t, executedBlock.ShardInfo.Changed, "expected no changes")
-		require.Contains(t, executedBlock.ShardInfo.States, psID)
-		require.Len(t, executedBlock.ShardInfo.States, 1)
-		require.Equal(t, parent.ShardInfo.States, executedBlock.ShardInfo.States)
+		require.Empty(t, executedBlock.ShardState.Changed, "expected no changes")
+		require.Contains(t, executedBlock.ShardState.States, psID)
+		require.Len(t, executedBlock.ShardState.States, 1)
+		require.Equal(t, parent.ShardState.States, executedBlock.ShardState.States)
 		require.Equal(t, crypto.SHA512, executedBlock.HashAlgo)
 		require.Nil(t, executedBlock.Qc)
 		require.Nil(t, executedBlock.CommitQc)
@@ -144,11 +144,11 @@ func TestExecutedBlock_Extend(t *testing.T) {
 		executedBlock, err := parent.Extend(&newBlock, &reqVer, orchestration, crypto.SHA256, logger.New(t))
 		require.NoError(t, err)
 		require.Equal(t, &newBlock, executedBlock.BlockData)
-		require.Len(t, executedBlock.ShardInfo.Changed, 1)
-		require.Contains(t, executedBlock.ShardInfo.Changed, psID)
-		require.Contains(t, executedBlock.ShardInfo.States, psID)
-		require.Len(t, executedBlock.ShardInfo.States, 1)
-		require.Equal(t, certReq.InputRecord, executedBlock.ShardInfo.States[psID].IR)
+		require.Len(t, executedBlock.ShardState.Changed, 1)
+		require.Contains(t, executedBlock.ShardState.Changed, psID)
+		require.Contains(t, executedBlock.ShardState.States, psID)
+		require.Len(t, executedBlock.ShardState.States, 1)
+		require.Equal(t, certReq.InputRecord, executedBlock.ShardState.States[psID].IR)
 		require.Equal(t, crypto.SHA256, executedBlock.HashAlgo)
 		// can't compare against hardcoded hash as fee hash and leader id change on each run (we generate partitionRecord)
 		//require.EqualValues(t, "99AD3740E3CFC07EC1C1C04ED60D930BC3E2DC01AD5B3E8631C119C50EAF4520", fmt.Sprintf("%X", executedBlock.RootHash))
@@ -172,26 +172,26 @@ func TestExecutedBlock_Extend(t *testing.T) {
 		executedBlock, err := parent.Extend(&emptyBlock, &reqVer, orchestration, crypto.SHA256, logger.New(t))
 		require.NoError(t, err)
 		require.Equal(t, &emptyBlock, executedBlock.BlockData)
-		require.Empty(t, executedBlock.ShardInfo.Changed)
-		require.Len(t, executedBlock.ShardInfo.States, 1)
-		if assert.Contains(t, executedBlock.ShardInfo.States, psID) {
-			si := executedBlock.ShardInfo.States[psID]
+		require.Empty(t, executedBlock.ShardState.Changed)
+		require.Len(t, executedBlock.ShardState.States, 1)
+		if assert.Contains(t, executedBlock.ShardState.States, psID) {
+			si := executedBlock.ShardState.States[psID]
 			require.Equal(t, pdrEpoch1.Epoch, si.TR.Epoch, "epoch should stay the same")
 		}
 
 		// next block with shard sending ChangeRequest - the TR should now indicate next epoch
 		executedBlock, err = executedBlock.Extend(&newBlock, &reqVer, orchestration, crypto.SHA256, logger.New(t))
 		require.NoError(t, err)
-		if assert.Contains(t, executedBlock.ShardInfo.States, psID) {
-			si := executedBlock.ShardInfo.States[psID]
+		if assert.Contains(t, executedBlock.ShardState.States, psID) {
+			si := executedBlock.ShardState.States[psID]
 			require.Equal(t, pdrEpoch2.Epoch, si.TR.Epoch, "signal new epoch in the TR")
 		}
 		require.Equal(t, &newBlock, executedBlock.BlockData)
-		require.Len(t, executedBlock.ShardInfo.Changed, 1)
-		require.Contains(t, executedBlock.ShardInfo.Changed, psID)
-		require.Len(t, executedBlock.ShardInfo.States, 1)
-		require.Contains(t, executedBlock.ShardInfo.States, psID)
-		require.Equal(t, certReq.InputRecord, executedBlock.ShardInfo.States[psID].IR)
+		require.Len(t, executedBlock.ShardState.Changed, 1)
+		require.Contains(t, executedBlock.ShardState.Changed, psID)
+		require.Len(t, executedBlock.ShardState.States, 1)
+		require.Contains(t, executedBlock.ShardState.States, psID)
+		require.Equal(t, certReq.InputRecord, executedBlock.ShardState.States[psID].IR)
 	})
 
 	t.Run("new shard introduced", func(t *testing.T) {
@@ -215,12 +215,12 @@ func TestExecutedBlock_Extend(t *testing.T) {
 		executedBlock, err := parent.Extend(&block, &reqVer, orchestration, crypto.SHA256, logger.New(t))
 		require.NoError(t, err)
 		require.Equal(t, &block, executedBlock.BlockData)
-		require.Len(t, executedBlock.ShardInfo.Changed, 2)
-		require.Contains(t, executedBlock.ShardInfo.Changed, psID)
-		require.Contains(t, executedBlock.ShardInfo.Changed, psID2)
-		require.Len(t, executedBlock.ShardInfo.States, 2)
-		require.Contains(t, executedBlock.ShardInfo.States, psID)
-		require.Contains(t, executedBlock.ShardInfo.States, psID2)
+		require.Len(t, executedBlock.ShardState.Changed, 2)
+		require.Contains(t, executedBlock.ShardState.Changed, psID)
+		require.Contains(t, executedBlock.ShardState.Changed, psID2)
+		require.Len(t, executedBlock.ShardState.States, 2)
+		require.Contains(t, executedBlock.ShardState.States, psID)
+		require.Contains(t, executedBlock.ShardState.States, psID2)
 	})
 
 	t.Run("shard removed", func(t *testing.T) {
@@ -239,12 +239,12 @@ func TestExecutedBlock_Extend(t *testing.T) {
 		emptyBlock.Payload = &drctypes.Payload{}
 		executedBlock, err := parent.Extend(&emptyBlock, &reqVer, orchestration, crypto.SHA256, logger.New(t))
 		require.NoError(t, err)
-		require.Len(t, executedBlock.ShardInfo.Changed, 2)
-		require.Contains(t, executedBlock.ShardInfo.Changed, psIDA)
-		require.Contains(t, executedBlock.ShardInfo.Changed, psIDB)
-		require.Len(t, executedBlock.ShardInfo.States, 2)
-		require.Contains(t, executedBlock.ShardInfo.States, psIDA)
-		require.Contains(t, executedBlock.ShardInfo.States, psIDB)
+		require.Len(t, executedBlock.ShardState.Changed, 2)
+		require.Contains(t, executedBlock.ShardState.Changed, psIDA)
+		require.Contains(t, executedBlock.ShardState.Changed, psIDB)
+		require.Len(t, executedBlock.ShardState.States, 2)
+		require.Contains(t, executedBlock.ShardState.States, psIDA)
+		require.Contains(t, executedBlock.ShardState.States, psIDB)
 	})
 }
 
@@ -262,7 +262,7 @@ func TestExecutedBlock_GenerateCertificates(t *testing.T) {
 				Payload: &drctypes.Payload{},
 				Qc:      nil,
 			},
-			ShardInfo: ShardStates{
+			ShardState: ShardStates{
 				States: map[types.PartitionShardID]*ShardInfo{
 					{PartitionID: partitionID1, ShardID: types.ShardID{}.Key()}: {
 						PartitionID: partitionID1,
@@ -325,7 +325,7 @@ func TestExecutedBlock_GenerateCertificates(t *testing.T) {
 		commitQc := validCommitQc()
 		block := validBlock()
 		// scheme lists partition for which there is no shard info
-		block.ShardInfo.schemes = map[types.PartitionID]types.ShardingScheme{66: {}}
+		block.ShardState.schemes = map[types.PartitionID]types.ShardingScheme{66: {}}
 		certs, err := block.GenerateCertificates(commitQc)
 		require.EqualError(t, err, `failed to generate root hash: creating unicity tree: missing shard info for 00000042_80`)
 		require.Empty(t, certs)
@@ -352,7 +352,7 @@ func TestExecutedBlock_GenerateCertificates(t *testing.T) {
 	t.Run("success, no changes", func(t *testing.T) {
 		commitQc := validCommitQc()
 		block := validBlock()
-		block.ShardInfo.Changed = nil
+		block.ShardState.Changed = nil
 		certs, err := block.GenerateCertificates(commitQc)
 		require.NoError(t, err)
 		require.Empty(t, certs)
@@ -364,7 +364,7 @@ func TestExecutedBlock_GenerateCertificates(t *testing.T) {
 		certs, err := block.GenerateCertificates(commitQc)
 		require.NoError(t, err)
 		require.Len(t, certs, 2)
-		si, ok := block.ShardInfo.States[types.PartitionShardID{PartitionID: partitionID1, ShardID: types.ShardID{}.Key()}]
+		si, ok := block.ShardState.States[types.PartitionShardID{PartitionID: partitionID1, ShardID: types.ShardID{}.Key()}]
 		require.True(t, ok)
 		require.NotNil(t, si.LastCR)
 	})
@@ -398,25 +398,25 @@ func Test_ExecutedBlock_serialization(t *testing.T) {
 		// we init the Changed manually to non-nil value as require.EqualValues
 		// considers nil and empty map as different. In code the ExecutedBlock
 		// values are constructed via constructors which init the Changed field.
-		b1 := ExecutedBlock{ShardInfo: ShardStates{Changed: ShardSet{}}}
+		b1 := ExecutedBlock{ShardState: ShardStates{Changed: ShardSet{}}}
 		buf, err := types.Cbor.Marshal(b1)
 		require.NoError(t, err)
 
 		var b2 ExecutedBlock
 		require.NoError(t, types.Cbor.Unmarshal(buf, &b2))
-		require.EqualValues(t, b1.ShardInfo.Changed, b2.ShardInfo.Changed)
+		require.EqualValues(t, b1.ShardState.Changed, b2.ShardState.Changed)
 
 		// set with one item (empty shard ID)
-		b1.ShardInfo.Changed = map[types.PartitionShardID]struct{}{{PartitionID: 1, ShardID: types.ShardID{}.Key()}: {}}
+		b1.ShardState.Changed = map[types.PartitionShardID]struct{}{{PartitionID: 1, ShardID: types.ShardID{}.Key()}: {}}
 		buf, err = types.Cbor.Marshal(b1)
 		require.NoError(t, err)
 
 		require.NoError(t, types.Cbor.Unmarshal(buf, &b2))
-		require.EqualValues(t, b1.ShardInfo.Changed, b2.ShardInfo.Changed)
+		require.EqualValues(t, b1.ShardState.Changed, b2.ShardState.Changed)
 
 		// set with two shards
 		s0, s1 := types.ShardID{}.Split()
-		b1.ShardInfo.Changed = map[types.PartitionShardID]struct{}{
+		b1.ShardState.Changed = map[types.PartitionShardID]struct{}{
 			{PartitionID: 2, ShardID: s0.Key()}: {},
 			{PartitionID: 2, ShardID: s1.Key()}: {},
 		}
@@ -424,18 +424,18 @@ func Test_ExecutedBlock_serialization(t *testing.T) {
 		require.NoError(t, err)
 
 		require.NoError(t, types.Cbor.Unmarshal(buf, &b2))
-		require.EqualValues(t, b1.ShardInfo.Changed, b2.ShardInfo.Changed)
+		require.EqualValues(t, b1.ShardState.Changed, b2.ShardState.Changed)
 	})
 
 	t.Run("ShardInfo", func(t *testing.T) {
 		// empty map
-		b1 := ExecutedBlock{ShardInfo: ShardStates{States: map[types.PartitionShardID]*ShardInfo{}}}
+		b1 := ExecutedBlock{ShardState: ShardStates{States: map[types.PartitionShardID]*ShardInfo{}}}
 		buf, err := types.Cbor.Marshal(b1)
 		require.NoError(t, err)
 
 		var b2 ExecutedBlock
 		require.NoError(t, types.Cbor.Unmarshal(buf, &b2))
-		require.EqualValues(t, b1.ShardInfo.States, b2.ShardInfo.States)
+		require.EqualValues(t, b1.ShardState.States, b2.ShardState.States)
 
 		// non-empty map
 		si := ShardInfo{
@@ -459,12 +459,12 @@ func Test_ExecutedBlock_serialization(t *testing.T) {
 			},
 		}
 		psKey := types.PartitionShardID{PartitionID: si.LastCR.Partition, ShardID: si.LastCR.Shard.Key()}
-		b1.ShardInfo.States[psKey] = &si
+		b1.ShardState.States[psKey] = &si
 		buf, err = types.Cbor.Marshal(b1)
 		require.NoError(t, err)
 
 		require.NoError(t, types.Cbor.Unmarshal(buf, &b2))
-		require.Equal(t, b1.ShardInfo.States, b2.ShardInfo.States)
-		require.Equal(t, &si, b2.ShardInfo.States[psKey])
+		require.Equal(t, b1.ShardState.States, b2.ShardState.States)
+		require.Equal(t, &si, b2.ShardState.States[psKey])
 	})
 }

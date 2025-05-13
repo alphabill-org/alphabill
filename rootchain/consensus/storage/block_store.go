@@ -109,8 +109,8 @@ func (x *BlockStore) IsChangeInProgress(partition types.PartitionID, shard types
 	k := types.PartitionShardID{PartitionID: partition, ShardID: shard.Key()}
 	// go through the block we have and make sure that there is no change in progress for this shard
 	for _, b := range x.blockTree.GetAllUncommittedNodes() {
-		if _, ok := b.ShardInfo.Changed[k]; ok {
-			return b.ShardInfo.States[k].IR
+		if _, ok := b.ShardState.Changed[k]; ok {
+			return b.ShardState.States[k].IR
 		}
 	}
 	return nil
@@ -197,7 +197,7 @@ func (x *BlockStore) GetCertificate(id types.PartitionID, shard types.ShardID) (
 	defer x.lock.RUnlock()
 
 	committedBlock := x.blockTree.Root()
-	if si, ok := committedBlock.ShardInfo.States[types.PartitionShardID{PartitionID: id, ShardID: shard.Key()}]; ok {
+	if si, ok := committedBlock.ShardState.States[types.PartitionShardID{PartitionID: id, ShardID: shard.Key()}]; ok {
 		return si.LastCR, nil
 	}
 	return nil, fmt.Errorf("no certificate found for shard %s - %s", id, shard)
@@ -208,8 +208,8 @@ func (x *BlockStore) GetCertificates() []*types.UnicityCertificate {
 	defer x.lock.RUnlock()
 
 	committedBlock := x.blockTree.Root()
-	ucs := make([]*types.UnicityCertificate, 0, len(committedBlock.ShardInfo.States))
-	for _, v := range committedBlock.ShardInfo.States {
+	ucs := make([]*types.UnicityCertificate, 0, len(committedBlock.ShardState.States))
+	for _, v := range committedBlock.ShardState.States {
 		if v.LastCR != nil {
 			ucs = append(ucs, &v.LastCR.UC)
 		}
@@ -222,7 +222,7 @@ func (x *BlockStore) ShardInfo(partition types.PartitionID, shard types.ShardID)
 	defer x.lock.RUnlock()
 
 	committedBlock := x.blockTree.Root()
-	if si, ok := committedBlock.ShardInfo.States[types.PartitionShardID{PartitionID: partition, ShardID: shard.Key()}]; ok {
+	if si, ok := committedBlock.ShardState.States[types.PartitionShardID{PartitionID: partition, ShardID: shard.Key()}]; ok {
 		return si
 	}
 	return nil

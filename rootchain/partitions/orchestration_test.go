@@ -79,10 +79,10 @@ func TestShardConfig(t *testing.T) {
 	require.NoError(t, o.AddShardConfig(shardConf2))
 
 	var testCases = []struct {
-		partitionID types.PartitionID          // partition id to query
-		shardID     types.ShardID              // shard id to query
-		rootRound   uint64                     // root round to query
-		errMsg      string                     // expected err message
+		partitionID types.PartitionID                 // partition id to query
+		shardID     types.ShardID                     // shard id to query
+		rootRound   uint64                            // root round to query
+		errMsg      string                            // expected err message
 		shardConf   *types.PartitionDescriptionRecord // expected shardConf
 	}{
 		{partitionID: 0, shardID: shardID, rootRound: 1, errMsg: "shard conf missing for shard 00000000_"},
@@ -164,7 +164,7 @@ func TestAddShardConfig(t *testing.T) {
 			shardConf: func() *types.PartitionDescriptionRecord {
 				// updating an already added shard conf succeeds, should it not?
 				shardConf := createShardConf(t, partitionID, shardID, 100)
-				shardConf.T2Timeout = 10*time.Second
+				shardConf.T2Timeout = 10 * time.Second
 				return shardConf
 			}(),
 			errMsg: "",
@@ -190,6 +190,7 @@ func TestAddShardConfig_TestAddingShardConfForPreviousEpoch(t *testing.T) {
 	shardConf := createShardConf(t, partitionID, shardID, 1)
 	dbPath := filepath.Join(t.TempDir(), "orchestration.db")
 	o, err := NewOrchestration(5, dbPath, logger.New(t))
+	require.NoError(t, err)
 	err = o.AddShardConfig(shardConf)
 	require.NoError(t, err)
 	require.NotNil(t, o)

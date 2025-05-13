@@ -49,7 +49,7 @@ func Test_conference_tickets_v2(t *testing.T) {
 
 	// need VerifyQuorumSignatures for verifying tx proofs of payment
 	trustbase := &mockRootTrustBase{
-		verifyQuorumSignatures: func(data []byte, signatures map[string]hex.Bytes) (error, []error) { return nil, nil },
+		verifyQuorumSignatures: func(data []byte, signatures map[string]hex.Bytes) error { return nil },
 	}
 	orchestration := mockOrchestration{
 		trustBase: func(epoch uint64) (types.RootTrustBase, error) { return trustbase, nil },

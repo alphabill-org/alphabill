@@ -59,8 +59,8 @@ func NewAlwaysValidTrustBase(t *testing.T) types.RootTrustBase {
 	return &AlwaysValidTrustBase{}
 }
 
-func (a AlwaysValidTrustBase) VerifyQuorumSignatures(data []byte, signatures map[string]hex.Bytes) (error, []error) {
-	return nil, nil
+func (a AlwaysValidTrustBase) VerifyQuorumSignatures(data []byte, signatures map[string]hex.Bytes) error {
+	return nil
 }
 
 func (a AlwaysValidTrustBase) VerifySignature(data []byte, sig []byte, nodeID string) (uint64, error) {

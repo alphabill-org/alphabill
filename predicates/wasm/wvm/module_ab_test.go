@@ -163,7 +163,7 @@ func Test_amountTransferredSum(t *testing.T) {
 	// trustbase which "successfully" verifies all tx proofs (ie says they're valid)
 	trustBaseOK := &mockRootTrustBase{
 		// need VerifyQuorumSignatures for verifying tx proofs
-		verifyQuorumSignatures: func(data []byte, signatures map[string]hex.Bytes) (error, []error) { return nil, nil },
+		verifyQuorumSignatures: func(data []byte, signatures map[string]hex.Bytes) error { return nil },
 	}
 	tbLoader := func(epoch uint64) (types.RootTrustBase, error) { return trustBaseOK, nil }
 
@@ -263,7 +263,7 @@ func Test_transferredSum(t *testing.T) {
 	// trustbase which "successfully" verifies all tx proofs (ie says they're valid)
 	trustBaseOK := &mockRootTrustBase{
 		// need VerifyQuorumSignatures for verifying tx proofs
-		verifyQuorumSignatures: func(data []byte, signatures map[string]hex.Bytes) (error, []error) { return nil, nil },
+		verifyQuorumSignatures: func(data []byte, signatures map[string]hex.Bytes) error { return nil },
 	}
 	tbLoader := func(epoch uint64) (types.RootTrustBase, error) { return trustBaseOK, nil }
 
@@ -452,7 +452,7 @@ func Test_transferredSum(t *testing.T) {
 		errNOK := errors.New("this is bogus")
 		tbNOK := &mockRootTrustBase{
 			// need VerifyQuorumSignatures for verifying tx proofs
-			verifyQuorumSignatures: func(data []byte, signatures map[string]hex.Bytes) (error, []error) { return errNOK, nil },
+			verifyQuorumSignatures: func(data []byte, signatures map[string]hex.Bytes) error { return errNOK },
 		}
 		tbl := func(epoch uint64) (types.RootTrustBase, error) { return tbNOK, nil }
 		sum, err = transferredSum(txRecProof, pkHash, nil, tbl)
@@ -511,7 +511,7 @@ func Test_transferredSum(t *testing.T) {
 		errNOK := errors.New("this is bogus")
 		tbNOK := &mockRootTrustBase{
 			// need VerifyQuorumSignatures for verifying tx proofs
-			verifyQuorumSignatures: func(data []byte, signatures map[string]hex.Bytes) (error, []error) { return errNOK, nil },
+			verifyQuorumSignatures: func(data []byte, signatures map[string]hex.Bytes) error { return errNOK },
 		}
 		tbl := func(epoch uint64) (types.RootTrustBase, error) { return tbNOK, nil }
 		sum, err = transferredSum(txRecProof, pkHash, nil, tbl)

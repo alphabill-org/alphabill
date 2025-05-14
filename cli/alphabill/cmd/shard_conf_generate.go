@@ -64,9 +64,6 @@ func shardConfGenerateCmd(baseFlags *baseFlags) *cobra.Command {
 		panic(err)
 	}
 	cmd.Flags().StringSliceVarP(&flags.NodeInfoFiles, "node-info", "n", []string{}, "path to node info files")
-	if err := cmd.MarkFlagRequired("node-info"); err != nil {
-		panic(err)
-	}
 	cmd.Flags().StringVar(&flags.MoneyInitialBillOwnerPredicate, "initial-bill-owner-predicate", "",
 		"initial bill owner predicate (money partition only)")
 	cmd.Flags().StringVar(&flags.TokensAdminOwnerPredicate, "admin-owner-predicate", "",
@@ -89,8 +86,8 @@ func shardConfGenerate(flags *shardConfGenerateFlags) error {
 	}
 
 	// verify all nodes belong to the same network and partition
-	if len(nodes) == 0 {
-		return errors.New("at least one node info file must be provided")
+	if len(nodes) == 0 && flags.Epoch == 0 {
+		return errors.New("at least one node info file must be provided for the first epoch")
 	}
 
 	// parse the shardID
@@ -137,10 +134,10 @@ func defaultPartitionParams(partitionTypeID types.PartitionTypeID, flags *shardC
 			op = alwaysTruePredicate
 		}
 		partitionParams[moneyInitialBillOwnerPredicate] = op
-		partitionParams[moneyInitialBillValue]          = strconv.FormatUint(defaultInitialBillValue, 10)
-		partitionParams[moneyDCMoneySupplyValue]        = strconv.FormatUint(defaultDCMoneySupplyValue, 10)
+		partitionParams[moneyInitialBillValue] = strconv.FormatUint(defaultInitialBillValue, 10)
+		partitionParams[moneyDCMoneySupplyValue] = strconv.FormatUint(defaultDCMoneySupplyValue, 10)
 	case evmsdk.PartitionTypeID:
-		partitionParams[evmGasUnitPrice]  = strconv.FormatUint(evm.DefaultGasPrice, 10)
+		partitionParams[evmGasUnitPrice] = strconv.FormatUint(evm.DefaultGasPrice, 10)
 		partitionParams[evmBlockGasLimit] = strconv.FormatUint(evm.DefaultBlockGasLimit, 10)
 	case orchestrationsdk.PartitionTypeID:
 		op := flags.OrchestrationOwnerPredicate
@@ -150,7 +147,7 @@ func defaultPartitionParams(partitionTypeID types.PartitionTypeID, flags *shardC
 		partitionParams[orchestrationOwnerPredicate] = op
 	case tokenssdk.PartitionTypeID:
 		partitionParams[tokensAdminOwnerPredicate] = flags.TokensAdminOwnerPredicate
-		partitionParams[tokensFeelessMode]         = strconv.FormatBool(flags.TokensFeelessMode)
+		partitionParams[tokensFeelessMode] = strconv.FormatBool(flags.TokensFeelessMode)
 	}
 
 	return partitionParams

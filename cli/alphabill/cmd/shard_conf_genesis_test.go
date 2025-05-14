@@ -51,15 +51,15 @@ func Test_MoneyGenesis(t *testing.T) {
 			OwnerPredicate: templates.AlwaysFalseBytes(),
 		},
 		PartitionParams: map[string]string{
-			moneyInitialBillValue: "1",
+			moneyInitialBillValue:          "1",
 			moneyInitialBillOwnerPredicate: fmt.Sprintf("0x%x", templates.AlwaysTrueBytes()),
-			moneyDCMoneySupplyValue: "2",
+			moneyDCMoneySupplyValue:        "2",
 		},
 	}
 
 	t.Run("GenesisStateExists", func(t *testing.T) {
 		homeDir := writeShardConf(t, shardConf)
-		genesisStatePath := filepath.Join(homeDir, stateFileName)
+		genesisStatePath := filepath.Join(homeDir, StateFileName)
 		_, err := os.Create(genesisStatePath)
 		require.NoError(t, err)
 
@@ -76,7 +76,7 @@ func Test_MoneyGenesis(t *testing.T) {
 		cmd.baseCmd.SetArgs([]string{"shard-conf", "genesis", "--home", homeDir})
 		require.NoError(t, cmd.Execute(context.Background()))
 	})
-	
+
 	t.Run("TokensGenesisState", func(t *testing.T) {
 		adminOwnerPredicate := "830041025820f34a250bf4f2d3a432a43381cecc4ab071224d9ceccb6277b5779b937f59055f"
 		shardConf := &types.PartitionDescriptionRecord{
@@ -89,7 +89,7 @@ func Test_MoneyGenesis(t *testing.T) {
 			T2Timeout:       3 * time.Second,
 			PartitionParams: map[string]string{
 				tokensAdminOwnerPredicate: adminOwnerPredicate,
-				tokensFeelessMode: "true",
+				tokensFeelessMode:         "true",
 			},
 		}
 		homeDir := writeShardConf(t, shardConf)
@@ -144,7 +144,7 @@ func Test_MoneyGenesis(t *testing.T) {
 			UnitIDLen:       256,
 			T2Timeout:       2500 * time.Millisecond,
 			PartitionParams: map[string]string{
-				orchestrationOwnerPredicate:  ownerPredicate,
+				orchestrationOwnerPredicate: ownerPredicate,
 			},
 		}
 		homeDir := writeShardConf(t, shardConf)

@@ -147,7 +147,7 @@ func (f *trustBaseFlags) addTrustBaseFlags(cmd *cobra.Command) {
 }
 
 func (f *trustBaseFlags) trustBasePath(baseFlags *baseFlags) string {
-	return baseFlags.pathWithDefault(f.TrustBaseFile, trustBaseFileName)
+	return baseFlags.PathWithDefault(f.TrustBaseFile, trustBaseFileName)
 }
 
 func (f *trustBaseFlags) loadTrustBase(baseFlags *baseFlags) (ret *types.RootTrustBaseV1, err error) {

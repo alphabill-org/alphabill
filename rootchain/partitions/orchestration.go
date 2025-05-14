@@ -42,6 +42,9 @@ func NewOrchestration(networkID types.NetworkID, dbFile string, log *slog.Logger
 		}
 		return nil
 	})
+	if err != nil {
+		return nil, err
+	}
 
 	return &Orchestration{
 		networkID: networkID,
@@ -72,13 +75,13 @@ func (o *Orchestration) ShardConfig(partitionID types.PartitionID, shardID types
 		return nil, fmt.Errorf("shard conf missing for shard %s_%s", partitionID, shardID.String())
 	}
 	if shardConf.NetworkID != o.networkID {
-		return nil, fmt.Errorf("shard conf loaded from database has wrong netorkID %d, expected %d", shardConf.NetworkID, o.networkID)
+		return nil, fmt.Errorf("shard conf loaded from database has wrong networkID %d, expected %d", shardConf.NetworkID, o.networkID)
 	}
 	return shardConf, nil
 }
 
 /*
-   ShardConfigs returns shard confs active in the given root round.
+ShardConfigs returns shard confs active in the given root round.
 */
 func (o *Orchestration) ShardConfigs(rootRound uint64) (map[types.PartitionShardID]*types.PartitionDescriptionRecord, error) {
 	shardConfs := make(map[types.PartitionShardID]*types.PartitionDescriptionRecord)
@@ -225,8 +228,9 @@ func verifyShardConf(tx *bolt.Tx, shardConf *types.PartitionDescriptionRecord) e
 
 // schema:
 // root bucket (root bucket)
-//   multiple partition buckets (partition id to partition bucket)
-//     multiple shard buckets (shard id to shard bucket)
+//
+//	multiple partition buckets (partition id to partition bucket)
+//	  multiple shard buckets (shard id to shard bucket)
 func createShardBuckets(tx *bolt.Tx, partitionID types.PartitionID, shardID types.ShardID) (*bolt.Bucket, error) {
 	rootBucket := tx.Bucket(rootBucketName)
 	if rootBucket == nil {

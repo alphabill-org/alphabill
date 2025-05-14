@@ -17,7 +17,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
-	"github.com/alphabill-org/alphabill-go-base/txsystem/evm"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/orchestration"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/tokens"
@@ -249,7 +248,6 @@ func defaultFlags() *ShardNodeRunFlags {
 				money.PartitionTypeID:         NewMoneyPartition(),
 				tokens.PartitionTypeID:        NewTokensPartition(),
 				orchestration.PartitionTypeID: NewOrchestrationPartition(),
-				evm.PartitionTypeID:           NewEvmPartition(),
 			},
 		},
 	}

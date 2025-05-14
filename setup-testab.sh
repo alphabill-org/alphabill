@@ -2,7 +2,6 @@
 
 money_nodes=3
 token_nodes=3
-evm_nodes=3
 orchestration_nodes=3
 root_nodes=3
 enterprise_token_nodes=0
@@ -13,7 +12,7 @@ set -e
 
 # print help
 usage() {
-  echo "Generate 'testab' structure, log configuration and genesis files. Usage: $0 [-h usage] [-m number of money nodes] [-t number of token nodes] [-e number of EVM nodes] [-o number of orchestration nodes] [-r number of root nodes] [-c reset all DB files] [-i initial bill owner predicate] [-k number of enterprise token partition nodes] [-a enterprise token partition admin owner predicate]"
+  echo "Generate 'testab' structure, log configuration and genesis files. Usage: $0 [-h usage] [-m number of money nodes] [-t number of token nodes] [-o number of orchestration nodes] [-r number of root nodes] [-c reset all DB files] [-i initial bill owner predicate] [-k number of enterprise token partition nodes] [-a enterprise token partition admin owner predicate]"
   exit 0
 }
 # handle arguments
@@ -30,9 +29,6 @@ while getopts "chm:t:r:e:o:i:k:a:" o; do
     ;;
   r)
     root_nodes=${OPTARG}
-    ;;
-  e)
-    evm_nodes=${OPTARG}
     ;;
   o)
     orchestration_nodes=${OPTARG}
@@ -81,11 +77,6 @@ fi
 if [ "$token_nodes" -ne 0 ]; then
   init_shard_nodes testab/tokens 2 2 "$token_nodes"
   generate_shard_genesis_state testab/tokens 2 "$token_nodes"
-fi
-
-if [ "$evm_nodes" -ne 0 ]; then
-  init_shard_nodes testab/evm 3 3 "$evm_nodes"
-  generate_shard_genesis_state testab/evm 3 "$evm_nodes"
 fi
 
 if [ "$orchestration_nodes" -ne 0 ]; then

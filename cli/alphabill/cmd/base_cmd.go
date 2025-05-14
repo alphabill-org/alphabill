@@ -46,7 +46,6 @@ func New(obsF Factory, opts ...interface{}) *AlphabillApp {
 	app.addPartition(NewMoneyPartition())
 	app.addPartition(NewTokensPartition())
 	app.addPartition(NewOrchestrationPartition())
-	app.addPartition(NewEvmPartition())
 
 	return app
 }

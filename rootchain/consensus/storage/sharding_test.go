@@ -498,11 +498,11 @@ func Test_shardStates_nextBlock(t *testing.T) {
 		}
 		pdr2 := newShardConf(t)
 		pdr2.PartitionID = si.LastCR.Partition + 1
-		psID := types.PartitionShardID{PartitionID: si.LastCR.Partition, ShardID: si.LastCR.Shard.Key()}
+		psID1 := types.PartitionShardID{PartitionID: si.LastCR.Partition, ShardID: si.LastCR.Shard.Key()}
 		psID2 := types.PartitionShardID{PartitionID: pdr2.PartitionID, ShardID: pdr2.ShardID.Key()}
-		shardConfs := map[types.PartitionShardID]*types.PartitionDescriptionRecord{psID: {}, psID2: pdr2}
+		shardConfs := map[types.PartitionShardID]*types.PartitionDescriptionRecord{psID1: {Validators: make([]*types.NodeInfo, 1)}, psID2: pdr2}
 
-		ssA := ShardStates{States: map[types.PartitionShardID]*ShardInfo{psID: &si}}
+		ssA := ShardStates{States: map[types.PartitionShardID]*ShardInfo{psID1: &si}}
 		ssB, err := ssA.nextBlock(shardConfs, hashAlg)
 		require.NoError(t, err)
 		require.Len(t, ssB.States, 2)
@@ -522,7 +522,7 @@ func Test_shardStates_nextBlock(t *testing.T) {
 			TR: certification.TechnicalRecord{Epoch: 1},
 		}
 		psID := types.PartitionShardID{PartitionID: si.LastCR.Partition, ShardID: si.LastCR.Shard.Key()}
-		shardConfs := map[types.PartitionShardID]*types.PartitionDescriptionRecord{psID: {}}
+		shardConfs := map[types.PartitionShardID]*types.PartitionDescriptionRecord{psID: {Validators: make([]*types.NodeInfo, 1)}}
 
 		ssA := ShardStates{States: map[types.PartitionShardID]*ShardInfo{psID: &si}, Changed: ShardSet{}}
 		ssB, err := ssA.nextBlock(shardConfs, hashAlg)
@@ -552,7 +552,7 @@ func Test_shardStates_nextBlock(t *testing.T) {
 		psID := types.PartitionShardID{PartitionID: si.PartitionID, ShardID: si.ShardID.Key()}
 		// return genesis where Epoch number is not +1 of the current one - this causes
 		// known error we can test against to make sure that SI.nextEpoch was called
-		shardConfs := map[types.PartitionShardID]*types.PartitionDescriptionRecord{psID: {Epoch: 3}}
+		shardConfs := map[types.PartitionShardID]*types.PartitionDescriptionRecord{psID: {Epoch: 3, Validators: make([]*types.NodeInfo, 1)}}
 
 		ssA := ShardStates{States: map[types.PartitionShardID]*ShardInfo{psID: &si}}
 		_, err := ssA.nextBlock(shardConfs, hashAlg)

@@ -5,6 +5,7 @@ import (
 	"crypto"
 	"errors"
 	"fmt"
+	"log/slog"
 	"sync"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
@@ -21,6 +22,7 @@ type (
 		storage       keyvaluedb.KeyValueDB
 		orchestration Orchestration
 		lock          sync.RWMutex
+		log           *slog.Logger
 	}
 
 	Orchestration interface {
@@ -30,7 +32,7 @@ type (
 	}
 )
 
-func New(hashAlgo crypto.Hash, db keyvaluedb.KeyValueDB, orchestration Orchestration) (block *BlockStore, err error) {
+func New(hashAlgo crypto.Hash, db keyvaluedb.KeyValueDB, orchestration Orchestration, log *slog.Logger) (block *BlockStore, err error) {
 	if db == nil {
 		return nil, errors.New("storage is nil")
 	}
@@ -54,10 +56,11 @@ func New(hashAlgo crypto.Hash, db keyvaluedb.KeyValueDB, orchestration Orchestra
 		blockTree:     blTree,
 		storage:       db,
 		orchestration: orchestration,
+		log:           log,
 	}, nil
 }
 
-func NewFromState(hash crypto.Hash, block *abdrc.CommittedBlock, db keyvaluedb.KeyValueDB, orchestration Orchestration) (*BlockStore, error) {
+func NewFromState(hash crypto.Hash, block *abdrc.CommittedBlock, db keyvaluedb.KeyValueDB, orchestration Orchestration, log *slog.Logger) (*BlockStore, error) {
 	if db == nil {
 		return nil, errors.New("storage is nil")
 	}
@@ -76,6 +79,7 @@ func NewFromState(hash crypto.Hash, block *abdrc.CommittedBlock, db keyvaluedb.K
 		blockTree:     blTree,
 		storage:       db,
 		orchestration: orchestration,
+		log:           log,
 	}, nil
 }
 
@@ -105,8 +109,8 @@ func (x *BlockStore) IsChangeInProgress(partition types.PartitionID, shard types
 	k := types.PartitionShardID{PartitionID: partition, ShardID: shard.Key()}
 	// go through the block we have and make sure that there is no change in progress for this shard
 	for _, b := range x.blockTree.GetAllUncommittedNodes() {
-		if _, ok := b.ShardInfo.Changed[k]; ok {
-			return b.ShardInfo.States[k].IR
+		if _, ok := b.ShardState.Changed[k]; ok {
+			return b.ShardState.States[k].IR
 		}
 	}
 	return nil
@@ -169,7 +173,7 @@ func (x *BlockStore) Add(block *rctypes.BlockData, verifier IRChangeReqVerifier)
 		return nil, fmt.Errorf("add block failed: parent round %v not found, recover", block.Qc.VoteInfo.RoundNumber)
 	}
 	// Extend state from parent block
-	exeBlock, err := parentBlock.Extend(block, verifier, x.orchestration, x.hash)
+	exeBlock, err := parentBlock.Extend(block, verifier, x.orchestration, x.hash, x.log)
 	if err != nil {
 		return nil, fmt.Errorf("error processing block round %v, %w", block.Round, err)
 	}
@@ -193,7 +197,7 @@ func (x *BlockStore) GetCertificate(id types.PartitionID, shard types.ShardID) (
 	defer x.lock.RUnlock()
 
 	committedBlock := x.blockTree.Root()
-	if si, ok := committedBlock.ShardInfo.States[types.PartitionShardID{PartitionID: id, ShardID: shard.Key()}]; ok {
+	if si, ok := committedBlock.ShardState.States[types.PartitionShardID{PartitionID: id, ShardID: shard.Key()}]; ok {
 		return si.LastCR, nil
 	}
 	return nil, fmt.Errorf("no certificate found for shard %s - %s", id, shard)
@@ -204,8 +208,8 @@ func (x *BlockStore) GetCertificates() []*types.UnicityCertificate {
 	defer x.lock.RUnlock()
 
 	committedBlock := x.blockTree.Root()
-	ucs := make([]*types.UnicityCertificate, 0, len(committedBlock.ShardInfo.States))
-	for _, v := range committedBlock.ShardInfo.States {
+	ucs := make([]*types.UnicityCertificate, 0, len(committedBlock.ShardState.States))
+	for _, v := range committedBlock.ShardState.States {
 		if v.LastCR != nil {
 			ucs = append(ucs, &v.LastCR.UC)
 		}
@@ -218,7 +222,7 @@ func (x *BlockStore) ShardInfo(partition types.PartitionID, shard types.ShardID)
 	defer x.lock.RUnlock()
 
 	committedBlock := x.blockTree.Root()
-	if si, ok := committedBlock.ShardInfo.States[types.PartitionShardID{PartitionID: partition, ShardID: shard.Key()}]; ok {
+	if si, ok := committedBlock.ShardState.States[types.PartitionShardID{PartitionID: partition, ShardID: shard.Key()}]; ok {
 		return si
 	}
 	return nil

@@ -34,8 +34,8 @@ func mockExecutedBlock(round, qcRound, qcParentRound uint64) *ExecutedBlock {
 				},
 			},
 		},
-		ShardInfo: ShardStates{States: map[types.PartitionShardID]*ShardInfo{}},
-		HashAlgo:  crypto.SHA256,
+		ShardState: ShardStates{States: map[types.PartitionShardID]*ShardInfo{}},
+		HashAlgo:   crypto.SHA256,
 	}
 }
 
@@ -473,7 +473,7 @@ func TestAddAndCommit(t *testing.T) {
 	// commit creates empty unicity tree. As we do not have any shard marked as
 	// having changes Commit doesn't return any certificates.
 	k := types.PartitionShardID{PartitionID: 1, ShardID: types.ShardID{}.Key()}
-	b.ShardInfo.States[k] = &ShardInfo{PartitionID: 1, IR: &types.InputRecord{}}
+	b.ShardState.States[k] = &ShardInfo{PartitionID: 1, IR: &types.InputRecord{}}
 	b.RootHash = hexToBytes("F8C1F929F9E718FE5B19DD72BFD23802FFFE5FAC21711BF425548548262942E5")
 
 	commitQc := &drctypes.QuorumCert{

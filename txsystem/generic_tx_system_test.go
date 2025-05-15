@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	abhash "github.com/alphabill-org/alphabill-go-base/hash"
 	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
 	fcsdk "github.com/alphabill-org/alphabill-go-base/txsystem/fc"
@@ -21,8 +23,6 @@ import (
 	"github.com/alphabill-org/alphabill/tree/avl"
 	"github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
 	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
-	"github.com/fxamacker/cbor/v2"
-	"github.com/stretchr/testify/require"
 )
 
 const mockTxType uint16 = 1
@@ -459,7 +459,7 @@ func Test_GenericTxSystem_Execute_FeeTransactions(t *testing.T) {
 		require.NoError(t, err)
 		unitV1, err := state.ToUnitV1(u)
 		require.NoError(t, err)
-		expectedTxBytes, err := cbor.Marshal(tx)
+		expectedTxBytes, err := types.Cbor.Marshal(tx)
 		require.NoError(t, err)
 		require.Equal(t, expectedTxBytes, unitV1.StateLockTx())
 

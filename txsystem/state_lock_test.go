@@ -16,7 +16,6 @@ import (
 	abfc "github.com/alphabill-org/alphabill/txsystem/fc"
 	tt "github.com/alphabill-org/alphabill/txsystem/testutils/transaction"
 	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
-	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
 )
 
@@ -269,7 +268,7 @@ func TestGenericTxSystem_handleUnlockUnitState(t *testing.T) {
 				RollbackPredicate:  basetemplates.NewP2pkh256BytesFromKey(pubKey1)},
 			),
 		)
-		txOnHoldBytes, err := cbor.Marshal(txOnHold)
+		txOnHoldBytes, err := types.Cbor.Marshal(txOnHold)
 		require.NoError(t, err)
 
 		// create mock tx system with unit(unitID, txOnHold) and dummy target units
@@ -360,7 +359,7 @@ func TestGenericTxSystem_handleUnlockUnitState(t *testing.T) {
 				RollbackPredicate:  basetemplates.NewP2pkh256BytesFromKey(pubKey1)},
 			),
 		)
-		txOnHoldBytes, err := cbor.Marshal(txOnHold)
+		txOnHoldBytes, err := types.Cbor.Marshal(txOnHold)
 		require.NoError(t, err)
 
 		// create mock tx system with unit(targetUnit1, txOnHold) and dummy target units
@@ -569,7 +568,7 @@ func createLockTransaction(t *testing.T, id types.UnitID, pubkey []byte) []byte 
 		tt.WithStateLock(&types.StateLock{
 			ExecutionPredicate: basetemplates.NewP2pkh256BytesFromKey(pubkey)}),
 	)
-	txBytes, err := cbor.Marshal(tx)
+	txBytes, err := types.Cbor.Marshal(tx)
 	require.NoError(t, err)
 	return txBytes
 }

@@ -7,15 +7,19 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/logger"
 	"github.com/alphabill-org/alphabill/observability"
+	"github.com/alphabill-org/alphabill/partition"
+	"github.com/alphabill-org/alphabill/state"
+	"github.com/alphabill-org/alphabill/txsystem"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 )
 
 type (
-	alphabillApp struct {
+	AlphabillApp struct {
 		baseCmd    *cobra.Command
 		baseConfig *baseFlags
 	}
@@ -24,18 +28,30 @@ type (
 		Logger(cfg *logger.LogConfiguration) (*slog.Logger, error)
 		Observability(metrics, traces string) (observability.MeterAndTracer, error)
 	}
+
+	Partition interface {
+		PartitionTypeID() types.PartitionTypeID
+		PartitionTypeIDString() string
+		DefaultPartitionParams(flags *ShardConfGenerateFlags) map[string]string
+		NewGenesisState(pdr *types.PartitionDescriptionRecord) (*state.State, error)
+		CreateTxSystem(flags *ShardNodeRunFlags, nodeConf *partition.NodeConf) (txsystem.TransactionSystem, error)
+	}
 )
 
 // New creates a new Alphabill application
-func New(obsF Factory, opts ...interface{}) *alphabillApp {
+func New(obsF Factory, opts ...interface{}) *AlphabillApp {
 	baseCmd, baseConfig := newBaseCmd(obsF)
-	app := &alphabillApp{baseCmd: baseCmd, baseConfig: baseConfig}
-	app.addSubcommands(opts)
+	app := &AlphabillApp{baseCmd: baseCmd, baseConfig: baseConfig}
+	app.AddSubcommands(opts)
+	app.addPartition(NewMoneyPartition())
+	app.addPartition(NewTokensPartition())
+	app.addPartition(NewOrchestrationPartition())
+
 	return app
 }
 
 // Execute runs the application
-func (a *alphabillApp) Execute(ctx context.Context) (err error) {
+func (a *AlphabillApp) Execute(ctx context.Context) (err error) {
 	defer func() {
 		if a.baseConfig.observe != nil {
 			err = errors.Join(err, a.baseConfig.observe.Shutdown())
@@ -45,7 +61,7 @@ func (a *alphabillApp) Execute(ctx context.Context) (err error) {
 	return a.baseCmd.ExecuteContext(ctx)
 }
 
-func (a *alphabillApp) addSubcommands(opts []interface{}) {
+func (a *AlphabillApp) AddSubcommands(opts []interface{}) {
 	a.baseCmd.AddCommand(newRootNodeCmd(a.baseConfig))
 	a.baseCmd.AddCommand(newTrustBaseCmd(a.baseConfig))
 	a.baseCmd.AddCommand(newShardNodeCmd(a.baseConfig, convertOptsToRunnable(opts)))
@@ -53,8 +69,22 @@ func (a *alphabillApp) addSubcommands(opts []interface{}) {
 	a.baseCmd.AddCommand(newNodeIDCmd(a.baseConfig))
 }
 
+func (a *AlphabillApp) RegisterPartition(partition Partition) error {
+	if _, ok := a.baseConfig.partitions[partition.PartitionTypeID()]; ok {
+		return fmt.Errorf("partition type %s already registered", partition.PartitionTypeIDString())
+	}
+	a.addPartition(partition)
+	return nil
+}
+
+func (a *AlphabillApp) addPartition(partition Partition) {
+	a.baseConfig.partitions[partition.PartitionTypeID()] = partition
+}
+
 func newBaseCmd(obsF Factory) (*cobra.Command, *baseFlags) {
-	config := &baseFlags{}
+	config := &baseFlags{
+		partitions: make(map[types.PartitionTypeID]Partition),
+	}
 	// baseCmd represents the base command when called without any subcommands
 	var baseCmd = &cobra.Command{
 		Use:           "alphabill",

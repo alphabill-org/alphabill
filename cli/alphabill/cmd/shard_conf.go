@@ -32,7 +32,7 @@ func (f *shardConfFlags) addShardConfFlags(cmd *cobra.Command) {
 }
 
 func (f *shardConfFlags) shardConfPath(baseFlags *baseFlags) string {
-	return baseFlags.pathWithDefault(f.ShardConfFile, shardConfFileName)
+	return baseFlags.PathWithDefault(f.ShardConfFile, shardConfFileName)
 }
 
 func (f *shardConfFlags) loadShardConf(baseFlags *baseFlags) (ret *types.PartitionDescriptionRecord, err error) {

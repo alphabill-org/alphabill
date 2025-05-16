@@ -182,7 +182,7 @@ func rootNodeRun(ctx context.Context, flags *rootNodeRunFlags) error {
 		return fmt.Errorf("failed initiate root network, %w", err)
 	}
 
-	orchestrationStorePath := flags.pathWithDefault(flags.OrchestrationStoreFile, orchestrationStoreFileName)
+	orchestrationStorePath := flags.PathWithDefault(flags.OrchestrationStoreFile, orchestrationStoreFileName)
 	orchestration, err := partitions.NewOrchestration(trustBase.GetNetworkID(), orchestrationStorePath, log)
 	if err != nil {
 		return fmt.Errorf("creating orchestration: %w", err)

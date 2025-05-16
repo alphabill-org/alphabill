@@ -13,6 +13,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"gopkg.in/yaml.v3"
 
+	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/util"
 	"github.com/alphabill-org/alphabill/keyvaluedb"
 	"github.com/alphabill-org/alphabill/keyvaluedb/boltdb"
@@ -41,6 +42,8 @@ type (
 		LogCfgFile string
 
 		observe Observability
+
+		partitions map[types.PartitionTypeID]Partition
 	}
 )
 
@@ -171,7 +174,7 @@ func (r *baseFlags) initLogger(cmd *cobra.Command, loggerBuilder LoggerFactory) 
 	return l, nil
 }
 
-func (r *baseFlags) pathWithDefault(path string, defaultFileName string) string {
+func (r *baseFlags) PathWithDefault(path string, defaultFileName string) string {
 	if path != "" {
 		return path
 	}
@@ -179,7 +182,7 @@ func (r *baseFlags) pathWithDefault(path string, defaultFileName string) string 
 }
 
 func (r *baseFlags) loadConf(path string, defaultFileName string, conf any) error {
-	path = r.pathWithDefault(path, defaultFileName)
+	path = r.PathWithDefault(path, defaultFileName)
 	if _, err := util.ReadJsonFile(path, &conf); err != nil {
 		return fmt.Errorf("failed to load %q: %w", path, err)
 	}
@@ -187,7 +190,7 @@ func (r *baseFlags) loadConf(path string, defaultFileName string, conf any) erro
 }
 
 func (f *baseFlags) initStore(path string, defaultFileName string) (keyvaluedb.KeyValueDB, error) {
-	path = f.pathWithDefault(path, defaultFileName)
+	path = f.PathWithDefault(path, defaultFileName)
 
 	db, err := boltdb.New(path)
 	if err != nil {

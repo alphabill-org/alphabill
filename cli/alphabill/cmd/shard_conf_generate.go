@@ -5,18 +5,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
 	"time"
 
-	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
-	evmsdk "github.com/alphabill-org/alphabill-go-base/txsystem/evm"
-	moneysdk "github.com/alphabill-org/alphabill-go-base/txsystem/money"
-	orchestrationsdk "github.com/alphabill-org/alphabill-go-base/txsystem/orchestration"
-	tokenssdk "github.com/alphabill-org/alphabill-go-base/txsystem/tokens"
 	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	"github.com/alphabill-org/alphabill-go-base/util"
-	"github.com/alphabill-org/alphabill/txsystem/evm"
 	"github.com/spf13/cobra"
 )
 
@@ -26,7 +18,7 @@ const (
 )
 
 type (
-	shardConfGenerateFlags struct {
+	ShardConfGenerateFlags struct {
 		*baseFlags
 
 		NetworkID       uint16
@@ -45,7 +37,7 @@ type (
 )
 
 func shardConfGenerateCmd(baseFlags *baseFlags) *cobra.Command {
-	flags := &shardConfGenerateFlags{baseFlags: baseFlags}
+	flags := &ShardConfGenerateFlags{baseFlags: baseFlags}
 	var cmd = &cobra.Command{
 		Use:   "generate",
 		Short: "Generate a new shard configuration",
@@ -75,7 +67,7 @@ func shardConfGenerateCmd(baseFlags *baseFlags) *cobra.Command {
 	return cmd
 }
 
-func shardConfGenerate(flags *shardConfGenerateFlags) error {
+func shardConfGenerate(flags *ShardConfGenerateFlags) error {
 	if err := os.MkdirAll(flags.HomeDir, 0700); err != nil { // -rwx------
 		return fmt.Errorf("failed to create output directory: %w", err)
 	}
@@ -123,32 +115,10 @@ func shardConfGenerate(flags *shardConfGenerateFlags) error {
 	return nil
 }
 
-func defaultPartitionParams(partitionTypeID types.PartitionTypeID, flags *shardConfGenerateFlags) map[string]string {
-	partitionParams := make(map[string]string, 1)
-	alwaysTruePredicate := string(hex.Encode(templates.AlwaysTrueBytes()))
-
-	switch partitionTypeID {
-	case moneysdk.PartitionTypeID:
-		op := flags.MoneyInitialBillOwnerPredicate
-		if op == "" {
-			op = alwaysTruePredicate
-		}
-		partitionParams[moneyInitialBillOwnerPredicate] = op
-		partitionParams[moneyInitialBillValue] = strconv.FormatUint(defaultInitialBillValue, 10)
-		partitionParams[moneyDCMoneySupplyValue] = strconv.FormatUint(defaultDCMoneySupplyValue, 10)
-	case evmsdk.PartitionTypeID:
-		partitionParams[evmGasUnitPrice] = strconv.FormatUint(evm.DefaultGasPrice, 10)
-		partitionParams[evmBlockGasLimit] = strconv.FormatUint(evm.DefaultBlockGasLimit, 10)
-	case orchestrationsdk.PartitionTypeID:
-		op := flags.OrchestrationOwnerPredicate
-		if op == "" {
-			op = alwaysTruePredicate
-		}
-		partitionParams[orchestrationOwnerPredicate] = op
-	case tokenssdk.PartitionTypeID:
-		partitionParams[tokensAdminOwnerPredicate] = flags.TokensAdminOwnerPredicate
-		partitionParams[tokensFeelessMode] = strconv.FormatBool(flags.TokensFeelessMode)
+func defaultPartitionParams(partitionTypeID types.PartitionTypeID, flags *ShardConfGenerateFlags) map[string]string {
+	partition, ok := flags.baseFlags.partitions[partitionTypeID]
+	if !ok {
+		return make(map[string]string, 1)
 	}
-
-	return partitionParams
+	return partition.DefaultPartitionParams(flags)
 }

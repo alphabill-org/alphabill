@@ -12,8 +12,8 @@ github.com/Microsoft/go-winio v0.6.2 h1:F2VQgta7ecxGYO8k3ZZz3RS8fVIXVxONVUPlNERo
 github.com/Microsoft/go-winio v0.6.2/go.mod h1:yd8OoFMLzJbo9gZq8j5qaps8bJ9aShtEA8Ipt1oGCvU=
 github.com/ainvaltin/httpsrv v0.3.1 h1:E7Oq7hpmYUDFh7olry6MFQTQwXEdaqMMOrzrgGZxiPc=
 github.com/ainvaltin/httpsrv v0.3.1/go.mod h1:hsvXrOXgWiWfGSYUCRRBlBYKPwLM1WWzGuqhp8dEcDY=
-github.com/alphabill-org/alphabill-go-base v1.0.0-rc2.0.20250516061014-d1f7aea0378f h1:COWYr5WKuTxAC1SX4HFJjPF5AspJFY79yg38e6CWe0E=
-github.com/alphabill-org/alphabill-go-base v1.0.0-rc2.0.20250516061014-d1f7aea0378f/go.mod h1:EcYLxScEReeaxjpS1YG/LRrqTVdttCQsUsSvj4WI58Y=
+github.com/alphabill-org/alphabill-go-base v1.0.0-rc2.0.20250519095234-2160e35d7afb h1:J9Yb92faEb5NBKO70HvT3HC5l5DHo1WZNeXqQprqTuI=
+github.com/alphabill-org/alphabill-go-base v1.0.0-rc2.0.20250519095234-2160e35d7afb/go.mod h1:EcYLxScEReeaxjpS1YG/LRrqTVdttCQsUsSvj4WI58Y=
 github.com/anmitsu/go-shlex v0.0.0-20161002113705-648efa622239/go.mod h1:2FmKhYUyUczH0OGQWaF5ceTx0UBShxjsH6f8oGKYe2c=
 github.com/benbjohnson/clock v1.1.0/go.mod h1:J11/hYXuz8f4ySSvYwY0FKfm+ezbsZBKZxNJlLklBHA=
 github.com/benbjohnson/clock v1.3.0/go.mod h1:J11/hYXuz8f4ySSvYwY0FKfm+ezbsZBKZxNJlLklBHA=

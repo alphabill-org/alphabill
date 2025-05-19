@@ -11,10 +11,6 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/sync/errgroup"
 
-	evmsdk "github.com/alphabill-org/alphabill-go-base/txsystem/evm"
-	moneysdk "github.com/alphabill-org/alphabill-go-base/txsystem/money"
-	orchestrationsdk "github.com/alphabill-org/alphabill-go-base/txsystem/orchestration"
-	tokenssdk "github.com/alphabill-org/alphabill-go-base/txsystem/tokens"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/internal/debug"
 	"github.com/alphabill-org/alphabill/logger"
@@ -22,6 +18,7 @@ import (
 	"github.com/alphabill-org/alphabill/observability"
 	"github.com/alphabill-org/alphabill/partition"
 	"github.com/alphabill-org/alphabill/rpc"
+	"github.com/alphabill-org/alphabill/txsystem"
 )
 
 const (
@@ -30,7 +27,7 @@ const (
 	proofStoreFileName = "proof.db"
 )
 
-type shardNodeRunFlags struct {
+type ShardNodeRunFlags struct {
 	*baseFlags
 	keyConfFlags
 	shardConfFlags
@@ -55,7 +52,7 @@ type shardNodeRunFlags struct {
 }
 
 func shardNodeRunCmd(baseFlags *baseFlags, shardNodeRunFn nodeRunnable) *cobra.Command {
-	flags := &shardNodeRunFlags{baseFlags: baseFlags}
+	flags := &ShardNodeRunFlags{baseFlags: baseFlags}
 	var cmd = &cobra.Command{
 		Use:   "run",
 		Short: "Starts a shard node",
@@ -75,7 +72,7 @@ func shardNodeRunCmd(baseFlags *baseFlags, shardNodeRunFn nodeRunnable) *cobra.C
 	flags.addRPCFlags(cmd)
 
 	cmd.Flags().StringVarP(&flags.StateFile, "state", "", "",
-		fmt.Sprintf("path to the state file (default %s)", filepath.Join("$AB_HOME", stateFileName)))
+		fmt.Sprintf("path to the state file (default %s)", filepath.Join("$AB_HOME", StateFileName)))
 	cmd.Flags().StringVarP(&flags.BlockStoreFile, "block-db", "", "",
 		fmt.Sprintf("path to the block datatabase (default %s)", filepath.Join("$AB_HOME", blockStoreFileName)))
 	cmd.Flags().StringVarP(&flags.ShardStoreFile, "shard-db", "", "",
@@ -102,7 +99,7 @@ func shardNodeRunCmd(baseFlags *baseFlags, shardNodeRunFn nodeRunnable) *cobra.C
 	return cmd
 }
 
-func shardNodeRun(ctx context.Context, flags *shardNodeRunFlags) error {
+func shardNodeRun(ctx context.Context, flags *ShardNodeRunFlags) error {
 	node, nodeConf, err := createNode(ctx, flags)
 	if err != nil {
 		return fmt.Errorf("failed to create node: %w", err)
@@ -110,7 +107,7 @@ func shardNodeRun(ctx context.Context, flags *shardNodeRunFlags) error {
 
 	obs := nodeConf.Observability()
 	log := obs.Logger()
-	partitionType := partitionTypeIDToString(node.PartitionTypeID())
+	partitionType := partitionTypeIDToString(node.PartitionTypeID(), flags)
 
 	log.InfoContext(ctx, fmt.Sprintf("starting %s node: BuildInfo=%s", partitionType, debug.ReadBuildInfo()))
 	g, ctx := errgroup.WithContext(ctx)
@@ -180,7 +177,7 @@ func shardNodeRun(ctx context.Context, flags *shardNodeRunFlags) error {
 	return g.Wait()
 }
 
-func createNode(ctx context.Context, flags *shardNodeRunFlags) (*partition.Node, *partition.NodeConf, error) {
+func createNode(ctx context.Context, flags *ShardNodeRunFlags) (*partition.Node, *partition.NodeConf, error) {
 	keyConf, err := flags.loadKeyConf(flags.baseFlags, false)
 	if err != nil {
 		return nil, nil, err
@@ -262,25 +259,26 @@ func createNode(ctx context.Context, flags *shardNodeRunFlags) (*partition.Node,
 	return node, nodeConf, nil
 }
 
-func (f *shardNodeRunFlags) loadShardConf() (ret *types.PartitionDescriptionRecord, err error) {
+func createTxSystem(flags *ShardNodeRunFlags, nodeConf *partition.NodeConf) (txsystem.TransactionSystem, error) {
+	partition, ok := flags.baseFlags.partitions[nodeConf.ShardConf().PartitionTypeID]
+	if !ok {
+		return nil, fmt.Errorf("unsupported partition type %d", nodeConf.ShardConf().PartitionTypeID)
+	}
+	return partition.CreateTxSystem(flags, nodeConf)
+}
+
+func (f *ShardNodeRunFlags) loadShardConf() (ret *types.PartitionDescriptionRecord, err error) {
 	return ret, f.loadConf(f.ShardConfFile, shardConfFileName, &ret)
 }
 
-func (f *shardNodeRunFlags) loadTrustBase() (ret *types.RootTrustBaseV1, err error) {
+func (f *ShardNodeRunFlags) loadTrustBase() (ret *types.RootTrustBaseV1, err error) {
 	return ret, f.loadConf(f.TrustBaseFile, trustBaseFileName, &ret)
 }
 
-func partitionTypeIDToString(partitionTypeID types.PartitionTypeID) string {
-	switch partitionTypeID {
-	case moneysdk.PartitionTypeID:
-		return "money"
-	case tokenssdk.PartitionTypeID:
-		return "tokens"
-	case evmsdk.PartitionTypeID:
-		return "evm"
-	case orchestrationsdk.PartitionTypeID:
-		return "orchestration"
-	default:
+func partitionTypeIDToString(partitionTypeID types.PartitionTypeID, flags *ShardNodeRunFlags) string {
+	partition, ok := flags.baseFlags.partitions[partitionTypeID]
+	if !ok {
 		return fmt.Sprintf("partition type %d", partitionTypeID)
 	}
+	return partition.PartitionTypeIDString()
 }

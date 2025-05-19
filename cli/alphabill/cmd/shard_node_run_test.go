@@ -18,6 +18,7 @@ import (
 
 	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
+	"github.com/alphabill-org/alphabill-go-base/txsystem/orchestration"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/tokens"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/util"
@@ -50,7 +51,7 @@ func TestShardNodeRun_EnvAndFlags(t *testing.T) {
 		name           string
 		args           string   // arguments as a space separated string
 		envVars        []envVar // Environment variables that will be set before creating command
-		expectedConfig *shardNodeRunFlags
+		expectedConfig *ShardNodeRunFlags
 	}{
 		// Base configuration permutations
 		{
@@ -59,7 +60,7 @@ func TestShardNodeRun_EnvAndFlags(t *testing.T) {
 			expectedConfig: defaultFlags(),
 		}, {
 			args: "shard-node run --home=/custom-home",
-			expectedConfig: func() *shardNodeRunFlags {
+			expectedConfig: func() *ShardNodeRunFlags {
 				f := defaultFlags()
 				f.HomeDir = "/custom-home"
 				f.CfgFile = filepath.Join("/custom-home", defaultConfigFile)
@@ -67,7 +68,7 @@ func TestShardNodeRun_EnvAndFlags(t *testing.T) {
 			}(),
 		}, {
 			args: "shard-node run --home=/custom-home --config=custom-config.props",
-			expectedConfig: func() *shardNodeRunFlags {
+			expectedConfig: func() *ShardNodeRunFlags {
 				f := defaultFlags()
 				f.HomeDir = "/custom-home"
 				f.CfgFile = "/custom-home/custom-config.props"
@@ -76,7 +77,7 @@ func TestShardNodeRun_EnvAndFlags(t *testing.T) {
 			}(),
 		}, {
 			args: "shard-node run --config=custom-config.props",
-			expectedConfig: func() *shardNodeRunFlags {
+			expectedConfig: func() *ShardNodeRunFlags {
 				f := defaultFlags()
 				f.HomeDir = alphabillHomeDir()
 				f.CfgFile = alphabillHomeDir() + "/custom-config.props"
@@ -87,7 +88,7 @@ func TestShardNodeRun_EnvAndFlags(t *testing.T) {
 		// Validator configuration from flags
 		{
 			args: "shard-node run --rpc-server-address=srv:1234",
-			expectedConfig: func() *shardNodeRunFlags {
+			expectedConfig: func() *ShardNodeRunFlags {
 				f := defaultFlags()
 				f.rpcFlags.Address = "srv:1234"
 				return f
@@ -95,7 +96,7 @@ func TestShardNodeRun_EnvAndFlags(t *testing.T) {
 		},
 		{
 			args: "shard-node run --rpc-server-address=srv:1111 --rpc-server-read-timeout=10s --rpc-server-read-header-timeout=11s --rpc-server-write-timeout=12s --rpc-server-idle-timeout=13s --rpc-server-max-header=14 --rpc-server-max-body=15 --rpc-server-batch-item-limit=16 --rpc-server-batch-response-size-limit=17",
-			expectedConfig: func() *shardNodeRunFlags {
+			expectedConfig: func() *ShardNodeRunFlags {
 				f := defaultFlags()
 				f.rpcFlags.Address = "srv:1111"
 				f.ReadTimeout = 10 * time.Second
@@ -115,7 +116,7 @@ func TestShardNodeRun_EnvAndFlags(t *testing.T) {
 			envVars: []envVar{
 				{"AB_RPC_SERVER_ADDRESS", "srv:1234"},
 			},
-			expectedConfig: func() *shardNodeRunFlags {
+			expectedConfig: func() *ShardNodeRunFlags {
 				f := defaultFlags()
 				f.rpcFlags.Address = "srv:1234"
 				return f
@@ -125,7 +126,7 @@ func TestShardNodeRun_EnvAndFlags(t *testing.T) {
 			envVars: []envVar{
 				{"AB_RPC_SERVER_ADDRESS", "srv:1234"},
 			},
-			expectedConfig: func() *shardNodeRunFlags {
+			expectedConfig: func() *ShardNodeRunFlags {
 				f := defaultFlags()
 				f.rpcFlags.Address = "srv:666"
 				return f
@@ -137,7 +138,7 @@ func TestShardNodeRun_EnvAndFlags(t *testing.T) {
 				{"AB_CONFIG", "custom-config.props"},
 				{"AB_LOGGER_CONFIG", logCfgFilename},
 			},
-			expectedConfig: func() *shardNodeRunFlags {
+			expectedConfig: func() *ShardNodeRunFlags {
 				f := defaultFlags()
 				f.HomeDir = "/custom-home-1"
 				f.CfgFile = "/custom-home-1/custom-config.props"
@@ -150,7 +151,7 @@ func TestShardNodeRun_EnvAndFlags(t *testing.T) {
 				{"AB_HOME", "/custom-home"},
 				{"AB_CONFIG", "custom-config.props"},
 			},
-			expectedConfig: func() *shardNodeRunFlags {
+			expectedConfig: func() *ShardNodeRunFlags {
 				f := defaultFlags()
 				f.HomeDir = "/custom-home"
 				f.CfgFile = "/custom-home/custom-config.props"
@@ -164,7 +165,7 @@ func TestShardNodeRun_EnvAndFlags(t *testing.T) {
 				{"AB_LEDGER_REPLICATION_MAX_BLOCKS", "8"},
 				{"AB_LEDGER_REPLICATION_MAX_TRANSACTIONS", "16"},
 			},
-			expectedConfig: func() *shardNodeRunFlags {
+			expectedConfig: func() *ShardNodeRunFlags {
 				f := defaultFlags()
 				f.LedgerReplicationMaxBlocksFetch = 4
 				f.LedgerReplicationMaxBlocks = 8
@@ -175,8 +176,8 @@ func TestShardNodeRun_EnvAndFlags(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run("shard_node_run_flags|"+tt.args+"|"+envVarsStr(tt.envVars), func(t *testing.T) {
-			var actualFlags *shardNodeRunFlags
-			shardNodeRunFn := func(ctx context.Context, flags *shardNodeRunFlags) error {
+			var actualFlags *ShardNodeRunFlags
+			shardNodeRunFn := func(ctx context.Context, flags *ShardNodeRunFlags) error {
 				actualFlags = flags
 				return nil
 			}
@@ -221,8 +222,8 @@ logger-config: "` + logCfgFilename + `"
 	expectedConfig.rpcFlags.Address = "srv:1234"
 
 	// Set up runner mock
-	var actualConfig *shardNodeRunFlags
-	runFunc := func(ctx context.Context, sc *shardNodeRunFlags) error {
+	var actualConfig *ShardNodeRunFlags
+	runFunc := func(ctx context.Context, sc *ShardNodeRunFlags) error {
 		actualConfig = sc
 		return nil
 	}
@@ -237,12 +238,17 @@ logger-config: "` + logCfgFilename + `"
 	require.Equal(t, expectedConfig, actualConfig)
 }
 
-func defaultFlags() *shardNodeRunFlags {
-	flags := &shardNodeRunFlags{
+func defaultFlags() *ShardNodeRunFlags {
+	flags := &ShardNodeRunFlags{
 		baseFlags: &baseFlags{
 			HomeDir:    alphabillHomeDir(),
 			CfgFile:    filepath.Join(alphabillHomeDir(), defaultConfigFile),
 			LogCfgFile: defaultLoggerConfigFile,
+			partitions: map[types.PartitionTypeID]Partition{
+				money.PartitionTypeID:         NewMoneyPartition(),
+				tokens.PartitionTypeID:        NewTokensPartition(),
+				orchestration.PartitionTypeID: NewOrchestrationPartition(),
+			},
 		},
 	}
 	flags.KeyConfFile = ""

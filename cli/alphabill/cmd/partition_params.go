@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"math"
 	"strconv"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
@@ -17,9 +16,6 @@ const (
 	tokensAdminOwnerPredicate = "adminOwnerPredicate"
 	tokensFeelessMode         = "feeless-mode"
 
-	evmBlockGasLimit = "blockGasLimit"
-	evmGasUnitPrice  = "gasUnitPrice"
-
 	orchestrationOwnerPredicate = "ownerPredicate"
 )
 
@@ -27,11 +23,6 @@ type MoneyPartitionParams struct {
 	InitialBillValue          uint64
 	InitialBillOwnerPredicate types.PredicateBytes
 	DCMoneySupplyValue        uint64 // The initial value for Dust Collector money supply. Total money supply is initial bill + DC money supply.
-}
-
-type EvmPartitionParams struct {
-        BlockGasLimit uint64  // max units of gas processed in each block
-	GasUnitPrice  uint64  // gas unit price in wei
 }
 
 type OrchestrationPartitionParams struct {
@@ -72,32 +63,6 @@ func ParseMoneyPartitionParams(shardConf *types.PartitionDescriptionRecord) (*Mo
 	return &params, nil
 }
 
-func ParseEvmPartitionParams(shardConf *types.PartitionDescriptionRecord) (*EvmPartitionParams, error) {
-	var params EvmPartitionParams
-	for key, value := range shardConf.PartitionParams {
-		switch key {
-		case evmBlockGasLimit:
-			parsedValue, err := parseUint64(key, value)
-			if err != nil {
-				return nil, err
-			}
-			params.BlockGasLimit = parsedValue
-		case evmGasUnitPrice:
-			parsedValue, err := parseUint64(key, value)
-			if err != nil {
-				return nil, err
-			}
-			if parsedValue > math.MaxInt64 {
-				return nil, fmt.Errorf("invalid gasUnitPrice, max value is %v", math.MaxInt64)
-			}
-			params.GasUnitPrice = parsedValue
-		default:
-			return nil, fmt.Errorf("unexpected partition param: %s", key)
-		}
-	}
-	return &params, nil
-}
-
 func ParseOrchestrationPartitionParams(shardConf *types.PartitionDescriptionRecord) (*OrchestrationPartitionParams, error) {
 	var params OrchestrationPartitionParams
 	for key, valueStr := range shardConf.PartitionParams {
@@ -119,20 +84,22 @@ func ParseTokensPartitionParams(shardConf *types.PartitionDescriptionRecord) (*T
 	var params TokensPartitionParams
 	for key, valueStr := range shardConf.PartitionParams {
 		switch key {
-		case tokensAdminOwnerPredicate: {
-			value, err := hex.Decode([]byte(valueStr))
-			if err != nil {
-				return nil, fmt.Errorf("failed to parse param %q value: %w", key, err)
+		case tokensAdminOwnerPredicate:
+			{
+				value, err := hex.Decode([]byte(valueStr))
+				if err != nil {
+					return nil, fmt.Errorf("failed to parse param %q value: %w", key, err)
+				}
+				params.AdminOwnerPredicate = value
 			}
-			params.AdminOwnerPredicate = value
-		}
-		case tokensFeelessMode: {
-			value, err := strconv.ParseBool(valueStr)
-			if err != nil {
-				return nil, fmt.Errorf("failed to parse param %q value: %w", key, err)
+		case tokensFeelessMode:
+			{
+				value, err := strconv.ParseBool(valueStr)
+				if err != nil {
+					return nil, fmt.Errorf("failed to parse param %q value: %w", key, err)
+				}
+				params.FeelessMode = value
 			}
-			params.FeelessMode = value
-		}
 		default:
 			return nil, fmt.Errorf("unexpected partition param: %s", key)
 		}

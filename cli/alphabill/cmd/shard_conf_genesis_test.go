@@ -11,7 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
-	"github.com/alphabill-org/alphabill-go-base/txsystem/evm"
 	moneysdk "github.com/alphabill-org/alphabill-go-base/txsystem/money"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/orchestration"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/tokens"
@@ -51,15 +50,15 @@ func Test_MoneyGenesis(t *testing.T) {
 			OwnerPredicate: templates.AlwaysFalseBytes(),
 		},
 		PartitionParams: map[string]string{
-			moneyInitialBillValue: "1",
+			moneyInitialBillValue:          "1",
 			moneyInitialBillOwnerPredicate: fmt.Sprintf("0x%x", templates.AlwaysTrueBytes()),
-			moneyDCMoneySupplyValue: "2",
+			moneyDCMoneySupplyValue:        "2",
 		},
 	}
 
 	t.Run("GenesisStateExists", func(t *testing.T) {
 		homeDir := writeShardConf(t, shardConf)
-		genesisStatePath := filepath.Join(homeDir, stateFileName)
+		genesisStatePath := filepath.Join(homeDir, StateFileName)
 		_, err := os.Create(genesisStatePath)
 		require.NoError(t, err)
 
@@ -76,7 +75,7 @@ func Test_MoneyGenesis(t *testing.T) {
 		cmd.baseCmd.SetArgs([]string{"shard-conf", "genesis", "--home", homeDir})
 		require.NoError(t, cmd.Execute(context.Background()))
 	})
-	
+
 	t.Run("TokensGenesisState", func(t *testing.T) {
 		adminOwnerPredicate := "830041025820f34a250bf4f2d3a432a43381cecc4ab071224d9ceccb6277b5779b937f59055f"
 		shardConf := &types.PartitionDescriptionRecord{
@@ -89,7 +88,7 @@ func Test_MoneyGenesis(t *testing.T) {
 			T2Timeout:       3 * time.Second,
 			PartitionParams: map[string]string{
 				tokensAdminOwnerPredicate: adminOwnerPredicate,
-				tokensFeelessMode: "true",
+				tokensFeelessMode:         "true",
 			},
 		}
 		homeDir := writeShardConf(t, shardConf)
@@ -111,27 +110,6 @@ func Test_MoneyGenesis(t *testing.T) {
 		// require.True(t, params.FeelessMode)
 	})
 
-	t.Run("EvmGenesisState", func(t *testing.T) {
-		shardConf := types.PartitionDescriptionRecord{
-			Version:         1,
-			NetworkID:       5,
-			PartitionID:     evm.DefaultPartitionID,
-			PartitionTypeID: evm.PartitionTypeID,
-			TypeIDLen:       8,
-			UnitIDLen:       256,
-			T2Timeout:       2500 * time.Millisecond,
-			PartitionParams: map[string]string{
-				evmGasUnitPrice:  "9223372036854775808",
-				evmBlockGasLimit: "100000",
-			},
-		}
-
-		homeDir := writeShardConf(t, &shardConf)
-		cmd := New(testobserve.NewFactory(t))
-		cmd.baseCmd.SetArgs([]string{"shard-conf", "genesis", "--home", homeDir})
-		require.NoError(t, cmd.Execute(context.Background()))
-	})
-
 	t.Run("OrchestrationGenesisState", func(t *testing.T) {
 		const ownerPredicate = "830041025820F52022BB450407D92F13BF1C53128A676BCF304818E9F41A5EF4EBEAE9C0D6B0"
 
@@ -144,7 +122,7 @@ func Test_MoneyGenesis(t *testing.T) {
 			UnitIDLen:       256,
 			T2Timeout:       2500 * time.Millisecond,
 			PartitionParams: map[string]string{
-				orchestrationOwnerPredicate:  ownerPredicate,
+				orchestrationOwnerPredicate: ownerPredicate,
 			},
 		}
 		homeDir := writeShardConf(t, shardConf)

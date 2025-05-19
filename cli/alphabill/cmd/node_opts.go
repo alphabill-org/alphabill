@@ -11,7 +11,7 @@ type (
 	allOptions struct{}
 
 	// nodeRunnable is the function that is run after configuration is loaded.
-	nodeRunnable func(ctx context.Context, flags *shardNodeRunFlags) error
+	nodeRunnable func(ctx context.Context, flags *ShardNodeRunFlags) error
 )
 
 var (

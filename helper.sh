@@ -160,7 +160,7 @@ function start_root_nodes() {
 }
 
 # starts shard nodes
-# $1 partition type i.e. one of [money/tokens/evm/orchestration/tokens-enterprise]
+# $1 partition type i.e. one of [money/tokens/orchestration/tokens-enterprise]
 function start_shard_nodes() {
   local homePrefix=""
   local partitionId=""
@@ -178,12 +178,6 @@ function start_shard_nodes() {
       partitionId=2
       p2pPort=28666
       rpcPort=28866
-      ;;
-    evm)
-      homePrefix="testab/evm"
-      partitionId=3
-      p2pPort=29666
-      rpcPort=29866
       ;;
     orchestration)
       homePrefix="testab/orchestration"

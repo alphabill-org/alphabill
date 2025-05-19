@@ -6,7 +6,7 @@ set -e
 source helper.sh
 
 usage() {
-  echo "Usage: $0 [-h usage] [-r start root] [-p start partition: money, tokens, evm, orchestration, tokens-enterprise]"
+  echo "Usage: $0 [-h usage] [-r start root] [-p start partition: money, tokens, orchestration, tokens-enterprise]"
   exit 0
 }
 

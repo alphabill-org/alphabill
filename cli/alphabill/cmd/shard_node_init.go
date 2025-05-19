@@ -50,10 +50,10 @@ func shardNodeInitCmd(baseFlags *baseFlags) *cobra.Command {
 }
 
 func shardNodeInit(_ context.Context, flags *shardNodeInitFlags) error {
-	nodeInfoPath := flags.pathWithDefault("", nodeInfoFileName)
+	nodeInfoPath := flags.PathWithDefault("", nodeInfoFileName)
 	if util.FileExists(nodeInfoPath) {
 		return fmt.Errorf("node info %q already exists", nodeInfoPath)
-	} else if err := os.MkdirAll(filepath.Dir(nodeInfoPath), 0700); err != nil {  // -rwx------
+	} else if err := os.MkdirAll(filepath.Dir(nodeInfoPath), 0700); err != nil { // -rwx------
 		return err
 	}
 	keyConf, err := flags.loadKeyConf(flags.baseFlags, flags.Generate)
@@ -94,7 +94,7 @@ func (c *keyConfFlags) addKeyConfFlags(cmd *cobra.Command, enableGenerate bool) 
 }
 
 func (c *keyConfFlags) loadKeyConf(baseFlags *baseFlags, generate bool) (ret *partition.KeyConf, err error) {
-	keyConfPath := baseFlags.pathWithDefault(c.KeyConfFile, keyConfFileName)
+	keyConfPath := baseFlags.PathWithDefault(c.KeyConfFile, keyConfFileName)
 
 	if generate && !util.FileExists(keyConfPath) {
 		// ensure intermediate dirs exist

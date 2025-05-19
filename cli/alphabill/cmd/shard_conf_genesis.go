@@ -7,10 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/alphabill-org/alphabill-go-base/txsystem/evm"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
-	"github.com/alphabill-org/alphabill-go-base/txsystem/orchestration"
-	"github.com/alphabill-org/alphabill-go-base/txsystem/tokens"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/util"
 
@@ -18,7 +15,7 @@ import (
 	abmoney "github.com/alphabill-org/alphabill/txsystem/money"
 )
 
-const stateFileName = "state.cbor"
+const StateFileName = "state.cbor"
 
 var moneyPartitionInitialBillID = append(make(types.UnitID, 31), 1, money.BillUnitType)
 
@@ -50,12 +47,12 @@ func shardConfGenesis(flags *shardConfGenesisFlags) error {
 	if err != nil {
 		return err
 	}
-	statePath := flags.pathWithDefault("", stateFileName)
+	statePath := flags.PathWithDefault("", StateFileName)
 	if util.FileExists(statePath) {
 		return fmt.Errorf("state file %q already exists", statePath)
 	}
 
-	state, err := newGenesisState(shardConf)
+	state, err := newGenesisState(shardConf, flags)
 	if err != nil {
 		return err
 	}
@@ -65,19 +62,12 @@ func shardConfGenesis(flags *shardConfGenesisFlags) error {
 	return nil
 }
 
-func newGenesisState(pdr *types.PartitionDescriptionRecord) (*state.State, error) {
-	switch pdr.PartitionTypeID {
-	case money.PartitionTypeID:
-		return newMoneyGenesisState(pdr)
-	case tokens.PartitionTypeID:
-		return state.NewEmptyState(), nil
-	case evm.PartitionTypeID:
-		return state.NewEmptyState(), nil
-	case orchestration.PartitionTypeID:
-		return state.NewEmptyState(), nil
-	default:
+func newGenesisState(pdr *types.PartitionDescriptionRecord, flags *shardConfGenesisFlags) (*state.State, error) {
+	partition, ok := flags.baseFlags.partitions[pdr.PartitionTypeID]
+	if !ok {
 		return nil, fmt.Errorf("unsupported partition type %d", pdr.PartitionTypeID)
 	}
+	return partition.NewGenesisState(pdr)
 }
 
 func newMoneyGenesisState(pdr *types.PartitionDescriptionRecord) (*state.State, error) {

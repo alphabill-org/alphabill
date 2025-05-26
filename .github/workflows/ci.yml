@@ -39,6 +39,7 @@ jobs:
 
   analyze:
     runs-on: ubuntu-latest
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - name: Setup Go ${{ env.GO_VERSION }}
@@ -48,4 +49,4 @@ jobs:
       - name: Install gosec
         run: go install github.com/securego/gosec/v2/cmd/gosec@latest
       - name: gosec
-        run: gosec ./... -no-fail
+        run: gosec ./...

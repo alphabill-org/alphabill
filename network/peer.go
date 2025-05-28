@@ -182,6 +182,7 @@ func (p *Peer) BootstrapConnect(ctx context.Context, log *slog.Logger) error {
 			if isBootnode {
 				countdown = 0
 			}
+			retryDelay := time.Duration(p.conf.BootstrapConnectRetry.Delay) * time.Second
 
 			for ; ; countdown-- {
 				err := p.host.Connect(ctx, peerAddr)
@@ -189,7 +190,7 @@ func (p *Peer) BootstrapConnect(ctx context.Context, log *slog.Logger) error {
 					log.DebugContext(ctx, fmt.Sprintf("Bootstrap dial %s to %s: success", p.host.ID(), peerAddr.ID))
 					return
 				}
-				log.DebugContext(ctx, fmt.Sprintf("Bootstrap dial %s to %s failed: %s, retry in %s", p.host.ID(), peerAddr.ID, err, time.Second))
+				log.DebugContext(ctx, fmt.Sprintf("Bootstrap dial %s to %s failed: %s, retry in %s", p.host.ID(), peerAddr.ID, err, retryDelay))
 				if countdown <= 0 {
 					log.WarnContext(ctx, fmt.Sprintf("Bootstrap dial %s to %s failed: %s", p.host.ID(), peerAddr.ID, err))
 					errs <- err
@@ -197,7 +198,7 @@ func (p *Peer) BootstrapConnect(ctx context.Context, log *slog.Logger) error {
 				}
 
 				select {
-				case <-time.After(time.Duration(p.conf.BootstrapConnectRetry.Delay) * time.Second):
+				case <-time.After(retryDelay):
 					continue
 				case <-ctx.Done():
 					return

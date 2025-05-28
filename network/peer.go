@@ -190,13 +190,12 @@ func (p *Peer) BootstrapConnect(ctx context.Context, log *slog.Logger) error {
 					log.DebugContext(ctx, fmt.Sprintf("Bootstrap dial %s to %s: success", p.host.ID(), peerAddr.ID))
 					return
 				}
-				log.DebugContext(ctx, fmt.Sprintf("Bootstrap dial %s to %s failed: %s, retry in %s", p.host.ID(), peerAddr.ID, err, retryDelay))
 				if countdown <= 0 {
 					log.WarnContext(ctx, fmt.Sprintf("Bootstrap dial %s to %s failed: %s", p.host.ID(), peerAddr.ID, err))
 					errs <- err
 					return
 				}
-
+				log.DebugContext(ctx, fmt.Sprintf("Bootstrap dial %s to %s failed: %s, retry in %s", p.host.ID(), peerAddr.ID, err, retryDelay))
 				select {
 				case <-time.After(retryDelay):
 					continue

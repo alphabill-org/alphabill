@@ -3,28 +3,28 @@ package storage
 import (
 	"crypto"
 	"encoding/hex"
+	"errors"
 	"fmt"
+	"path/filepath"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
-	"github.com/alphabill-org/alphabill/internal/testutils/logger"
-	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
 	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
-	testpartition "github.com/alphabill-org/alphabill/rootchain/partitions/testutils"
 )
 
-func mockExecutedBlock(round, qcRound, qcParentRound uint64) *ExecutedBlock {
+func mockExecutedBlock(round, qcRound uint64) ExecutedBlock {
 	var randomHash = test.RandomBytes(32)
-	return &ExecutedBlock{
+	return ExecutedBlock{
 		BlockData: &drctypes.BlockData{
 			Round: round,
 			Qc: &drctypes.QuorumCert{
 				VoteInfo: &drctypes.RoundInfo{
 					RoundNumber:       qcRound,
-					ParentRoundNumber: qcParentRound,
+					ParentRoundNumber: qcRound - 1,
 					Epoch:             0,
 					CurrentRootHash:   randomHash,
 				},
@@ -55,10 +55,13 @@ createTestBlockTree creates the following tree
 	       ╰--> B11--> B12
 */
 func createTestBlockTree(t *testing.T) *BlockTree {
-	treeNodes := make(map[uint64]*node)
-	db, err := memorydb.New()
+	// we actually do not need the storage for (all) these tests!?
+	db, err := NewBoltStorage(filepath.Join(t.TempDir(), "blocks.db"))
 	require.NoError(t, err)
-	rootNode := &node{data: &ExecutedBlock{BlockData: &drctypes.BlockData{Author: "B5", Round: 5}}}
+	t.Cleanup(func() { _ = db.Close() })
+
+	treeNodes := make(map[uint64]*node)
+	rootNode := &node{data: &ExecutedBlock{BlockData: &drctypes.BlockData{Author: "B5", Round: 5}, CommitQc: &drctypes.QuorumCert{}}}
 	b6 := newNode(&ExecutedBlock{BlockData: &drctypes.BlockData{Author: "B6", Round: 6, Qc: &drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 5}}}})
 	b7 := newNode(&ExecutedBlock{BlockData: &drctypes.BlockData{Author: "B7", Round: 7, Qc: &drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 6}}}})
 	b8 := newNode(&ExecutedBlock{BlockData: &drctypes.BlockData{Author: "B8", Round: 8, Qc: &drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 7}}}})
@@ -79,22 +82,24 @@ func createTestBlockTree(t *testing.T) *BlockTree {
 	b9.addChild(b11)
 	// B11--> B12
 	b11.addChild(b12)
+
 	treeNodes[5] = rootNode
-	require.NoError(t, db.Write(blockKey(5), rootNode.data))
+	require.NoError(t, db.WriteBlock(rootNode.data, true))
 	treeNodes[6] = b6
-	require.NoError(t, db.Write(blockKey(6), b6.data))
+	require.NoError(t, db.WriteBlock(b6.data, false))
 	treeNodes[7] = b7
-	require.NoError(t, db.Write(blockKey(7), b7.data))
+	require.NoError(t, db.WriteBlock(b7.data, false))
 	treeNodes[8] = b8
-	require.NoError(t, db.Write(blockKey(8), b8.data))
+	require.NoError(t, db.WriteBlock(b8.data, false))
 	treeNodes[9] = b9
-	require.NoError(t, db.Write(blockKey(9), b9.data))
+	require.NoError(t, db.WriteBlock(b9.data, false))
 	treeNodes[10] = b10
-	require.NoError(t, db.Write(blockKey(10), b10.data))
+	require.NoError(t, db.WriteBlock(b10.data, false))
 	treeNodes[11] = b11
-	require.NoError(t, db.Write(blockKey(11), b11.data))
+	require.NoError(t, db.WriteBlock(b11.data, false))
 	treeNodes[12] = b12
-	require.NoError(t, db.Write(blockKey(12), b12.data))
+	require.NoError(t, db.WriteBlock(b12.data, false))
+
 	return &BlockTree{
 		root:        rootNode,
 		roundToNode: treeNodes,
@@ -102,23 +107,11 @@ func createTestBlockTree(t *testing.T) *BlockTree {
 	}
 }
 
-func initFromGenesis(t *testing.T) *BlockTree {
-	t.Helper()
-	db, err := memorydb.New()
-	require.NoError(t, err)
-
-	require.NoError(t, storeGenesisInit(db, 5, crypto.SHA256))
-	orchestration := testpartition.NewOrchestration(t, logger.New(t))
-	btree, err := NewBlockTree(db, orchestration)
-	require.NoError(t, err)
-	return btree
-}
-
 func TestBlockTree_RemoveLeaf(t *testing.T) {
 	tree := createTestBlockTree(t)
 	// remove leaf that has children
 	require.ErrorContains(t, tree.RemoveLeaf(9), "error round 9 is not leaf node")
-	require.ErrorContains(t, tree.RemoveLeaf(5), "error root cannot be removed")
+	require.ErrorContains(t, tree.RemoveLeaf(5), "root block cannot be removed")
 	require.ErrorContains(t, tree.RemoveLeaf(11), "error round 11 is not leaf node")
 	require.NoError(t, tree.RemoveLeaf(8))
 	b, err := tree.FindBlock(8)
@@ -189,6 +182,7 @@ func TestBlockTree_pruning(t *testing.T) {
 		require.NotContains(t, rounds, uint64(7))
 		require.NotContains(t, rounds, uint64(8))
 	})
+
 	t.Run("prune from round 12", func(t *testing.T) {
 		tree := createTestBlockTree(t)
 		// find blocks to prune if new committed root is B12
@@ -199,6 +193,7 @@ func TestBlockTree_pruning(t *testing.T) {
 		require.ElementsMatch(t, rounds, []uint64{5, 6, 7, 8, 9, 10, 11})
 		require.NotContains(t, rounds, uint64(12))
 	})
+
 	t.Run("prune from round 9", func(t *testing.T) {
 		tree := createTestBlockTree(t)
 		// find blocks to prune if new committed root is B9
@@ -212,6 +207,7 @@ func TestBlockTree_pruning(t *testing.T) {
 		require.NotContains(t, rounds, uint64(11))
 		require.NotContains(t, rounds, uint64(12))
 	})
+
 	t.Run("err - new root not found", func(t *testing.T) {
 		tree := createTestBlockTree(t)
 		// new root cannot be found
@@ -219,6 +215,7 @@ func TestBlockTree_pruning(t *testing.T) {
 		require.ErrorContains(t, err, "new root round 15 not found")
 		require.Nil(t, rounds)
 	})
+
 	t.Run("no changes, old is also new root", func(t *testing.T) {
 		tree := createTestBlockTree(t)
 		// nothing gets pruned if new root is old root
@@ -238,260 +235,275 @@ func TestBlockTree_InsertQc(t *testing.T) {
 	require.NoError(t, tree.InsertQc(&drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 12, CurrentRootHash: []byte{1, 2, 3}}}))
 }
 
-func TestNewBlockTree(t *testing.T) {
-	bTree := initFromGenesis(t)
-	b, err := bTree.FindBlock(1)
-	require.NoError(t, err)
-	require.Equal(t, uint64(1), b.BlockData.Round)
-	require.Nil(t, b.RootHash)
-	require.Equal(t, bTree.Root(), b)
-	_, err = bTree.FindBlock(2)
-	require.Error(t, err)
-	require.Len(t, bTree.GetAllUncommittedNodes(), 0)
-	require.NotNil(t, bTree.HighQc())
-	require.Equal(t, b.CommitQc, bTree.HighQc())
-	require.EqualValues(t, 1, bTree.HighQc().GetRound())
+func Test_NewBlockTree(t *testing.T) {
+	// in most tests it's OK to return no PDRs from Orchestration
+	orchestration := mockOrchestration{
+		shardConfigs: func(rootRound uint64) (map[types.PartitionShardID]*types.PartitionDescriptionRecord, error) {
+			return nil, nil
+		},
+	}
+	// prepare block chain with committed/root and two uncommitted child blocks.
+	blockRoot := ExecutedBlock{BlockData: &drctypes.BlockData{Round: 4}, CommitQc: &drctypes.QuorumCert{}}
+	block1 := mockExecutedBlock(blockRoot.GetRound()+1, blockRoot.GetRound())
+	block2 := mockExecutedBlock(block1.GetRound()+1, block1.GetRound())
+
+	t.Run("invalid argument", func(t *testing.T) {
+		bt, err := NewBlockTree(nil, nil)
+		require.EqualError(t, err, `block tree init failed, database is nil`)
+		require.Nil(t, bt)
+	})
+
+	t.Run("load blocks fails", func(t *testing.T) {
+		expErr := errors.New("failure to load blocks")
+		db := mockPersistentStore{
+			loadBlocks: func() ([]*ExecutedBlock, error) { return nil, expErr },
+		}
+		bt, err := NewBlockTree(db, nil)
+		require.ErrorIs(t, err, expErr)
+		require.Nil(t, bt)
+	})
+
+	t.Run("no root block", func(t *testing.T) {
+		db := mockPersistentStore{
+			loadBlocks: func() ([]*ExecutedBlock, error) { return []*ExecutedBlock{&block2, &block1}, nil },
+		}
+		bt, err := NewBlockTree(db, nil)
+		require.EqualError(t, err, `root block not found`)
+		require.Nil(t, bt)
+	})
+
+	t.Run("invalid blocks - gap", func(t *testing.T) {
+		db := mockPersistentStore{
+			// missing block between block2 and root
+			loadBlocks: func() ([]*ExecutedBlock, error) { return []*ExecutedBlock{&block2, &blockRoot}, nil },
+		}
+		bt, err := NewBlockTree(db, orchestration)
+		require.EqualError(t, err, `cannot add block for round 6, parent block 5 not found`)
+		require.Nil(t, bt)
+	})
+
+	t.Run("failure to init root block", func(t *testing.T) {
+		expErr := errors.New("no ShardInfo")
+		orchestration := mockOrchestration{
+			shardConfigs: func(rootRound uint64) (map[types.PartitionShardID]*types.PartitionDescriptionRecord, error) {
+				if rootRound == blockRoot.GetRound() {
+					return nil, expErr
+				}
+				return nil, nil
+			},
+		}
+		db := mockPersistentStore{
+			loadBlocks: func() ([]*ExecutedBlock, error) { return []*ExecutedBlock{&blockRoot}, nil },
+		}
+		bt, err := NewBlockTree(db, orchestration)
+		require.ErrorIs(t, err, expErr)
+		require.Nil(t, bt)
+	})
+
+	t.Run("failure to init child block", func(t *testing.T) {
+		expErr := errors.New("no ShardInfo")
+		orchestration := mockOrchestration{
+			shardConfigs: func(rootRound uint64) (map[types.PartitionShardID]*types.PartitionDescriptionRecord, error) {
+				if rootRound == block1.GetRound() {
+					return nil, expErr
+				}
+				return nil, nil
+			},
+		}
+		db := mockPersistentStore{
+			loadBlocks: func() ([]*ExecutedBlock, error) { return []*ExecutedBlock{&block1, &blockRoot}, nil },
+		}
+		bt, err := NewBlockTree(db, orchestration)
+		require.ErrorIs(t, err, expErr)
+		require.Nil(t, bt)
+	})
+
+	t.Run("multiple root candidates", func(t *testing.T) {
+		root2 := ExecutedBlock{BlockData: &drctypes.BlockData{Round: block1.GetRound() + 1}, CommitQc: &drctypes.QuorumCert{}}
+		db := mockPersistentStore{
+			// both root2 and blockRoot are committed nodes, first one (the persistent store is expected to return
+			// nodes in the descending round order!) is selected to be the root (root2 in this case)
+			loadBlocks: func() ([]*ExecutedBlock, error) { return []*ExecutedBlock{&root2, &block1, &blockRoot}, nil },
+		}
+		bt, err := NewBlockTree(db, orchestration)
+		require.NoError(t, err)
+		require.NotNil(t, bt)
+		require.Equal(t, &root2, bt.Root())
+	})
+
+	t.Run("build tree from existing state", func(t *testing.T) {
+		db := mockPersistentStore{
+			loadBlocks: func() ([]*ExecutedBlock, error) { return []*ExecutedBlock{&block2, &block1, &blockRoot}, nil },
+		}
+		bt, err := NewBlockTree(db, orchestration)
+		require.NoError(t, err)
+		require.NotNil(t, bt)
+		require.Equal(t, &blockRoot, bt.Root())
+		b, err := bt.FindBlock(block1.GetRound())
+		require.NoError(t, err)
+		require.Equal(t, &block1, b)
+		b, err = bt.FindBlock(block2.GetRound())
+		require.NoError(t, err)
+		require.Equal(t, &block2, b)
+		blocks := bt.GetAllUncommittedNodes()
+		if assert.Len(t, blocks, 2) {
+			require.Contains(t, blocks, &block1)
+			require.Contains(t, blocks, &block2)
+		}
+	})
+
+	t.Run("no blocks, init from genesis", func(t *testing.T) {
+		db := mockPersistentStore{
+			// returning no blocks/no error triggers initialization with genesis
+			loadBlocks: func() ([]*ExecutedBlock, error) { return nil, nil },
+			// the genesis block is stored to DB
+			writeBlock: func(block *ExecutedBlock, root bool) error {
+				require.Equal(t, drctypes.GenesisRootRound, block.GetRound())
+				return nil
+			},
+		}
+		bt, err := NewBlockTree(db, orchestration)
+		require.NoError(t, err)
+		require.NotNil(t, bt)
+		rootB := bt.Root()
+		require.NotNil(t, rootB)
+		require.Equal(t, drctypes.GenesisRootRound, rootB.GetRound())
+		require.Len(t, bt.GetAllUncommittedNodes(), 0)
+		require.NotNil(t, bt.HighQc())
+	})
 }
 
-func TestNewBlockTreeFromDb(t *testing.T) {
-	db, err := memorydb.New()
-	require.NoError(t, err)
-	orchestration := testpartition.NewOrchestration(t, logger.New(t))
+func Test_NewBlockTreeWithRootBlock(t *testing.T) {
+	t.Run("db storage failure", func(t *testing.T) {
+		expErr := errors.New("can't store the block")
+		db := mockPersistentStore{
+			writeBlock: func(block *ExecutedBlock, root bool) error { return expErr },
+		}
+		bt, err := NewBlockTreeWithRootBlock(&ExecutedBlock{}, db)
+		require.ErrorIs(t, err, expErr)
+		require.Nil(t, bt)
+	})
 
-	gBlock, err := NewGenesisBlock(orchestration.NetworkID(), crypto.SHA256)
-	require.NoError(t, err)
-	require.NoError(t, db.Write(blockKey(drctypes.GenesisRootRound), gBlock))
-
-	// create a new block
-	block2 := &ExecutedBlock{
-		BlockData: &drctypes.BlockData{
-			Author:    "test",
-			Round:     drctypes.GenesisRootRound + 1,
-			Epoch:     0,
-			Timestamp: types.NewTimestamp(),
-			Payload:   &drctypes.Payload{},
-			Qc:        gBlock.Qc,
-		},
-		HashAlgo: crypto.SHA256,
-		RootHash: gBlock.RootHash,
-	}
-	require.NoError(t, db.Write(blockKey(block2.GetRound()), block2))
-
-	bTree, err := NewBlockTree(db, orchestration)
-	require.NoError(t, err)
-	require.NotNil(t, bTree)
-	require.Len(t, bTree.roundToNode, 2)
-	hQc := bTree.HighQc()
-	require.NotNil(t, hQc)
-	require.Equal(t, uint64(1), hQc.VoteInfo.RoundNumber)
+	t.Run("success", func(t *testing.T) {
+		recoveryBlock := mockExecutedBlock(990, 989)
+		stored := false
+		db := mockPersistentStore{
+			writeBlock: func(block *ExecutedBlock, root bool) error {
+				require.Equal(t, &recoveryBlock, block)
+				require.True(t, root)
+				stored = true
+				return nil
+			},
+		}
+		bt, err := NewBlockTreeWithRootBlock(&recoveryBlock, db)
+		require.NoError(t, err)
+		require.NotNil(t, bt)
+		require.True(t, stored)
+	})
 }
 
-func TestNewBlockTreeFromDbChain3Blocks(t *testing.T) {
-	db, err := memorydb.New()
-	require.NoError(t, err)
-	orchestration := testpartition.NewOrchestration(t, logger.New(t))
-	gBlock, err := NewGenesisBlock(orchestration.NetworkID(), crypto.SHA256)
-	require.NoError(t, err)
-	require.NoError(t, db.Write(blockKey(drctypes.GenesisRootRound), gBlock))
-	// create blocks 2 and 3
-	voteInfoB2 := &drctypes.RoundInfo{
-		RoundNumber:       2,
-		Timestamp:         types.NewTimestamp(),
-		ParentRoundNumber: 1,
-		CurrentRootHash:   gBlock.RootHash,
-	}
-	h2, err := voteInfoB2.Hash(crypto.SHA256)
-	require.NoError(t, err)
-	qcBlock2 := &drctypes.QuorumCert{
-		VoteInfo: voteInfoB2,
-		LedgerCommitInfo: &types.UnicitySeal{
-			Version:      1,
-			PreviousHash: h2,
-			Hash:         gBlock.RootHash,
+func Test_BlockTree_Add(t *testing.T) {
+	// in most tests it's OK to return no PDRs from Orchestration - the ShardInfo
+	// of the blocks will not be initialized but it's not used by the test
+	orchestration := mockOrchestration{
+		shardConfigs: func(rootRound uint64) (map[types.PartitionShardID]*types.PartitionDescriptionRecord, error) {
+			return nil, nil
 		},
 	}
-	// create a new block
-	block2 := &ExecutedBlock{
-		BlockData: &drctypes.BlockData{
-			Author:    "test",
-			Round:     drctypes.GenesisRootRound + 1,
-			Epoch:     0,
-			Timestamp: types.NewTimestamp(),
-			Payload:   &drctypes.Payload{},
-			Qc:        gBlock.Qc,
-		},
-		HashAlgo: crypto.SHA256,
-		RootHash: gBlock.RootHash,
-	}
-	block3 := &ExecutedBlock{
-		BlockData: &drctypes.BlockData{
-			Author:    "test",
-			Round:     drctypes.GenesisRootRound + 2,
-			Epoch:     0,
-			Timestamp: types.NewTimestamp() + 1000,
-			Payload:   &drctypes.Payload{},
-			Qc:        qcBlock2,
-		},
-		HashAlgo: crypto.SHA256,
-		RootHash: gBlock.RootHash,
-	}
-	require.NoError(t, db.Write(blockKey(block2.BlockData.Round), block2))
-	require.NoError(t, db.Write(blockKey(block3.BlockData.Round), block3))
+	// prepare block chain with committed/root and two uncommitted child blocks.
+	blockRoot := ExecutedBlock{BlockData: &drctypes.BlockData{Round: 4}, CommitQc: &drctypes.QuorumCert{}}
+	block1 := mockExecutedBlock(blockRoot.GetRound()+1, blockRoot.GetRound())
+	block2 := mockExecutedBlock(block1.GetRound()+1, block1.GetRound())
 
-	bTree, err := NewBlockTree(db, orchestration)
-	require.NoError(t, err)
-	require.NotNil(t, bTree)
-	require.Len(t, bTree.roundToNode, 3)
-	hQc := bTree.HighQc()
-	require.NotNil(t, hQc)
-	require.Equal(t, uint64(2), hQc.VoteInfo.RoundNumber)
-}
+	t.Run("round already exists", func(t *testing.T) {
+		db := mockPersistentStore{
+			loadBlocks: func() ([]*ExecutedBlock, error) { return []*ExecutedBlock{&block2, &block1, &blockRoot}, nil },
+		}
+		bt, err := NewBlockTree(db, orchestration)
+		require.NoError(t, err)
+		require.EqualError(t, bt.Add(&blockRoot), `block for round 4 already exists`)
+		require.EqualError(t, bt.Add(&block1), `block for round 5 already exists`)
+		require.EqualError(t, bt.Add(&block2), `block for round 6 already exists`)
+		// blocks should still be in the tree
+		b, err := bt.FindBlock(block2.GetRound())
+		require.NoError(t, err)
+		require.Equal(t, &block2, b)
+	})
 
-func TestNewBlockTreeFromRecovery(t *testing.T) {
-	db, err := memorydb.New()
-	require.NoError(t, err)
-	gBlock, err := NewGenesisBlock(5, crypto.SHA256)
-	require.NoError(t, err)
-	require.NoError(t, db.Write(blockKey(drctypes.GenesisRootRound), gBlock))
-	// create blocks 2 and 3
-	voteInfoB2 := &drctypes.RoundInfo{
-		RoundNumber:       2,
-		Timestamp:         types.NewTimestamp(),
-		ParentRoundNumber: 1,
-		CurrentRootHash:   gBlock.RootHash,
-	}
-	h2, err := voteInfoB2.Hash(crypto.SHA256)
-	require.NoError(t, err)
-	qcBlock2 := &drctypes.QuorumCert{
-		VoteInfo: voteInfoB2,
-		LedgerCommitInfo: &types.UnicitySeal{
-			Version:      1,
-			PreviousHash: h2,
-			Hash:         gBlock.RootHash,
-		},
-	}
-	bTree, err := NewBlockTreeWithRootBlock(gBlock, db)
-	require.NoError(t, err)
-	require.NotNil(t, bTree)
-	// create a new block
-	block2 := &ExecutedBlock{
-		BlockData: &drctypes.BlockData{
-			Author:    "test",
-			Round:     drctypes.GenesisRootRound + 1,
-			Epoch:     0,
-			Timestamp: types.NewTimestamp(),
-			Payload:   &drctypes.Payload{},
-			Qc:        gBlock.Qc,
-		},
-		HashAlgo: crypto.SHA256,
-		RootHash: gBlock.RootHash,
-	}
-	require.NoError(t, bTree.Add(block2))
-	require.NoError(t, bTree.InsertQc(block2.BlockData.Qc))
-	block3 := &ExecutedBlock{
-		BlockData: &drctypes.BlockData{
-			Author:    "test",
-			Round:     drctypes.GenesisRootRound + 2,
-			Epoch:     0,
-			Timestamp: types.NewTimestamp() + 1000,
-			Payload:   &drctypes.Payload{},
-			Qc:        qcBlock2,
-		},
-		HashAlgo: crypto.SHA256,
-		RootHash: gBlock.RootHash,
-	}
-	require.NoError(t, bTree.Add(block3))
-	require.NoError(t, bTree.InsertQc(block3.BlockData.Qc))
-	require.Len(t, bTree.roundToNode, 3)
-	hQc := bTree.HighQc()
-	require.NotNil(t, hQc)
-	require.Equal(t, uint64(2), hQc.VoteInfo.RoundNumber)
-}
+	t.Run("no parent round", func(t *testing.T) {
+		db := mockPersistentStore{
+			loadBlocks: func() ([]*ExecutedBlock, error) { return []*ExecutedBlock{&blockRoot}, nil },
+		}
+		bt, err := NewBlockTree(db, orchestration)
+		require.NoError(t, err)
+		require.EqualError(t, bt.Add(&block2), `cannot add block for round 6, parent block 5 not found`)
+		// make sure the new block is not in the tree
+		b, err := bt.FindBlock(block2.GetRound())
+		require.EqualError(t, err, `block for round 6 not found`)
+		require.Nil(t, b)
+	})
 
-func TestAddErrorCases(t *testing.T) {
-	bTree := initFromGenesis(t)
-	//root := bTree.Root()
-	// try to add genesis block again
-	nextBlock := mockExecutedBlock(drctypes.GenesisRootRound, drctypes.GenesisRootRound, 0)
-	require.ErrorContains(t, bTree.Add(nextBlock), "error block for round 1 already exists")
-	// unknown parent round i.e. skip a block
-	nextBlock = mockExecutedBlock(drctypes.GenesisRootRound+2, drctypes.GenesisRootRound+1, drctypes.GenesisRootRound)
-	require.ErrorContains(t, bTree.Add(nextBlock), "error cannot add block for round 3, parent block 2 not found")
-	// try to remove root block
-	require.ErrorContains(t, bTree.RemoveLeaf(drctypes.GenesisRootRound), "error root cannot be removed")
-}
+	t.Run("persisting new block fails", func(t *testing.T) {
+		expErr := errors.New("storage failure")
+		db := mockPersistentStore{
+			loadBlocks: func() ([]*ExecutedBlock, error) { return []*ExecutedBlock{&block1, &blockRoot}, nil },
+			writeBlock: func(block *ExecutedBlock, root bool) error { return expErr },
+		}
+		bt, err := NewBlockTree(db, orchestration)
+		require.NoError(t, err)
+		require.ErrorIs(t, bt.Add(&block2), expErr)
+		// persisting is the last op so the block is in the memory tree!
+		b, err := bt.FindBlock(block2.GetRound())
+		require.NoError(t, err)
+		require.Equal(t, &block2, b)
+	})
 
-func TestAddAndCommit(t *testing.T) {
-	bTree := initFromGenesis(t)
-	// append next
-	nextBlock := mockExecutedBlock(drctypes.GenesisRootRound+1, drctypes.GenesisRootRound, 0)
-	require.NoError(t, bTree.Add(nextBlock))
-	// and another
-	nextBlock = mockExecutedBlock(drctypes.GenesisRootRound+2, drctypes.GenesisRootRound+1, drctypes.GenesisRootRound)
-	require.NoError(t, bTree.Add(nextBlock))
-	root := bTree.Root()
-	require.Equal(t, root.BlockData.Round, drctypes.GenesisRootRound)
-	require.Len(t, bTree.GetAllUncommittedNodes(), 2)
-	// find path to root
-	blocks := bTree.findPathToRoot(drctypes.GenesisRootRound + 2)
-	require.Len(t, blocks, 2)
-	require.Equal(t, uint64(3), blocks[0].BlockData.Round)
-	require.Equal(t, uint64(2), blocks[1].BlockData.Round)
-	pruned, err := bTree.findBlocksToPrune(3)
-	require.NoError(t, err)
-	require.Len(t, pruned, 2)
-	// find path to root
-	blocks = bTree.findPathToRoot(drctypes.GenesisRootRound + 1)
-	require.Len(t, blocks, 1)
-	// find path to root
-	blocks = bTree.findPathToRoot(drctypes.GenesisRootRound)
-	require.Len(t, blocks, 0)
-	require.Len(t, bTree.GetAllUncommittedNodes(), 2)
-	require.NoError(t, bTree.RemoveLeaf(drctypes.GenesisRootRound+2))
-	require.Len(t, bTree.roundToNode, 2)
-	pruned, err = bTree.findBlocksToPrune(2)
-	require.NoError(t, err)
-	require.Len(t, pruned, 1)
-	// current root will be pruned
-	require.Equal(t, root.BlockData.Round, pruned[0])
-	// add again link qc round is ok, so this is fine
-	nextBlock = mockExecutedBlock(drctypes.GenesisRootRound+3, drctypes.GenesisRootRound+1, drctypes.GenesisRootRound)
-	require.NoError(t, bTree.Add(nextBlock))
-	// make second consecutive round and commit QC for round 4
-	nextBlock = mockExecutedBlock(drctypes.GenesisRootRound+4, drctypes.GenesisRootRound+3, drctypes.GenesisRootRound)
-	require.NoError(t, bTree.Add(nextBlock))
-	// commit block for round 4 which will also commit round 2 (indirectly)
-	// test find block
-	b, err := bTree.FindBlock(uint64(2))
-	require.NoError(t, err)
-	require.Equal(t, uint64(2), b.BlockData.Round)
-	// test find block
-	b, err = bTree.FindBlock(drctypes.GenesisRootRound + 3)
-	require.NoError(t, err)
-	require.Equal(t, drctypes.GenesisRootRound+3, b.BlockData.Round)
-	// set block input data (mock blocks do not have it assigned) as without it
-	// commit creates empty unicity tree. As we do not have any shard marked as
-	// having changes Commit doesn't return any certificates.
-	k := types.PartitionShardID{PartitionID: 1, ShardID: types.ShardID{}.Key()}
-	b.ShardState.States[k] = &ShardInfo{PartitionID: 1, IR: &types.InputRecord{}}
-	b.RootHash = hexToBytes("F8C1F929F9E718FE5B19DD72BFD23802FFFE5FAC21711BF425548548262942E5")
+	t.Run("success", func(t *testing.T) {
+		db := mockPersistentStore{
+			loadBlocks: func() ([]*ExecutedBlock, error) { return []*ExecutedBlock{&blockRoot}, nil },
+			writeBlock: func(block *ExecutedBlock, root bool) error { return nil },
+		}
+		bt, err := NewBlockTree(db, orchestration)
+		require.NoError(t, err)
+		require.Len(t, bt.GetAllUncommittedNodes(), 0)
 
-	commitQc := &drctypes.QuorumCert{
-		VoteInfo: &drctypes.RoundInfo{
-			RoundNumber:       5,
-			ParentRoundNumber: 4,
-		},
-		LedgerCommitInfo: &types.UnicitySeal{
-			Version:      1,
-			PreviousHash: []byte{1, 2, 3},
-			Hash:         b.RootHash,
-		},
-	}
-	certs, err := bTree.Commit(commitQc)
-	require.NoError(t, err)
-	require.Empty(t, certs)
-	newRoot := bTree.Root()
-	require.Equal(t, newRoot, b)
-	require.Len(t, bTree.roundToNode, 2)
-	require.Len(t, bTree.GetAllUncommittedNodes(), 1)
+		require.NoError(t, bt.Add(&block1))
+		require.Len(t, bt.GetAllUncommittedNodes(), 1)
+
+		require.NoError(t, bt.Add(&block2))
+		b, err := bt.FindBlock(block2.GetRound())
+		require.NoError(t, err)
+		require.Equal(t, &block2, b)
+		require.Len(t, bt.GetAllUncommittedNodes(), 2)
+
+		require.Equal(t, &blockRoot, bt.Root(), "root should not have changed")
+
+		// set block input data (mock blocks do not have it assigned) as without it
+		// commit creates empty unicity tree. As we do not have any shard marked as
+		// having changes Commit doesn't return any certificates.
+		b, err = bt.FindBlock(block1.GetRound())
+		require.NoError(t, err)
+		k := types.PartitionShardID{PartitionID: 1, ShardID: types.ShardID{}.Key()}
+		b.ShardState.States[k] = &ShardInfo{PartitionID: 1, IR: &types.InputRecord{}}
+		b.RootHash = hexToBytes("F8C1F929F9E718FE5B19DD72BFD23802FFFE5FAC21711BF425548548262942E5")
+
+		commitQc := &drctypes.QuorumCert{
+			VoteInfo: &drctypes.RoundInfo{
+				RoundNumber:       b.GetRound() + 1,
+				ParentRoundNumber: b.GetRound(),
+			},
+			LedgerCommitInfo: &types.UnicitySeal{
+				Version:      1,
+				PreviousHash: []byte{1, 2, 3},
+				Hash:         b.RootHash,
+			},
+		}
+		certs, err := bt.Commit(commitQc)
+		require.NoError(t, err)
+		require.Empty(t, certs)
+		newRoot := bt.Root()
+		require.Equal(t, newRoot, b)
+		require.Len(t, bt.roundToNode, 2)
+		require.Len(t, bt.GetAllUncommittedNodes(), 1)
+	})
 }

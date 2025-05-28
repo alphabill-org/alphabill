@@ -172,7 +172,7 @@ func TestRootValidator_CannotBeStartedInvalidDBDir(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*100)
 	defer cancel()
-	require.ErrorContains(t, cmd.Execute(ctx), fmt.Sprintf("failed to init %q", invalidStore))
+	require.EqualError(t, cmd.Execute(ctx), fmt.Sprintf("open database: open %s: no such file or directory", invalidStore))
 }
 
 func Test_cfgHandler(t *testing.T) {

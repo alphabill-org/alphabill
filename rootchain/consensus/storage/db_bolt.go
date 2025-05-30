@@ -329,6 +329,9 @@ func (db BoltDB) migrateTo(ver uint64) error {
 	if err != nil {
 		return fmt.Errorf("determining current version of the database: %w", err)
 	}
+	if curVer > ver {
+		return fmt.Errorf("downgrading database version not supported, current is %d, asking for %d", curVer, ver)
+	}
 
 	for ; curVer < ver; curVer++ {
 		switch curVer {

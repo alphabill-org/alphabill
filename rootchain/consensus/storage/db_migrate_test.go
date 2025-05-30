@@ -45,11 +45,10 @@ func Test_migrate_rootchain_0_to_1(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.NoError(t, bDB.Close())
-		// as the "default" bucket is still missing attempt to upgrade should cause
-		// error but as the version is 2 the upgrade attempt shouldn't be triggered
+
 		db, err = NewBoltStorage(dbName)
-		require.NoError(t, err)
-		require.NoError(t, db.Close())
+		require.EqualError(t, err, `upgrading DB version: downgrading database version not supported, current is 2, asking for 1`)
+		require.Nil(t, db.db)
 	})
 
 	t.Run("version 1 bucket already exists", func(t *testing.T) {
@@ -186,6 +185,18 @@ func Test_migrate_rootchain_0_to_1(t *testing.T) {
 		// write committed block into DB again to trigger cleanup
 		require.NoError(t, db.WriteBlock(blocks[idx], true))
 		// now should have only three blocks left
+		blocks, err = db.LoadBlocks()
+		require.NoError(t, err)
+		require.Len(t, blocks, 3)
+		require.EqualValues(t, 3513792, blocks[0].GetRound())
+		require.EqualValues(t, 3513791, blocks[1].GetRound())
+		require.EqualValues(t, 3513790, blocks[2].GetRound())
+
+		/* reopen the DB, should be valid ver 1 DB containing 3 blocks */
+		require.NoError(t, db.Close())
+		db, err = NewBoltStorage(dbName)
+		require.NoError(t, err)
+		defer db.Close()
 		blocks, err = db.LoadBlocks()
 		require.NoError(t, err)
 		require.Len(t, blocks, 3)

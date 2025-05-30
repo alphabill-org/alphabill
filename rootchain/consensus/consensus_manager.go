@@ -58,6 +58,11 @@ type (
 		ShardConfigs(rootRound uint64) (map[types.PartitionShardID]*types.PartitionDescriptionRecord, error)
 	}
 
+	PersistentStore interface {
+		SafetyStorage
+		storage.PersistentStore
+	}
+
 	certRequest struct {
 		ircr IRChangeRequest
 		rsc  trace.SpanContext
@@ -115,6 +120,7 @@ func NewConsensusManager(
 	orchestration Orchestration,
 	net RootNet,
 	signer abcrypto.Signer,
+	rcDB PersistentStore,
 	observe Observability,
 	opts ...Option,
 ) (*ConsensusManager, error) {
@@ -139,7 +145,7 @@ func NewConsensusManager(
 	log := observe.RoundLogger(pm.GetCurrentRound)
 
 	// init storage
-	bStore, err := storage.New(cParams.HashAlgorithm, optional.Storage, orchestration, log)
+	bStore, err := storage.New(cParams.HashAlgorithm, rcDB, orchestration, log)
 	if err != nil {
 		return nil, fmt.Errorf("consensus block storage init failed: %w", err)
 	}
@@ -151,7 +157,7 @@ func NewConsensusManager(
 	if err != nil {
 		return nil, fmt.Errorf("failed to create T2 timeout generator: %w", err)
 	}
-	safetyModule, err := NewSafetyModule(trustBase.GetNetworkID(), nodeID.String(), signer, optional.Storage)
+	safetyModule, err := NewSafetyModule(trustBase.GetNetworkID(), nodeID.String(), signer, rcDB)
 	if err != nil {
 		return nil, err
 	}

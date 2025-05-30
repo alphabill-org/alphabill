@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"maps"
 	"os"
+	"path/filepath"
 	"runtime/pprof"
 	"slices"
 	"sync"
@@ -33,7 +34,7 @@ import (
 	"github.com/alphabill-org/alphabill/rootchain/consensus/storage"
 	abdrctu "github.com/alphabill-org/alphabill/rootchain/consensus/testutils"
 	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
-	testpartition "github.com/alphabill-org/alphabill/rootchain/partitions/testutils"
+	"github.com/alphabill-org/alphabill/rootchain/partitions"
 	"github.com/alphabill-org/alphabill/rootchain/testutils"
 )
 
@@ -75,13 +76,10 @@ func initConsensusManager(t *testing.T, rootNet RootNet, opts ...Option) (*Conse
 		EpochStart:      1,
 	}
 
-	orchestration := testpartition.NewOrchestration(t, observe.Logger())
-	require.NoError(t, orchestration.AddShardConfig(shardConf))
-
 	rootSigners := map[string]abcrypto.Signer{
 		rootNode.PeerConf.ID.String(): rootNode.Signer,
 	}
-	opts = append(opts, WithStorage(createStorage(t, shardConf, rootSigners)))
+	rootDB, orchestration := createStorage(t, shardConf, rootSigners, observe)
 
 	cm, err := NewConsensusManager(
 		rootNode.PeerConf.ID,
@@ -89,6 +87,7 @@ func initConsensusManager(t *testing.T, rootNet RootNet, opts ...Option) (*Conse
 		orchestration,
 		rootNet,
 		rootNode.Signer,
+		rootDB,
 		observe,
 		opts...,
 	)
@@ -504,7 +503,13 @@ func TestGetState_WithoutShards(t *testing.T) {
 		rootNode.PeerConf.ID.String(): rootNode.Verifier,
 	})
 	observe := testobservability.Default(t)
-	orchestration := testpartition.NewOrchestration(t, observe.Logger())
+	dir := t.TempDir()
+	orchestration, err := partitions.NewOrchestration(5, filepath.Join(dir, "orchestration.db"), observe.Logger())
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = orchestration.Close() })
+	rootDB, err := storage.NewBoltStorage(filepath.Join(dir, "root.db"))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = rootDB.Close() })
 
 	cm, err := NewConsensusManager(
 		rootNode.PeerConf.ID,
@@ -512,6 +517,7 @@ func TestGetState_WithoutShards(t *testing.T) {
 		orchestration,
 		mockNet,
 		rootNode.Signer,
+		rootDB,
 		observe,
 	)
 	require.NoError(t, err)
@@ -1303,7 +1309,7 @@ func Test_ConsensusManager_RestoreVote(t *testing.T) {
 		},
 	}
 	// store timeout vote to DB
-	require.NoError(t, storage.WriteVote(cm.blockStore.GetDB(), timeoutVote))
+	require.NoError(t, cm.blockStore.GetDB().WriteVote(timeoutVote))
 
 	// replace leader selector
 	allNodes := cm.leaderSelector.GetNodes()

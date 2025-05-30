@@ -5,9 +5,9 @@ import (
 	"errors"
 	"testing"
 
-	abhash "github.com/alphabill-org/alphabill-go-base/hash"
 	"github.com/stretchr/testify/require"
 
+	abhash "github.com/alphabill-org/alphabill-go-base/hash"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/network/protocol/certification"
 )

@@ -1,18 +1,14 @@
 package consensus
 
 import (
-	gocrypto "crypto"
-	"fmt"
+	"crypto"
 	"time"
-
-	"github.com/alphabill-org/alphabill/keyvaluedb"
-	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
 )
 
 const (
 	BlockRate     = 900
 	LocalTimeout  = 10000
-	HashAlgorithm = gocrypto.SHA256
+	HashAlgorithm = crypto.SHA256
 )
 
 type (
@@ -22,12 +18,11 @@ type (
 		BlockRate          time.Duration // also known as T3
 		LocalTimeout       time.Duration
 		ConsensusThreshold uint32
-		HashAlgorithm      gocrypto.Hash
+		HashAlgorithm      crypto.Hash
 	}
 	// Optional are common optional parameters for consensus managers
 	Optional struct {
-		Storage keyvaluedb.KeyValueDB
-		Params  *Parameters
+		Params *Parameters
 	}
 
 	Option func(c *Optional)
@@ -38,12 +33,6 @@ func NewConsensusParams() *Parameters {
 		BlockRate:     time.Duration(BlockRate) * time.Millisecond,
 		LocalTimeout:  time.Duration(LocalTimeout) * time.Millisecond,
 		HashAlgorithm: HashAlgorithm,
-	}
-}
-
-func WithStorage(db keyvaluedb.KeyValueDB) Option {
-	return func(c *Optional) {
-		c.Storage = db
 	}
 }
 
@@ -66,11 +55,5 @@ func LoadConf(opts []Option) (*Optional, error) {
 		conf.Params = NewConsensusParams()
 	}
 
-	if conf.Storage == nil {
-		var err error
-		if conf.Storage, err = memorydb.New(); err != nil {
-			return nil, fmt.Errorf("creating storage: %w", err)
-		}
-	}
 	return conf, nil
 }

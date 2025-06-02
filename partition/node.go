@@ -228,7 +228,7 @@ func (n *Node) initMetrics(observe Observability) (err error) {
 
 	_, err = m.Int64ObservableCounter("round", metric.WithDescription("current round"),
 		metric.WithInt64Callback(func(ctx context.Context, io metric.Int64Observer) error {
-			io.Observe(int64(n.currentRoundNumber()))
+			io.Observe(int64(n.currentRoundNumber())) /* #nosec G115 its unlikely that value of currentRoundNumber exceeds int64 max value */
 			return nil
 		}))
 	if err != nil {
@@ -1273,7 +1273,7 @@ func (n *Node) handleLedgerReplicationRequest(ctx context.Context, lr *replicati
 			lastFetchedBlockNumber = roundNo
 			blocks = append(blocks, lastFetchedBlock)
 			blockCnt++
-			countTx += uint32(len(bl.Transactions))
+			countTx += uint32(len(bl.Transactions)) /* #nosec G115 its unlikely that transactions count in block exceeds uint32 max value */
 			if countTx >= n.conf.replicationConfig.maxTx ||
 				blockCnt >= n.conf.replicationConfig.maxReturnBlocks ||
 				(roundNo >= lr.EndBlockNumber && lr.EndBlockNumber > 0) {
@@ -1429,7 +1429,7 @@ func (n *Node) handleBlock(ctx context.Context, b *types.Block) error {
 
 func (n *Node) sendLedgerReplicationRequest(ctx context.Context) {
 	startingBlockNr := n.committedUC().GetRoundNumber() + 1
-	ctx, span := n.tracer.Start(ctx, "node.sendLedgerReplicationRequest", trace.WithAttributes(attribute.Int64("starting_block", int64(startingBlockNr))))
+	ctx, span := n.tracer.Start(ctx, "node.sendLedgerReplicationRequest", trace.WithAttributes(attribute.Int64("starting_block", int64(startingBlockNr)))) /* #nosec G115 its unlikely that value of startingBlockNr exceeds int64 max value */
 	defer span.End()
 	n.recoveryReq.Add(ctx, 1, n.fixedAttr)
 

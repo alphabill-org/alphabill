@@ -22,7 +22,7 @@ func NewPartitionTrustBase(tb map[string]abcrypto.Verifier) *TrustBase {
 func (v *TrustBase) GetQuorum() uint64 {
 	// Partition quorum is currently set to 50%, meaning at least
 	// +1 to round up and avoid using floats
-	return uint64(len(v.partitionTrustBase)/2) + 1
+	return (uint64(len(v.partitionTrustBase)) / 2) + 1
 }
 
 // GetTotalNodes returns total number of registered validator nodes

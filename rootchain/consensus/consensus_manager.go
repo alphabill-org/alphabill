@@ -197,7 +197,7 @@ func (x *ConsensusManager) initMetrics(observe Observability) (err error) {
 
 	_, err = m.Int64ObservableCounter("round", metric.WithDescription("current round"),
 		metric.WithInt64Callback(func(ctx context.Context, io metric.Int64Observer) error {
-			io.Observe(int64(x.pacemaker.GetCurrentRound()))
+			io.Observe(int64(x.pacemaker.GetCurrentRound())) /* #nosec G115 its unlikely that value of current round exceeds int64 max value */
 			return nil
 		}))
 	if err != nil {

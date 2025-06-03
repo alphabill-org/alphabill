@@ -505,7 +505,7 @@ func (si *ShardInfo) ValidRequest(req *certification.BlockCertificationRequest) 
 
 func (si *ShardInfo) GetQuorum() uint64 {
 	// at least 50%
-	return uint64(len(si.trustBase)/2) + 1
+	return (uint64(len(si.trustBase)) / 2) + 1
 }
 
 func (si *ShardInfo) GetTotalNodes() uint64 {

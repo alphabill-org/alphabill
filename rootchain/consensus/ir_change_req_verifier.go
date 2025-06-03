@@ -114,5 +114,5 @@ func (x *PartitionTimeoutGenerator) GetT2Timeouts(currentRound uint64) ([]*types
 }
 
 func t2TimeoutToRootRounds(t2Timeout time.Duration, blockRate time.Duration) uint64 {
-	return uint64(t2Timeout/blockRate) + 1
+	return uint64(t2Timeout/blockRate) + 1 /* #nosec G115 its unlikely that t2Timeout/blockRate exceeds uint64 max value */
 }

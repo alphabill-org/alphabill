@@ -9,7 +9,6 @@ import (
 	"sync"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill/keyvaluedb"
 	"github.com/alphabill-org/alphabill/network/protocol/abdrc"
 	"github.com/alphabill-org/alphabill/network/protocol/certification"
 	rctypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
@@ -19,10 +18,21 @@ type (
 	BlockStore struct {
 		hash          crypto.Hash // hash algorithm
 		blockTree     *BlockTree
-		storage       keyvaluedb.KeyValueDB
+		storage       PersistentStore
 		orchestration Orchestration
 		lock          sync.RWMutex
 		log           *slog.Logger
+	}
+
+	PersistentStore interface {
+		LoadBlocks() ([]*ExecutedBlock, error)
+		WriteBlock(block *ExecutedBlock, root bool) error
+
+		WriteVote(vote any) error
+		ReadLastVote() (msg any, err error)
+
+		WriteTC(tc *rctypes.TimeoutCert) error
+		ReadLastTC() (*rctypes.TimeoutCert, error)
 	}
 
 	Orchestration interface {
@@ -32,19 +42,9 @@ type (
 	}
 )
 
-func New(hashAlgo crypto.Hash, db keyvaluedb.KeyValueDB, orchestration Orchestration, log *slog.Logger) (block *BlockStore, err error) {
+func New(hashAlgo crypto.Hash, db PersistentStore, orchestration Orchestration, log *slog.Logger) (block *BlockStore, err error) {
 	if db == nil {
 		return nil, errors.New("storage is nil")
-	}
-	// First start, initiate from genesis data
-	empty, err := keyvaluedb.IsEmpty(db)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read block store: %w", err)
-	}
-	if empty {
-		if err = storeGenesisInit(db, orchestration.NetworkID(), hashAlgo); err != nil {
-			return nil, fmt.Errorf("initializing block store: %w", err)
-		}
 	}
 
 	blTree, err := NewBlockTree(db, orchestration)
@@ -60,7 +60,7 @@ func New(hashAlgo crypto.Hash, db keyvaluedb.KeyValueDB, orchestration Orchestra
 	}, nil
 }
 
-func NewFromState(hash crypto.Hash, block *abdrc.CommittedBlock, db keyvaluedb.KeyValueDB, orchestration Orchestration, log *slog.Logger) (*BlockStore, error) {
+func NewFromState(hash crypto.Hash, block *abdrc.CommittedBlock, db PersistentStore, orchestration Orchestration, log *slog.Logger) (*BlockStore, error) {
 	if db == nil {
 		return nil, errors.New("storage is nil")
 	}
@@ -88,7 +88,7 @@ func (x *BlockStore) ProcessTc(tc *rctypes.TimeoutCert) (rErr error) {
 		return fmt.Errorf("error tc is nil")
 	}
 	// persist last known TC
-	if err := WriteLastTC(x.storage, tc); err != nil {
+	if err := x.storage.WriteTC(tc); err != nil {
 		// store DB error and continue
 		rErr = fmt.Errorf("TC write failed: %w", err)
 	}
@@ -116,7 +116,7 @@ func (x *BlockStore) IsChangeInProgress(partition types.PartitionID, shard types
 	return nil
 }
 
-func (x *BlockStore) GetDB() keyvaluedb.KeyValueDB {
+func (x *BlockStore) GetDB() PersistentStore {
 	return x.storage
 }
 
@@ -189,7 +189,7 @@ func (x *BlockStore) GetHighQc() *rctypes.QuorumCert {
 }
 
 func (x *BlockStore) GetLastTC() (*rctypes.TimeoutCert, error) {
-	return ReadLastTC(x.storage)
+	return x.storage.ReadLastTC()
 }
 
 func (x *BlockStore) GetCertificate(id types.PartitionID, shard types.ShardID) (*certification.CertificationResponse, error) {
@@ -242,12 +242,12 @@ func (x *BlockStore) Block(round uint64) (*ExecutedBlock, error) {
 
 // StoreLastVote stores last sent vote message by this node
 func (x *BlockStore) StoreLastVote(vote any) error {
-	return WriteVote(x.storage, vote)
+	return x.storage.WriteVote(vote)
 }
 
 // ReadLastVote returns last sent vote message by this node
 func (x *BlockStore) ReadLastVote() (any, error) {
-	return ReadVote(x.storage)
+	return x.storage.ReadLastVote()
 }
 
 func NewGenesisBlock(networkID types.NetworkID, hashAlgo crypto.Hash) (*ExecutedBlock, error) {
@@ -303,15 +303,4 @@ func NewGenesisBlock(networkID types.NetworkID, hashAlgo crypto.Hash) (*Executed
 		CommitQc: commitQc,
 		RootHash: commitQc.LedgerCommitInfo.Hash,
 	}, nil
-}
-
-func storeGenesisInit(db keyvaluedb.KeyValueDB, networkID types.NetworkID, hashAlgo crypto.Hash) error {
-	genesisBlock, err := NewGenesisBlock(networkID, hashAlgo)
-	if err != nil {
-		return fmt.Errorf("creating genesis block: %w", err)
-	}
-	if err := db.Write(blockKey(genesisBlock.GetRound()), genesisBlock); err != nil {
-		return fmt.Errorf("persist genesis block: %w", err)
-	}
-	return nil
 }

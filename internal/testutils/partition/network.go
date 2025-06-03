@@ -29,6 +29,7 @@ import (
 	"github.com/alphabill-org/alphabill/partition"
 	"github.com/alphabill-org/alphabill/rootchain"
 	"github.com/alphabill-org/alphabill/rootchain/consensus"
+	"github.com/alphabill-org/alphabill/rootchain/consensus/storage"
 	"github.com/alphabill-org/alphabill/rootchain/partitions"
 	"github.com/alphabill-org/alphabill/rootchain/testutils"
 	"github.com/alphabill-org/alphabill/txsystem"
@@ -316,9 +317,14 @@ func (r *RootChain) start(t *testing.T, ctx context.Context) error {
 			return fmt.Errorf("failed to init consensus network, %w", err)
 		}
 
-		orchestration, err := partitions.NewOrchestration(networkID, filepath.Join(rn.homeDir, "orchestration.db"), testlogger.New(t))
+		orchestration, err := partitions.NewOrchestration(networkID, filepath.Join(rn.homeDir, "orchestration.db"), log)
 		if err != nil {
 			return fmt.Errorf("failed to init orchestration: %w", err)
+		}
+
+		rcDB, err := storage.NewBoltStorage(filepath.Join(rn.homeDir, "root.db"))
+		if err != nil {
+			return fmt.Errorf("creating rootchain DB: %w", err)
 		}
 
 		consensusParams := consensus.NewConsensusParams()
@@ -330,6 +336,7 @@ func (r *RootChain) start(t *testing.T, ctx context.Context) error {
 			orchestration,
 			rootConsensusNet,
 			rn.RootSigner,
+			rcDB,
 			obs,
 			consensus.WithConsensusParams(*consensusParams))
 		if err != nil {

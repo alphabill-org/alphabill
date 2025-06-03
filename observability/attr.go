@@ -16,7 +16,7 @@ const UnitIDKey attribute.Key = "unit_id"
 const NodeIDKey attribute.Key = "service.node.name" // ECS convention
 
 func Round(round uint64) attribute.KeyValue {
-	return attribute.Int64("round", int64(round))
+	return attribute.Int64("round", int64(round)) /* #nosec G115 its unlikely that value of round exceeds int64 max value */
 }
 
 func UnitID(id []byte) attribute.KeyValue {

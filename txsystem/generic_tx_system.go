@@ -561,8 +561,8 @@ func (m *GenericTxSystem) initMetrics(mtr metric.Meter, shardID types.ShardID) e
 		metric.WithUnit("{unit}"),
 		metric.WithInt64Callback(func(ctx context.Context, io metric.Int64Observer) error {
 			snc := state.NewStateNodeCounter()
-			m.state.Traverse(snc)
-			io.Observe(int64(snc.NodeCount()), shardAttr)
+			_ = m.state.Traverse(snc)
+			io.Observe(int64(snc.NodeCount()), shardAttr) /* #nosec G115 its unlikely that node count exceeds int64 max value */
 			return nil
 		}),
 	); err != nil {

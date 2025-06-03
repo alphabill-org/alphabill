@@ -19,7 +19,7 @@ func (i MemDefinition) Max() (uint32, bool) {
 }
 
 func (m *MemoryMockup) pages() uint32 {
-	return uint32((uint64(len(m.data)) + uint64(WasmPageSize) - 1) / uint64(WasmPageSize))
+	return uint32((uint64(len(m.data)) + uint64(WasmPageSize) - 1) / uint64(WasmPageSize)) /* #nosec G115 its unlikely that result exceeds uint32 max value */
 }
 
 func (m *MemoryMockup) Definition() *MemDefinition {

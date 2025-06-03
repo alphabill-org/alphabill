@@ -2,21 +2,17 @@ package storage
 
 import (
 	"crypto"
+	"errors"
 	"fmt"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/alphabill-org/alphabill-go-base/types"
-	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
-	"github.com/alphabill-org/alphabill/keyvaluedb/boltdb"
-	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
-	"github.com/alphabill-org/alphabill/network/protocol/abdrc"
-	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
+	rctypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
 	"github.com/alphabill-org/alphabill/rootchain/partitions"
 	testpartition "github.com/alphabill-org/alphabill/rootchain/partitions/testutils"
 	"github.com/alphabill-org/alphabill/rootchain/testutils"
@@ -24,173 +20,69 @@ import (
 
 func initBlockStoreFromGenesis(t *testing.T, shardConf *types.PartitionDescriptionRecord) *BlockStore {
 	t.Helper()
+	dir := t.TempDir()
 
-	db, err := memorydb.New()
+	db, err := NewBoltStorage(filepath.Join(dir, "blocks.db"))
 	require.NoError(t, err)
-
-	if shardConf != nil {
-		genesisBlock := genesisBlockWithShard(t, shardConf)
-		require.NoError(t, WriteBlock(db, genesisBlock))
-	}
+	t.Cleanup(func() { _ = db.Close() })
 
 	log := logger.New(t)
-	dir := t.TempDir()
 	orchestration, err := partitions.NewOrchestration(5, filepath.Join(dir, "orchestration.db"), log)
 	require.NoError(t, err)
 	if shardConf != nil {
 		require.NoError(t, orchestration.AddShardConfig(shardConf))
+		require.NoError(t, db.WriteBlock(genesisBlockWithShard(t, shardConf), true))
 	}
 	t.Cleanup(func() { _ = orchestration.Close() })
 
-	bStore, err := New(crypto.SHA256, db, orchestration, logger.New(t))
+	bStore, err := New(crypto.SHA256, db, orchestration, log)
 	require.NoError(t, err)
 	return bStore
 }
 
-func TestNewBlockStoreFromGenesis(t *testing.T) {
-	bStore := initBlockStoreFromGenesis(t, nil)
-	hQc := bStore.GetHighQc()
-	require.Equal(t, uint64(1), hQc.VoteInfo.RoundNumber)
-	require.Nil(t, bStore.IsChangeInProgress(1, types.ShardID{}))
-	b, err := bStore.Block(1)
-	require.NoError(t, err)
-	require.Nil(t, b.RootHash)
-	_, err = bStore.Block(2)
-	require.ErrorContains(t, err, "block for round 2 not found")
-	require.Len(t, bStore.GetCertificates(), 0)
-}
-
-func fakeBlock(round uint64, qc *drctypes.QuorumCert) *ExecutedBlock {
-	return &ExecutedBlock{
-		BlockData: &drctypes.BlockData{
-			Author:  "test",
-			Round:   round,
-			Payload: &drctypes.Payload{},
-			Qc:      qc,
-		},
-		HashAlgo:   crypto.SHA256,
-		RootHash:   make([]byte, 32),
-		Qc:         &drctypes.QuorumCert{},
-		CommitQc:   nil,
-		ShardState: ShardStates{},
-	}
-}
-
-func TestNewBlockStoreFromDB_MultipleRoots(t *testing.T) {
-	orchestration := testpartition.NewOrchestration(t, logger.New(t))
-	db, err := memorydb.New()
-	require.NoError(t, err)
-	require.NoError(t, storeGenesisInit(db, 5, crypto.SHA256))
-	// create second root
-	vInfo9 := &drctypes.RoundInfo{RoundNumber: 9, ParentRoundNumber: 8}
-	h9, err := vInfo9.Hash(crypto.SHA256)
-	require.NoError(t, err)
-	b10 := fakeBlock(10, &drctypes.QuorumCert{
-		VoteInfo: vInfo9,
-		LedgerCommitInfo: &types.UnicitySeal{
-			Version:      1,
-			PreviousHash: h9,
-			Hash:         test.RandomBytes(32),
-		},
+func Test_BlockStore_New(t *testing.T) {
+	t.Run("invalid arguments", func(t *testing.T) {
+		bs, err := New(crypto.SHA256, nil, nil, nil)
+		require.EqualError(t, err, `storage is nil`)
+		require.Nil(t, bs)
 	})
-	require.NoError(t, db.Write(blockKey(b10.GetRound()), b10))
 
-	vInfo8 := &drctypes.RoundInfo{RoundNumber: 8, ParentRoundNumber: 7}
-	h8, err := vInfo8.Hash(crypto.SHA256)
-	require.NoError(t, err)
-	b9 := fakeBlock(9, &drctypes.QuorumCert{
-		VoteInfo: vInfo8,
-		LedgerCommitInfo: &types.UnicitySeal{
-			Version:              1,
-			PreviousHash:         h8,
-			RootChainRoundNumber: 8,
-			Hash:                 test.RandomBytes(32),
-		},
+	t.Run("loading tree failure", func(t *testing.T) {
+		expErr := errors.New("failure to load blocks")
+		db := mockPersistentStore{
+			loadBlocks: func() ([]*ExecutedBlock, error) { return nil, expErr },
+		}
+		bs, err := New(crypto.SHA256, db, nil, nil)
+		require.ErrorIs(t, err, expErr)
+		require.Nil(t, bs)
 	})
-	b9.Qc = &drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 9}}
-	require.NoError(t, db.Write(blockKey(b9.GetRound()), b9))
 
-	vInfo7 := &drctypes.RoundInfo{RoundNumber: 7, ParentRoundNumber: 6}
-	h7, err := vInfo7.Hash(crypto.SHA256)
-	require.NoError(t, err)
-	b8 := fakeBlock(8, &drctypes.QuorumCert{
-		VoteInfo: vInfo7,
-		LedgerCommitInfo: &types.UnicitySeal{
-			Version:              1,
-			PreviousHash:         h7,
-			RootChainRoundNumber: 7,
-			Hash:                 test.RandomBytes(32),
-		},
+	t.Run("loading existing state success", func(t *testing.T) {
+		orchestration := mockOrchestration{
+			shardConfigs: func(rootRound uint64) (map[types.PartitionShardID]*types.PartitionDescriptionRecord, error) {
+				return nil, nil
+			},
+		}
+
+		rootBlock := ExecutedBlock{BlockData: &rctypes.BlockData{Round: 90}, CommitQc: &rctypes.QuorumCert{}}
+		db := mockPersistentStore{
+			loadBlocks: func() ([]*ExecutedBlock, error) { return []*ExecutedBlock{&rootBlock}, nil },
+		}
+		bs, err := New(crypto.SHA256, db, orchestration, nil)
+		require.NoError(t, err)
+		require.NotNil(t, bs)
+
+		b, err := bs.Block(rootBlock.GetRound())
+		require.NoError(t, err)
+		require.Equal(t, &rootBlock, b)
 	})
-	b8.Qc = &drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 8}}
-	b8.CommitQc = &drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 9}}
-	require.NoError(t, db.Write(blockKey(b8.GetRound()), b8))
-	// load from DB
-	bStore, err := New(crypto.SHA256, db, orchestration, logger.New(t))
-	require.NoError(t, err)
-	// although store contains more than one root, the latest is preferred
-	require.EqualValues(t, 8, bStore.blockTree.Root().GetRound())
-	// first root is cleaned up
-	itr := db.Find([]byte(blockPrefix))
-	defer func() { require.NoError(t, itr.Close()) }()
-	i := 0
-	// the db now contains blocks 8,9,10 the old blocks have been cleaned up
-	for ; itr.Valid() && strings.HasPrefix(string(itr.Key()), blockPrefix); itr.Next() {
-		var b ExecutedBlock
-		require.NoError(t, itr.Value(&b))
-		require.EqualValues(t, 8+i, b.GetRound())
-		i++
-	}
-	require.EqualValues(t, 3, i)
-
-}
-
-func TestNewBlockStoreFromDB_InvalidDBContainsCap(t *testing.T) {
-	orchestration := testpartition.NewOrchestration(t, logger.New(t))
-	db, err := memorydb.New()
-	require.NoError(t, err)
-	require.NoError(t, storeGenesisInit(db, 5, crypto.SHA256))
-	// create a second chain, that has no root
-	b10 := fakeBlock(10, &drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 9}})
-	require.NoError(t, db.Write(blockKey(b10.GetRound()), b10))
-	b9 := fakeBlock(9, &drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 8}})
-	b9.Qc = &drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 9}}
-	require.NoError(t, db.Write(blockKey(b9.GetRound()), b9))
-	b8 := fakeBlock(8, &drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 7}})
-	b8.Qc = &drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 8}}
-	b8.CommitQc = nil
-	require.NoError(t, db.Write(blockKey(b8.GetRound()), b8))
-	// load from DB
-	bStore, err := New(crypto.SHA256, db, orchestration, logger.New(t))
-	require.ErrorContains(t, err, `initializing block tree: cannot add block for round 8, parent block 7 not found`)
-	require.Nil(t, bStore)
-}
-
-func TestNewBlockStoreFromDB_NoRootBlock(t *testing.T) {
-	db, err := memorydb.New()
-	require.NoError(t, err)
-	// create a chain that has not got a root block
-	b10 := fakeBlock(10, &drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 9}})
-	require.NoError(t, db.Write(blockKey(b10.GetRound()), b10))
-	b9 := fakeBlock(9, &drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 8}})
-	b9.Qc = &drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 9}}
-	require.NoError(t, db.Write(blockKey(b9.GetRound()), b9))
-	b8 := fakeBlock(8, &drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 7}})
-	b8.Qc = &drctypes.QuorumCert{VoteInfo: &drctypes.RoundInfo{RoundNumber: 8}}
-	b8.CommitQc = nil
-	require.NoError(t, db.Write(blockKey(b8.GetRound()), b8))
-	// load from DB
-	log := logger.New(t)
-	bStore, err := New(crypto.SHA256, db, testpartition.NewOrchestration(t, log), log)
-	require.ErrorContains(t, err, `initializing block tree: root block not found`)
-	require.Nil(t, bStore)
 }
 
 func TestHandleTcError(t *testing.T) {
 	bStore := initBlockStoreFromGenesis(t, nil)
 	require.ErrorContains(t, bStore.ProcessTc(nil), "tc is nil")
-	tc := &drctypes.TimeoutCert{
-		Timeout: &drctypes.Timeout{
+	tc := &rctypes.TimeoutCert{
+		Timeout: &rctypes.Timeout{
 			Round: 3,
 		},
 	}
@@ -204,8 +96,8 @@ func TestHandleQcError(t *testing.T) {
 	require.ErrorContains(t, err, "qc is nil")
 	require.Nil(t, ucs)
 	// qc for non-existing round
-	qc := &drctypes.QuorumCert{
-		VoteInfo: &drctypes.RoundInfo{
+	qc := &rctypes.QuorumCert{
+		VoteInfo: &rctypes.RoundInfo{
 			RoundNumber:       3,
 			ParentRoundNumber: 2,
 		},
@@ -219,32 +111,32 @@ func TestBlockStoreAdd(t *testing.T) {
 	bStore := initBlockStoreFromGenesis(t, nil)
 	rBlock := bStore.blockTree.Root()
 	mockBlockVer := mockIRVerifier{
-		verify: func(round uint64, irChReq *drctypes.IRChangeReq) (*types.InputRecord, error) {
+		verify: func(round uint64, irChReq *rctypes.IRChangeReq) (*types.InputRecord, error) {
 			luc, err := bStore.GetCertificate(irChReq.Partition, irChReq.Shard)
 			if err != nil {
 				return nil, fmt.Errorf("invalid payload: partition %s state is missing: %w", irChReq.Partition, err)
 			}
 			switch irChReq.CertReason {
-			case drctypes.Quorum:
+			case rctypes.Quorum:
 				// NB! there was at least one request, otherwise we would not be here
 				return irChReq.Requests[0].InputRecord, nil
-			case drctypes.QuorumNotPossible:
-			case drctypes.T2Timeout:
+			case rctypes.QuorumNotPossible:
+			case rctypes.T2Timeout:
 				return luc.UC.InputRecord, nil
 			}
 			return nil, fmt.Errorf("unknown certification reason %v", irChReq.CertReason)
 		},
 	}
-	block := &drctypes.BlockData{
-		Round:   drctypes.GenesisRootRound,
-		Payload: &drctypes.Payload{},
+	block := &rctypes.BlockData{
+		Round:   rctypes.GenesisRootRound,
+		Payload: &rctypes.Payload{},
 		Qc:      nil,
 	}
 	_, err := bStore.Add(block, mockBlockVer)
 	require.ErrorContains(t, err, "add block failed: different block for round 1 is already in store")
-	block = &drctypes.BlockData{
-		Round:   drctypes.GenesisRootRound + 1,
-		Payload: &drctypes.Payload{},
+	block = &rctypes.BlockData{
+		Round:   rctypes.GenesisRootRound + 1,
+		Payload: &rctypes.Payload{},
 		Qc:      bStore.GetHighQc(), // the qc is genesis qc
 	}
 	// Proposal always comes with Qc and Block, process Qc first and then new block
@@ -259,55 +151,55 @@ func TestBlockStoreAdd(t *testing.T) {
 	require.Nil(t, rh)
 
 	// add qc for round 3, commits round 1
-	vInfo := &drctypes.RoundInfo{
-		RoundNumber:       drctypes.GenesisRootRound + 1,
-		ParentRoundNumber: drctypes.GenesisRootRound,
+	vInfo := &rctypes.RoundInfo{
+		RoundNumber:       rctypes.GenesisRootRound + 1,
+		ParentRoundNumber: rctypes.GenesisRootRound,
 		CurrentRootHash:   rh,
 	}
-	qc := &drctypes.QuorumCert{
+	qc := &rctypes.QuorumCert{
 		VoteInfo: vInfo,
 		LedgerCommitInfo: &types.UnicitySeal{
 			Version:              1,
 			Hash:                 rBlock.RootHash,
-			RootChainRoundNumber: drctypes.GenesisRootRound,
+			RootChainRoundNumber: rctypes.GenesisRootRound,
 		},
 	}
 	ucs, err = bStore.ProcessQc(qc)
 	require.NoError(t, err)
 	require.Empty(t, ucs)
 
-	b, err := bStore.Block(drctypes.GenesisRootRound + 1)
+	b, err := bStore.Block(rctypes.GenesisRootRound + 1)
 	require.NoError(t, err)
-	require.EqualValues(t, drctypes.GenesisRootRound+1, b.BlockData.Round)
+	require.EqualValues(t, rctypes.GenesisRootRound+1, b.BlockData.Round)
 
 	// add block 3
 	// qc for round 2, does not commit a round
-	block = &drctypes.BlockData{
-		Round:   drctypes.GenesisRootRound + 2,
-		Payload: &drctypes.Payload{},
+	block = &rctypes.BlockData{
+		Round:   rctypes.GenesisRootRound + 2,
+		Payload: &rctypes.Payload{},
 		Qc:      qc,
 	}
 	rh, err = bStore.Add(block, mockBlockVer)
 	require.NoError(t, err)
 	require.Nil(t, rh)
 	// prepare block 4
-	vInfo = &drctypes.RoundInfo{
-		RoundNumber:       drctypes.GenesisRootRound + 2,
-		ParentRoundNumber: drctypes.GenesisRootRound + 1,
+	vInfo = &rctypes.RoundInfo{
+		RoundNumber:       rctypes.GenesisRootRound + 2,
+		ParentRoundNumber: rctypes.GenesisRootRound + 1,
 		CurrentRootHash:   rh,
 	}
-	qc = &drctypes.QuorumCert{
+	qc = &rctypes.QuorumCert{
 		VoteInfo: vInfo,
 		LedgerCommitInfo: &types.UnicitySeal{
 			Version:              1,
 			Hash:                 rBlock.RootHash,
-			RootChainRoundNumber: drctypes.GenesisRootRound + 1,
+			RootChainRoundNumber: rctypes.GenesisRootRound + 1,
 		},
 	}
 	// qc for round 4, commits round 2
-	block = &drctypes.BlockData{
-		Round:   drctypes.GenesisRootRound + 3,
-		Payload: &drctypes.Payload{},
+	block = &rctypes.BlockData{
+		Round:   rctypes.GenesisRootRound + 3,
+		Payload: &rctypes.Payload{},
 		Qc:      qc,
 	}
 	// Add
@@ -329,39 +221,35 @@ func TestBlockStoreAdd(t *testing.T) {
 	require.Nil(t, b)
 }
 
-func TestBlockStoreStoreLastVote(t *testing.T) {
-	t.Run("error - store proposal", func(t *testing.T) {
-		bStore := initBlockStoreFromGenesis(t, nil)
-		proposal := abdrc.ProposalMsg{}
-		require.ErrorContains(t, bStore.StoreLastVote(proposal), "unknown vote type")
-	})
-	t.Run("read blank store", func(t *testing.T) {
-		bStore := initBlockStoreFromGenesis(t, nil)
-		msg, err := bStore.ReadLastVote()
-		require.NoError(t, err)
-		require.Nil(t, msg)
-	})
-	t.Run("ok - store vote", func(t *testing.T) {
-		bStore := initBlockStoreFromGenesis(t, nil)
-		vote := &abdrc.VoteMsg{Author: "test"}
-		require.NoError(t, bStore.StoreLastVote(vote))
-		// read back
-		msg, err := bStore.ReadLastVote()
-		require.NoError(t, err)
-		require.IsType(t, &abdrc.VoteMsg{}, msg)
-		require.Equal(t, "test", msg.(*abdrc.VoteMsg).Author)
-	})
-	t.Run("ok - store timeout vote", func(t *testing.T) {
-		bStore := initBlockStoreFromGenesis(t, nil)
-		vote := &abdrc.TimeoutMsg{Timeout: &drctypes.Timeout{Round: 1}, Author: "test"}
-		require.NoError(t, bStore.StoreLastVote(vote))
-		// read back
-		msg, err := bStore.ReadLastVote()
-		require.NoError(t, err)
-		require.IsType(t, &abdrc.TimeoutMsg{}, msg)
-		require.Equal(t, "test", msg.(*abdrc.TimeoutMsg).Author)
-		require.EqualValues(t, 1, msg.(*abdrc.TimeoutMsg).Timeout.Round)
-	})
+func Test_BlockStoreStore_LastVote(t *testing.T) {
+	// just check that calls are routed to persistent storage,
+	// there is no other logic in these methods
+	orchestration := mockOrchestration{
+		shardConfigs: func(rootRound uint64) (map[types.PartitionShardID]*types.PartitionDescriptionRecord, error) {
+			return nil, nil
+		},
+	}
+
+	rootBlock := ExecutedBlock{BlockData: &rctypes.BlockData{Round: 4}, CommitQc: &rctypes.QuorumCert{}}
+	var msg any
+	db := mockPersistentStore{
+		// to avoid init of genesis return committed block
+		loadBlocks: func() ([]*ExecutedBlock, error) { return []*ExecutedBlock{&rootBlock}, nil },
+		// returning the value passed to write from read verifies that the persistent store methods are called
+		readVote: func() (any, error) { return msg, nil },
+		writeVote: func(vote any) error {
+			msg = vote
+			return nil
+		},
+	}
+
+	bStore, err := New(crypto.SHA256, db, orchestration, nil)
+	require.NoError(t, err)
+	// the message type is verified by the storage!
+	require.NoError(t, bStore.StoreLastVote(920))
+	vote, err := bStore.ReadLastVote()
+	require.NoError(t, err)
+	require.Equal(t, 920, vote)
 }
 
 func Test_BlockStore_ShardInfo(t *testing.T) {
@@ -386,8 +274,9 @@ func Test_BlockStore_StateRoundtrip(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, state)
 
-	db, err := memorydb.New()
+	db, err := NewBoltStorage(filepath.Join(t.TempDir(), "blocks.db"))
 	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
 	// state msg is used to init "shard info registry", the orchestration provides data which is not part of state msg
 	storeB, err := NewFromState(crypto.SHA256, state.CommittedHead, db, storeA.orchestration, logger.New(t))
 	require.NoError(t, err)
@@ -422,26 +311,26 @@ func Test_BlockStore_StateRoundtrip(t *testing.T) {
 func Test_BlockStore_persistence(t *testing.T) {
 	dbPath := filepath.Join(t.TempDir(), "blocks.db")
 	// init new (empty) DB from genesis
-	db, err := boltdb.New(dbPath)
+	db, err := NewBoltStorage(dbPath)
 	require.NoError(t, err)
 	log := logger.New(t)
 	shardConf := newShardConf(t)
 	blockA := genesisBlockWithShard(t, shardConf)
-	require.NoError(t, db.Write(blockKey(blockA.GetRound()), blockA))
+	require.NoError(t, db.WriteBlock(blockA, false))
 
 	orchestration := testpartition.NewOrchestration(t, log)
 	require.NoError(t, orchestration.AddShardConfig(shardConf))
-	storeA, err := New(crypto.SHA256, db, orchestration, logger.New(t))
+	storeA, err := New(crypto.SHA256, db, orchestration, log)
 	require.NoError(t, err)
 	require.NotNil(t, storeA)
 
 	// load new DB instance from the non-empty file - must get the same state
 	require.NoError(t, db.Close())
-	db, err = boltdb.New(dbPath)
+	db, err = NewBoltStorage(dbPath)
 	require.NoError(t, err)
 
 	// to make sure we load the state from db send in empty genesis record
-	storeB, err := New(crypto.SHA256, db, orchestration, logger.New(t))
+	storeB, err := New(crypto.SHA256, db, orchestration, log)
 	require.NoError(t, err)
 
 	siA := blockA.ShardState.States[types.PartitionShardID{PartitionID: shardConf.PartitionID, ShardID: shardConf.ShardID.Key()}]
@@ -471,19 +360,19 @@ func newShardConf(t *testing.T) *types.PartitionDescriptionRecord {
 
 func genesisBlockWithShard(t *testing.T, shardConf *types.PartitionDescriptionRecord) *ExecutedBlock {
 	hashAlgo := crypto.SHA256
-	genesisBlock := &drctypes.BlockData{
+	genesisBlock := &rctypes.BlockData{
 		Version:   1,
 		Author:    "testgenesis",
-		Round:     drctypes.GenesisRootRound,
-		Epoch:     drctypes.GenesisRootEpoch,
+		Round:     rctypes.GenesisRootRound,
+		Epoch:     rctypes.GenesisRootEpoch,
 		Timestamp: types.GenesisTime,
 	}
 
 	si, err := NewShardInfo(shardConf, hashAlgo)
 	require.NoError(t, err)
 	psID := types.PartitionShardID{PartitionID: si.PartitionID, ShardID: si.ShardID.Key()}
-	commitQc := &drctypes.QuorumCert{
-		VoteInfo: &drctypes.RoundInfo{
+	commitQc := &rctypes.QuorumCert{
+		VoteInfo: &rctypes.RoundInfo{
 			Version:           1,
 			RoundNumber:       genesisBlock.Round,
 			Epoch:             genesisBlock.Epoch,
@@ -517,4 +406,37 @@ func genesisBlockWithShard(t *testing.T, shardConf *types.PartitionDescriptionRe
 	commitQc.VoteInfo.CurrentRootHash = eb.RootHash
 
 	return eb
+}
+
+type mockPersistentStore struct {
+	loadBlocks func() ([]*ExecutedBlock, error)
+	writeBlock func(block *ExecutedBlock, root bool) error
+	readVote   func() (msg any, err error)
+	writeVote  func(vote any) error
+	writeTC    func(tc *rctypes.TimeoutCert) error
+	readLastTC func() (*rctypes.TimeoutCert, error)
+}
+
+func (mps mockPersistentStore) LoadBlocks() ([]*ExecutedBlock, error) {
+	return mps.loadBlocks()
+}
+
+func (mps mockPersistentStore) WriteBlock(block *ExecutedBlock, root bool) error {
+	return mps.writeBlock(block, root)
+}
+
+func (mps mockPersistentStore) ReadLastVote() (msg any, err error) {
+	return mps.readVote()
+}
+
+func (mps mockPersistentStore) WriteVote(vote any) error {
+	return mps.writeVote(vote)
+}
+
+func (mps mockPersistentStore) WriteTC(tc *rctypes.TimeoutCert) error {
+	return mps.writeTC(tc)
+}
+
+func (mps mockPersistentStore) ReadLastTC() (*rctypes.TimeoutCert, error) {
+	return mps.readLastTC()
 }

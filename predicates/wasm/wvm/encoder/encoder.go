@@ -58,7 +58,7 @@ func (enc *TVEnc) setErr(err error) error {
 
 func (enc *TVEnc) WriteBytes(value []byte) {
 	enc.writeTypeTag(type_id_bytes)
-	enc.buf = binary.LittleEndian.AppendUint32(enc.buf, uint32(len(value)))
+	enc.buf = binary.LittleEndian.AppendUint32(enc.buf, uint32(len(value))) /* #nosec G115 its unlikely that provided input slice length exceeds uint32 max value */
 	if len(value) > 0 {
 		enc.buf = append(enc.buf, value...)
 	}
@@ -66,7 +66,7 @@ func (enc *TVEnc) WriteBytes(value []byte) {
 
 func (enc *TVEnc) WriteString(value string) {
 	enc.writeTypeTag(type_id_string)
-	enc.buf = binary.LittleEndian.AppendUint32(enc.buf, uint32(len(value)))
+	enc.buf = binary.LittleEndian.AppendUint32(enc.buf, uint32(len(value))) /* #nosec G115 its unlikely that provided input string length exceeds uint32 max value */
 	if len(value) > 0 {
 		enc.buf = append(enc.buf, value...)
 	}
@@ -86,7 +86,7 @@ func (enc *TVEnc) Encode(item any) {
 	switch it := item.(type) {
 	case []any:
 		enc.writeTypeTag(type_id_array)
-		enc.buf = binary.LittleEndian.AppendUint32(enc.buf, uint32(len(it)))
+		enc.buf = binary.LittleEndian.AppendUint32(enc.buf, uint32(len(it))) /* #nosec G115 its unlikely that it length exceeds uint32 max value */
 		for _, v := range it {
 			enc.Encode(v)
 		}

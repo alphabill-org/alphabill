@@ -6,17 +6,8 @@ import (
 
 	"github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
-	"github.com/alphabill-org/alphabill/keyvaluedb"
 	"github.com/alphabill-org/alphabill/network/protocol/abdrc"
 	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
-)
-
-const (
-	// genesis state is certified with rounds 1
-	defaultHighestVotedRound = 1
-	defaultHighestQcRound    = 1
-	highestVotedKey          = "votedRound"
-	highestQcKey             = "qcRound"
 )
 
 type (
@@ -25,10 +16,19 @@ type (
 		peerID   string
 		signer   crypto.Signer
 		verifier crypto.Verifier
-		storage  keyvaluedb.KeyValueDB
+		storage  SafetyStorage
 	}
-	Signer interface {
+
+	Signable interface {
 		Sign(s crypto.Signer) error
+	}
+
+	// Persistent storage for SafetyModule state
+	SafetyStorage = interface {
+		GetHighestVotedRound() uint64
+		SetHighestVotedRound(uint64) error
+		GetHighestQcRound() uint64
+		SetHighestQcRound(qcRound, votedRound uint64) error
 	}
 )
 
@@ -36,7 +36,7 @@ func isConsecutive(blockRound, round uint64) bool {
 	return round+1 == blockRound
 }
 
-func NewSafetyModule(network types.NetworkID, id string, signer crypto.Signer, db keyvaluedb.KeyValueDB) (*SafetyModule, error) {
+func NewSafetyModule(network types.NetworkID, id string, signer crypto.Signer, db SafetyStorage) (*SafetyModule, error) {
 	ver, err := signer.Verifier()
 	if err != nil {
 		return nil, fmt.Errorf("invalid root validator signing key: %w", err)
@@ -45,41 +45,14 @@ func NewSafetyModule(network types.NetworkID, id string, signer crypto.Signer, d
 	return &SafetyModule{network: network, peerID: id, signer: signer, verifier: ver, storage: db}, nil
 }
 
-func (s *SafetyModule) GetHighestVotedRound() uint64 {
-	var hVoteRound uint64 = defaultHighestVotedRound
-	found, err := s.storage.Read([]byte(highestVotedKey), &hVoteRound)
-	if !found || err != nil {
-		return defaultHighestVotedRound
-	}
-	return hVoteRound
-}
-
-func (s *SafetyModule) SetHighestVotedRound(highestVotedRound uint64) {
-	_ = s.storage.Write([]byte(highestVotedKey), &highestVotedRound)
-}
-
-func (s *SafetyModule) GetHighestQcRound() uint64 {
-	var qcRound uint64 = defaultHighestQcRound
-	found, err := s.storage.Read([]byte(highestQcKey), &qcRound)
-	if !found || err != nil {
-		return defaultHighestQcRound
-	}
-	return qcRound
-}
-
-func (s *SafetyModule) SetHighestQcRound(highestQcRound uint64) {
-	_ = s.storage.Write([]byte(highestQcKey), &highestQcRound)
-}
-
 func (s *SafetyModule) isSafeToVote(block *drctypes.BlockData, lastRoundTC *drctypes.TimeoutCert) error {
 	if block == nil {
 		return fmt.Errorf("block is nil")
 	}
 	blockRound := block.Round
 	// never vote for the same round twice
-	if blockRound <= s.GetHighestVotedRound() {
-		return fmt.Errorf("already voted for round %d, last voted round %d",
-			blockRound, s.GetHighestVotedRound())
+	if hvr := s.storage.GetHighestVotedRound(); blockRound <= hvr {
+		return fmt.Errorf("already voted for round %d, last voted round %d", blockRound, hvr)
 	}
 	qcRound := block.Qc.GetRound()
 	// normal case, block is extended from last QC
@@ -131,8 +104,9 @@ func (s *SafetyModule) MakeVote(block *drctypes.BlockData, execStateID []byte, h
 	if err := s.isSafeToVote(block, lastRoundTC); err != nil {
 		return nil, fmt.Errorf("not safe to vote, %w", err)
 	}
-	s.updateHighestQcRound(qcRound)
-	s.increaseHighestVoteRound(votingRound)
+	if err := s.storage.SetHighestQcRound(qcRound, votingRound); err != nil {
+		return nil, fmt.Errorf("persisting voting rounds: %w", err)
+	}
 
 	// create vote info
 	voteInfo := &drctypes.RoundInfo{
@@ -171,36 +145,29 @@ func (s *SafetyModule) SignTimeout(tmoVote *abdrc.TimeoutMsg, lastRoundTC *drcty
 		return fmt.Errorf("not safe to time-out, %w", err)
 	}
 	// stop voting for this round, all other request to sign a normal vote for this round will be rejected
-	s.increaseHighestVoteRound(round)
+	if err := s.storage.SetHighestVotedRound(round); err != nil {
+		return fmt.Errorf("storing voted round: %w", err)
+	}
 	// Sign timeout
 	return tmoVote.Sign(s.signer)
 }
 
-func (s *SafetyModule) Sign(msg Signer) error {
+func (s *SafetyModule) Sign(msg Signable) error {
 	return msg.Sign(s.signer)
 }
 
-func (s *SafetyModule) increaseHighestVoteRound(round uint64) {
-	s.SetHighestVotedRound(max(s.GetHighestVotedRound(), round))
-}
-
-func (s *SafetyModule) updateHighestQcRound(qcRound uint64) {
-	s.SetHighestQcRound(max(s.GetHighestQcRound(), qcRound))
-}
-
 func (s *SafetyModule) isSafeToTimeout(round, tmoHighQCRound uint64, lastRoundTC *drctypes.TimeoutCert) error {
-	if tmoHighQCRound < s.GetHighestQcRound() {
+	if hqc := s.storage.GetHighestQcRound(); tmoHighQCRound < hqc {
 		// respect highest qc round
-		return fmt.Errorf("timeout high qc round %v is smaller than highest qc round %v seen", tmoHighQCRound, s.GetHighestQcRound())
+		return fmt.Errorf("timeout high qc round %d is smaller than highest qc round %d seen", tmoHighQCRound, hqc)
 	}
 	if round <= tmoHighQCRound {
 		return fmt.Errorf("timeout round %v is in the past, timeout msg high qc is for round %v",
 			round, tmoHighQCRound)
 	}
-	if round < s.GetHighestVotedRound() {
+	if hvr := s.storage.GetHighestVotedRound(); round < hvr {
 		// don’t time out in a past round
-		return fmt.Errorf("timeout round %v is in the past, already signed vote for round %v",
-			round, s.GetHighestVotedRound())
+		return fmt.Errorf("timeout round %d is in the past, already signed vote for round %d", round, hvr)
 	}
 	var tcRound uint64 = 0
 	if lastRoundTC != nil {

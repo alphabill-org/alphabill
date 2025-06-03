@@ -31,7 +31,8 @@ func deserializeMsg(r io.Reader, msg any) error {
 		return fmt.Errorf("unexpected data length zero")
 	}
 
-	if err := types.Cbor.Decode(io.LimitReader(src, int64(length64)), msg); err != nil {
+	lengthInt64 := int64(length64) /* #nosec G115 its unlikely that value of length64 exceeds int64 max value */
+	if err := types.Cbor.Decode(io.LimitReader(src, lengthInt64), msg); err != nil {
 		return fmt.Errorf("decoding message data: %w", err)
 	}
 

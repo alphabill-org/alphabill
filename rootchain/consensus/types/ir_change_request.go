@@ -81,7 +81,7 @@ func (x *IRChangeReq) Verify(tb RequestVerifier, luc *types.UnicityCertificate, 
 		return nil, fmt.Errorf("invalid IR Change Request: %w", err)
 	}
 	// quick sanity check, there cannot be more requests than known partition nodes
-	if len(x.Requests) > int(tb.GetTotalNodes()) {
+	if uint64(len(x.Requests)) > tb.GetTotalNodes() {
 		return nil, errors.New("IR Change Request contains more requests than registered partition nodes")
 	}
 	// verify IR change proof
@@ -134,7 +134,7 @@ func (x *IRChangeReq) Verify(tb RequestVerifier, luc *types.UnicityCertificate, 
 		// Verify that enough partition nodes have voted for different IR change
 		// a) find how many votes are missing (nof nodes - requests)
 		// b) if the missing votes would also vote for the most popular hash, it must be still not enough to come to a quorum
-		if vc := int(tb.GetTotalNodes()) - len(x.Requests) + int(maxHC); vc >= int(tb.GetQuorum()) {
+		if vc := tb.GetTotalNodes() - uint64(len(x.Requests)) + maxHC; vc >= tb.GetQuorum() {
 			return nil, fmt.Errorf("not enough votes to prove 'no quorum' - it is possible to get %d votes, quorum is %d", vc, tb.GetQuorum())
 		}
 		// initiate repeat UC

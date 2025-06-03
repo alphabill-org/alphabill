@@ -5,17 +5,19 @@ import (
 	"crypto"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/stretchr/testify/require"
+
 	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/types/hex"
-	testlogger "github.com/alphabill-org/alphabill/internal/testutils/logger"
 	testobservability "github.com/alphabill-org/alphabill/internal/testutils/observability"
-	"github.com/alphabill-org/alphabill/keyvaluedb/memorydb"
 	"github.com/alphabill-org/alphabill/logger"
 	"github.com/alphabill-org/alphabill/network"
 	"github.com/alphabill-org/alphabill/network/protocol/abdrc"
@@ -23,10 +25,8 @@ import (
 	"github.com/alphabill-org/alphabill/rootchain/consensus/leader"
 	"github.com/alphabill-org/alphabill/rootchain/consensus/storage"
 	drctypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
-	testpartition "github.com/alphabill-org/alphabill/rootchain/partitions/testutils"
+	"github.com/alphabill-org/alphabill/rootchain/partitions"
 	"github.com/alphabill-org/alphabill/rootchain/testutils"
-	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/stretchr/testify/require"
 )
 
 func Test_ConsensusManager_sendRecoveryRequests(t *testing.T) {
@@ -787,23 +787,17 @@ func createConsensusManagers(t *testing.T, count int, shardNodes []*types.NodeIn
 		nodeID, err := peer.Decode(v.NodeID)
 		require.NoError(t, err)
 
-		orchestration := testpartition.NewOrchestration(t, testlogger.New(t))
-		require.NoError(t, orchestration.AddShardConfig(shardConf))
-
-		opts := []Option{
-			WithStorage(createStorage(t, shardConf, rootSigners)),
-			WithConsensusParams(*consensusParams),
-		}
-
 		obs := observability.WithLogger(observe, observe.Logger().With(logger.NodeID(nodeID)))
+		rootDB, orchestration := createStorage(t, shardConf, rootSigners, obs)
 		cm, err := NewConsensusManager(
 			nodeID,
 			trustBase,
 			orchestration,
 			rootNet.Connect(nodeID),
 			rootSigners[v.NodeID],
+			rootDB,
 			obs,
-			opts...,
+			WithConsensusParams(*consensusParams),
 		)
 		require.NoError(t, err)
 		cms = append(cms, cm)
@@ -846,12 +840,21 @@ func (cl constLeader) Update(qc *drctypes.QuorumCert, currentRound uint64, b lea
 	return nil
 }
 
-func createStorage(t *testing.T, shardConf *types.PartitionDescriptionRecord, signers map[string]abcrypto.Signer) *memorydb.MemoryDB {
-	db, err := memorydb.New()
+func createStorage(t *testing.T, shardConf *types.PartitionDescriptionRecord, signers map[string]abcrypto.Signer, obs Observability) (PersistentStore, *partitions.Orchestration) {
+	dir := t.TempDir()
+
+	rootDB, err := storage.NewBoltStorage(filepath.Join(dir, "rootchain.db"))
 	require.NoError(t, err)
+	t.Cleanup(func() { _ = rootDB.Close() })
 	genesisBlock := newTestGenesisBlock(t, shardConf, signers)
-	require.NoError(t, storage.WriteBlock(db, genesisBlock))
-	return db
+	require.NoError(t, rootDB.WriteBlock(genesisBlock, true))
+
+	orchestration, err := partitions.NewOrchestration(5, filepath.Join(dir, "orchestration.db"), obs.Logger())
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = orchestration.Close() })
+	require.NoError(t, orchestration.AddShardConfig(shardConf))
+
+	return rootDB, orchestration
 }
 
 func newTestGenesisBlock(t *testing.T, shardConf *types.PartitionDescriptionRecord, signers map[string]abcrypto.Signer) *storage.ExecutedBlock {

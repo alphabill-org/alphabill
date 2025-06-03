@@ -28,6 +28,7 @@ import (
 	"github.com/alphabill-org/alphabill/partition"
 	"github.com/alphabill-org/alphabill/rootchain"
 	"github.com/alphabill-org/alphabill/rootchain/consensus"
+	"github.com/alphabill-org/alphabill/rootchain/consensus/storage"
 	"github.com/alphabill-org/alphabill/rootchain/consensus/trustbase"
 	"github.com/alphabill-org/alphabill/rootchain/partitions"
 )
@@ -150,7 +151,7 @@ func rootNodeRun(ctx context.Context, flags *rootNodeRunFlags) error {
 		return fmt.Errorf("partition network initialization failed: %w", err)
 	}
 
-	rootStore, err := flags.initStore(flags.RootStoreFile, rootStoreFileName)
+	rootStore, err := storage.NewBoltStorage(flags.PathWithDefault(flags.RootStoreFile, rootStoreFileName))
 	if err != nil {
 		return err
 	}
@@ -201,8 +202,8 @@ func rootNodeRun(ctx context.Context, flags *rootNodeRunFlags) error {
 		orchestration,
 		rootNet,
 		signer,
+		rootStore,
 		obs,
-		consensus.WithStorage(rootStore),
 		consensus.WithConsensusParams(*consensusParams),
 	)
 	if err != nil {

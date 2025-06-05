@@ -23,7 +23,7 @@ build-docker:
 	docker build ${DOCKER_ARGUMENTS} --file scripts/Dockerfile --tag alphabill:local .
 
 gosec:
-	gosec ./...
+	gosec -exclude-generated ./...
 
 tools:
 	go install github.com/securego/gosec/v2/cmd/gosec@latest

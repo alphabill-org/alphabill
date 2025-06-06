@@ -1,0 +1,51 @@
+name: ci
+
+on: [push]
+
+env:
+  GO_VERSION: 1.24
+  RETENTION-DAYS: 1
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Go ${{ env.GO_VERSION }}
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: build
+        run: make build
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Go ${{ env.GO_VERSION }}
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: vet
+        run: go vet ./...
+      - name: test
+        run: make test
+      - name: upload test coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-coverage
+          path: test-coverage.out
+          retention-days: ${{ env.RETENTION-DAYS }}
+
+  analyze:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Go ${{ env.GO_VERSION }}
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: Install gosec
+        run: go install github.com/securego/gosec/v2/cmd/gosec@latest
+      - name: gosec
+        run: make gosec

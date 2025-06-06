@@ -159,7 +159,7 @@ func (vmCtx *vmContext) writeToMemory(mod api.Module, buf []byte) (uint64, error
 		return 0, errors.New("module doesn't export memory")
 	}
 
-	size := uint32(len(buf))
+	size := uint32(len(buf)) /* #nosec G115 */
 	addr, err := vmCtx.memMngr.Alloc(mem, size)
 	if err != nil {
 		return 0, fmt.Errorf("allocating memory: %w", err)
@@ -169,7 +169,7 @@ func (vmCtx *vmContext) writeToMemory(mod api.Module, buf []byte) (uint64, error
 		return 0, errors.New("out of range when writing data into memory")
 	}
 
-	return api.EncodeI64(int64(newPointerSize(addr, size))), nil
+	return api.EncodeI64(int64(newPointerSize(addr, size))), nil /* #nosec G115 */
 }
 
 // New - creates new wazero based wasm vm

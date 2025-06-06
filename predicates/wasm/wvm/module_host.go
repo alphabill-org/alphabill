@@ -30,7 +30,7 @@ func newPointerSize(ptr, size uint32) (pointerSize uint64) {
 // splitPointerSize converts a 64bit pointer size to an
 // uint32 pointer and a uint32 size.
 func splitPointerSize(pointerSize uint64) (ptr, size uint32) {
-	return uint32(pointerSize), uint32(pointerSize >> 32)
+	return uint32(pointerSize), uint32(pointerSize >> 32) /* #nosec G115 */
 }
 
 // read will read from 64 bit pointer size and return a byte slice

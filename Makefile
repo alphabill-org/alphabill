@@ -23,7 +23,7 @@ build-docker:
 	docker build ${DOCKER_ARGUMENTS} --file scripts/Dockerfile --tag alphabill:local .
 
 gosec:
-	gosec -fmt=sonarqube -out gosec_report.json -no-fail ./...
+	gosec -exclude-generated ./...
 
 tools:
 	go install github.com/securego/gosec/v2/cmd/gosec@latest

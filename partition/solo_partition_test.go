@@ -275,7 +275,7 @@ func (sn *SingleNodePartition) CreateUnicityCertificate(t *testing.T, ir *types.
 		require.NoError(t, err)
 	}
 
-	sTree, err := types.CreateShardTree(nil, []types.ShardTreeInput{
+	sTree, err := types.CreateShardTree(types.ShardingScheme{}, []types.ShardTreeInput{
 		{Shard: types.ShardID{}, IR: ir, TRHash: trHash, ShardConfHash: shardConfHash},
 	}, gocrypto.SHA256)
 	if err != nil {
@@ -324,7 +324,7 @@ func (sn *SingleNodePartition) CreateUnicityCertificateTR(t *testing.T, ir *type
 	}
 
 	shardConfHash := sn.node.shardStore.ShardConfHash()
-	sTree, err := types.CreateShardTree(nil, []types.ShardTreeInput{
+	sTree, err := types.CreateShardTree(types.ShardingScheme{}, []types.ShardTreeInput{
 		{Shard: types.ShardID{}, IR: ir, TRHash: trHash, ShardConfHash: shardConfHash},
 	}, gocrypto.SHA256)
 	if err != nil {

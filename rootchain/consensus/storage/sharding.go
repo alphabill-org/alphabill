@@ -74,7 +74,7 @@ func (ss ShardStates) UnicityTree(algo crypto.Hash) (*types.UnicityTree, map[typ
 	var si *ShardInfo
 	var ok bool
 	for partitionID, shards := range schemes {
-		sti := make([]types.ShardTreeInput, 0, len(shards))
+		sti := make([]types.ShardTreeInput, 0)
 		for shardID := range shards.All() {
 			psID := types.PartitionShardID{PartitionID: partitionID, ShardID: shardID.Key()}
 			if si, ok = ss.States[psID]; !ok {
@@ -161,22 +161,25 @@ func (ss *ShardStates) shardingSchemes() (map[types.PartitionID]types.ShardingSc
 		return ss.schemes, nil
 	}
 
-	schemes := map[types.PartitionID]types.ShardingScheme{}
+	shardIDs := map[types.PartitionID][]types.ShardID{}
 	for k, v := range ss.States {
 		if v.ShardID.Length() == 0 {
-			if _, ok := schemes[k.PartitionID]; ok {
+			if _, ok := shardIDs[k.PartitionID]; ok {
 				return nil, fmt.Errorf("invalid sharding scheme for partition %s - empty shardID in a multi shard scheme", k.PartitionID)
 			}
-			schemes[k.PartitionID] = types.ShardingScheme{}
+			shardIDs[k.PartitionID] = []types.ShardID{}
 			continue
 		}
-		schemes[k.PartitionID] = append(schemes[k.PartitionID], v.ShardID)
+		shardIDs[k.PartitionID] = append(shardIDs[k.PartitionID], v.ShardID)
 	}
 
-	for partitionID, shards := range schemes {
-		if err := shards.IsValid(); err != nil {
+	schemes := map[types.PartitionID]types.ShardingScheme{}
+	for partitionID, shards := range shardIDs {
+		scheme, err := types.NewShardingScheme(shards)
+		if err != nil {
 			return nil, fmt.Errorf("invalid sharding scheme for partition %s: %w", partitionID, err)
 		}
+		schemes[partitionID] = scheme
 	}
 
 	ss.schemes = schemes

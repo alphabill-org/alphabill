@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/alphabill-org/alphabill-go-base/cbor"
 	abhash "github.com/alphabill-org/alphabill-go-base/hash"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/types/hex"
@@ -74,12 +75,12 @@ func (x *RoundInfo) MarshalCBOR() ([]byte, error) {
 	if x.Version == 0 {
 		x.Version = x.GetVersion()
 	}
-	return types.Cbor.MarshalTaggedValue(types.RootPartitionRoundInfoTag, (*alias)(x))
+	return cbor.MarshalTaggedValue(types.RootPartitionRoundInfoTag, (*alias)(x))
 }
 
 func (x *RoundInfo) UnmarshalCBOR(data []byte) error {
 	type alias RoundInfo
-	if err := types.Cbor.UnmarshalTaggedValue(types.RootPartitionRoundInfoTag, data, (*alias)(x)); err != nil {
+	if err := cbor.UnmarshalTaggedValue(types.RootPartitionRoundInfoTag, data, (*alias)(x)); err != nil {
 		return err
 	}
 	return types.EnsureVersion(x, x.Version, 1)

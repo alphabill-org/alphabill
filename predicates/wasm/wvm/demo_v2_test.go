@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/alphabill-org/alphabill-go-base/cbor"
 	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	predtempl "github.com/alphabill-org/alphabill-go-base/predicates/templates"
 	"github.com/alphabill-org/alphabill-go-base/predicates/wasm"
@@ -60,7 +61,7 @@ func Test_conference_tickets_v2(t *testing.T) {
 	const regularDate uint64 = earlyBirdDate + 100000
 	const earlyBirdPrice uint64 = 1000
 	const regularPrice uint64 = 1500
-	predCfg, err := types.Cbor.Marshal([]any{[]any{earlyBirdDate, regularDate, earlyBirdPrice, regularPrice}, organizerPKH})
+	predCfg, err := cbor.Marshal([]any{[]any{earlyBirdDate, regularDate, earlyBirdPrice, regularPrice}, organizerPKH})
 	require.NoError(t, err)
 
 	// tx system unit/attribute encoder
@@ -402,7 +403,7 @@ func proofOfPayment(t *testing.T, signer abcrypto.Signer, receiverPKH []byte, va
 	txRec := &types.TransactionRecord{Version: 1, TransactionOrder: txBytes, ServerMetadata: &types.ServerMetadata{ActualFee: 25, SuccessIndicator: types.TxStatusSuccessful}}
 	txRecProof := testblock.CreateTxRecordProof(t, txRec, signer, testblock.WithPartitionID(money.DefaultPartitionID))
 
-	b, err := types.Cbor.Marshal([]*types.TxRecordProof{txRecProof})
+	b, err := cbor.Marshal([]*types.TxRecordProof{txRecProof})
 	require.NoError(t, err)
 	return b
 }

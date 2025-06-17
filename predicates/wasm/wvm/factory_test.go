@@ -3,6 +3,7 @@ package wvm
 import (
 	"testing"
 
+	"github.com/alphabill-org/alphabill-go-base/cbor"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/stretchr/testify/require"
 )
@@ -43,7 +44,7 @@ func Test_ABTypesFactory_createObj(t *testing.T) {
 			AuthProof: []byte{1},
 			FeeProof:  []byte{2},
 		}
-		buf, err := types.Cbor.Marshal(txo)
+		buf, err := cbor.Marshal(txo)
 		require.NoError(t, err)
 
 		f := ABTypesFactory{}
@@ -65,7 +66,7 @@ func Test_ABTypesFactory_createObj(t *testing.T) {
 				SuccessIndicator: types.TxStatusSuccessful,
 			},
 		}
-		buf, err := types.Cbor.Marshal(txr)
+		buf, err := cbor.Marshal(txr)
 		require.NoError(t, err)
 
 		f := ABTypesFactory{}
@@ -80,7 +81,7 @@ func Test_ABTypesFactory_createObj(t *testing.T) {
 			BlockHeaderHash: []byte{5, 5, 5},
 			Chain:           []*types.GenericChainItem{{Hash: []byte{4}}},
 		}
-		buf, err := types.Cbor.Marshal(txp)
+		buf, err := cbor.Marshal(txp)
 		require.NoError(t, err)
 
 		f := ABTypesFactory{}

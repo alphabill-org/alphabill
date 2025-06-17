@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"fmt"
 
+	"github.com/alphabill-org/alphabill-go-base/cbor"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/types/hex"
 )
@@ -94,7 +95,7 @@ func (enc *TVEnc) Encode(item any) {
 		enc.WriteBytes(it)
 	case hex.Bytes:
 		enc.WriteBytes(it)
-	case types.RawCBOR:
+	case cbor.RawCBOR:
 		enc.WriteBytes(it)
 	case types.UnitID:
 		enc.WriteBytes(it)

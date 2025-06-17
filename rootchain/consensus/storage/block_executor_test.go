@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/alphabill-org/alphabill-go-base/cbor"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/network/protocol/certification"
@@ -399,19 +400,19 @@ func Test_ExecutedBlock_serialization(t *testing.T) {
 		// considers nil and empty map as different. In code the ExecutedBlock
 		// values are constructed via constructors which init the Changed field.
 		b1 := ExecutedBlock{ShardState: ShardStates{Changed: ShardSet{}}}
-		buf, err := types.Cbor.Marshal(b1)
+		buf, err := cbor.Marshal(b1)
 		require.NoError(t, err)
 
 		var b2 ExecutedBlock
-		require.NoError(t, types.Cbor.Unmarshal(buf, &b2))
+		require.NoError(t, cbor.Unmarshal(buf, &b2))
 		require.EqualValues(t, b1.ShardState.Changed, b2.ShardState.Changed)
 
 		// set with one item (empty shard ID)
 		b1.ShardState.Changed = map[types.PartitionShardID]struct{}{{PartitionID: 1, ShardID: types.ShardID{}.Key()}: {}}
-		buf, err = types.Cbor.Marshal(b1)
+		buf, err = cbor.Marshal(b1)
 		require.NoError(t, err)
 
-		require.NoError(t, types.Cbor.Unmarshal(buf, &b2))
+		require.NoError(t, cbor.Unmarshal(buf, &b2))
 		require.EqualValues(t, b1.ShardState.Changed, b2.ShardState.Changed)
 
 		// set with two shards
@@ -420,21 +421,21 @@ func Test_ExecutedBlock_serialization(t *testing.T) {
 			{PartitionID: 2, ShardID: s0.Key()}: {},
 			{PartitionID: 2, ShardID: s1.Key()}: {},
 		}
-		buf, err = types.Cbor.Marshal(b1)
+		buf, err = cbor.Marshal(b1)
 		require.NoError(t, err)
 
-		require.NoError(t, types.Cbor.Unmarshal(buf, &b2))
+		require.NoError(t, cbor.Unmarshal(buf, &b2))
 		require.EqualValues(t, b1.ShardState.Changed, b2.ShardState.Changed)
 	})
 
 	t.Run("ShardInfo", func(t *testing.T) {
 		// empty map
 		b1 := ExecutedBlock{ShardState: ShardStates{States: map[types.PartitionShardID]*ShardInfo{}}}
-		buf, err := types.Cbor.Marshal(b1)
+		buf, err := cbor.Marshal(b1)
 		require.NoError(t, err)
 
 		var b2 ExecutedBlock
-		require.NoError(t, types.Cbor.Unmarshal(buf, &b2))
+		require.NoError(t, cbor.Unmarshal(buf, &b2))
 		require.EqualValues(t, b1.ShardState.States, b2.ShardState.States)
 
 		// non-empty map
@@ -460,10 +461,10 @@ func Test_ExecutedBlock_serialization(t *testing.T) {
 		}
 		psKey := types.PartitionShardID{PartitionID: si.LastCR.Partition, ShardID: si.LastCR.Shard.Key()}
 		b1.ShardState.States[psKey] = &si
-		buf, err = types.Cbor.Marshal(b1)
+		buf, err = cbor.Marshal(b1)
 		require.NoError(t, err)
 
-		require.NoError(t, types.Cbor.Unmarshal(buf, &b2))
+		require.NoError(t, cbor.Unmarshal(buf, &b2))
 		require.Equal(t, b1.ShardState.States, b2.ShardState.States)
 		require.Equal(t, &si, b2.ShardState.States[psKey])
 	})

@@ -10,6 +10,7 @@ import (
 
 	"github.com/libp2p/go-libp2p/core/peer"
 
+	"github.com/alphabill-org/alphabill-go-base/cbor"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	"github.com/alphabill-org/alphabill/partition"
@@ -197,7 +198,7 @@ func (s *StateAPI) SendTransaction(ctx context.Context, txBytes hex.Bytes) (_ he
 		return nil, fmt.Errorf("request not allowed: %w", err)
 	}
 	var tx *types.TransactionOrder
-	if err := types.Cbor.Unmarshal(txBytes, &tx); err != nil {
+	if err := cbor.Unmarshal(txBytes, &tx); err != nil {
 		s.updTxReceived(ctx, 0, err)
 		return nil, fmt.Errorf("failed to decode transaction: %w", err)
 	}
@@ -223,7 +224,7 @@ func (s *StateAPI) GetTransactionProof(ctx context.Context, txHash hex.Bytes) (_
 		}
 		return nil, fmt.Errorf("failed to load tx record: %w", err)
 	}
-	txRecordProofCBOR, err := types.Cbor.Marshal(txRecordProof)
+	txRecordProofCBOR, err := cbor.Marshal(txRecordProof)
 	if err != nil {
 		return nil, fmt.Errorf("failed to encode tx record: %w", err)
 	}
@@ -245,7 +246,7 @@ func (s *StateAPI) GetBlock(ctx context.Context, blockNumber hex.Uint64) (_ hex.
 	if block == nil {
 		return nil, nil
 	}
-	blockCbor, err := types.Cbor.Marshal(block)
+	blockCbor, err := cbor.Marshal(block)
 	if err != nil {
 		return nil, fmt.Errorf("failed to encode block: %w", err)
 	}

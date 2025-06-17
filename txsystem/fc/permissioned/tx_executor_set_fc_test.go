@@ -3,6 +3,7 @@ package permissioned
 import (
 	"testing"
 
+	"github.com/alphabill-org/alphabill-go-base/cbor"
 	"github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
 	moneyid "github.com/alphabill-org/alphabill-go-base/testutils/money"
@@ -224,7 +225,7 @@ func newSetFeeCreditTx(adminKey crypto.Signer, partitionID types.PartitionID, un
 }
 
 func newTxPayload(partitionID types.PartitionID, txType uint16, unitID, fcrID types.UnitID, timeout uint64, refNo []byte, attr interface{}) (types.Payload, error) {
-	attrBytes, err := types.Cbor.Marshal(attr)
+	attrBytes, err := cbor.Marshal(attr)
 	if err != nil {
 		return types.Payload{}, err
 	}

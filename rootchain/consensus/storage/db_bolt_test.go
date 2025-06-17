@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.etcd.io/bbolt"
 
+	"github.com/alphabill-org/alphabill-go-base/cbor"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/alphabill-org/alphabill/network/protocol/abdrc"
@@ -191,7 +192,7 @@ func Test_BoltDB_VoteMsg(t *testing.T) {
 		require.Empty(t, msg)
 
 		// invalid type enum value
-		encoded, err := types.Cbor.Marshal(VoteStore{VoteType: 10})
+		encoded, err := cbor.Marshal(VoteStore{VoteType: 10})
 		require.NoError(t, err)
 		err = db.db.Update(func(tx *bbolt.Tx) error {
 			b := tx.Bucket(bucketVotes)

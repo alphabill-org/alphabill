@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/tetratelabs/wazero/api"
 
-	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill-go-base/cbor"
 	"github.com/alphabill-org/alphabill/internal/testutils/logger"
 	"github.com/alphabill-org/alphabill/predicates/wasm/wvm/bumpallocator"
 )
@@ -75,7 +75,7 @@ func Test_cborParse(t *testing.T) {
 	})
 
 	t.Run("success, array", func(t *testing.T) {
-		conf, err := types.Cbor.Marshal([]any{1234567890, []byte{1, 2, 3, 4, 5}})
+		conf, err := cbor.Marshal([]any{1234567890, []byte{1, 2, 3, 4, 5}})
 		require.NoError(t, err)
 		ctx := &vmContext{
 			curPrg: &evalContext{
@@ -110,7 +110,7 @@ func Test_cborParse(t *testing.T) {
 }
 
 func Test_cborChunks(t *testing.T) {
-	cborData, err := types.Cbor.Marshal([]any{1234567890, []byte{1, 2, 3, 4, 5}})
+	cborData, err := cbor.Marshal([]any{1234567890, []byte{1, 2, 3, 4, 5}})
 	require.NoError(t, err)
 	vm := &vmContext{
 		curPrg: &evalContext{
@@ -143,15 +143,15 @@ func Test_cborChunks(t *testing.T) {
 
 	// the first handle is for cbor encoded uint64
 	var v any
-	buf, err := getVar[types.RawCBOR](vm.curPrg.vars, handles[0])
+	buf, err := getVar[cbor.RawCBOR](vm.curPrg.vars, handles[0])
 	require.NoError(t, err)
-	require.NoError(t, types.Cbor.Unmarshal(buf, &v))
+	require.NoError(t, cbor.Unmarshal(buf, &v))
 	require.Equal(t, uint64(1234567890), v)
 
 	// the second handle is for cbor encoded byte slice
-	buf, err = getVar[types.RawCBOR](vm.curPrg.vars, handles[1])
+	buf, err = getVar[cbor.RawCBOR](vm.curPrg.vars, handles[1])
 	require.NoError(t, err)
-	require.NoError(t, types.Cbor.Unmarshal(buf, &v))
+	require.NoError(t, cbor.Unmarshal(buf, &v))
 	require.Equal(t, []byte{1, 2, 3, 4, 5}, v)
 }
 

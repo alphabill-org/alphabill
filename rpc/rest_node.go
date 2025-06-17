@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/alphabill-org/alphabill-go-base/cbor"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/logger"
 	"github.com/gorilla/mux"
@@ -26,7 +27,7 @@ func getState(node partitionNode, log *slog.Logger) http.HandlerFunc {
 		if err := node.SerializeState(w); err != nil {
 			w.Header().Set("Content-Type", "application/cbor")
 			w.WriteHeader(http.StatusInternalServerError)
-			if err := types.Cbor.Encode(w, struct {
+			if err := cbor.Encode(w, struct {
 				_   struct{} `cbor:",toarray"`
 				Err string
 			}{

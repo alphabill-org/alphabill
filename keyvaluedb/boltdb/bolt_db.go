@@ -5,8 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/alphabill-org/alphabill-go-base/types"
-
+	"github.com/alphabill-org/alphabill-go-base/cbor"
 	"github.com/alphabill-org/alphabill/keyvaluedb"
 	bolt "go.etcd.io/bbolt"
 )
@@ -39,8 +38,8 @@ func New(dbFile string) (*BoltDB, error) {
 	s := &BoltDB{
 		db:      db,
 		bucket:  []byte(defaultBucket),
-		encoder: types.Cbor.Marshal,
-		decoder: types.Cbor.Unmarshal,
+		encoder: cbor.Marshal,
+		decoder: cbor.Unmarshal,
 	}
 	if err = s.createBuckets(); err != nil {
 		return nil, err

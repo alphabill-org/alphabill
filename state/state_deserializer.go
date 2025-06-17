@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/alphabill-org/alphabill-go-base/cbor"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/util"
 	"github.com/alphabill-org/alphabill/tree/avl"
@@ -12,7 +13,7 @@ import (
 func readState(stateData io.Reader, udc UnitDataConstructor, opts ...Option) (*State, *Header, error) {
 	options := loadOptions(opts...)
 	crc32Reader := NewCRC32Reader(stateData, CBORChecksumLength)
-	decoder := types.Cbor.GetDecoder(crc32Reader)
+	decoder := cbor.GetDecoder(crc32Reader)
 
 	var header Header
 	err := decoder.Decode(&header)

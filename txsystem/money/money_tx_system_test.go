@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/alphabill-org/alphabill-go-base/cbor"
 	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	abhash "github.com/alphabill-org/alphabill-go-base/hash"
 	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
@@ -434,7 +435,7 @@ func TestBillData_AddToHasher(t *testing.T) {
 	}
 
 	hasher := crypto.SHA256.New()
-	res, err := types.Cbor.Marshal(bd)
+	res, err := cbor.Marshal(bd)
 	require.NoError(t, err)
 	hasher.Write(res)
 	expectedHash := hasher.Sum(nil)
@@ -446,7 +447,7 @@ func TestBillData_AddToHasher(t *testing.T) {
 	require.Equal(t, expectedHash, actualHash)
 	// make sure all fields where serialized
 	var bdFormSerialized money.BillData
-	require.NoError(t, types.Cbor.Unmarshal(res, &bdFormSerialized))
+	require.NoError(t, cbor.Unmarshal(res, &bdFormSerialized))
 	require.Equal(t, bd, &bdFormSerialized)
 }
 

@@ -5,6 +5,7 @@ import (
 	"crypto"
 	"fmt"
 
+	"github.com/alphabill-org/alphabill-go-base/cbor"
 	abhash "github.com/alphabill-org/alphabill-go-base/hash"
 	"github.com/alphabill-org/alphabill-go-base/types"
 )
@@ -106,7 +107,7 @@ func (u *UnitV1) IsExpired(currentRoundNumber uint64) bool {
 }
 
 func MarshalUnitData(u types.UnitData) ([]byte, error) {
-	return types.Cbor.Marshal(u)
+	return cbor.Marshal(u)
 }
 
 func copyLogs(entries []*Log) []*Log {

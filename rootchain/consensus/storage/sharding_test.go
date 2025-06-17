@@ -6,6 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/alphabill-org/alphabill-go-base/cbor"
 	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	testcertificates "github.com/alphabill-org/alphabill/internal/testutils/certificates"
@@ -425,11 +426,11 @@ func Test_ShardInfo_NextEpoch(t *testing.T) {
 	      43 # "C"
 	   03    # unsigned(3)
 	*/
-	require.Equal(t, types.RawCBOR{0xa3, 0x61, 0x41, 0x1, 0x61, 0x42, 0x2, 0x61, 0x43, 0x3}, nextSI.PrevEpochFees)
+	require.Equal(t, cbor.RawCBOR{0xa3, 0x61, 0x41, 0x1, 0x61, 0x42, 0x2, 0x61, 0x43, 0x3}, nextSI.PrevEpochFees)
 	// fee list is initialized to new validator list
 	require.Equal(t, map[string]uint64{"2222": 0}, nextSI.Fees)
 	// array of 7 items, sorted by field order in the struct
-	require.Equal(t, types.RawCBOR{0x87, 0, 1, 2, 3, 4, 5, 6}, nextSI.PrevEpochStat)
+	require.Equal(t, cbor.RawCBOR{0x87, 0, 1, 2, 3, 4, 5, 6}, nextSI.PrevEpochStat)
 	require.Equal(t, certification.StatisticalRecord{}, nextSI.Stat, "expected stat to be reset")
 }
 
@@ -481,8 +482,8 @@ func Test_NewShardInfoFromGenesis(t *testing.T) {
 		require.Nil(t, si.LastCR)
 		require.Equal(t, certification.StatisticalRecord{}, si.Stat)
 		require.Equal(t, map[string]uint64{nodeID: 0}, si.Fees)
-		require.Equal(t, types.RawCBOR{0xA0}, si.PrevEpochFees)
-		require.Equal(t, types.RawCBOR{0x87, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0}, si.PrevEpochStat)
+		require.Equal(t, cbor.RawCBOR{0xA0}, si.PrevEpochFees)
+		require.Equal(t, cbor.RawCBOR{0x87, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0}, si.PrevEpochStat)
 	})
 }
 

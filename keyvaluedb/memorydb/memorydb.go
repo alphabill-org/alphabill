@@ -4,8 +4,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/alphabill-org/alphabill-go-base/types"
-
+	"github.com/alphabill-org/alphabill-go-base/cbor"
 	"github.com/alphabill-org/alphabill/keyvaluedb"
 )
 
@@ -28,8 +27,8 @@ type (
 func New() (*MemoryDB, error) {
 	return &MemoryDB{
 		db:      make(map[string][]byte),
-		encoder: types.Cbor.Marshal,
-		decoder: types.Cbor.Unmarshal,
+		encoder: cbor.Marshal,
+		decoder: cbor.Unmarshal,
 	}, nil
 }
 

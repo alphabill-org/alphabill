@@ -11,7 +11,7 @@ import (
 
 	"go.etcd.io/bbolt"
 
-	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill-go-base/cbor"
 	"github.com/alphabill-org/alphabill/network/protocol/abdrc"
 	rctypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
 )
@@ -83,7 +83,7 @@ func (db BoltDB) LoadBlocks() (blocks []*ExecutedBlock, err error) {
 		c := b.Cursor()
 		for k, v := c.Last(); k != nil; k, v = c.Prev() {
 			var b ExecutedBlock
-			if err := types.Cbor.Unmarshal(v, &b); err != nil {
+			if err := cbor.Unmarshal(v, &b); err != nil {
 				return fmt.Errorf("loading block %x: %w", k, err)
 			}
 			blocks = append(blocks, &b)
@@ -97,7 +97,7 @@ WriteBlock stores "block" into database. If "root" is "true" older
 blocks (based on round number) will be deleted.
 */
 func (db BoltDB) WriteBlock(block *ExecutedBlock, root bool) error {
-	data, err := types.Cbor.Marshal(block)
+	data, err := cbor.Marshal(block)
 	if err != nil {
 		return fmt.Errorf("serializing block: %w", err)
 	}
@@ -136,7 +136,7 @@ func (db BoltDB) WriteBlock(block *ExecutedBlock, root bool) error {
 var errNoCertificatesBucket = errors.New("certificates bucket not found")
 
 func (db BoltDB) WriteTC(tc *rctypes.TimeoutCert) error {
-	data, err := types.Cbor.Marshal(tc)
+	data, err := cbor.Marshal(tc)
 	if err != nil {
 		return fmt.Errorf("serializing TimeoutCert: %w", err)
 	}
@@ -166,7 +166,7 @@ func (db BoltDB) ReadLastTC() (tc *rctypes.TimeoutCert, _ error) {
 			return errNoCertificatesBucket
 		}
 		if k, v := b.Cursor().Seek(keyTimeoutCert); bytes.Equal(k, keyTimeoutCert) {
-			return types.Cbor.Unmarshal(v, &tc)
+			return cbor.Unmarshal(v, &tc)
 		}
 		return nil
 	})
@@ -184,7 +184,7 @@ type VoteType uint8
 
 type VoteStore struct {
 	VoteType VoteType
-	VoteMsg  types.RawCBOR
+	VoteMsg  cbor.RawCBOR
 }
 
 func (db BoltDB) WriteVote(vote any) (err error) {
@@ -198,11 +198,11 @@ func (db BoltDB) WriteVote(vote any) (err error) {
 		return fmt.Errorf("unknown vote type %T", vote)
 	}
 
-	if voteInfo.VoteMsg, err = types.Cbor.Marshal(vote); err != nil {
+	if voteInfo.VoteMsg, err = cbor.Marshal(vote); err != nil {
 		return fmt.Errorf("vote message serialization failed: %w", err)
 	}
 
-	encoded, err := types.Cbor.Marshal(voteInfo)
+	encoded, err := cbor.Marshal(voteInfo)
 	if err != nil {
 		return fmt.Errorf("vote info serialization failed: %w", err)
 	}
@@ -225,7 +225,7 @@ func (db BoltDB) ReadLastVote() (msg any, err error) {
 
 		voteInfo := VoteStore{}
 		if k, v := b.Cursor().Seek(keyVote); bytes.Equal(k, keyVote) {
-			if err := types.Cbor.Unmarshal(v, &voteInfo); err != nil {
+			if err := cbor.Unmarshal(v, &voteInfo); err != nil {
 				return fmt.Errorf("deserializing vote info: %w", err)
 			}
 		} else {
@@ -240,7 +240,7 @@ func (db BoltDB) ReadLastVote() (msg any, err error) {
 		default:
 			return fmt.Errorf("unsupported vote kind: %d", voteInfo.VoteType)
 		}
-		if err := types.Cbor.Unmarshal(voteInfo.VoteMsg, msg); err != nil {
+		if err := cbor.Unmarshal(voteInfo.VoteMsg, msg); err != nil {
 			return fmt.Errorf("deserializing vote message (%T): %w", msg, err)
 		}
 		return nil

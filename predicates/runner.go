@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/alphabill-org/alphabill-go-base/cbor"
 	"github.com/alphabill-org/alphabill-go-base/predicates"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/state"
@@ -48,7 +49,7 @@ type (
 
 func ExtractPredicate(predicateBytes []byte) (*predicates.Predicate, error) {
 	predicate := &predicates.Predicate{}
-	if err := types.Cbor.Unmarshal(predicateBytes, predicate); err != nil {
+	if err := cbor.Unmarshal(predicateBytes, predicate); err != nil {
 		return nil, err
 	}
 	return predicate, nil

@@ -20,6 +20,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/alphabill-org/alphabill-go-base/cbor"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/util"
 
@@ -484,7 +485,7 @@ func getUCv1(b *types.Block) (*types.UnicityCertificate, error) {
 		return nil, errors.New("block unicity certificate is nil")
 	}
 	uc := &types.UnicityCertificate{Version: 1}
-	return uc, types.Cbor.Unmarshal(b.UnicityCertificate, uc)
+	return uc, cbor.Unmarshal(b.UnicityCertificate, uc)
 }
 
 func (n *Node) restoreBlockProposal(ctx context.Context) {
@@ -1052,7 +1053,7 @@ func (n *Node) handleUnicityCertificate(ctx context.Context, uc *types.UnicityCe
 		return ErrNodeDoesNotHaveLatestBlock
 	}
 	// replace UC
-	n.pendingBlockProposal.UnicityCertificate, err = types.Cbor.Marshal(uc)
+	n.pendingBlockProposal.UnicityCertificate, err = cbor.Marshal(uc)
 	if err != nil {
 		return fmt.Errorf("failed to marshal unicity certificate: %w", err)
 	}
@@ -1528,7 +1529,7 @@ func (n *Node) sendCertificationRequest(ctx context.Context, blockAuthor string)
 			ETHash:          state.ETHash(),
 		},
 	}
-	ucBytes, err := types.Cbor.Marshal(uc)
+	ucBytes, err := cbor.Marshal(uc)
 	if err != nil {
 		return fmt.Errorf("failed to marshal unicity certificate: %w", err)
 	}

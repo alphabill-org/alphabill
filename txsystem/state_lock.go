@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/alphabill-org/alphabill-go-base/cbor"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/logger"
 	"github.com/alphabill-org/alphabill/predicates"
@@ -127,7 +128,7 @@ func (m *GenericTxSystem) parseTxOnHold(unitID types.UnitID) (*types.Transaction
 	// unit has a state lock, any transaction with locked unit must first unlock
 	m.log.Debug("unit has a state lock", logger.UnitID(unitID))
 	txOnHold := &types.TransactionOrder{Version: 1}
-	if err = types.Cbor.Unmarshal(unit.StateLockTx(), txOnHold); err != nil {
+	if err = cbor.Unmarshal(unit.StateLockTx(), txOnHold); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal state lock transaction: %w", err)
 	}
 	return txOnHold, nil

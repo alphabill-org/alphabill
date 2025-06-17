@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alphabill-org/alphabill-go-base/cbor"
 	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	ethrpc "github.com/ethereum/go-ethereum/rpc"
@@ -373,7 +374,7 @@ func makeSuccessfulPayment(t *testing.T, ctx context.Context, rpcClient *ethrpc.
 		NewOwnerPredicate: templates.AlwaysTrueBytes(),
 		TargetValue:       500,
 	}
-	attrBytes, err := types.Cbor.Marshal(attr)
+	attrBytes, err := cbor.Marshal(attr)
 	require.NoError(t, err)
 
 	tx := &types.TransactionOrder{
@@ -387,7 +388,7 @@ func makeSuccessfulPayment(t *testing.T, ctx context.Context, rpcClient *ethrpc.
 		},
 	}
 	require.NoError(t, tx.SetAuthProof(money.TransferAuthProof{}))
-	txBytes, err := types.Cbor.Marshal(tx)
+	txBytes, err := cbor.Marshal(tx)
 	require.NoError(t, err)
 
 	var res hex.Bytes
@@ -401,7 +402,7 @@ func makeFailingPayment(t *testing.T, ctx context.Context, rpcClient *ethrpc.Cli
 		NewOwnerPredicate: templates.AlwaysTrueBytes(),
 		TargetValue:       500,
 	}
-	attrBytes, err := types.Cbor.Marshal(attr)
+	attrBytes, err := cbor.Marshal(attr)
 	require.NoError(t, err)
 
 	tx := &types.TransactionOrder{
@@ -415,7 +416,7 @@ func makeFailingPayment(t *testing.T, ctx context.Context, rpcClient *ethrpc.Cli
 		},
 	}
 	require.NoError(t, tx.SetAuthProof(money.TransferAuthProof{}))
-	txBytes, err := types.Cbor.Marshal(tx)
+	txBytes, err := cbor.Marshal(tx)
 	require.NoError(t, err)
 
 	var res hex.Bytes
@@ -434,7 +435,7 @@ func sendTokensTx(t *testing.T, ctx context.Context, rpcClient *ethrpc.Client) {
 		TokenTypeOwnerPredicate:  templates.AlwaysTrueBytes(),
 		DataUpdatePredicate:      templates.AlwaysTrueBytes(),
 	}
-	attrBytes, err := types.Cbor.Marshal(attr)
+	attrBytes, err := cbor.Marshal(attr)
 	require.NoError(t, err)
 	tx := &types.TransactionOrder{
 		Version: 1,
@@ -447,7 +448,7 @@ func sendTokensTx(t *testing.T, ctx context.Context, rpcClient *ethrpc.Client) {
 		},
 	}
 	// require.NoError(t, tokens.GenerateUnitID(tx, types.ShardID{}, &pdr))
-	txBytes, err := types.Cbor.Marshal(tx)
+	txBytes, err := cbor.Marshal(tx)
 	require.NoError(t, err)
 	var res hex.Bytes
 	err = rpcClient.CallContext(ctx, &res, "state_sendTransaction", hexutil.Encode(txBytes))
@@ -457,7 +458,7 @@ func sendTokensTx(t *testing.T, ctx context.Context, rpcClient *ethrpc.Client) {
 	// failing case
 	var res2 hex.Bytes
 	tx.PartitionID = 0x01000000 // incorrect partition id
-	txBytes, err = types.Cbor.Marshal(tx)
+	txBytes, err = cbor.Marshal(tx)
 	require.NoError(t, err)
 	err = rpcClient.CallContext(ctx, &res2, "state_sendTransaction", hexutil.Encode(txBytes))
 	require.ErrorContains(t, err, "invalid transaction partition identifier")

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/alphabill-org/alphabill-go-base/cbor"
 	"github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/types/hex"
@@ -17,14 +18,14 @@ var (
 )
 
 type BlockCertificationRequest struct {
-	_              struct{}           `cbor:",toarray"`
-	PartitionID    types.PartitionID  `json:"partitionId"`
-	ShardID        types.ShardID      `json:"shardId"`
-	NodeID         string             `json:"nodeId"`
-	InputRecord    *types.InputRecord `json:"inputRecord"`
-	BlockSize      uint64             `json:"blockSize"`
-	StateSize      uint64             `json:"stateSize"`
-	Signature      hex.Bytes          `json:"signature"`
+	_           struct{}           `cbor:",toarray"`
+	PartitionID types.PartitionID  `json:"partitionId"`
+	ShardID     types.ShardID      `json:"shardId"`
+	NodeID      string             `json:"nodeId"`
+	InputRecord *types.InputRecord `json:"inputRecord"`
+	BlockSize   uint64             `json:"blockSize"`
+	StateSize   uint64             `json:"stateSize"`
+	Signature   hex.Bytes          `json:"signature"`
 }
 
 func (x *BlockCertificationRequest) IRRound() uint64 {
@@ -85,5 +86,5 @@ func (x *BlockCertificationRequest) Sign(signer crypto.Signer) error {
 
 func (x BlockCertificationRequest) Bytes() ([]byte, error) {
 	x.Signature = nil
-	return types.Cbor.Marshal(x)
+	return cbor.Marshal(x)
 }

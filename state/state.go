@@ -8,6 +8,7 @@ import (
 	"io"
 	"sync"
 
+	abcbor "github.com/alphabill-org/alphabill-go-base/cbor"
 	"github.com/alphabill-org/alphabill-go-base/tree/mt"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/util"
@@ -90,7 +91,7 @@ func readNodeRecords(decoder *cbor.Decoder, unitDataConstructor UnitDataConstruc
 			return nil, fmt.Errorf("unable to construct unit data: %w", err)
 		}
 
-		err = types.Cbor.Unmarshal(nodeRecord.UnitData, &unitData)
+		err = abcbor.Unmarshal(nodeRecord.UnitData, &unitData)
 		if err != nil {
 			return nil, fmt.Errorf("unable to decode unit data: %w", err)
 		}
@@ -323,7 +324,7 @@ func (s *State) Size() (uint64, error) {
 // Not concurrency safe. Should clone the state before calling this.
 func (s *State) Serialize(writer io.Writer, committed bool, executedTransactions map[string]uint64) error {
 	crc32Writer := NewCRC32Writer(writer)
-	encoder, err := types.Cbor.GetEncoder(crc32Writer)
+	encoder, err := abcbor.GetEncoder(crc32Writer)
 	if err != nil {
 		return fmt.Errorf("unable to get encoder: %w", err)
 	}

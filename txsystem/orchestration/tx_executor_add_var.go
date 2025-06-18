@@ -4,12 +4,12 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/alphabill-org/alphabill-go-base/cbor"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/orchestration"
 	"github.com/alphabill-org/alphabill-go-base/types"
-	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
-
 	"github.com/alphabill-org/alphabill/state"
 	"github.com/alphabill-org/alphabill/tree/avl"
+	txtypes "github.com/alphabill-org/alphabill/txsystem/types"
 )
 
 func (m *Module) executeAddVarTx(tx *types.TransactionOrder, attr *orchestration.AddVarAttributes, _ *orchestration.AddVarAuthProof, _ txtypes.ExecutionContext) (*types.ServerMetadata, error) {
@@ -31,7 +31,7 @@ func (m *Module) executeAddVarTx(tx *types.TransactionOrder, attr *orchestration
 	if err != nil {
 		return nil, fmt.Errorf("addVar: failed to update state: %w", err)
 	}
-	processingDetails, err := types.Cbor.Marshal(attr.Var)
+	processingDetails, err := cbor.Marshal(attr.Var)
 	if err != nil {
 		return nil, fmt.Errorf("addVar: failed to encode transaction processing result: %w", err)
 	}

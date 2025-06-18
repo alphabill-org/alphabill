@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alphabill-org/alphabill-go-base/cbor"
 	abhash "github.com/alphabill-org/alphabill-go-base/hash"
 	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
@@ -313,7 +314,7 @@ func TestGetTransactionProof(t *testing.T) {
 		require.NotNil(t, res.TxRecordProof)
 
 		var txRecordProof *types.TxRecordProof
-		err = types.Cbor.Unmarshal(res.TxRecordProof, &txRecordProof)
+		err = cbor.Unmarshal(res.TxRecordProof, &txRecordProof)
 		require.NoError(t, err)
 		require.NotNil(t, txRecordProof)
 	})
@@ -340,7 +341,7 @@ func TestGetBlock(t *testing.T) {
 		require.NotNil(t, res)
 
 		var block *types.Block
-		err = types.Cbor.Unmarshal(res, &block)
+		err = cbor.Unmarshal(res, &block)
 		require.NoError(t, err)
 		rn, err := block.GetRoundNumber()
 		require.NoError(t, err)
@@ -568,7 +569,7 @@ func createTransactionOrder(t *testing.T, unitID types.UnitID) []byte {
 		Counter:           0,
 	}
 
-	attBytes, err := types.Cbor.Marshal(bt)
+	attBytes, err := cbor.Marshal(bt)
 	require.NoError(t, err)
 
 	txo := &types.TransactionOrder{
@@ -583,7 +584,7 @@ func createTransactionOrder(t *testing.T, unitID types.UnitID) []byte {
 	authProof := money.TransferAuthProof{OwnerProof: []byte{1}}
 	require.NoError(t, txo.SetAuthProof(authProof))
 
-	txoCBOR, err := types.Cbor.Marshal(txo)
+	txoCBOR, err := cbor.Marshal(txo)
 	require.NoError(t, err)
 	return txoCBOR
 }

@@ -8,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/alphabill-org/alphabill-go-base/cbor"
 	"github.com/alphabill-org/alphabill-go-base/crypto"
 	sdkpredicates "github.com/alphabill-org/alphabill-go-base/predicates"
 	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
@@ -281,7 +282,7 @@ func TestP2pkh256_Execute(t *testing.T) {
 		// valid owner proof struct (CBOR decoding is success) but invalid data inside
 		// signature is of invalid length
 		signature := templates.P2pkh256Signature{Sig: []byte{1, 2, 3}, PubKey: pubKey}
-		ownerProof, err := types.Cbor.Marshal(signature)
+		ownerProof, err := cbor.Marshal(signature)
 		require.NoError(t, err)
 		res, err := executeP2PKH256(pubKeyHash, ownerProof, execEnv)
 		require.EqualError(t, err, `invalid signature size: expected 65, got 3 (010203)`)
@@ -289,7 +290,7 @@ func TestP2pkh256_Execute(t *testing.T) {
 
 		// OwnerProof.PubKey is of invalid length
 		signature = templates.P2pkh256Signature{Sig: make([]byte, 65), PubKey: []byte{4, 5, 6}}
-		ownerProof, err = types.Cbor.Marshal(signature)
+		ownerProof, err = cbor.Marshal(signature)
 		require.NoError(t, err)
 		res, err = executeP2PKH256(pubKeyHash, ownerProof, execEnv)
 		require.EqualError(t, err, `invalid pubkey size: expected 33, got 3 (040506)`)
@@ -297,7 +298,7 @@ func TestP2pkh256_Execute(t *testing.T) {
 
 		// PubKey hash doesn't match with the hash of the PubKey in OwnerProof
 		signature = templates.P2pkh256Signature{Sig: make([]byte, 65), PubKey: make([]byte, 33)}
-		ownerProof, err = types.Cbor.Marshal(signature)
+		ownerProof, err = cbor.Marshal(signature)
 		require.NoError(t, err)
 		res, err = executeP2PKH256(pubKeyHash, ownerProof, execEnv)
 		require.NoError(t, err, `testing against different public key is not error`)
@@ -305,7 +306,7 @@ func TestP2pkh256_Execute(t *testing.T) {
 
 		// set incorrect first byte, compressed key should start with 0x02 or 0x03
 		signature = templates.P2pkh256Signature{Sig: make([]byte, 65), PubKey: make([]byte, 33)}
-		ownerProof, err = types.Cbor.Marshal(signature)
+		ownerProof, err = cbor.Marshal(signature)
 		require.NoError(t, err)
 		pkh := sha256.Sum256(signature.PubKey)
 		res, err = executeP2PKH256(pkh[:], ownerProof, execEnv)
@@ -317,7 +318,7 @@ func TestP2pkh256_Execute(t *testing.T) {
 		// create valid owner proof struct but invalid data inside
 		// signature is of correct length but invalid
 		signature := templates.P2pkh256Signature{Sig: make([]byte, 65), PubKey: pubKey}
-		ownerProof, err := types.Cbor.Marshal(signature)
+		ownerProof, err := cbor.Marshal(signature)
 		require.NoError(t, err)
 		res, err := executeP2PKH256(pubKeyHash, ownerProof, execEnv)
 		require.NoError(t, err)

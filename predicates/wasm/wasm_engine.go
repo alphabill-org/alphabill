@@ -8,6 +8,7 @@ import (
 
 	"go.opentelemetry.io/otel/metric"
 
+	"github.com/alphabill-org/alphabill-go-base/cbor"
 	"github.com/alphabill-org/alphabill-go-base/predicates"
 	"github.com/alphabill-org/alphabill-go-base/predicates/wasm"
 	"github.com/alphabill-org/alphabill-go-base/types"
@@ -50,7 +51,7 @@ func (wr WasmRunner) Execute(ctx context.Context, p *predicates.Predicate, args 
 	defer func(start time.Time) { wr.execDur.Record(ctx, time.Since(start).Seconds()) }(time.Now())
 
 	par := wasm.PredicateParams{}
-	if err := types.Cbor.Unmarshal(p.Params, &par); err != nil {
+	if err := cbor.Unmarshal(p.Params, &par); err != nil {
 		return false, fmt.Errorf("decoding predicate parameters: %w", err)
 	}
 

@@ -11,6 +11,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 
+	"github.com/alphabill-org/alphabill-go-base/cbor"
 	"github.com/alphabill-org/alphabill-go-base/crypto"
 	sdkpredicates "github.com/alphabill-org/alphabill-go-base/predicates"
 	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
@@ -106,7 +107,7 @@ func executeP2PKH256(pubKeyHash, args []byte, env predicates.TxContext) (bool, e
 		return false, fmt.Errorf("reading tx signature bytes: %w", err)
 	}
 	p2pkh256Signature := templates.P2pkh256Signature{}
-	if err := types.Cbor.Unmarshal(args, &p2pkh256Signature); err != nil {
+	if err := cbor.Unmarshal(args, &p2pkh256Signature); err != nil {
 		return false, fmt.Errorf("failed to decode P2PKH256 signature: %w", err)
 	}
 	if len(pubKeyHash) != 32 {

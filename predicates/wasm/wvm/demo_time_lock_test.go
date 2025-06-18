@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/alphabill-org/alphabill-go-base/cbor"
 	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/predicates/wasm"
 	tokenid "github.com/alphabill-org/alphabill-go-base/testutils/tokens"
@@ -51,7 +52,7 @@ func Test_time_lock(t *testing.T) {
 
 	// configuration of the predicate
 	const lockedUntilDate uint64 = 1709683200
-	cfgCBOR, err := types.Cbor.Marshal([]any{lockedUntilDate, ownerPKH})
+	cfgCBOR, err := cbor.Marshal([]any{lockedUntilDate, ownerPKH})
 	require.NoError(t, err)
 	predConf := wasm.PredicateParams{Entrypoint: "time_lock", Args: cfgCBOR}
 
@@ -153,7 +154,7 @@ func Test_time_lock(t *testing.T) {
 		}
 
 		// date is not uint (unix timestamp)
-		cfgCBOR, err := types.Cbor.Marshal([]any{"2025-04-01 12:00:00", ownerPKH})
+		cfgCBOR, err := cbor.Marshal([]any{"2025-04-01 12:00:00", ownerPKH})
 		require.NoError(t, err)
 		predConf := wasm.PredicateParams{Entrypoint: "time_lock", Args: cfgCBOR}
 		start, curGas := time.Now(), env.GasRemaining
@@ -164,7 +165,7 @@ func Test_time_lock(t *testing.T) {
 		require.EqualValues(t, 0xc01, res)
 
 		// missing owner PKH
-		cfgCBOR, err = types.Cbor.Marshal([]any{lockedUntilDate})
+		cfgCBOR, err = cbor.Marshal([]any{lockedUntilDate})
 		require.NoError(t, err)
 		predConf = wasm.PredicateParams{Entrypoint: "time_lock", Args: cfgCBOR}
 		start, curGas = time.Now(), env.GasRemaining

@@ -9,6 +9,7 @@ import (
 	"io"
 	"time"
 
+	"github.com/alphabill-org/alphabill-go-base/cbor"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/logger"
 	"github.com/alphabill-org/alphabill/network/protocol/blockproposal"
@@ -271,7 +272,7 @@ func (n *validatorNetwork) UnregisterValidatorProtocols() {
 }
 
 func (n *validatorNetwork) PublishBlock(ctx context.Context, block *types.Block) error {
-	blockBytes, err := types.Cbor.Marshal(block)
+	blockBytes, err := cbor.Marshal(block)
 	if err != nil {
 		return err
 	}
@@ -416,7 +417,7 @@ func (n *validatorNetwork) handleBlocks(ctx context.Context) {
 		}
 
 		block := &types.Block{}
-		err = types.Cbor.Unmarshal(msg.Data, block)
+		err = cbor.Unmarshal(msg.Data, block)
 		if err != nil {
 			n.log.WarnContext(ctx, "failed to decode block", logger.Error(err))
 			continue

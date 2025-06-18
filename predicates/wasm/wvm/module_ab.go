@@ -10,6 +10,7 @@ import (
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/api"
 
+	"github.com/alphabill-org/alphabill-go-base/cbor"
 	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
 	"github.com/alphabill-org/alphabill-go-base/txsystem/money"
 	"github.com/alphabill-org/alphabill-go-base/types"
@@ -121,7 +122,7 @@ func amountTransferred(vec *vmContext, mod api.Module, stack []uint64) error {
 		return fmt.Errorf("reading input data: %w", err)
 	}
 	var txs []*types.TxRecordProof
-	if err := types.Cbor.Unmarshal(data, &txs); err != nil {
+	if err := cbor.Unmarshal(data, &txs); err != nil {
 		return fmt.Errorf("decoding data as slice of tx proofs: %w", err)
 	}
 

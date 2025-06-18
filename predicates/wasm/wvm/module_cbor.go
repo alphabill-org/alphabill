@@ -8,7 +8,7 @@ import (
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/api"
 
-	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill-go-base/cbor"
 )
 
 /*
@@ -35,7 +35,7 @@ func cborParse(vec *vmContext, mod api.Module, stack []uint64) error {
 	}
 
 	var items any
-	if err := types.Cbor.Unmarshal(data, &items); err != nil {
+	if err := cbor.Unmarshal(data, &items); err != nil {
 		return fmt.Errorf("decoding as CBOR: %w", err)
 	}
 
@@ -70,8 +70,8 @@ func cborChunks(vec *vmContext, mod api.Module, stack []uint64) error {
 		return fmt.Errorf("reading variable: %w", err)
 	}
 
-	var items []types.RawCBOR
-	if err := types.Cbor.Unmarshal(data, &items); err != nil {
+	var items []cbor.RawCBOR
+	if err := cbor.Unmarshal(data, &items); err != nil {
 		return fmt.Errorf("decoding as CBOR: %w", err)
 	}
 

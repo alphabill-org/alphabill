@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/alphabill-org/alphabill-go-base/cbor"
 	abhash "github.com/alphabill-org/alphabill-go-base/hash"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/network/protocol/certification"
@@ -78,14 +79,14 @@ func TestIRChangeReqMsg_Marshal(t *testing.T) {
 	hash, err := irHasher.Sum()
 	require.NoError(t, err)
 
-	bs, err := types.Cbor.Marshal(ircr)
+	bs, err := cbor.Marshal(ircr)
 	require.NoError(t, err)
 	hshr := crypto.SHA256.New()
 	hshr.Write(bs)
 	require.Equal(t, hash, hshr.Sum(nil))
 
 	ircr2 := &IRChangeReq{}
-	require.NoError(t, types.Cbor.Unmarshal(bs, ircr2))
+	require.NoError(t, cbor.Unmarshal(bs, ircr2))
 	require.Equal(t, ircr, ircr2)
 }
 

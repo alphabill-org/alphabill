@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
 
+	"github.com/alphabill-org/alphabill-go-base/cbor"
 	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
 	fcsdk "github.com/alphabill-org/alphabill-go-base/txsystem/fc"
@@ -289,7 +290,7 @@ func TestPartition_SwapDCOk(t *testing.T) {
 
 	// create swap order
 	swapAttr := &money.SwapDCAttributes{DustTransferProofs: dcRecordProofs}
-	swapAttrBytes, err := types.Cbor.Marshal(swapAttr)
+	swapAttrBytes, err := cbor.Marshal(swapAttr)
 	require.NoError(t, err)
 
 	// create swap tx

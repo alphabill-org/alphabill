@@ -3,6 +3,7 @@ package wvm
 import (
 	"fmt"
 
+	"github.com/alphabill-org/alphabill-go-base/cbor"
 	"github.com/alphabill-org/alphabill-go-base/types"
 )
 
@@ -22,7 +23,7 @@ func (ABTypesFactory) createObj(typID uint32, data []byte) (any, error) {
 		return nil, fmt.Errorf("unknown type ID %d", typID)
 	}
 
-	if err := types.Cbor.Unmarshal(data, obj); err != nil {
+	if err := cbor.Unmarshal(data, obj); err != nil {
 		return nil, fmt.Errorf("decoding data as %T: %w", obj, err)
 	}
 	return obj, nil

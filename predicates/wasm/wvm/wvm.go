@@ -12,6 +12,7 @@ import (
 	"github.com/tetratelabs/wazero/api"
 	"go.opentelemetry.io/otel/metric"
 
+	"github.com/alphabill-org/alphabill-go-base/cbor"
 	"github.com/alphabill-org/alphabill-go-base/predicates/wasm"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/logger"
@@ -131,7 +132,7 @@ func (vmc *vmContext) getBytesVariable(handle uint32) ([]byte, error) {
 	switch d := v.(type) {
 	case []byte:
 		return d, nil
-	case types.RawCBOR:
+	case cbor.RawCBOR:
 		return d, nil
 	case nil:
 		return nil, nil

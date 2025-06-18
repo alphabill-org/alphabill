@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/alphabill-org/alphabill-go-base/cbor"
 	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/predicates/wasm"
 	tokenid "github.com/alphabill-org/alphabill-go-base/testutils/tokens"
@@ -84,12 +85,12 @@ func Test_multisig(t *testing.T) {
 		wvm, env := engine(t)
 
 		// require all 3 signatures
-		cfgCBOR, err := types.Cbor.Marshal([]any{3, pkhA, pkhB, pkhC})
+		cfgCBOR, err := cbor.Marshal([]any{3, pkhA, pkhB, pkhC})
 		require.NoError(t, err)
 		predConf := wasm.PredicateParams{Entrypoint: "multi_sig", Args: cfgCBOR}
 
 		// second signature is missing
-		ownerProofs, err := types.Cbor.Marshal([][]byte{ownerProofA, nil, ownerProofC})
+		ownerProofs, err := cbor.Marshal([][]byte{ownerProofA, nil, ownerProofC})
 		require.NoError(t, err)
 		start, curGas := time.Now(), env.GasRemaining
 		res, err := wvm.Exec(context.Background(), multisigWasm, ownerProofs, predConf, &txNFTTransfer, env)
@@ -99,7 +100,7 @@ func Test_multisig(t *testing.T) {
 		assert.EqualValues(t, 0x01, res)
 
 		// last signature is missing
-		ownerProofs, err = types.Cbor.Marshal([][]byte{ownerProofA, ownerProofB, nil})
+		ownerProofs, err = cbor.Marshal([][]byte{ownerProofA, ownerProofB, nil})
 		require.NoError(t, err)
 		start, curGas = time.Now(), env.GasRemaining
 		res, err = wvm.Exec(context.Background(), multisigWasm, ownerProofs, predConf, &txNFTTransfer, env)
@@ -111,7 +112,7 @@ func Test_multisig(t *testing.T) {
 		// last signature is invalid - basically the same as previous but will take more gas
 		// as the P2PKH template will run (it didn't for the missing signature).
 		// repeat proof A instead of C so last proof should not verify
-		ownerProofs, err = types.Cbor.Marshal([][]byte{ownerProofA, ownerProofB, ownerProofA})
+		ownerProofs, err = cbor.Marshal([][]byte{ownerProofA, ownerProofB, ownerProofA})
 		require.NoError(t, err)
 		start, curGas = time.Now(), env.GasRemaining
 		res, err = wvm.Exec(context.Background(), multisigWasm, ownerProofs, predConf, &txNFTTransfer, env)
@@ -121,7 +122,7 @@ func Test_multisig(t *testing.T) {
 		assert.EqualValues(t, 0x101, res, "false because P2PKH evaluated to false")
 
 		// invalid proof - not even valid data structure, causes P2PKH error
-		ownerProofs, err = types.Cbor.Marshal([][]byte{make([]byte, len(ownerProofA)), ownerProofB, ownerProofC})
+		ownerProofs, err = cbor.Marshal([][]byte{make([]byte, len(ownerProofA)), ownerProofB, ownerProofC})
 		require.NoError(t, err)
 		start, curGas = time.Now(), env.GasRemaining
 		res, err = wvm.Exec(context.Background(), multisigWasm, ownerProofs, predConf, &txNFTTransfer, env)
@@ -135,12 +136,12 @@ func Test_multisig(t *testing.T) {
 		wvm, env := engine(t)
 
 		// require 2 out of 3
-		cfgCBOR, err := types.Cbor.Marshal([]any{2, pkhA, pkhB, pkhC})
+		cfgCBOR, err := cbor.Marshal([]any{2, pkhA, pkhB, pkhC})
 		require.NoError(t, err)
 		predConf := wasm.PredicateParams{Entrypoint: "multi_sig", Args: cfgCBOR}
 
 		// missing signature for B
-		ownerProofs, err := types.Cbor.Marshal([][]byte{ownerProofA, nil, ownerProofC})
+		ownerProofs, err := cbor.Marshal([][]byte{ownerProofA, nil, ownerProofC})
 		require.NoError(t, err)
 		start, curGas := time.Now(), env.GasRemaining
 		res, err := wvm.Exec(context.Background(), multisigWasm, ownerProofs, predConf, &txNFTTransfer, env)
@@ -150,7 +151,7 @@ func Test_multisig(t *testing.T) {
 		assert.EqualValues(t, 0, res)
 
 		// invalid signature for B, repeating A proof
-		ownerProofs, err = types.Cbor.Marshal([][]byte{ownerProofA, ownerProofA, ownerProofC})
+		ownerProofs, err = cbor.Marshal([][]byte{ownerProofA, ownerProofA, ownerProofC})
 		require.NoError(t, err)
 		start, curGas = time.Now(), env.GasRemaining
 		res, err = wvm.Exec(context.Background(), multisigWasm, ownerProofs, predConf, &txNFTTransfer, env)
@@ -164,11 +165,11 @@ func Test_multisig(t *testing.T) {
 		// ie user made mistake when creating the predicate and provided invalid threshold configuration
 		wvm, env := engine(t)
 
-		ownerProofs, err := types.Cbor.Marshal([][]byte{ownerProofA, ownerProofB})
+		ownerProofs, err := cbor.Marshal([][]byte{ownerProofA, ownerProofB})
 		require.NoError(t, err)
 
 		// require one more than the number of pkh-s provided
-		cfgCBOR, err := types.Cbor.Marshal([]any{3, pkhA, pkhB})
+		cfgCBOR, err := cbor.Marshal([]any{3, pkhA, pkhB})
 		require.NoError(t, err)
 		predConf := wasm.PredicateParams{Entrypoint: "multi_sig", Args: cfgCBOR}
 		start, curGas := time.Now(), env.GasRemaining
@@ -180,7 +181,7 @@ func Test_multisig(t *testing.T) {
 
 		// require zero signatures - if there is no invalid/missing signatures it evaluates to true
 		// IOW returns true when either everyone signs or no one signs!
-		cfgCBOR, err = types.Cbor.Marshal([]any{0, pkhA, pkhB})
+		cfgCBOR, err = cbor.Marshal([]any{0, pkhA, pkhB})
 		require.NoError(t, err)
 		predConf = wasm.PredicateParams{Entrypoint: "multi_sig", Args: cfgCBOR}
 		start, curGas = time.Now(), env.GasRemaining
@@ -192,7 +193,7 @@ func Test_multisig(t *testing.T) {
 
 		// require 257 signatures - will overflow byte and one signature is required, will
 		// evaluate to true! Note that 256 would be zero as byte so will act as previous test
-		cfgCBOR, err = types.Cbor.Marshal([]any{257, pkhA, pkhB})
+		cfgCBOR, err = cbor.Marshal([]any{257, pkhA, pkhB})
 		require.NoError(t, err)
 		predConf = wasm.PredicateParams{Entrypoint: "multi_sig", Args: cfgCBOR}
 		start, curGas = time.Now(), env.GasRemaining
@@ -203,7 +204,7 @@ func Test_multisig(t *testing.T) {
 		assert.EqualValues(t, 0, res)
 
 		// not a number
-		cfgCBOR, err = types.Cbor.Marshal([]any{"foo", pkhA, pkhB})
+		cfgCBOR, err = cbor.Marshal([]any{"foo", pkhA, pkhB})
 		require.NoError(t, err)
 		predConf = wasm.PredicateParams{Entrypoint: "multi_sig", Args: cfgCBOR}
 		start, curGas = time.Now(), env.GasRemaining
@@ -217,11 +218,11 @@ func Test_multisig(t *testing.T) {
 	t.Run("invalid conf, pkh", func(t *testing.T) {
 		wvm, env := engine(t)
 
-		ownerProofs, err := types.Cbor.Marshal([][]byte{ownerProofA, ownerProofB})
+		ownerProofs, err := cbor.Marshal([][]byte{ownerProofA, ownerProofB})
 		require.NoError(t, err)
 
 		// no PKHs at all in the config
-		cfgCBOR, err := types.Cbor.Marshal([]any{1})
+		cfgCBOR, err := cbor.Marshal([]any{1})
 		require.NoError(t, err)
 		predConf := wasm.PredicateParams{Entrypoint: "multi_sig", Args: cfgCBOR}
 
@@ -233,7 +234,7 @@ func Test_multisig(t *testing.T) {
 		require.EqualValues(t, 0x1C, res, "number of proofs does not equal to number of PKH-s")
 
 		// nil PKH
-		cfgCBOR, err = types.Cbor.Marshal([]any{1, nil, nil})
+		cfgCBOR, err = cbor.Marshal([]any{1, nil, nil})
 		require.NoError(t, err)
 		predConf = wasm.PredicateParams{Entrypoint: "multi_sig", Args: cfgCBOR}
 		start, curGas = time.Now(), env.GasRemaining
@@ -249,12 +250,12 @@ func Test_multisig(t *testing.T) {
 		// is allowed to mark missing signature
 		wvm, env := engine(t)
 
-		cfgCBOR, err := types.Cbor.Marshal([]any{2, pkhA, pkhB, pkhC})
+		cfgCBOR, err := cbor.Marshal([]any{2, pkhA, pkhB, pkhC})
 		require.NoError(t, err)
 		predConf := wasm.PredicateParams{Entrypoint: "multi_sig", Args: cfgCBOR}
 
 		// provide only 2 proofs while conf has 3 pkh-s
-		ownerProofs, err := types.Cbor.Marshal([][]byte{ownerProofA, ownerProofC})
+		ownerProofs, err := cbor.Marshal([][]byte{ownerProofA, ownerProofC})
 		require.NoError(t, err)
 
 		start, curGas := time.Now(), env.GasRemaining
@@ -265,7 +266,7 @@ func Test_multisig(t *testing.T) {
 		assert.EqualValues(t, 0x1C, res)
 
 		// provide 4 proofs while conf has only 3 pkh-s
-		ownerProofs, err = types.Cbor.Marshal([][]byte{ownerProofA, ownerProofB, ownerProofC, nil})
+		ownerProofs, err = cbor.Marshal([][]byte{ownerProofA, ownerProofB, ownerProofC, nil})
 		require.NoError(t, err)
 
 		start, curGas = time.Now(), env.GasRemaining
@@ -279,10 +280,10 @@ func Test_multisig(t *testing.T) {
 	t.Run("success 3 of 3", func(t *testing.T) {
 		wvm, env := engine(t)
 
-		ownerProofs, err := types.Cbor.Marshal([][]byte{ownerProofA, ownerProofB, ownerProofC})
+		ownerProofs, err := cbor.Marshal([][]byte{ownerProofA, ownerProofB, ownerProofC})
 		require.NoError(t, err)
 
-		cfgCBOR, err := types.Cbor.Marshal([]any{3, pkhA, pkhB, pkhC})
+		cfgCBOR, err := cbor.Marshal([]any{3, pkhA, pkhB, pkhC})
 		require.NoError(t, err)
 		predConf := wasm.PredicateParams{Entrypoint: "multi_sig", Args: cfgCBOR}
 

@@ -3,6 +3,7 @@ package orchestration
 import (
 	"testing"
 
+	"github.com/alphabill-org/alphabill-go-base/cbor"
 	"github.com/alphabill-org/alphabill-go-base/crypto"
 	abhash "github.com/alphabill-org/alphabill-go-base/hash"
 	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
@@ -72,7 +73,7 @@ func TestAddVar_AddNewUnit_OK(t *testing.T) {
 	require.EqualValues(t, 0, unitData.EpochNumber)
 
 	// and tx processing result contains the validator assignment record from the tx
-	processingDetails, err := types.Cbor.Marshal(attr.Var)
+	processingDetails, err := cbor.Marshal(attr.Var)
 	require.NoError(t, err)
 	require.EqualValues(t, serverMetadata.ProcessingDetails, processingDetails)
 

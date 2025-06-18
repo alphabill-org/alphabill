@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alphabill-org/alphabill-go-base/cbor"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/util"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
@@ -1507,17 +1508,17 @@ func TestNode_HandleLedgerReplicationResponse_SumOfEarnedFeesMismatch(t *testing
 }
 
 func copyUC(t *testing.T, uc *types.UnicityCertificate) *types.UnicityCertificate {
-	bytes, err := types.Cbor.Marshal(uc)
+	bytes, err := cbor.Marshal(uc)
 	require.NoError(t, err)
 	newUC := &types.UnicityCertificate{Version: 1}
-	require.NoError(t, types.Cbor.Unmarshal(bytes, newUC))
+	require.NoError(t, cbor.Unmarshal(bytes, newUC))
 	return newUC
 }
 
 func copyBlock(t *testing.T, b *types.Block) *types.Block {
-	bytes, err := types.Cbor.Marshal(b)
+	bytes, err := cbor.Marshal(b)
 	require.NoError(t, err)
 	newBlock := &types.Block{}
-	require.NoError(t, types.Cbor.Unmarshal(bytes, newBlock))
+	require.NoError(t, cbor.Unmarshal(bytes, newBlock))
 	return newBlock
 }

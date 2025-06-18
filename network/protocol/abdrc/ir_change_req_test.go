@@ -3,6 +3,7 @@ package abdrc
 import (
 	"testing"
 
+	"github.com/alphabill-org/alphabill-go-base/cbor"
 	"github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
@@ -231,7 +232,7 @@ func TestIrChangeReqMsg_bytes(t *testing.T) {
 	}
 	msgCopy := *msg
 	msgCopy.Signature = nil
-	expected, err := types.Cbor.Marshal(msgCopy)
+	expected, err := cbor.Marshal(msgCopy)
 	require.NoError(t, err)
 	msgBytes, err := msg.bytes()
 	require.NoError(t, err)

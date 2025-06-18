@@ -5,6 +5,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/alphabill-org/alphabill-go-base/cbor"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	testsig "github.com/alphabill-org/alphabill/internal/testutils/sig"
 )
@@ -44,7 +45,7 @@ func Test_BlockCertificationRequest_IsValid(t *testing.T) {
 
 		bcr2 := *bcr
 		bcr2.Signature = nil
-		bs2, err := types.Cbor.Marshal(bcr2)
+		bs2, err := cbor.Marshal(bcr2)
 		require.NoError(t, err)
 		require.Equal(t, bs, bs2)
 	})

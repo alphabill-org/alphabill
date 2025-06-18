@@ -3,6 +3,7 @@ package transaction
 import (
 	"testing"
 
+	"github.com/alphabill-org/alphabill-go-base/cbor"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	test "github.com/alphabill-org/alphabill/internal/testutils"
 	"github.com/stretchr/testify/require"
@@ -68,7 +69,7 @@ func WithTransactionType(t uint16) Option {
 
 func WithAuthProof(authProof any) Option {
 	return func(tx *types.TransactionOrder) error {
-		authProofCBOR, err := types.Cbor.Marshal(authProof)
+		authProofCBOR, err := cbor.Marshal(authProof)
 		if err != nil {
 			return err
 		}
@@ -107,7 +108,7 @@ func WithStateLock(lock *types.StateLock) Option {
 
 func WithAttributes(attr any) Option {
 	return func(tx *types.TransactionOrder) error {
-		bytes, err := types.Cbor.Marshal(attr)
+		bytes, err := cbor.Marshal(attr)
 		if err != nil {
 			return err
 		}
@@ -116,7 +117,7 @@ func WithAttributes(attr any) Option {
 	}
 }
 
-func NewTransactionOrderBytes(t *testing.T, options ...Option) types.TaggedCBOR {
+func NewTransactionOrderBytes(t *testing.T, options ...Option) cbor.TaggedCBOR {
 	tx := NewTransactionOrder(t, options...)
 	txBytes, err := tx.MarshalCBOR()
 	require.NoError(t, err)
@@ -149,13 +150,13 @@ func NewTransactionRecord(t *testing.T, options ...Option) *types.TransactionRec
 	}
 }
 
-func TxoToBytes(t *testing.T, tx *types.TransactionOrder) types.TaggedCBOR {
+func TxoToBytes(t *testing.T, tx *types.TransactionOrder) cbor.TaggedCBOR {
 	txBytes, err := tx.MarshalCBOR()
 	require.NoError(t, err)
 	return txBytes
 }
 
-func TxoFromBytes(t *testing.T, txBytes types.TaggedCBOR) *types.TransactionOrder {
+func TxoFromBytes(t *testing.T, txBytes cbor.TaggedCBOR) *types.TransactionOrder {
 	tx := &types.TransactionOrder{Version: 1}
 	require.NoError(t, tx.UnmarshalCBOR(txBytes))
 	return tx

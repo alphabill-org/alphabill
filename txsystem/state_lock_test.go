@@ -3,6 +3,7 @@ package txsystem
 import (
 	"testing"
 
+	"github.com/alphabill-org/alphabill-go-base/cbor"
 	basetemplates "github.com/alphabill-org/alphabill-go-base/predicates/templates"
 	moneyid "github.com/alphabill-org/alphabill-go-base/testutils/money"
 	fcsdk "github.com/alphabill-org/alphabill-go-base/txsystem/fc"
@@ -268,7 +269,7 @@ func TestGenericTxSystem_handleUnlockUnitState(t *testing.T) {
 				RollbackPredicate:  basetemplates.NewP2pkh256BytesFromKey(pubKey1)},
 			),
 		)
-		txOnHoldBytes, err := types.Cbor.Marshal(txOnHold)
+		txOnHoldBytes, err := cbor.Marshal(txOnHold)
 		require.NoError(t, err)
 
 		// create mock tx system with unit(unitID, txOnHold) and dummy target units
@@ -359,7 +360,7 @@ func TestGenericTxSystem_handleUnlockUnitState(t *testing.T) {
 				RollbackPredicate:  basetemplates.NewP2pkh256BytesFromKey(pubKey1)},
 			),
 		)
-		txOnHoldBytes, err := types.Cbor.Marshal(txOnHold)
+		txOnHoldBytes, err := cbor.Marshal(txOnHold)
 		require.NoError(t, err)
 
 		// create mock tx system with unit(targetUnit1, txOnHold) and dummy target units
@@ -442,7 +443,7 @@ func TestGenericTxSystem_executeLockUnitState(t *testing.T) {
 			tt.WithAttributes(&money.TransferAttributes{}),
 			tt.WithStateLock(&types.StateLock{}),
 		)
-		txBytes, err := types.Cbor.Marshal(tx)
+		txBytes, err := cbor.Marshal(tx)
 		require.NoError(t, err)
 		execCtx := txtypes.NewExecutionContext(txSys, abfc.NewNoFeeCreditModule(), 10)
 		sm, err := txSys.executeLockUnitState(tx, txBytes, []types.UnitID{unitID}, execCtx)
@@ -460,7 +461,7 @@ func TestGenericTxSystem_executeLockUnitState(t *testing.T) {
 			tt.WithAttributes(&money.TransferAttributes{}),
 			tt.WithStateLock(&types.StateLock{ExecutionPredicate: []byte{1, 2, 3}}),
 		)
-		txBytes, err := types.Cbor.Marshal(tx)
+		txBytes, err := cbor.Marshal(tx)
 		require.NoError(t, err)
 		targetUnits := []types.UnitID{unitID}
 		execCtx := txtypes.NewExecutionContext(txSys, abfc.NewNoFeeCreditModule(), 10)
@@ -482,7 +483,7 @@ func TestGenericTxSystem_executeLockUnitState(t *testing.T) {
 				RollbackPredicate:  basetemplates.AlwaysTrueBytes(),
 			}),
 		)
-		txBytes, err := types.Cbor.Marshal(tx)
+		txBytes, err := cbor.Marshal(tx)
 		require.NoError(t, err)
 		targetUnits := []types.UnitID{unitID}
 		execCtx := txtypes.NewExecutionContext(txSys, abfc.NewNoFeeCreditModule(), 10)
@@ -521,7 +522,7 @@ func TestGenericTxSystem_executeLockUnitState(t *testing.T) {
 				RollbackPredicate:  basetemplates.AlwaysTrueBytes(),
 			}),
 		)
-		txBytes, err := types.Cbor.Marshal(tx)
+		txBytes, err := cbor.Marshal(tx)
 		require.NoError(t, err)
 		targetUnits := []types.UnitID{unitID}
 		idGen := money.PrndSh(tx)
@@ -568,7 +569,7 @@ func createLockTransaction(t *testing.T, id types.UnitID, pubkey []byte) []byte 
 		tt.WithStateLock(&types.StateLock{
 			ExecutionPredicate: basetemplates.NewP2pkh256BytesFromKey(pubkey)}),
 	)
-	txBytes, err := types.Cbor.Marshal(tx)
+	txBytes, err := cbor.Marshal(tx)
 	require.NoError(t, err)
 	return txBytes
 }

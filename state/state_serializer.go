@@ -4,6 +4,7 @@ import (
 	"crypto"
 	"fmt"
 
+	"github.com/alphabill-org/alphabill-go-base/cbor"
 	"github.com/alphabill-org/alphabill-go-base/tree/mt"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/tree/avl"
@@ -25,7 +26,7 @@ type (
 		_                  struct{} `cbor:",toarray"`
 		Version            types.ABVersion
 		UnitID             types.UnitID
-		UnitData           types.RawCBOR
+		UnitData           cbor.RawCBOR
 		UnitLedgerHeadHash []byte
 		UnitTreePath       []*mt.PathItem
 		HasLeft            bool
@@ -71,7 +72,7 @@ func (s *stateSerializer) WriteNode(n *avl.Node[types.UnitID, Unit]) error {
 	}
 
 	latestLog := unit.logs[logSize-1]
-	unitDataBytes, err := types.Cbor.Marshal(latestLog.NewUnitData)
+	unitDataBytes, err := cbor.Marshal(latestLog.NewUnitData)
 	if err != nil {
 		return fmt.Errorf("unable to encode unit data: %w", err)
 	}

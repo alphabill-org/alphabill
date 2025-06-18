@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/alphabill-org/alphabill-go-base/cbor"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill/internal/testutils/rust"
 )
@@ -63,7 +64,7 @@ func Test_TXSystemEncoder_trigger(t *testing.T) {
 	})
 
 	t.Run("types.RawCBOR", func(t *testing.T) {
-		buf, err := enc.Encode(types.RawCBOR{0, 1, 127, 128, 255}, 1, nil)
+		buf, err := enc.Encode(cbor.RawCBOR{0, 1, 127, 128, 255}, 1, nil)
 		require.NoError(t, err)
 		require.Equal(t, []byte{type_id_bytes, 0x5, 0x0, 0x0, 0x0, 0, 1, 127, 128, 255}, buf)
 	})

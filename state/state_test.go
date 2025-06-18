@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/alphabill-org/alphabill-go-base/cbor"
 	abhash "github.com/alphabill-org/alphabill-go-base/hash"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/util"
@@ -986,7 +987,7 @@ func unitDataConstructor(_ types.UnitID) (types.UnitData, error) {
 func createSerializedState(t *testing.T, s *State, h *Header, checksum uint32) *bytes.Buffer {
 	buf := &bytes.Buffer{}
 	crc32Writer := NewCRC32Writer(buf)
-	encoder, err := types.Cbor.GetEncoder(crc32Writer)
+	encoder, err := cbor.GetEncoder(crc32Writer)
 	if err != nil {
 		t.Fatal(err)
 	}

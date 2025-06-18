@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/alphabill-org/alphabill-go-base/cbor"
 	abhash "github.com/alphabill-org/alphabill-go-base/hash"
 	"github.com/alphabill-org/alphabill-go-base/types"
 )
@@ -145,12 +146,12 @@ func (x *BlockData) MarshalCBOR() ([]byte, error) {
 	if x.Version == 0 {
 		x.Version = x.GetVersion()
 	}
-	return types.Cbor.MarshalTaggedValue(types.RootPartitionBlockDataTag, (*alias)(x))
+	return cbor.MarshalTaggedValue(types.RootPartitionBlockDataTag, (*alias)(x))
 }
 
 func (x *BlockData) UnmarshalCBOR(data []byte) error {
 	type alias BlockData
-	if err := types.Cbor.UnmarshalTaggedValue(types.RootPartitionBlockDataTag, data, (*alias)(x)); err != nil {
+	if err := cbor.UnmarshalTaggedValue(types.RootPartitionBlockDataTag, data, (*alias)(x)); err != nil {
 		return err
 	}
 	return types.EnsureVersion(x, x.Version, 1)

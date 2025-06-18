@@ -11,6 +11,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/alphabill-org/alphabill-go-base/cbor"
 	abhash "github.com/alphabill-org/alphabill-go-base/hash"
 	"github.com/alphabill-org/alphabill-go-base/predicates/templates"
 	fcsdk "github.com/alphabill-org/alphabill-go-base/txsystem/fc"
@@ -396,7 +397,7 @@ func Test_GenericTxSystem_Execute_FeeTransactions(t *testing.T) {
 			}),
 			transaction.WithStateLock(&types.StateLock{}),
 		)
-		txOnHoldBytes, err := types.Cbor.Marshal(txOnHold)
+		txOnHoldBytes, err := cbor.Marshal(txOnHold)
 		require.NoError(t, err)
 
 		// create FCR unit with txOnHold
@@ -459,7 +460,7 @@ func Test_GenericTxSystem_Execute_FeeTransactions(t *testing.T) {
 		require.NoError(t, err)
 		unitV1, err := state.ToUnitV1(u)
 		require.NoError(t, err)
-		expectedTxBytes, err := types.Cbor.Marshal(tx)
+		expectedTxBytes, err := cbor.Marshal(tx)
 		require.NoError(t, err)
 		require.Equal(t, expectedTxBytes, unitV1.StateLockTx())
 
@@ -743,7 +744,7 @@ type MockSplitTxAttributes struct {
 
 func newMockLockTx(t *testing.T, option ...transaction.Option) []byte {
 	txo := transaction.NewTransactionOrder(t, option...)
-	txBytes, err := types.Cbor.Marshal(txo)
+	txBytes, err := cbor.Marshal(txo)
 	require.NoError(t, err)
 	return txBytes
 }

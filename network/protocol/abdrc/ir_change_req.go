@@ -3,6 +3,7 @@ package abdrc
 import (
 	"fmt"
 
+	"github.com/alphabill-org/alphabill-go-base/cbor"
 	"github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/types/hex"
@@ -68,5 +69,5 @@ func (x *IrChangeReqMsg) Verify(tb types.RootTrustBase) error {
 func (x *IrChangeReqMsg) bytes() ([]byte, error) {
 	xCopy := *x
 	xCopy.Signature = nil
-	return types.Cbor.Marshal(xCopy)
+	return cbor.Marshal(xCopy)
 }

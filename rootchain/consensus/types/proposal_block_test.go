@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"testing"
 
+	"github.com/alphabill-org/alphabill-go-base/cbor"
 	"github.com/alphabill-org/alphabill-go-base/types"
 	"github.com/alphabill-org/alphabill-go-base/types/hex"
 	"github.com/stretchr/testify/require"
@@ -29,7 +30,7 @@ func TestBlockDataHash(t *testing.T) {
 		},
 	}
 
-	serializedBlock, err := types.Cbor.Marshal(block)
+	serializedBlock, err := cbor.Marshal(block)
 	require.NoError(t, err)
 	expected := sha256.Sum256(serializedBlock)
 

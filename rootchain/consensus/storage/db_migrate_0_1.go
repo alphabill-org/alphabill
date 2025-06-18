@@ -9,7 +9,7 @@ import (
 
 	"go.etcd.io/bbolt"
 
-	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill-go-base/cbor"
 	rctypes "github.com/alphabill-org/alphabill/rootchain/consensus/types"
 )
 
@@ -60,7 +60,7 @@ func (db BoltDB) migrate_0_to_1() error {
 			switch keyStr := string(k); {
 			case strings.HasPrefix(keyStr, "block_"):
 				var b ExecutedBlock
-				if err := types.Cbor.Unmarshal(v, &b); err != nil {
+				if err := cbor.Unmarshal(v, &b); err != nil {
 					return fmt.Errorf("loading block %x: %w", k, err)
 				}
 				blocks = append(blocks, &b)
@@ -91,7 +91,7 @@ func (db BoltDB) migrate_0_to_1() error {
 			return fmt.Errorf("bucket %s doesn't exist", bucketBlocks)
 		}
 		for _, v := range blocks {
-			data, err := types.Cbor.Marshal(v)
+			data, err := cbor.Marshal(v)
 			if err != nil {
 				return fmt.Errorf("serializing block: %w", err)
 			}
@@ -126,7 +126,7 @@ func (db BoltDB) migrate_0_to_1() error {
 				return fmt.Errorf("bucket %s doesn't exist", bucketSafety)
 			}
 			var round uint64
-			if err := types.Cbor.Unmarshal(highQCR, &round); err != nil {
+			if err := cbor.Unmarshal(highQCR, &round); err != nil {
 				return fmt.Errorf("loading high QC round: %w", err)
 			}
 			if err = writeUint64(b, keyHighestQc, round); err != nil {
@@ -138,7 +138,7 @@ func (db BoltDB) migrate_0_to_1() error {
 				return fmt.Errorf("bucket %s doesn't exist", bucketSafety)
 			}
 			var round uint64
-			if err := types.Cbor.Unmarshal(highVR, &round); err != nil {
+			if err := cbor.Unmarshal(highVR, &round); err != nil {
 				return fmt.Errorf("loading high voted round: %w", err)
 			}
 			if err = writeUint64(b, keyHighestVoted, round); err != nil {

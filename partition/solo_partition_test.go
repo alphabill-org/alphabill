@@ -14,6 +14,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
 
+	"github.com/alphabill-org/alphabill-go-base/cbor"
 	"github.com/alphabill-org/alphabill-go-base/crypto"
 	"github.com/alphabill-org/alphabill-go-base/hash"
 	"github.com/alphabill-org/alphabill-go-base/types"
@@ -546,7 +547,7 @@ func technicalRecord(t *testing.T, ir *types.InputRecord, nodes []string) certif
 		fees[v] = 0
 	}
 	h := hash.New(gocrypto.SHA256.New())
-	h.WriteRaw(types.RawCBOR{0xA0}) // empty map
+	h.WriteRaw(cbor.RawCBOR{0xA0}) // empty map
 	h.Write(fees)
 
 	feeHash, err := h.Sum()

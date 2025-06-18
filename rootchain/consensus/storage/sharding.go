@@ -10,6 +10,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/alphabill-org/alphabill-go-base/cbor"
 	abcrypto "github.com/alphabill-org/alphabill-go-base/crypto"
 	abhash "github.com/alphabill-org/alphabill-go-base/hash"
 	"github.com/alphabill-org/alphabill-go-base/types"
@@ -221,7 +222,7 @@ func (ss ShardStates) MarshalCBOR() ([]byte, error) {
 		d.Data[idx] = si
 		idx++
 	}
-	buf, err := types.Cbor.Marshal(d)
+	buf, err := cbor.Marshal(d)
 	if err != nil {
 		return nil, fmt.Errorf("serializing shard states: %w", err)
 	}
@@ -230,7 +231,7 @@ func (ss ShardStates) MarshalCBOR() ([]byte, error) {
 
 func (ss *ShardStates) UnmarshalCBOR(data []byte) error {
 	var d ssItems
-	if err := types.Cbor.Unmarshal(data, &d); err != nil {
+	if err := cbor.Unmarshal(data, &d); err != nil {
 		return fmt.Errorf("decoding shard states: %w", err)
 	}
 	if d.Version != 1 {
@@ -258,12 +259,12 @@ func NewShardInfo(shardConf *types.PartitionDescriptionRecord, hashAlg crypto.Ha
 		T2Timeout:     shardConf.T2Timeout,
 		ShardConfHash: shardConfHash,
 		RootHash:      nil,
-		PrevEpochFees: types.RawCBOR{0xA0}, // CBOR map(0)
+		PrevEpochFees: cbor.RawCBOR{0xA0}, // CBOR map(0)
 		LastCR:        nil,
 		IR:            &types.InputRecord{Version: 1},
 	}
 
-	if si.PrevEpochStat, err = types.Cbor.Marshal(si.Stat); err != nil {
+	if si.PrevEpochStat, err = cbor.Marshal(si.Stat); err != nil {
 		return nil, fmt.Errorf("init previous epoch stat: %w", err)
 	}
 
@@ -298,7 +299,7 @@ func newShardTechnicalRecord(shardConf *types.PartitionDescriptionRecord, valida
 		fees[v] = 0
 	}
 	h := abhash.New(crypto.SHA256.New())
-	h.WriteRaw(types.RawCBOR{0xA0}) // empty map
+	h.WriteRaw(cbor.RawCBOR{0xA0}) // empty map
 	h.Write(fees)
 
 	var err error
@@ -319,7 +320,7 @@ type ShardInfo struct {
 
 	// statistical record of the previous epoch. As we only need
 	// it for hashing we keep it in serialized representation
-	PrevEpochStat types.RawCBOR
+	PrevEpochStat cbor.RawCBOR
 
 	// statistical record of the current epoch
 	Stat certification.StatisticalRecord
@@ -327,7 +328,7 @@ type ShardInfo struct {
 	// per validator total, invariant fees of the previous epoch
 	// but as with statistical record of the previous epoch we need it
 	// for hashing so we keep it in serialized representation
-	PrevEpochFees types.RawCBOR
+	PrevEpochFees cbor.RawCBOR
 
 	Fees map[string]uint64 // per validator summary fees of the current epoch
 
@@ -396,10 +397,10 @@ func (si *ShardInfo) nextEpoch(shardConf *types.PartitionDescriptionRecord, hash
 		TR:            si.TR,
 	}
 
-	if nextSI.PrevEpochFees, err = types.Cbor.Marshal(si.Fees); err != nil {
+	if nextSI.PrevEpochFees, err = cbor.Marshal(si.Fees); err != nil {
 		return nil, fmt.Errorf("encoding previous epoch fees: %w", err)
 	}
-	if nextSI.PrevEpochStat, err = types.Cbor.Marshal(si.Stat); err != nil {
+	if nextSI.PrevEpochStat, err = cbor.Marshal(si.Stat); err != nil {
 		return nil, fmt.Errorf("encoding previous epoch stat: %w", err)
 	}
 
@@ -557,7 +558,7 @@ func (ss ShardSet) MarshalCBOR() ([]byte, error) {
 		idx++
 	}
 	buf := bytes.Buffer{}
-	if err := types.Cbor.Encode(&buf, d); err != nil {
+	if err := cbor.Encode(&buf, d); err != nil {
 		return nil, fmt.Errorf("encoding shard set data: %w", err)
 	}
 	return buf.Bytes(), nil
@@ -565,7 +566,7 @@ func (ss ShardSet) MarshalCBOR() ([]byte, error) {
 
 func (ss *ShardSet) UnmarshalCBOR(data []byte) error {
 	var d []shardSetItem
-	if err := types.Cbor.Unmarshal(data, &d); err != nil {
+	if err := cbor.Unmarshal(data, &d); err != nil {
 		return fmt.Errorf("decoding shard set data: %w", err)
 	}
 	ssn := make(ShardSet, len(d))

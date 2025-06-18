@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/alphabill-org/alphabill-go-base/types"
+	"github.com/alphabill-org/alphabill-go-base/cbor"
 )
 
 func serializeMsg(msg any) ([]byte, error) {
-	data, err := types.Cbor.Marshal(msg)
+	data, err := cbor.Marshal(msg)
 	if err != nil {
 		return nil, fmt.Errorf("marshaling %T as CBOR: %w", msg, err)
 	}
@@ -32,7 +32,7 @@ func deserializeMsg(r io.Reader, msg any) error {
 	}
 
 	lengthInt64 := int64(length64) /* #nosec G115 its unlikely that value of length64 exceeds int64 max value */
-	if err := types.Cbor.Decode(io.LimitReader(src, lengthInt64), msg); err != nil {
+	if err := cbor.Decode(io.LimitReader(src, lengthInt64), msg); err != nil {
 		return fmt.Errorf("decoding message data: %w", err)
 	}
 
